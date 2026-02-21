@@ -34,4 +34,18 @@ struct WebEventTypesTests {
         #expect(key.shiftKey == true)
         #expect(key.ctrlKey == false)
     }
+
+    @Test("EventHandlerRegistry registers typed callback via wrapper")
+    func typedCallbackWrapper() {
+        EventHandlerRegistry.clear()
+        nonisolated(unsafe) var received: String? = nil
+        // Register a () -> Void that wraps typed logic
+        let id = EventHandlerRegistry.register {
+            received = "called"
+        }
+        let handler = EventHandlerRegistry.handler(for: id)
+        #expect(handler != nil)
+        handler?()
+        #expect(received == "called")
+    }
 }
