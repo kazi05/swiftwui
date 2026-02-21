@@ -12,6 +12,7 @@ public struct HTMLLink: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         rel: String,
@@ -37,6 +38,7 @@ public struct Script: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         src: String? = nil,
@@ -68,6 +70,7 @@ public struct HTMLStyle: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -91,6 +94,7 @@ public struct HTMLMeta: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         name: String? = nil,

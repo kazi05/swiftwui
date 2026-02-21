@@ -11,6 +11,7 @@ public struct Div: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         class className: String? = nil,

@@ -11,6 +11,7 @@ public struct Video: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         src: String? = nil,
@@ -43,6 +44,7 @@ public struct Audio: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         src: String? = nil,
@@ -76,6 +78,7 @@ public struct Source: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         src: String,

@@ -11,6 +11,7 @@ public struct Table: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -32,6 +33,7 @@ public struct Thead: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -53,6 +55,7 @@ public struct Tbody: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -74,6 +77,7 @@ public struct Tr: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -95,6 +99,7 @@ public struct Th: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -116,6 +121,7 @@ public struct Td: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }

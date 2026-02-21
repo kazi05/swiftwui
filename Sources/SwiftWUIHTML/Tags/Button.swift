@@ -11,6 +11,7 @@ public struct Button: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         type: ButtonType = .button,

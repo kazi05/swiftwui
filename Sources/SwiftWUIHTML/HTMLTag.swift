@@ -26,6 +26,9 @@ public protocol HTMLTag: Tag where Body == Never {
 
     /// Child tags wrapped in AnyTag.
     var children: [AnyTag] { get set }
+
+    /// Web API observers (resize, intersection, mutation, lifecycle) attached to this element.
+    var observers: [WebObserver] { get set }
 }
 
 // MARK: - TagNodeConvertible Conformance
@@ -52,7 +55,8 @@ extension HTMLTag {
             styles: styles,
             classes: classes,
             eventListeners: listenerIDs,
-            children: childNodes
+            children: childNodes,
+            observers: observers
         )
 
         return [.element(element)]

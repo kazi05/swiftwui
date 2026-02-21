@@ -11,6 +11,7 @@ public struct Header: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -32,6 +33,7 @@ public struct Footer: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -53,6 +55,7 @@ public struct Nav: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -74,6 +77,7 @@ public struct Main: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -95,6 +99,7 @@ public struct Section: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -116,6 +121,7 @@ public struct Article: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
@@ -137,6 +143,7 @@ public struct Aside: HTMLTag, TagNodeConvertible {
     public var styles: [String: String]
     public var classes: [String]
     public var children: [AnyTag]
+    public var observers: [WebObserver] = []
 
     public init(
         @TagBuilder content: () -> some Tag = { EmptyTag() }
