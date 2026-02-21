@@ -17,6 +17,8 @@ public enum TagNode: Equatable, Sendable {
         public var children: [TagNode]
         /// Responsive CSS styles. Key = CSS media query string, Value = style declarations.
         public var responsiveStyles: [String: [String: String]]
+        /// Web API observers (resize, intersection, mutation, lifecycle) attached to this element.
+        public var observers: [WebObserver]
 
         public init(
             tagName: String,
@@ -25,7 +27,8 @@ public enum TagNode: Equatable, Sendable {
             classes: [String] = [],
             eventListeners: [String: EventListenerID] = [:],
             children: [TagNode] = [],
-            responsiveStyles: [String: [String: String]] = [:]
+            responsiveStyles: [String: [String: String]] = [:],
+            observers: [WebObserver] = []
         ) {
             self.tagName = tagName
             self.attributes = attributes
@@ -34,6 +37,7 @@ public enum TagNode: Equatable, Sendable {
             self.eventListeners = eventListeners
             self.children = children
             self.responsiveStyles = responsiveStyles
+            self.observers = observers
         }
     }
 }

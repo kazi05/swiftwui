@@ -35,4 +35,21 @@ struct WebObserverTests {
     func lifecycleEventCases() {
         #expect(LifecycleEvent.mount != LifecycleEvent.unmount)
     }
+
+    @Test("TagNode.Element stores observers")
+    func tagNodeElementStoresObservers() {
+        let obs = WebObserver.resize(callbackID: EventListenerID("cb"))
+        let element = TagNode.Element(
+            tagName: "div",
+            observers: [obs]
+        )
+        #expect(element.observers.count == 1)
+        #expect(element.observers[0] == obs)
+    }
+
+    @Test("TagNode.Element observers default empty")
+    func tagNodeElementObserversDefault() {
+        let element = TagNode.Element(tagName: "div")
+        #expect(element.observers.isEmpty)
+    }
 }
