@@ -3,7 +3,7 @@
 import SwiftWUICore
 
 /// Type-safe CSS measurement units.
-public enum CSSUnit: Sendable {
+public enum CSSUnit: Sendable, Hashable, Equatable {
     case px(Double)
     case em(Double)
     case rem(Double)
