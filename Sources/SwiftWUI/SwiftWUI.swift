@@ -7,3 +7,4 @@
 @_exported import SwiftWUIPage
 @_exported import SwiftWUIRouter
 @_exported import SwiftWUIRuntime
+@_exported import SwiftWUIBrowser

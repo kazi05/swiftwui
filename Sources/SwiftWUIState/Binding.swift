@@ -11,6 +11,7 @@
 /// @State var name = ""
 /// // $name is a Binding<String>
 /// ```
+@dynamicMemberLookup
 @propertyWrapper
 public struct Binding<Value> {
     private let getter: () -> Value
@@ -45,5 +46,30 @@ extension Binding {
     /// Useful for previews and testing where you don't need actual mutation.
     public static func constant(_ value: Value) -> Binding<Value> {
         Binding(get: { value }, set: { _ in })
+    }
+}
+
+// MARK: - Dynamic Member Lookup for Observable Models
+
+extension Binding where Value: AnyObject {
+    /// Accesses a property of the bound object via key path, returning a `Binding` to that property.
+    ///
+    /// This enables `$model.propertyName` syntax for `@Observable` class models.
+    ///
+    /// ```swift
+    /// @Observable class FormModel {
+    ///     var name = ""
+    ///     var age = 0
+    /// }
+    ///
+    /// @State var model = FormModel()
+    /// // $model.name is Binding<String>
+    /// // $model.age is Binding<Int>
+    /// ```
+    public subscript<T>(dynamicMember keyPath: ReferenceWritableKeyPath<Value, T>) -> Binding<T> {
+        Binding<T>(
+            get: { self.wrappedValue[keyPath: keyPath] },
+            set: { self.wrappedValue[keyPath: keyPath] = $0 }
+        )
     }
 }

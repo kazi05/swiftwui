@@ -5,6 +5,7 @@ import JavaScriptKit
 #endif
 
 import SwiftWUICore
+import SwiftWUIStyles
 
 /// Renders virtual DOM trees (TagNode) into real browser DOM elements.
 /// Handles initial rendering and subsequent updates via reconciliation.
@@ -42,13 +43,14 @@ public final class DOMRenderer {
     }
 
     /// Update the DOM with a new tag tree (re-render).
-    public func update(_ rootTag: some Tag) {
+    /// - Parameter animation: Optional animation to apply CSS transitions during style updates.
+    public func update(_ rootTag: some Tag, animation: Animation? = nil) {
         EventHandlerRegistry.clear()
         let newTree = TagNode.fragment(resolveTagBody(rootTag))
 
         if let patch = reconciler.diff(old: currentTree, new: newTree),
            let root = rootDOMNode {
-            applyPatch(patch, to: root)
+            applyPatch(patch, to: root, animation: animation)
         }
 
         currentTree = newTree
@@ -109,7 +111,7 @@ public final class DOMRenderer {
 
     // MARK: - Patch Application
 
-    private func applyPatch(_ patch: Patch, to element: JSObject) {
+    private func applyPatch(_ patch: Patch, to element: JSObject, animation: Animation? = nil) {
         switch patch {
         case .createNode(let node):
             if let domNode = createDOMNode(node) {
@@ -139,6 +141,14 @@ public final class DOMRenderer {
             }
 
         case .updateStyles(let add, let remove):
+            // If animation is active, set CSS transition before applying style changes
+            if let animation {
+                let changedProperties = Array(add.keys) + remove
+                if !changedProperties.isEmpty {
+                    let transitionValue = animation.cssTransitionValue(for: changedProperties)
+                    bridge.setStyle(element, property: "transition", value: transitionValue)
+                }
+            }
             for property in remove {
                 bridge.removeStyle(element, property: property)
             }
@@ -168,9 +178,9 @@ public final class DOMRenderer {
             for childPatch in childPatches {
                 if childPatch.index == -1 {
                     // Apply to self
-                    applyPatch(childPatch.patch, to: element)
+                    applyPatch(childPatch.patch, to: element, animation: animation)
                 } else if let childElement = bridge.childNode(element, at: childPatch.index) {
-                    applyPatch(childPatch.patch, to: childElement)
+                    applyPatch(childPatch.patch, to: childElement, animation: animation)
                 } else if case .createNode(let node) = childPatch.patch {
                     if let domNode = createDOMNode(node) {
                         bridge.appendChild(element, child: domNode)
@@ -184,6 +194,6 @@ public final class DOMRenderer {
     // Non-WASM stub
     public init() {}
     public func render(_ rootTag: some Tag) {}
-    public func update(_ rootTag: some Tag) {}
+    public func update(_ rootTag: some Tag, animation: Animation? = nil) {}
     #endif
 }

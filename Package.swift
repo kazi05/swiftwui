@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "SwiftWUIPage", targets: ["SwiftWUIPage"]),
         .library(name: "SwiftWUIRouter", targets: ["SwiftWUIRouter"]),
         .library(name: "SwiftWUIRuntime", targets: ["SwiftWUIRuntime"]),
+        .library(name: "SwiftWUIBrowser", targets: ["SwiftWUIBrowser"]),
     ],
     dependencies: [
         .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.22.0"),
@@ -29,6 +30,7 @@ let package = Package(
                 "SwiftWUIPage",
                 "SwiftWUIRouter",
                 "SwiftWUIRuntime",
+                "SwiftWUIBrowser",
             ]
         ),
 
@@ -79,6 +81,23 @@ let package = Package(
             ]
         ),
 
+        // Browser - Browser API utilities (LocalStorage, Geolocation, etc.)
+        .target(
+            name: "SwiftWUIBrowser",
+            dependencies: [
+                "SwiftWUICore",
+                "SwiftWUIState",
+                .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+            ]
+        ),
+
+        // CLI - Project scaffolding tool
+        .executableTarget(
+            name: "swiftwui-init",
+            dependencies: [],
+            path: "Sources/SwiftWUIInit"
+        ),
+
         // Tests
         .testTarget(
             name: "SwiftWUICoreTests",
@@ -91,6 +110,14 @@ let package = Package(
         .testTarget(
             name: "SwiftWUIStylesTests",
             dependencies: ["SwiftWUIStyles"]
+        ),
+        .testTarget(
+            name: "SwiftWUIStateTests",
+            dependencies: ["SwiftWUIState"]
+        ),
+        .testTarget(
+            name: "SwiftWUIBrowserTests",
+            dependencies: ["SwiftWUIBrowser", "SwiftWUIState"]
         ),
     ]
 )

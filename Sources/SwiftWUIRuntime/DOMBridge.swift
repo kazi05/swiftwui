@@ -206,6 +206,72 @@ public final class DOMBridge {
         document.title = .string(title)
     }
 
+    // MARK: - Web Animations API
+
+    /// Animate an element using the Web Animations API (element.animate()).
+    /// - Parameters:
+    ///   - element: The DOM element to animate.
+    ///   - keyframes: Array of keyframe dictionaries (e.g., [["opacity": "0"], ["opacity": "1"]]).
+    ///   - duration: Animation duration in milliseconds.
+    ///   - easing: CSS easing function string (e.g., "ease-in-out").
+    ///   - fill: Fill mode ("none", "forwards", "backwards", "both").
+    /// - Returns: The Animation object (JSObject) or nil.
+    @discardableResult
+    public func animate(
+        _ element: JSObject,
+        keyframes: [[String: String]],
+        duration: Double,
+        easing: String = "ease",
+        fill: String = "none"
+    ) -> JSObject? {
+        // Convert Swift keyframe dicts to JS array of objects
+        let jsKeyframes = keyframes.map { frame -> JSObject in
+            let obj = JSObject.global.Object.function!.new()
+            for (key, value) in frame {
+                obj[key] = .string(value)
+            }
+            return obj
+        }
+
+        let jsArray = JSObject.global.Array.function!.new()
+        for (i, kf) in jsKeyframes.enumerated() {
+            jsArray[i] = .object(kf)
+        }
+
+        let options = JSObject.global.Object.function!.new()
+        options["duration"] = .number(duration)
+        options["easing"] = .string(easing)
+        options["fill"] = .string(fill)
+
+        return element.animate?(jsArray, options).object
+    }
+
+    /// Request animation frame (browser requestAnimationFrame wrapper).
+    /// - Parameter callback: The callback to invoke on the next frame.
+    public func requestAnimationFrame(_ callback: @escaping () -> Void) {
+        let closure = JSOneshotClosure { _ in
+            callback()
+            return .undefined
+        }
+        _ = JSObject.global.requestAnimationFrame!(closure)
+    }
+
+    // MARK: - Window
+
+    /// Get a value from `window` by key.
+    public func windowProperty(_ key: String) -> JSValue {
+        JSObject.global[key]
+    }
+
+    /// Call `window.setTimeout`.
+    public func setTimeout(_ callback: @escaping () -> Void, milliseconds: Int) {
+        let closure = JSOneshotClosure { _ in
+            callback()
+            return .undefined
+        }
+        _ = JSObject.global.setTimeout!(closure, milliseconds)
+    }
+
     #else
     // Non-WASM stub for compilation on macOS (testing)
     public init() {}

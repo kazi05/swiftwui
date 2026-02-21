@@ -9,6 +9,7 @@ import SwiftWUICore
 import SwiftWUIRouter
 import SwiftWUIPage
 import SwiftWUIState
+import SwiftWUIStyles
 
 /// The main entry point for a SwiftWUI application.
 ///
@@ -54,6 +55,11 @@ public struct Application {
 
         nonisolated(unsafe) var renderCycle: (() -> Void)!
         renderCycle = { [router] in
+            // Capture and clear animation context (set by withAnimation).
+            // Must be captured before the render so we know which animation to apply.
+            let animation = AnimationContext.current
+            AnimationContext.current = nil
+
             withObservationTracking {
                 let path = router.currentPath
 
@@ -70,7 +76,7 @@ public struct Application {
                     renderer.render(tag)
                     state.isFirstRender = false
                 } else {
-                    renderer.update(tag)
+                    renderer.update(tag, animation: animation)
                 }
             } onChange: {
                 guard !state.renderScheduled else { return }

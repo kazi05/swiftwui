@@ -296,6 +296,28 @@ extension Tag {
     public func animation(_ value: String) -> ModifiedContent<Self> {
         ModifiedContent(content: self, styles: [("animation", value)])
     }
+
+    /// Apply a type-safe CSS transition for all properties.
+    ///
+    /// ```swift
+    /// Div { content }
+    ///     .animation(.easeInOut(duration: 0.3))
+    ///     .opacity(isVisible ? 1 : 0)
+    /// ```
+    public func animation(_ animation: Animation) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, styles: [("transition", animation.cssTransitionAll)])
+    }
+
+    /// Apply a type-safe enter/exit transition.
+    ///
+    /// ```swift
+    /// if isVisible {
+    ///     Div { content }.transition(.opacity)
+    /// }
+    /// ```
+    public func transition(_ transition: TagTransition) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, styles: [("transition", transition.animation.cssTransitionAll)])
+    }
 }
 
 // MARK: - Grid
@@ -405,5 +427,11 @@ extension ModifiedContent {
     }
     public func textDecoration(_ value: TextDecoration) -> ModifiedContent<Content> {
         var copy = self; copy.styles.append(("text-decoration", value.rawValue)); return copy
+    }
+    public func animation(_ anim: Animation) -> ModifiedContent<Content> {
+        var copy = self; copy.styles.append(("transition", anim.cssTransitionAll)); return copy
+    }
+    public func transition(_ trans: TagTransition) -> ModifiedContent<Content> {
+        var copy = self; copy.styles.append(("transition", trans.animation.cssTransitionAll)); return copy
     }
 }
