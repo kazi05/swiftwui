@@ -109,7 +109,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftWUIStylesTests",
-            dependencies: ["SwiftWUIStyles"]
+            dependencies: ["SwiftWUIStyles", "SwiftWUIHTML"]
         ),
         .testTarget(
             name: "SwiftWUIStateTests",

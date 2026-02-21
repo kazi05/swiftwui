@@ -95,6 +95,15 @@ extension ModifiedContent: TagNodeConvertible {
                 element.attributes[name] = value
             }
 
+            // Merge responsive styles
+            for (queryKey, rStyles) in responsiveStyles {
+                var existing = element.responsiveStyles[queryKey, default: [:]]
+                for (property, value) in rStyles {
+                    existing[property] = value
+                }
+                element.responsiveStyles[queryKey] = existing
+            }
+
             return .element(element)
         }
     }

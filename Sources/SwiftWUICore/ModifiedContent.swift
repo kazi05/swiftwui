@@ -16,17 +16,22 @@ public struct ModifiedContent<Content: Tag>: Tag {
     public var styles: [(String, String)]
     public var classes: [String]
     public var attributes: [(String, String)]
+    /// Responsive styles keyed by CSS media query string.
+    /// Each entry is (cssQueryString, [(property, value)]).
+    public var responsiveStyles: [(String, [(String, String)])]
 
     public init(
         content: Content,
         styles: [(String, String)] = [],
         classes: [String] = [],
-        attributes: [(String, String)] = []
+        attributes: [(String, String)] = [],
+        responsiveStyles: [(String, [(String, String)])] = []
     ) {
         self.content = content
         self.styles = styles
         self.classes = classes
         self.attributes = attributes
+        self.responsiveStyles = responsiveStyles
     }
 }
 

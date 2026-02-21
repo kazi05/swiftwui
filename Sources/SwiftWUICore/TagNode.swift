@@ -15,6 +15,8 @@ public enum TagNode: Equatable, Sendable {
         public var classes: [String]
         public var eventListeners: [String: EventListenerID]
         public var children: [TagNode]
+        /// Responsive CSS styles. Key = CSS media query string, Value = style declarations.
+        public var responsiveStyles: [String: [String: String]]
 
         public init(
             tagName: String,
@@ -22,7 +24,8 @@ public enum TagNode: Equatable, Sendable {
             styles: [String: String] = [:],
             classes: [String] = [],
             eventListeners: [String: EventListenerID] = [:],
-            children: [TagNode] = []
+            children: [TagNode] = [],
+            responsiveStyles: [String: [String: String]] = [:]
         ) {
             self.tagName = tagName
             self.attributes = attributes
@@ -30,6 +33,7 @@ public enum TagNode: Equatable, Sendable {
             self.classes = classes
             self.eventListeners = eventListeners
             self.children = children
+            self.responsiveStyles = responsiveStyles
         }
     }
 }
