@@ -20,11 +20,13 @@ public final class DOMRenderer {
     /// The root DOM node created during render(). Patches are applied to this
     /// node (not the container) because the virtual tree corresponds 1:1 with it.
     private var rootDOMNode: JSObject?
+    private let styleSheetManager: StyleSheetManager
 
     public init(container: JSObject) {
         self.bridge = DOMBridge()
         self.reconciler = Reconciler()
         self.container = container
+        self.styleSheetManager = StyleSheetManager(bridge: bridge)
     }
 
     // MARK: - Public API
@@ -86,6 +88,12 @@ public final class DOMRenderer {
                 if let handler = EventHandlerRegistry.handler(for: listenerID) {
                     bridge.setTrackedEventListener(domElement, event: event, handler: handler)
                 }
+            }
+
+            // Apply responsive styles as CSS classes
+            for (cssQuery, rStyles) in element.responsiveStyles {
+                let className = styleSheetManager.ensureClass(mediaQuery: cssQuery, styles: rStyles)
+                bridge.addClass(domElement, className: className)
             }
 
             // Create and append children

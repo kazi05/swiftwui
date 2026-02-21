@@ -272,6 +272,26 @@ public final class DOMBridge {
         _ = JSObject.global.setTimeout!(closure, milliseconds)
     }
 
+    // MARK: - Style Sheet Management
+
+    /// Get or create a `<style>` element with the given ID in `<head>`.
+    public func getOrCreateStyleElement(id: String) -> JSObject {
+        if let existing = document.getElementById!(id).object {
+            return existing
+        }
+        let style = document.createElement!("style").object!
+        _ = style.setAttribute!("id", id)
+        let head = document.head.object ?? document.getElementsByTagName!("head").object![0].object!
+        _ = head.appendChild!(style)
+        return style
+    }
+
+    /// Append a CSS rule text to a `<style>` element.
+    public func appendCSSRule(_ styleElement: JSObject, rule: String) {
+        let current = styleElement.textContent.string ?? ""
+        styleElement.textContent = .string(current + "\n" + rule)
+    }
+
     #else
     // Non-WASM stub for compilation on macOS (testing)
     public init() {}
