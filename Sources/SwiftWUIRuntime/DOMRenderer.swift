@@ -50,6 +50,10 @@ public final class DOMRenderer {
         EventHandlerRegistry.clear()
         let newTree = TagNode.fragment(resolveTagBody(rootTag))
 
+        // Pre-register all responsive CSS rules before reconciliation
+        // so that .updateClasses patches can rely on rules existing
+        preRegisterResponsiveStyles(newTree)
+
         if let patch = reconciler.diff(old: currentTree, new: newTree),
            let root = rootDOMNode {
             applyPatch(patch, to: root, animation: animation)
@@ -195,6 +199,30 @@ public final class DOMRenderer {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Responsive Style Pre-registration
+
+    /// Walks the TagNode tree and pre-registers all responsive CSS rules
+    /// with the StyleSheetManager. This ensures that when the Reconciler
+    /// produces `.updateClasses` patches, the corresponding `@media` CSS
+    /// rules already exist in the `<style>` element.
+    private func preRegisterResponsiveStyles(_ node: TagNode) {
+        switch node {
+        case .element(let el):
+            for (cssQuery, rStyles) in el.responsiveStyles {
+                _ = styleSheetManager.ensureClass(mediaQuery: cssQuery, styles: rStyles)
+            }
+            for child in el.children {
+                preRegisterResponsiveStyles(child)
+            }
+        case .fragment(let children):
+            for child in children {
+                preRegisterResponsiveStyles(child)
+            }
+        case .text:
+            break
         }
     }
 

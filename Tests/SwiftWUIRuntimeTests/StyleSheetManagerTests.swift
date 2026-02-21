@@ -31,6 +31,14 @@ struct StyleSheetManagerTests {
         #expect(rule.contains("swui-r"))
     }
 
+    @Test("ensureClass deduplicates — second call returns same class without re-registration")
+    func deduplication() {
+        let manager = StyleSheetManager()
+        let first = manager.ensureClass(mediaQuery: "@media (max-width: 767px)", styles: ["font-size": "16px"])
+        let second = manager.ensureClass(mediaQuery: "@media (max-width: 767px)", styles: ["font-size": "16px"])
+        #expect(first == second)
+    }
+
     @Test("cssRuleText sorts declarations alphabetically")
     func sortedDeclarations() {
         let manager = StyleSheetManager()

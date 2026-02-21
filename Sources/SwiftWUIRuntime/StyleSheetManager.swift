@@ -54,11 +54,7 @@ public final class StyleSheetManager {
 
         registeredRules.insert(className)
 
-        let declarations = styles
-            .sorted(by: { $0.key < $1.key })
-            .map { "  \($0.key): \($0.value) !important;" }
-            .joined(separator: "\n")
-        let rule = "\(mediaQuery) {\n  .\(className) {\n\(declarations)\n  }\n}"
+        let rule = cssRuleText(mediaQuery: mediaQuery, styles: styles)
 
         #if canImport(JavaScriptKit)
         if let bridge {
