@@ -171,6 +171,131 @@ public final class DOMBridge {
         }
     }
 
+    // MARK: - Typed Event Listeners
+
+    /// Add an event listener that receives the raw JSValue event object.
+    public func addEventListenerWithEvent(
+        _ element: JSObject,
+        event: String,
+        handler: @escaping (JSValue) -> Void
+    ) -> String {
+        let id = "\(event)-\(UUID().uuidString)"
+        let closure = JSClosure { args in
+            let jsEvent = args.count > 0 ? args[0] : .undefined
+            handler(jsEvent)
+            return .undefined
+        }
+        closures[id] = closure
+        _ = element.addEventListener!(event, closure)
+        return id
+    }
+
+    /// Set a tracked event listener that receives the raw JS event object.
+    public func setTrackedEventListenerWithEvent(
+        _ element: JSObject,
+        event: String,
+        handler: @escaping (JSValue) -> Void
+    ) {
+        let dataKey = "__swev_\(event)"
+        if let oldId = element[dataKey].string {
+            removeEventListener(element, event: event, id: oldId)
+        }
+        let id = addEventListenerWithEvent(element, event: event, handler: handler)
+        element[dataKey] = .string(id)
+    }
+
+    // MARK: - Web Observers
+
+    /// Create an IntersectionObserver for the given element.
+    public func createIntersectionObserver(
+        _ element: JSObject,
+        threshold: Double,
+        callback: @escaping (Bool, Double) -> Void
+    ) -> JSObject {
+        let jsClosure = JSClosure { args in
+            guard let entries = args.first?.object else { return .undefined }
+            let length = entries["length"].number.map(Int.init) ?? 0
+            for i in 0..<length {
+                if let entry = entries[i].object {
+                    let isIntersecting = entry["isIntersecting"].boolean ?? false
+                    let ratio = entry["intersectionRatio"].number ?? 0
+                    callback(isIntersecting, ratio)
+                }
+            }
+            return .undefined
+        }
+        let options = JSObject.global.Object.function!.new()
+        options["threshold"] = .number(threshold < 0 ? 0 : threshold)
+        let observer = JSObject.global.IntersectionObserver.function!.new(jsClosure, options)
+        closures["io-\(UUID().uuidString)"] = jsClosure
+        _ = observer.observe!(element)
+        return observer
+    }
+
+    /// Create a ResizeObserver for the given element.
+    public func createResizeObserver(
+        _ element: JSObject,
+        callback: @escaping (Double, Double) -> Void
+    ) -> JSObject {
+        let jsClosure = JSClosure { args in
+            guard let entries = args.first?.object else { return .undefined }
+            let length = entries["length"].number.map(Int.init) ?? 0
+            for i in 0..<length {
+                if let entry = entries[i].object,
+                   let contentRect = entry["contentRect"].object {
+                    let width = contentRect["width"].number ?? 0
+                    let height = contentRect["height"].number ?? 0
+                    callback(width, height)
+                }
+            }
+            return .undefined
+        }
+        let observer = JSObject.global.ResizeObserver.function!.new(jsClosure)
+        closures["ro-\(UUID().uuidString)"] = jsClosure
+        _ = observer.observe!(element)
+        return observer
+    }
+
+    /// Create a MutationObserver for the given element.
+    public func createMutationObserver(
+        _ element: JSObject,
+        childList: Bool,
+        attributes: Bool,
+        subtree: Bool,
+        callback: @escaping () -> Void
+    ) -> JSObject {
+        let jsClosure = JSClosure { _ in
+            callback()
+            return .undefined
+        }
+        let observer = JSObject.global.MutationObserver.function!.new(jsClosure)
+        let config = JSObject.global.Object.function!.new()
+        config["childList"] = .boolean(childList)
+        config["attributes"] = .boolean(attributes)
+        config["subtree"] = .boolean(subtree)
+        closures["mo-\(UUID().uuidString)"] = jsClosure
+        _ = observer.observe!(element, config)
+        return observer
+    }
+
+    /// Disconnect a JS observer (IntersectionObserver, ResizeObserver, MutationObserver).
+    public func disconnectObserver(_ observer: JSObject) {
+        _ = observer.disconnect?()
+    }
+
+    /// Get the bounding client rect of a DOM element.
+    public func getBoundingClientRect(_ element: JSObject) -> (x: Double, y: Double, width: Double, height: Double) {
+        guard let rect = element.getBoundingClientRect?().object else {
+            return (0, 0, 0, 0)
+        }
+        return (
+            x: rect["x"].number ?? 0,
+            y: rect["y"].number ?? 0,
+            width: rect["width"].number ?? 0,
+            height: rect["height"].number ?? 0
+        )
+    }
+
     // MARK: - History API
 
     /// Push a new state to the browser history.

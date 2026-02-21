@@ -22,6 +22,13 @@ public final class DOMRenderer {
     private var rootDOMNode: JSObject?
     private let styleSheetManager: StyleSheetManager
 
+    /// Active JS observers (IntersectionObserver, ResizeObserver, MutationObserver)
+    /// keyed by the ObjectIdentifier of the DOM element.
+    private var activeObservers: [ObjectIdentifier: [JSObject]] = [:]
+
+    /// Unmount callback IDs keyed by the ObjectIdentifier of the DOM element.
+    private var unmountCallbacks: [ObjectIdentifier: [EventListenerID]] = [:]
+
     public init(container: JSObject) {
         self.bridge = DOMBridge()
         self.reconciler = Reconciler()
@@ -87,17 +94,20 @@ public final class DOMRenderer {
                 bridge.setStyle(domElement, property: property, value: value)
             }
 
-            // Set event listeners from the global registry (tracked for proper cleanup)
+            // Set event listeners from the global registry (tracked, with typed event data)
             for (event, listenerID) in element.eventListeners {
-                if let handler = EventHandlerRegistry.handler(for: listenerID) {
-                    bridge.setTrackedEventListener(domElement, event: event, handler: handler)
-                }
+                attachEventListener(domElement, event: event, listenerID: listenerID)
             }
 
             // Apply responsive styles as CSS classes
             for (cssQuery, rStyles) in element.responsiveStyles {
                 let className = styleSheetManager.ensureClass(mediaQuery: cssQuery, styles: rStyles)
                 bridge.addClass(domElement, className: className)
+            }
+
+            // Attach web observers
+            if !element.observers.isEmpty {
+                createObservers(for: domElement, observers: element.observers)
             }
 
             // Create and append children
@@ -131,11 +141,13 @@ public final class DOMRenderer {
             }
 
         case .removeNode:
+            cleanupObservers(for: element, fireUnmount: true)
             if let parent = element.parentNode.object {
                 bridge.removeChild(parent, child: element)
             }
 
         case .replaceNode(let newNode):
+            cleanupObservers(for: element, fireUnmount: true)
             if let newDOM = createDOMNode(newNode),
                let parent = element.parentNode.object {
                 bridge.replaceChild(parent, newChild: newDOM, oldChild: element)
@@ -181,9 +193,13 @@ public final class DOMRenderer {
                 bridge.removeTrackedEventListener(element, event: event)
             }
             for (event, listenerID) in add {
-                if let handler = EventHandlerRegistry.handler(for: listenerID) {
-                    bridge.setTrackedEventListener(element, event: event, handler: handler)
-                }
+                attachEventListener(element, event: event, listenerID: listenerID)
+            }
+
+        case .updateObservers(let newObservers):
+            cleanupObservers(for: element, fireUnmount: false)
+            if !newObservers.isEmpty {
+                createObservers(for: element, observers: newObservers)
             }
 
         case .patchChildren(let childPatches):
@@ -199,6 +215,162 @@ public final class DOMRenderer {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Typed Event Handling
+
+    /// Attach a typed event listener that extracts data from the JS event object.
+    /// Events like "input", "scroll", "keydown", "keyup", "paste", "submit" receive
+    /// special handling to populate the corresponding EventContext before calling the handler.
+    private func attachEventListener(_ element: JSObject, event: String, listenerID: EventListenerID) {
+        guard let handler = EventHandlerRegistry.handler(for: listenerID) else { return }
+
+        switch event {
+        case "input":
+            bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                let value = jsEvent.object?["target"].object?["value"].string ?? ""
+                InputEventContext.currentValue = value
+                handler()
+                InputEventContext.currentValue = nil
+            }
+        case "scroll":
+            bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                let target = jsEvent.object?["target"].object
+                let scrollLeft = target?["scrollLeft"].number ?? 0
+                let scrollTop = target?["scrollTop"].number ?? 0
+                ScrollEventContext.currentOffset = ScrollOffset(x: scrollLeft, y: scrollTop)
+                handler()
+                ScrollEventContext.currentOffset = nil
+            }
+        case "keydown", "keyup":
+            bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                let obj = jsEvent.object
+                let key = obj?["key"].string ?? ""
+                let code = obj?["code"].string ?? ""
+                let ctrlKey = obj?["ctrlKey"].boolean ?? false
+                let shiftKey = obj?["shiftKey"].boolean ?? false
+                let altKey = obj?["altKey"].boolean ?? false
+                let metaKey = obj?["metaKey"].boolean ?? false
+                KeyEventContext.currentKey = KeyInfo(
+                    key: key, code: code,
+                    ctrlKey: ctrlKey, shiftKey: shiftKey,
+                    altKey: altKey, metaKey: metaKey
+                )
+                handler()
+                KeyEventContext.currentKey = nil
+            }
+        case "paste":
+            bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                let text = jsEvent.object?["clipboardData"].object?["getData"].function?("text/plain").string ?? ""
+                PasteEventContext.currentText = text
+                handler()
+                PasteEventContext.currentText = nil
+            }
+        case "submit":
+            bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                _ = jsEvent.object?["preventDefault"]?()
+                handler()
+            }
+        default:
+            bridge.setTrackedEventListener(element, event: event, handler: handler)
+        }
+    }
+
+    // MARK: - Observer Management
+
+    /// Create JS observers for the given element based on the WebObserver descriptors.
+    private func createObservers(for element: JSObject, observers: [WebObserver]) {
+        let elementID = ObjectIdentifier(element)
+        var jsObservers: [JSObject] = []
+
+        for observer in observers {
+            switch observer {
+            case .intersection(let threshold, let callbackID):
+                guard let handler = EventHandlerRegistry.handler(for: callbackID) else { continue }
+                // threshold == -1 means onDisappear (fires when isIntersecting becomes false)
+                let isDisappear = threshold < 0
+                let actualThreshold = isDisappear ? 0.0 : threshold
+                let jsObserver = bridge.createIntersectionObserver(element, threshold: actualThreshold) { isIntersecting, ratio in
+                    if isDisappear {
+                        if !isIntersecting { handler() }
+                    } else {
+                        IntersectionContext.currentRatio = ratio
+                        handler()
+                        IntersectionContext.currentRatio = nil
+                    }
+                }
+                jsObservers.append(jsObserver)
+
+            case .resize(let callbackID):
+                guard let handler = EventHandlerRegistry.handler(for: callbackID) else { continue }
+                let jsObserver = bridge.createResizeObserver(element) { [weak self] width, height in
+                    // Set both size and rect contexts — the handler uses whichever it needs
+                    ResizeEventContext.currentSize = ElementSize(width: width, height: height)
+                    if let self = self {
+                        let rect = self.bridge.getBoundingClientRect(element)
+                        FrameChangeContext.currentRect = ElementRect(
+                            x: rect.x, y: rect.y, width: rect.width, height: rect.height
+                        )
+                    }
+                    handler()
+                    ResizeEventContext.currentSize = nil
+                    FrameChangeContext.currentRect = nil
+                }
+                jsObservers.append(jsObserver)
+
+            case .mutation(let options, let callbackID):
+                guard let handler = EventHandlerRegistry.handler(for: callbackID) else { continue }
+                let jsObserver = bridge.createMutationObserver(
+                    element,
+                    childList: options.childList,
+                    attributes: options.attributes,
+                    subtree: options.subtree,
+                    callback: handler
+                )
+                jsObservers.append(jsObserver)
+
+            case .lifecycle(let event, let callbackID):
+                switch event {
+                case .mount:
+                    // Fire mount callback immediately (element just created / observers just attached)
+                    if let handler = EventHandlerRegistry.handler(for: callbackID) {
+                        handler()
+                    }
+                case .unmount:
+                    // Store for later — will fire when element is removed
+                    var callbacks = unmountCallbacks[elementID] ?? []
+                    callbacks.append(callbackID)
+                    unmountCallbacks[elementID] = callbacks
+                }
+            }
+        }
+
+        if !jsObservers.isEmpty {
+            activeObservers[elementID] = jsObservers
+        }
+    }
+
+    /// Disconnect all observers for the given element and optionally fire unmount callbacks.
+    private func cleanupObservers(for element: JSObject, fireUnmount: Bool) {
+        let elementID = ObjectIdentifier(element)
+
+        // Disconnect JS observers
+        if let observers = activeObservers.removeValue(forKey: elementID) {
+            for observer in observers {
+                bridge.disconnectObserver(observer)
+            }
+        }
+
+        // Fire unmount callbacks if requested
+        if fireUnmount, let callbacks = unmountCallbacks.removeValue(forKey: elementID) {
+            for callbackID in callbacks {
+                if let handler = EventHandlerRegistry.handler(for: callbackID) {
+                    handler()
+                }
+            }
+        } else {
+            unmountCallbacks.removeValue(forKey: elementID)
         }
     }
 

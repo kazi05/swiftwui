@@ -12,6 +12,7 @@ public enum Patch: Sendable {
     case updateStyles(add: [String: String], remove: [String])
     case updateClasses(add: [String], remove: [String])
     case updateEventListeners(add: [String: EventListenerID], remove: [String])
+    case updateObservers(new: [WebObserver])
     case patchChildren([ChildPatch])
 }
 
@@ -105,6 +106,11 @@ public struct Reconciler: Sendable {
         let eventPatch = diffEvents(old: old.eventListeners, new: new.eventListeners)
         if !eventPatch.add.isEmpty || !eventPatch.remove.isEmpty {
             patches.append(.updateEventListeners(add: eventPatch.add, remove: eventPatch.remove))
+        }
+
+        // Diff observers
+        if old.observers != new.observers {
+            patches.append(.updateObservers(new: new.observers))
         }
 
         // Diff children
