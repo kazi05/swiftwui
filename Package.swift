@@ -17,6 +17,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.22.0"),
+        .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
     ],
     targets: [
         // Umbrella module
@@ -96,6 +97,15 @@ let package = Package(
             name: "swiftwui-init",
             dependencies: [],
             path: "Sources/SwiftWUIInit"
+        ),
+
+        // Dev Server
+        .executableTarget(
+            name: "swiftwui-dev",
+            dependencies: [
+                .product(name: "Vapor", package: "vapor"),
+            ],
+            path: "Sources/SwiftWUIDevServer"
         ),
 
         // Tests
