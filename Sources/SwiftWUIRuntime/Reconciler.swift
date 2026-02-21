@@ -90,11 +90,13 @@ public struct Reconciler: Sendable {
             patches.append(.updateStyles(add: stylePatch.add, remove: stylePatch.remove))
         }
 
-        // Diff classes
-        let oldClasses = Set(old.classes)
-        let newClasses = Set(new.classes)
-        let addClasses = Array(newClasses.subtracting(oldClasses))
-        let removeClasses = Array(oldClasses.subtracting(newClasses))
+        // Diff classes (including generated responsive style classes)
+        let oldResponsiveClasses = responsiveClassNames(for: old.responsiveStyles)
+        let newResponsiveClasses = responsiveClassNames(for: new.responsiveStyles)
+        let oldAllClasses = Set(old.classes).union(oldResponsiveClasses)
+        let newAllClasses = Set(new.classes).union(newResponsiveClasses)
+        let addClasses = Array(newAllClasses.subtracting(oldAllClasses))
+        let removeClasses = Array(oldAllClasses.subtracting(newAllClasses))
         if !addClasses.isEmpty || !removeClasses.isEmpty {
             patches.append(.updateClasses(add: addClasses, remove: removeClasses))
         }

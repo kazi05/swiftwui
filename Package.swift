@@ -119,5 +119,9 @@ let package = Package(
             name: "SwiftWUIBrowserTests",
             dependencies: ["SwiftWUIBrowser", "SwiftWUIState"]
         ),
+        .testTarget(
+            name: "SwiftWUIRuntimeTests",
+            dependencies: ["SwiftWUIRuntime", "SwiftWUICore"]
+        ),
     ]
 )
