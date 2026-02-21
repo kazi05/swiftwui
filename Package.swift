@@ -113,7 +113,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftWUIStateTests",
-            dependencies: ["SwiftWUIState"]
+            dependencies: ["SwiftWUIState", "SwiftWUICore"]
         ),
         .testTarget(
             name: "SwiftWUIBrowserTests",

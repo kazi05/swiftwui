@@ -53,6 +53,18 @@ struct ReconcilerObserverTests {
         #expect(patch != nil)
     }
 
+    @Test("Changed swiftwui-id forces element replacement")
+    func idChangeForceReplacement() {
+        let old = TagNode.element(.init(tagName: "div", attributes: ["data-swiftwui-id": "1"]))
+        let new = TagNode.element(.init(tagName: "div", attributes: ["data-swiftwui-id": "2"]))
+        let patch = reconciler.diff(old: old, new: new)
+        if case .replaceNode = patch {
+            // Expected
+        } else {
+            Issue.record("Expected replaceNode patch when id changes")
+        }
+    }
+
     @Test("Lifecycle observers produce patch when added")
     func addLifecycleObservers() {
         let old = TagNode.element(.init(tagName: "div"))

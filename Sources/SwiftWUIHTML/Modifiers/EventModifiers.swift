@@ -185,3 +185,27 @@ extension HTMLTag {
         return copy
     }
 }
+
+// MARK: - Mutation Observer
+
+extension HTMLTag {
+    /// Observe DOM mutations on this element.
+    public func onMutation(_ options: MutationOptions, action: @escaping @Sendable () -> Void) -> Self {
+        var copy = self
+        let id = EventHandlerRegistry.register(action)
+        copy.observers.append(.mutation(options: options, callbackID: id))
+        return copy
+    }
+}
+
+// MARK: - Identity
+
+extension HTMLTag {
+    /// Assign a stable identity to this element.
+    /// When the ID changes, the element is fully recreated (not patched).
+    public func id<ID: CustomStringConvertible>(_ id: ID) -> Self {
+        var copy = self
+        copy.attributes["data-swiftwui-id"] = id.description
+        return copy
+    }
+}

@@ -272,6 +272,38 @@ struct EventModifiersTests {
         }
     }
 
+    // MARK: - Mutation Observer
+
+    @Test("onMutation adds mutation observer")
+    func onMutationAddsObserver() {
+        EventHandlerRegistry.clear()
+        let div = Div {}
+            .onMutation(.init(childList: true)) { }
+        let nodes = resolveTagBody(div)
+        guard case .element(let el) = nodes.first else {
+            Issue.record("Expected element"); return
+        }
+        #expect(el.observers.count == 1)
+        if case .mutation(let opts, _) = el.observers.first {
+            #expect(opts.childList == true)
+        } else {
+            Issue.record("Expected mutation observer")
+        }
+    }
+
+    // MARK: - Identity
+
+    @Test("id sets data-swiftwui-id attribute")
+    func idSetsAttribute() {
+        let div = Div {}
+            .id(42)
+        let nodes = resolveTagBody(div)
+        guard case .element(let el) = nodes.first else {
+            Issue.record("Expected element"); return
+        }
+        #expect(el.attributes["data-swiftwui-id"] == "42")
+    }
+
     @Test("Multiple observers can be chained")
     func multipleObserversChained() {
         EventHandlerRegistry.clear()

@@ -77,6 +77,13 @@ public struct Reconciler: Sendable {
     }
 
     private func diffElements(old: TagNode.Element, new: TagNode.Element) -> Patch? {
+        // Check for identity change — force full replacement
+        let oldId = old.attributes["data-swiftwui-id"]
+        let newId = new.attributes["data-swiftwui-id"]
+        if oldId != newId && (oldId != nil || newId != nil) {
+            return .replaceNode(with: .element(new))
+        }
+
         var patches: [Patch] = []
 
         // Diff attributes
