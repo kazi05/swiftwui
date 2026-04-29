@@ -37,7 +37,8 @@ help:
 	@echo "  clean         Remove .build, $(OUT), node_modules"
 	@echo "  showcase-build  Native build of the Examples/Showcase project"
 	@echo "  sync-templates  Sync Examples/Showcase to SwiftWUICLI Templates/ resource bundle"
-	@echo "  ci              build + test + showcase-build (full CI)"
+	@echo "  showcase-test   Run the Examples/Showcase test suite (28 tests)"
+	@echo "  ci              build + test + showcase-build + showcase-test (full CI)"
 	@echo "Variables: SDK=$(SDK)  TARGET=$(TARGET)  OUT=$(OUT)  PORT=$(PORT)"
 
 .PHONY: dev
@@ -124,8 +125,12 @@ clean:
 showcase-build:
 	cd Examples/Showcase && swift build
 
+.PHONY: showcase-test
+showcase-test:
+	cd Examples/Showcase && swift test 2>&1 | tail -5
+
 .PHONY: ci
-ci: build test showcase-build
+ci: build test showcase-build showcase-test
 	@echo "CI green."
 
 .PHONY: sync-templates
