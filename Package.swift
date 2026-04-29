@@ -112,7 +112,10 @@ let package = Package(
                 .product(name: "Vapor", package: "vapor"),
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
-            path: "Sources/SwiftWUICLI"
+            path: "Sources/SwiftWUICLI",
+            resources: [
+                .copy("Templates"),
+            ]
         ),
 
         // Tests
