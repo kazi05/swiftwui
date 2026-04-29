@@ -189,6 +189,8 @@ struct Doctor: ParsableCommand {
             allOK = false
         }
 
+        checkShowcaseTemplateSync(&allOK)
+
         if !allOK {
             print("\nSome dependencies are missing. Install hints above.")
             throw ExitCode.failure
@@ -211,6 +213,48 @@ struct Doctor: ParsableCommand {
         } catch {
             print("✗ \(name) (not found on PATH)")
             done(false)
+        }
+    }
+
+    private func checkShowcaseTemplateSync(_ allOK: inout Bool) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = [
+            "-c",
+            // Compare Examples/Showcase to the synced template, ignoring
+            // directories that the sync target excludes and the placeholder
+            // substitutions that sync introduces. A non-zero exit from `diff`
+            // indicates drift.
+            """
+            diff -qr \\
+                --exclude='.build' \\
+                --exclude='Tests' \\
+                --exclude='node_modules' \\
+                --exclude='.swiftpm' \\
+                --exclude='Package.resolved' \\
+                --exclude='dist' \\
+                Examples/Showcase Sources/SwiftWUICLI/Templates/showcase 2>/dev/null \\
+                | grep -v '{{PROJECT_NAME}}' \\
+                | grep -v '{{project_name}}' \\
+                | head -1
+            """
+        ]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = (try? stdout.fileHandleForReading.readToEnd()) ?? Data()
+            let output = String(data: data ?? Data(), encoding: .utf8) ?? ""
+            if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                print("✓ Showcase template in sync with Examples/Showcase")
+            } else {
+                // Non-fatal warning: hard CI checks live in Phase 6.
+                print("⚠︎ Showcase template differs from Examples/Showcase — run `make sync-templates`")
+            }
+        } catch {
+            print("⚠︎ Could not verify showcase template sync (diff unavailable)")
         }
     }
 }
