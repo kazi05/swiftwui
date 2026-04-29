@@ -55,7 +55,7 @@ extension Theme {
 /// ```css
 /// :root { --background: #fff; … }
 /// @media (prefers-color-scheme: dark) {
-///     :root { --background: #0a0a0a; … }
+///     :root:not([data-theme="light"]) { --background: #0a0a0a; … }
 /// }
 /// [data-theme="light"] { --background: #fff; … }
 /// [data-theme="dark"] { --background: #0a0a0a; … }
@@ -64,6 +64,12 @@ extension Theme {
 /// The first two blocks make the system-preference path "just work";
 /// the explicit `[data-theme=…]` selectors let an app force a theme via
 /// JavaScript / `@AppStorage` regardless of the OS setting.
+///
+/// Specificity note: the dark media-query uses `:root:not([data-theme="light"])`
+/// (specificity 0-1-1) rather than plain `:root` (0-0-1), so a user-pinned
+/// `data-theme="light"` attribute wins by specificity rather than relying on
+/// source order. The `[data-theme="light"]` explicit rule (specificity 0-1-0)
+/// would otherwise be beaten by system dark-mode when both apply.
 public enum ThemeCSS {
     /// Render the full CSS for a paired light/dark theme.
     public static func definitions(light: any Theme, dark: any Theme) -> String {
@@ -71,7 +77,7 @@ public enum ThemeCSS {
         let darkDecls = dark.cssDeclarations
         return [
             ":root { \(lightDecls) }",
-            "@media (prefers-color-scheme: dark) { :root { \(darkDecls) } }",
+            "@media (prefers-color-scheme: dark) { :root:not([data-theme=\"light\"]) { \(darkDecls) } }",
             "[data-theme=\"light\"] { \(lightDecls) }",
             "[data-theme=\"dark\"] { \(darkDecls) }",
         ].joined(separator: "\n")
