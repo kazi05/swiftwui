@@ -1,15 +1,15 @@
-/// File content templates for generated SwiftWUI projects.
-///
-/// Each static method returns the full text content of a project file,
-/// parameterized by the project name where applicable. Templates are based
-/// on the working Counter example in the SwiftWUI repository.
+/// Inline file templates for the legacy minimal Counter-style scaffold,
+/// produced when the user runs `swiftwui init <name> --minimal`. The
+/// default showcase scaffold ships from `Templates/showcase/` as a
+/// build-time resource of the SwiftWUICLI executable target — see
+/// `FileGenerator.scaffoldShowcase`.
 enum Templates {
 
-    /// Generates a `Package.swift` manifest for the new project.
+    /// Generates a `Package.swift` manifest for the minimal project.
     ///
     /// - Parameter name: The project/target name.
     /// - Returns: The full content of `Package.swift`.
-    static func packageSwift(name: String) -> String {
+    static func minimalPackageSwift(name: String) -> String {
         """
         // swift-tools-version: 6.0
 
@@ -42,7 +42,7 @@ enum Templates {
     ///
     /// - Parameter name: The project name, used as the page title.
     /// - Returns: The full content of `Sources/main.swift`.
-    static func mainSwift(name: String) -> String {
+    static func minimalMainSwift(name: String) -> String {
         """
         import SwiftWUI
 
@@ -92,7 +92,7 @@ enum Templates {
     ///
     /// - Parameter name: The project name, used as the page `<title>`.
     /// - Returns: The full content of `index.html`.
-    static func indexHTML(name: String) -> String {
+    static func minimalIndexHTML(name: String) -> String {
         let lowercasedName = name.lowercased()
         return """
         <!DOCTYPE html>
@@ -122,7 +122,7 @@ enum Templates {
     /// into a custom JS toolchain, but is no longer scaffolded by default.
     ///
     /// - Returns: The full content of `.gitignore`.
-    static func gitignore() -> String {
+    static func minimalGitignore() -> String {
         """
         .build/
         .swiftpm/
@@ -139,8 +139,8 @@ enum Templates {
     }
 
     /// Returns a short README explaining how to develop and ship a project
-    /// scaffolded by `swiftwui init`.
-    static func readmeMD(name: String) -> String {
+    /// scaffolded by `swiftwui init --minimal`.
+    static func minimalReadmeMD(name: String) -> String {
         """
         # \(name)
 
