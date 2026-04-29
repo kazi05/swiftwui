@@ -256,7 +256,6 @@ struct Doctor: ParsableCommand {
             """
             diff -qr \\
                 --exclude='.build' \\
-                --exclude='Tests' \\
                 --exclude='node_modules' \\
                 --exclude='.swiftpm' \\
                 --exclude='Package.resolved' \\

@@ -133,7 +133,7 @@ sync-templates:
 	rm -rf Sources/SwiftWUICLI/Templates/showcase
 	mkdir -p Sources/SwiftWUICLI/Templates
 	rsync -a --exclude='.build' --exclude='node_modules' \
-	      --exclude='Tests' --exclude='.swiftpm' --exclude='dist' \
+	      --exclude='.swiftpm' --exclude='dist' \
 	      --exclude='Package.resolved' \
 	      Examples/Showcase/ Sources/SwiftWUICLI/Templates/showcase/
 	rm -rf Sources/SwiftWUICLI/Templates/showcase/.build
