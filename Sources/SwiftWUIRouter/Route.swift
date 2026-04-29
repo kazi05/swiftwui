@@ -2,11 +2,29 @@
 
 import SwiftWUICore
 
+/// Outcome of evaluating a route guard. `.allow` lets the route match
+/// normally; `.redirect(_:)` short-circuits the match and signals that
+/// the router should navigate to a different path instead. Apps
+/// typically use `.redirect` for auth gating ("send unauthenticated
+/// users to /login") or feature flags.
+public enum RouteGuardResult: Sendable {
+    case allow
+    case redirect(String)
+}
+
+/// Sync predicate run before a route can match. Async loaders are a
+/// separate concern (see Phase 4 backlog) and would compose with the
+/// future `RouteLoader` protocol.
+public typealias RouteGuard = @Sendable () -> RouteGuardResult
+
 /// Defines a route mapping a URL path pattern to a page/tag.
 ///
 /// ```swift
 /// Route("/") { HomePage() }
 /// Route("/users/:id") { params in UserPage(id: params["id"]!) }
+/// Route("/admin", guard: { auth.isAdmin ? .allow : .redirect("/login") }) {
+///     AdminPanel()
+/// }
 /// ```
 public struct Route: Sendable {
     /// The URL path pattern. Supports `:param` placeholders.
@@ -16,15 +34,30 @@ public struct Route: Sendable {
     /// The tag builder for this route.
     public let builder: @Sendable ([String: String]) -> AnyTag
 
+    /// Optional guard run before matching. Returning `.redirect(path)`
+    /// causes `Router.matchedRoute` to skip this route AND triggers a
+    /// navigation to the redirect path on the next dispatch.
+    public let guardClosure: RouteGuard?
+
     /// Route with no parameters.
-    public init(_ path: String, @TagBuilder content: @Sendable @escaping () -> some Tag) {
+    public init(
+        _ path: String,
+        guard guardClosure: RouteGuard? = nil,
+        @TagBuilder content: @Sendable @escaping () -> some Tag
+    ) {
         self.path = path
+        self.guardClosure = guardClosure
         self.builder = { _ in AnyTag(content()) }
     }
 
     /// Route with URL parameters.
-    public init(_ path: String, content: @Sendable @escaping ([String: String]) -> AnyTag) {
+    public init(
+        _ path: String,
+        guard guardClosure: RouteGuard? = nil,
+        content: @Sendable @escaping ([String: String]) -> AnyTag
+    ) {
         self.path = path
+        self.guardClosure = guardClosure
         self.builder = content
     }
 }

@@ -67,12 +67,46 @@ public final class Router: @unchecked Sendable {
 
     // MARK: - Route Matching
 
-    /// Find the matching route for a given path.
+    /// Find the matching route for a given path. Routes whose `guard`
+    /// returns `.redirect(_:)` are NOT considered matches by this method
+    /// — the redirect intent is captured separately via
+    /// `pendingRedirect(for:)` so the caller can dispatch it. Apps that
+    /// want the unfiltered "would have matched if guards passed" route
+    /// can call `rawMatchedRoute(for:)`.
     public func matchedRoute(for path: String) -> Route? {
+        for route in routes {
+            guard route.match(path) != nil else { continue }
+            if let g = route.guardClosure {
+                if case .allow = g() { return route }
+                continue
+            }
+            return route
+        }
+        return nil
+    }
+
+    /// Pre-guard match (the route's path pattern matched the URL,
+    /// regardless of what the guard returned). Used internally by
+    /// `pendingRedirect(for:)` to find which route's guard wants to
+    /// redirect.
+    public func rawMatchedRoute(for path: String) -> Route? {
         routes.first { $0.match(path) != nil }
     }
 
-    /// Get the matched tag for a given path.
+    /// If the route matching `path` has a guard that returned
+    /// `.redirect(target)`, return `target`. Returns `nil` when no route
+    /// matches, the matching route has no guard, or the guard allowed
+    /// the match.
+    public func pendingRedirect(for path: String) -> String? {
+        guard let route = rawMatchedRoute(for: path),
+              let g = route.guardClosure else { return nil }
+        if case .redirect(let target) = g() { return target }
+        return nil
+    }
+
+    /// Get the matched tag for a given path. Returns nil if the
+    /// matching route's guard returned `.redirect` — callers should
+    /// inspect `pendingRedirect(for:)` and dispatch the redirect.
     public func matchedTag(for path: String) -> AnyTag? {
         guard let route = matchedRoute(for: path) else { return nil }
         let params = route.match(path) ?? [:]
