@@ -13,7 +13,7 @@
 /// ```
 @dynamicMemberLookup
 @propertyWrapper
-public struct Binding<Value> {
+public struct Binding<Value>: @unchecked Sendable {
     private let getter: () -> Value
     private let setter: (Value) -> Void
 

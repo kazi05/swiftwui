@@ -40,10 +40,13 @@ let package = Package(
         // Core - Tag protocol, TagBuilder, base types
         .target(name: "SwiftWUICore"),
 
-        // HTML - All HTML tags
+        // HTML - All HTML tags. Depends on SwiftWUIState so overlay
+        // modifiers (.sheet / .alert / .popover) can take a `Binding<Bool>`
+        // for their isPresented gate without forcing every consumer to
+        // unwrap Bindings manually.
         .target(
             name: "SwiftWUIHTML",
-            dependencies: ["SwiftWUICore"]
+            dependencies: ["SwiftWUICore", "SwiftWUIState"]
         ),
 
         // Styles - CSS modifiers and values
