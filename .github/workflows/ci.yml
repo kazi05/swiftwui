@@ -54,6 +54,20 @@ jobs:
       - name: Build all library targets
         run: swift build
 
+      - name: Run showcase tests
+        run: cd Examples/Showcase && swift test
+
+      - name: Verify showcase template is in sync
+        run: |
+          make sync-templates
+          if [ -n "$(git status --porcelain Sources/SwiftWUICLI/Templates/showcase)" ]; then
+            echo "::error::Showcase template is out of sync with Examples/Showcase. Run 'make sync-templates' locally and commit the result."
+            git status --short Sources/SwiftWUICLI/Templates/showcase
+            git --no-pager diff Sources/SwiftWUICLI/Templates/showcase | head -200
+            exit 1
+          fi
+          echo "Showcase template is in sync."
+
   wasm-build:
     name: WASM release build · size budget
     runs-on: ubuntu-24.04
