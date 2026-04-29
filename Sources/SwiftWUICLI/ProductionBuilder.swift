@@ -45,13 +45,21 @@ class ProductionBuilder {
         let html = HTMLTemplate(target: options.target).productionHTML()
         try? html.write(toFile: outputDir + "/index.html", atomically: true, encoding: .utf8)
 
-        // Optimize WASM
+        // Optimize WASM. The size pass is the bulk of the win — `-Oz` plus
+        // strip-debug/strip-producers/converge typically takes a 60+MB debug
+        // artefact down to ~1MB. The aggressive variant also pre-compresses
+        // and emits SRI hashes so production servers can ship the static
+        // bytes with `Cache-Control: immutable` and a CSP-safe `integrity=`
+        // attribute on the bootstrap script tag.
         switch options.optimize {
         case .size:
-            optimizeWASM(flags: ["-Oz", "--strip-debug"])
-        case .aggressive:
-            optimizeWASM(flags: ["-O3", "--strip-debug"])
+            optimizeWASM(flags: ["-Oz", "--strip-debug", "--strip-producers", "--converge"])
             compressFiles()
+            emitSRI()
+        case .aggressive:
+            optimizeWASM(flags: ["-O3", "--strip-debug", "--strip-producers", "--converge"])
+            compressFiles()
+            emitSRI()
         case .default:
             break
         }
@@ -85,6 +93,9 @@ class ProductionBuilder {
         }
     }
 
+    /// Emit gzip and brotli pre-compressed copies of every `.wasm` / `.js`
+    /// asset. Cloudflare/Netlify/Nginx all pick the matching `.br` or `.gz`
+    /// when the client advertises support — no per-request CPU spent.
     private func compressFiles() {
         let fm = FileManager.default
         let outputDir = options.output
@@ -92,13 +103,65 @@ class ProductionBuilder {
 
         for file in files where file.hasSuffix(".wasm") || file.hasSuffix(".js") {
             let path = outputDir + "/" + file
-            let gzipProcess = Process()
-            gzipProcess.executableURL = URL(fileURLWithPath: "/usr/bin/gzip")
-            gzipProcess.arguments = ["-k", "-9", path]
-            try? gzipProcess.run()
-            gzipProcess.waitUntilExit()
+            // gzip -9 -k path  → path.gz
+            runOptional(executable: "gzip", arguments: ["-k", "-9", path])
+            // brotli -q 11 -k path  → path.br
+            runOptional(executable: "brotli", arguments: ["-q", "11", "-k", path])
         }
-        print("[SwiftWUI] Pre-compressed .gz files created")
+        print("[SwiftWUI] Pre-compressed .gz and .br files created")
+    }
+
+    /// Compute SHA-384 hashes for every `.wasm` / `.js` asset, encode in
+    /// base64, and write a sidecar `<file>.sri` that the deployment step can
+    /// inline into the production HTML's `integrity="sha384-…"` attributes.
+    /// SHA-384 is the SRI default; SHA-256 also acceptable but 384 is what
+    /// the W3C recommendation suggests for new code.
+    private func emitSRI() {
+        let fm = FileManager.default
+        let outputDir = options.output
+        guard let files = try? fm.contentsOfDirectory(atPath: outputDir) else { return }
+
+        for file in files where file.hasSuffix(".wasm") || file.hasSuffix(".js") {
+            let path = outputDir + "/" + file
+            // openssl dgst -sha384 -binary path | openssl base64 -A
+            let hash = Process()
+            hash.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            hash.arguments = ["sh", "-c",
+                "openssl dgst -sha384 -binary '\(path)' | openssl base64 -A"]
+            let pipe = Pipe()
+            hash.standardOutput = pipe
+            do {
+                try hash.run()
+                hash.waitUntilExit()
+                guard hash.terminationStatus == 0 else { continue }
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                guard let b64 = String(data: data, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !b64.isEmpty else { continue }
+                let line = "sha384-\(b64)\n"
+                try line.write(toFile: path + ".sri", atomically: true, encoding: .utf8)
+            } catch {
+                continue
+            }
+        }
+        print("[SwiftWUI] SHA-384 SRI files emitted")
+    }
+
+    /// Run a process if it is on PATH, swallow failures otherwise. Used for
+    /// optional release-time tools (`gzip`, `brotli`, `openssl`) that may be
+    /// absent on bare CI runners.
+    private func runOptional(executable: String, arguments: [String]) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [executable] + arguments
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            // optional tool, skip silently
+        }
     }
 
     private func printSummary(duration: TimeInterval) {

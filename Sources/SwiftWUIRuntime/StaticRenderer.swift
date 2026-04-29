@@ -1,6 +1,5 @@
 // StaticRenderer.swift - Static HTML generation (SSG)
 
-import Foundation
 import SwiftWUICore
 import SwiftWUIPage
 
@@ -89,12 +88,27 @@ public struct StaticRenderer {
         }
     }
 
+    /// Escape HTML special characters in a single pass over the source.
+    ///
+    /// Five chained `String.replacingOccurrences` calls each scan the entire
+    /// string and allocate a new `String`, so the original implementation was
+    /// O(5N) with five intermediate allocations. This single-pass walk is O(N)
+    /// with one allocation, drops the Foundation dependency on WASM, and is
+    /// hot-path code for SSR / SSG output where every text node and every
+    /// attribute value flows through it.
     private func escapeHTML(_ string: String) -> String {
-        string
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&#39;")
+        var result = ""
+        result.reserveCapacity(string.utf8.count)
+        for scalar in string.unicodeScalars {
+            switch scalar {
+            case "&": result += "&amp;"
+            case "<": result += "&lt;"
+            case ">": result += "&gt;"
+            case "\"": result += "&quot;"
+            case "'": result += "&#39;"
+            default: result.unicodeScalars.append(scalar)
+            }
+        }
+        return result
     }
 }

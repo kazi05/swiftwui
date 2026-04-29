@@ -21,13 +21,32 @@ class WASMBuilder {
         let start = Date()
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [
+
+        // Release builds get the full size-and-speed pass: whole-module
+        // optimisation (-wmo), size-tuned optimisation (-Osize), no debug
+        // info (-gnone), no reflection metadata (saves 5–15% binary size for
+        // pure-Swift code that does not introspect at runtime), and a
+        // post-link strip of all symbols. Debug builds keep DWARF intact so
+        // Chrome's C/C++ DevTools extension can step through Swift sources.
+        var args: [String] = [
             "swift", "package",
             "--swift-sdk", sdk,
+        ]
+        if configuration == "release" {
+            args += [
+                "-Xswiftc", "-Osize",
+                "-Xswiftc", "-wmo",
+                "-Xswiftc", "-gnone",
+                "-Xswiftc", "-disable-reflection-metadata",
+                "-Xlinker", "--strip-all",
+            ]
+        }
+        args += [
             "js",
             "-c", configuration,
-            "--product", target
+            "--product", target,
         ]
+        process.arguments = args
         process.currentDirectoryURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 
         let pipe = Pipe()

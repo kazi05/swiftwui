@@ -14,10 +14,12 @@ let package = Package(
         .library(name: "SwiftWUIRouter", targets: ["SwiftWUIRouter"]),
         .library(name: "SwiftWUIRuntime", targets: ["SwiftWUIRuntime"]),
         .library(name: "SwiftWUIBrowser", targets: ["SwiftWUIBrowser"]),
+        .executable(name: "swiftwui", targets: ["SwiftWUICLI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.22.0"),
         .package(url: "https://github.com/vapor/vapor.git", from: "4.0.0"),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
     ],
     targets: [
         // Umbrella module
@@ -92,20 +94,22 @@ let package = Package(
             ]
         ),
 
-        // CLI - Project scaffolding tool
+        // Unified CLI: scaffolding + dev server + production build under
+        // a single `swiftwui` binary using swift-argument-parser. Replaces
+        // the legacy `swiftwui-init` and `swiftwui-dev` executables.
+        //
+        // Target name is CamelCase (`SwiftWUICLI`) so the build directory
+        // does not collide with the umbrella library `SwiftWUI` on
+        // case-insensitive filesystems. The product name `swiftwui` is what
+        // users actually invoke; SwiftPM lets binary name and target name
+        // diverge via the products array.
         .executableTarget(
-            name: "swiftwui-init",
-            dependencies: [],
-            path: "Sources/SwiftWUIInit"
-        ),
-
-        // Dev Server
-        .executableTarget(
-            name: "swiftwui-dev",
+            name: "SwiftWUICLI",
             dependencies: [
                 .product(name: "Vapor", package: "vapor"),
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
-            path: "Sources/SwiftWUIDevServer"
+            path: "Sources/SwiftWUICLI"
         ),
 
         // Tests

@@ -1,17 +1,50 @@
 import Vapor
 import Foundation
+import Crypto
 
 final class DevServer: @unchecked Sendable {
     let options: DevOptions
     let builder: WASMBuilder
     let htmlTemplate: HTMLTemplate
-    var connectedClients: [WebSocket] = []
+
+    /// All access to `connectedClients` must hold `clientsLock`. The list is
+    /// touched from three threads:
+    ///   1. Vapor event-loop threads when WebSockets connect/disconnect
+    ///      (`app.webSocket` handler and `ws.onClose` callback).
+    ///   2. The FileWatcher dispatch source thread when rebuild() fires the
+    ///      `broadcast` reload signal.
+    /// Without the lock, parallel append/removeAll/iterate on `Array<WebSocket>`
+    /// races and can crash on Linux Swift release builds (Array's COW invariants
+    /// are not thread-safe).
+    private var connectedClients: [WebSocket] = []
+    private let clientsLock = NSLock()
 
     init(options: DevOptions) {
         let sdk = options.sdk ?? WASMBuilder.detectSDK() ?? "swift-6.2.3-RELEASE_wasm"
         self.options = options
         self.builder = WASMBuilder(target: options.target, sdk: sdk)
         self.htmlTemplate = HTMLTemplate(target: options.target)
+    }
+
+    private func addClient(_ ws: WebSocket) {
+        clientsLock.lock()
+        connectedClients.append(ws)
+        clientsLock.unlock()
+    }
+
+    private func removeClient(_ ws: WebSocket) {
+        clientsLock.lock()
+        connectedClients.removeAll { $0 === ws }
+        clientsLock.unlock()
+    }
+
+    /// Snapshot the connected clients under the lock, then send outside it so
+    /// `ws.send` (which can block briefly on a NIO write) does not extend the
+    /// critical section.
+    private func snapshotClients() -> [WebSocket] {
+        clientsLock.lock()
+        defer { clientsLock.unlock() }
+        return connectedClients
     }
 
     func start() async throws {
@@ -75,10 +108,10 @@ final class DevServer: @unchecked Sendable {
 
         // WebSocket for hot reload
         app.webSocket("_dev") { [weak self] req, ws in
-            self?.connectedClients.append(ws)
+            self?.addClient(ws)
             ws.send("{\"type\":\"connected\"}")
             ws.onClose.whenComplete { [weak self] _ in
-                self?.connectedClients.removeAll { $0 === ws }
+                self?.removeClient(ws)
             }
         }
 
@@ -102,6 +135,13 @@ final class DevServer: @unchecked Sendable {
         try await app.execute()
     }
 
+    /// Last successful build's artefact manifest. Filename → SHA-256 hex.
+    /// Sent to dev clients on every successful rebuild so they can decide
+    /// whether to reload at all (fswatch routinely fires several times for
+    /// a single editor save) and, in future, do granular updates (CSS-only
+    /// stylesheet swap, asset cache bust, etc.) without a full page reload.
+    private var lastManifest: [String: String] = [:]
+
     func rebuild() {
         print("[SwiftWUI] File changed, rebuilding...")
         broadcast("{\"type\":\"building\"}")
@@ -110,7 +150,10 @@ final class DevServer: @unchecked Sendable {
 
         if result.success {
             print("[SwiftWUI] Rebuild succeeded in \(String(format: "%.1f", result.duration))s")
-            broadcast("{\"type\":\"reload\"}")
+
+            let manifest = computeManifest()
+            lastManifest = manifest
+            broadcast("{\"type\":\"reload\",\"manifest\":\(manifestJSONString(manifest))}")
         } else {
             print("[SwiftWUI] Rebuild failed")
             let escaped = result.output
@@ -122,8 +165,53 @@ final class DevServer: @unchecked Sendable {
         }
     }
 
+    /// Walk the PackageToJS output directory and return a `{filename: sha256}`
+    /// map for every emitted `.wasm` / `.js` / `.html` artefact. Hashes are
+    /// SHA-256 hex (32 bytes / 64 hex chars). The dev client uses these only
+    /// for equality, not cryptographic SRI — that lives in production builds.
+    private func computeManifest() -> [String: String] {
+        let fm = FileManager.default
+        let dir = builder.outputDirectory
+        guard let entries = try? fm.contentsOfDirectory(atPath: dir) else { return [:] }
+
+        var manifest: [String: String] = [:]
+        for name in entries
+        where name.hasSuffix(".wasm")
+            || name.hasSuffix(".js")
+            || name.hasSuffix(".html") {
+            let path = dir + "/" + name
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { continue }
+            manifest[name] = sha256Hex(data)
+        }
+        return manifest
+    }
+
+    /// Render a manifest to JSON without pulling in JSONEncoder. The map is
+    /// small (a handful of entries) and the values are constrained to hex
+    /// digits, so manual escaping is sufficient.
+    private func manifestJSONString(_ manifest: [String: String]) -> String {
+        let parts = manifest
+            .sorted { $0.key < $1.key }
+            .map { key, value in
+                "\"\(jsonEscape(key))\":\"\(value)\""
+            }
+        return "{\(parts.joined(separator: ","))}"
+    }
+
+    private func jsonEscape(_ s: String) -> String {
+        s.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    /// SHA-256 over a Data blob, encoded as lowercase hex.
+    /// Uses swift-crypto, which Vapor pulls in transitively, so no new dep.
+    private func sha256Hex(_ data: Data) -> String {
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
     func broadcast(_ message: String) {
-        for ws in connectedClients {
+        for ws in snapshotClients() {
             ws.send(message)
         }
     }

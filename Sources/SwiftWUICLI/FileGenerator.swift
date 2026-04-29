@@ -31,12 +31,15 @@ struct FileGenerator {
             withIntermediateDirectories: true
         )
 
-        // Define all files to generate
+        // Define all files to generate. The dev server is now bundled in the
+        // `swiftwui` CLI itself, so generated projects no longer ship a
+        // `package.json` / `node_modules` boilerplate. Users who want Vite
+        // can add it themselves; the default path is `swiftwui dev`.
         let files: [(relativePath: String, content: String)] = [
             ("/Package.swift", Templates.packageSwift(name: projectName)),
             ("/Sources/main.swift", Templates.mainSwift(name: projectName)),
             ("/index.html", Templates.indexHTML(name: projectName)),
-            ("/package.json", Templates.packageJSON(name: projectName)),
+            ("/README.md", Templates.readmeMD(name: projectName)),
             ("/.gitignore", Templates.gitignore()),
         ]
 

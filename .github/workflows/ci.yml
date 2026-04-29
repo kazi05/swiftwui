@@ -1,0 +1,125 @@
+# Continuous integration. Runs on every push to main and on every pull
+# request. macOS + Linux matrix exercises both Apple's Foundation and
+# swift-corelibs-foundation paths since SwiftWUI's host-side code (Vapor
+# dev server, ProductionBuilder, FileGenerator) ships on both.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests (${{ matrix.os }} · Swift ${{ matrix.swift }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, ubuntu-24.04]
+        swift: ["6.2.3"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Swift ${{ matrix.swift }}
+        uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: ${{ matrix.swift }}
+
+      - name: Cache SwiftPM build dir
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/.swiftpm
+            ~/Library/Developer/Xcode/DerivedData
+          key: spm-${{ matrix.os }}-${{ matrix.swift }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            spm-${{ matrix.os }}-${{ matrix.swift }}-
+
+      # Run the test suite sequentially. `--parallel` exposes shared global
+      # state in the test fixtures (EventHandlerRegistry, OnChangeStorage,
+      # AnimationContext) which the host-side tests deliberately mutate.
+      # Production WASM is single-threaded so the parallel mode flake does
+      # not reflect a runtime bug — but we still run sequentially in CI to
+      # keep the gate deterministic.
+      - name: swift test
+        run: swift test --skip-update
+
+      - name: Build all library targets
+        run: swift build
+
+  wasm-build:
+    name: WASM release build · size budget
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: "6.2.3"
+
+      - name: Install binaryen + brotli
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binaryen brotli
+
+      - name: Cache swiftwasm SDK
+        id: sdk-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.swiftpm/swift-sdks
+          key: swiftwasm-sdk-6.2.3
+
+      - name: Install swiftwasm SDK
+        if: steps.sdk-cache.outputs.cache-hit != 'true'
+        run: |
+          swift sdk install \
+            https://github.com/swiftwasm/swift/releases/download/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE-wasm32-unknown-wasi.artifactbundle.zip
+
+      - name: Build Counter (release, optimised)
+        run: |
+          cd Examples/Counter
+          make release TARGET=Counter || \
+            (cd ../.. && \
+             swift package --swift-sdk swift-6.2.3-RELEASE_wasm \
+               -c release \
+               -Xswiftc -Osize -Xswiftc -wmo \
+               -Xswiftc -gnone -Xswiftc -disable-reflection-metadata \
+               -Xlinker --strip-all \
+               js --product Counter && \
+             mkdir -p Examples/Counter/dist && \
+             cp -r .build/plugins/PackageToJS/outputs/Package/* Examples/Counter/dist/ && \
+             wasm-opt -Oz --strip-debug --strip-producers --converge \
+               Examples/Counter/dist/Counter.wasm \
+               -o Examples/Counter/dist/Counter.wasm && \
+             brotli -q 11 -k -f Examples/Counter/dist/Counter.wasm)
+
+      # Hard ceiling on the brotli-compressed Counter bundle. Anything above
+      # this means we lost a major perf win and the PR should be blocked.
+      - name: Enforce WASM size budget (≤ 512 KB brotli)
+        run: |
+          BR_SIZE=$(stat -c%s Examples/Counter/dist/Counter.wasm.br 2>/dev/null || stat -f%z Examples/Counter/dist/Counter.wasm.br)
+          BUDGET=524288  # 512 KB
+          echo "Counter.wasm.br size: ${BR_SIZE} bytes (budget: ${BUDGET})"
+          if [ "$BR_SIZE" -gt "$BUDGET" ]; then
+            echo "::error::WASM brotli size ${BR_SIZE} exceeds budget ${BUDGET}"
+            exit 1
+          fi
+
+  lint:
+    name: swift format lint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: "6.2.3"
+      - name: Lint
+        run: swift format lint --recursive --strict Sources Tests || echo "::warning::swift format lint produced warnings"

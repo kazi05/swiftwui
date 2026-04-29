@@ -1,0 +1,38 @@
+# Tag-driven release. Pushing a `vX.Y.Z` tag builds a universal macOS
+# binary of the `swiftwui` CLI and attaches it to the GitHub release. Linux
+# binary follows when the WasmKit/Vapor matrix is stable on Ubuntu CI.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: "6.2.3"
+
+      - name: Build swiftwui CLI (universal)
+        run: |
+          swift build -c release --product swiftwui --arch arm64 --arch x86_64
+          mkdir -p dist
+          cp .build/apple/Products/Release/swiftwui dist/swiftwui-macos-universal
+          (cd dist && tar -czf swiftwui-macos-universal.tar.gz swiftwui-macos-universal)
+          (cd dist && shasum -a 256 swiftwui-macos-universal.tar.gz > swiftwui-macos-universal.tar.gz.sha256)
+
+      - name: Upload to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/swiftwui-macos-universal.tar.gz
+            dist/swiftwui-macos-universal.tar.gz.sha256
+          generate_release_notes: true

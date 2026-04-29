@@ -50,6 +50,13 @@ struct HTMLTemplate {
         (function() {
             var overlay = null;
             var indicator = null;
+            // Track the manifest from the previous successful rebuild. The
+            // server sends `{type:'reload', manifest:{file:sha256}}` on
+            // every rebuild; we only call `location.reload()` if at least
+            // one artefact's hash actually differs. fswatch routinely fires
+            // multiple events for a single save, so this collapses bursts.
+            var lastManifest = null;
+
             function connect() {
                 var ws = new WebSocket('ws://localhost:\(port)/_dev');
                 ws.onopen = function() {
@@ -62,6 +69,12 @@ struct HTMLTemplate {
                     if (msg.type === 'reload') {
                         if (overlay) { overlay.remove(); overlay = null; }
                         if (indicator) { indicator.remove(); indicator = null; }
+                        if (msg.manifest && lastManifest && manifestsEqual(msg.manifest, lastManifest)) {
+                            console.log('[SwiftWUI] Rebuild produced identical artefacts — skipping reload.');
+                            lastManifest = msg.manifest;
+                            return;
+                        }
+                        lastManifest = msg.manifest || null;
                         location.reload();
                     } else if (msg.type === 'building') {
                         showIndicator('Rebuilding...');
@@ -74,6 +87,16 @@ struct HTMLTemplate {
                     setTimeout(connect, 2000);
                 };
             }
+
+            function manifestsEqual(a, b) {
+                var ak = Object.keys(a), bk = Object.keys(b);
+                if (ak.length !== bk.length) return false;
+                for (var i = 0; i < ak.length; i++) {
+                    if (a[ak[i]] !== b[ak[i]]) return false;
+                }
+                return true;
+            }
+
             function showIndicator(text) {
                 if (!indicator) {
                     indicator = document.createElement('div');

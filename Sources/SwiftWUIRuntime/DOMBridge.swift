@@ -4,7 +4,10 @@
 import JavaScriptKit
 #endif
 
+#if !arch(wasm32)
 import Foundation
+#endif
+
 import SwiftWUICore
 
 /// Provides a Swift-friendly wrapper around browser DOM operations via JavaScriptKit.
@@ -88,19 +91,76 @@ public final class DOMBridge {
         }
     }
 
-    /// Remove a child from a parent element.
+    /// Remove a child from a parent element. Also cleans up any tracked event
+    /// listeners on the subtree being removed so the `closures` dictionary
+    /// does not retain orphaned `JSClosure` instances after the DOM nodes go
+    /// away. Failing to do this leaks one closure per tracked listener per
+    /// removal, which adds up quickly during route changes and hot reloads.
     public func removeChild(_ parent: JSObject, child: JSObject) {
+        cleanupTrackedListenersInSubtree(child)
         _ = parent.removeChild!(child)
     }
 
-    /// Replace a child element.
+    /// Replace a child element. Cleans up tracked listeners on the discarded
+    /// subtree (see `removeChild`).
     public func replaceChild(_ parent: JSObject, newChild: JSObject, oldChild: JSObject) {
+        cleanupTrackedListenersInSubtree(oldChild)
         _ = parent.replaceChild!(newChild, oldChild)
     }
 
-    /// Remove all children from an element.
+    /// Remove all children from an element. Walks every descendant first,
+    /// removes any `__swev_*` closure IDs from the bridge-owned `closures`
+    /// dictionary, and then truncates the DOM with `replaceChildren()`. This
+    /// preserves `JSClosure` ownership invariants — the only place
+    /// `JSClosure` instances live is `closures`, and orphaning them there
+    /// would prevent the JS garbage collector from reclaiming the wrapped
+    /// JS function objects.
     public func removeAllChildren(_ element: JSObject) {
-        element.innerHTML = .string("")
+        if let childNodes = element.childNodes.object {
+            let length = Int(childNodes.length.number ?? 0)
+            for i in 0..<length {
+                if let child = childNodes[i].object {
+                    cleanupTrackedListenersInSubtree(child)
+                }
+            }
+        }
+        if element.replaceChildren.function != nil {
+            _ = element.replaceChildren!()
+        } else {
+            element.innerHTML = .string("")
+        }
+    }
+
+    /// Walk a DOM subtree and remove every tracked-listener closure ID
+    /// (`__swev_<event>`) we previously installed on its elements. Each ID
+    /// removed from the `closures` dictionary releases the corresponding
+    /// `JSClosure`, which in turn lets the JS-side garbage collector reclaim
+    /// the wrapping function. Closures registered for observers
+    /// (`io-`/`ro-`/`mo-` prefixes) live independently in `closures` and are
+    /// torn down by `disconnectObserver` callers in `DOMRenderer`.
+    private func cleanupTrackedListenersInSubtree(_ element: JSObject) {
+        // Discover event property keys (`__swev_*`) on this element via Object.keys.
+        if let keysFn = JSObject.global.Object.keys.function,
+           let keysArray = keysFn(element).object {
+            let keyCount = Int(keysArray.length.number ?? 0)
+            for i in 0..<keyCount {
+                guard let key = keysArray[i].string, key.hasPrefix("__swev_") else { continue }
+                if let id = element[key].string {
+                    closures.removeValue(forKey: id)
+                }
+            }
+        }
+
+        // Recurse into element children. Use `children` (Element nodes only) —
+        // text nodes cannot host tracked listeners.
+        if let kids = element.children.object {
+            let length = Int(kids.length.number ?? 0)
+            for i in 0..<length {
+                if let child = kids[i].object {
+                    cleanupTrackedListenersInSubtree(child)
+                }
+            }
+        }
     }
 
     // MARK: - Query
@@ -122,6 +182,31 @@ public final class DOMBridge {
 
     // MARK: - Event Handling
 
+    /// Monotonic counter feeding `nextClosureID()`. WASM is single-threaded
+    /// so plain mutation is safe; on native we wrap in an `NSLock` (only
+    /// used by tests / SSR).
+    private var closureIDCounter: UInt64 = 0
+    #if !arch(wasm32)
+    private let closureIDLock = NSLock()
+    #endif
+
+    /// Generate a unique closure ID for a tracked listener. WASM uses a
+    /// monotonic counter (no Foundation dependency, no UUID heap allocation).
+    /// Native uses UUIDs to remain race-free under parallel test execution
+    /// where multiple bridge instances or threads could collide on a counter.
+    private func nextClosureID(prefix: String) -> String {
+        #if arch(wasm32)
+        closureIDCounter &+= 1
+        return "\(prefix)-\(closureIDCounter)"
+        #else
+        closureIDLock.lock()
+        closureIDCounter &+= 1
+        let n = closureIDCounter
+        closureIDLock.unlock()
+        return "\(prefix)-\(n)-\(UUID().uuidString)"
+        #endif
+    }
+
     /// Add an event listener to a DOM element.
     /// Returns an ID that can be used to remove the listener.
     public func addEventListener(
@@ -129,7 +214,7 @@ public final class DOMBridge {
         event: String,
         handler: @escaping () -> Void
     ) -> String {
-        let id = "\(event)-\(UUID().uuidString)"
+        let id = nextClosureID(prefix: event)
         let closure = JSClosure { _ in
             handler()
             return .undefined
@@ -179,7 +264,7 @@ public final class DOMBridge {
         event: String,
         handler: @escaping (JSValue) -> Void
     ) -> String {
-        let id = "\(event)-\(UUID().uuidString)"
+        let id = nextClosureID(prefix: event)
         let closure = JSClosure { args in
             let jsEvent = args.count > 0 ? args[0] : .undefined
             handler(jsEvent)
@@ -227,7 +312,7 @@ public final class DOMBridge {
         let options = JSObject.global.Object.function!.new()
         options["threshold"] = .number(threshold < 0 ? 0 : threshold)
         let observer = JSObject.global.IntersectionObserver.function!.new(jsClosure, options)
-        closures["io-\(UUID().uuidString)"] = jsClosure
+        closures[nextClosureID(prefix: "io")] = jsClosure
         _ = observer.observe!(element)
         return observer
     }
@@ -251,7 +336,7 @@ public final class DOMBridge {
             return .undefined
         }
         let observer = JSObject.global.ResizeObserver.function!.new(jsClosure)
-        closures["ro-\(UUID().uuidString)"] = jsClosure
+        closures[nextClosureID(prefix: "ro")] = jsClosure
         _ = observer.observe!(element)
         return observer
     }
@@ -273,7 +358,7 @@ public final class DOMBridge {
         config["childList"] = .boolean(childList)
         config["attributes"] = .boolean(attributes)
         config["subtree"] = .boolean(subtree)
-        closures["mo-\(UUID().uuidString)"] = jsClosure
+        closures[nextClosureID(prefix: "mo")] = jsClosure
         _ = observer.observe!(element, config)
         return observer
     }

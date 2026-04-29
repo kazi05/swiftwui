@@ -114,40 +114,61 @@ enum Templates {
         """
     }
 
-    /// Generates the npm `package.json` for the Vite dev server.
-    ///
-    /// - Parameter name: The project name, used as the npm package name.
-    /// - Returns: The full content of `package.json`.
-    static func packageJSON(name: String) -> String {
-        let lowercasedName = name.lowercased()
-        return """
-        {
-          "name": "\(lowercasedName)-app",
-          "private": true,
-          "type": "module",
-          "scripts": {
-            "dev": "vite",
-            "build": "vite build"
-          },
-          "devDependencies": {
-            "\(lowercasedName)": "file:.build/plugins/PackageToJS/outputs/Package",
-            "vite": "^7.3.1"
-          }
-        }
-
-        """
-    }
-
     /// Generates a `.gitignore` tailored for SwiftWUI WASM projects.
+    ///
+    /// No `package.json` / `node_modules` rules — the canonical tooling is the
+    /// Vapor-based `swiftwui` CLI which builds and serves WASM directly. Vite
+    /// stays available as an optional alternative pipeline if a project opts
+    /// into a custom JS toolchain, but is no longer scaffolded by default.
     ///
     /// - Returns: The full content of `.gitignore`.
     static func gitignore() -> String {
         """
         .build/
-        node_modules/
         .swiftpm/
-        *.js
-        !vite.config.js
+        dist/
+        *.wasm
+        *.wasm.br
+        *.wasm.gz
+        *.wasm.sri
+        # Vite/npm artefacts (only relevant if you opt into a custom JS pipeline)
+        node_modules/
+        package-lock.json
+
+        """
+    }
+
+    /// Returns a short README explaining how to develop and ship a project
+    /// scaffolded by `swiftwui init`.
+    static func readmeMD(name: String) -> String {
+        """
+        # \(name)
+
+        SwiftWUI web application.
+
+        ## Develop
+
+        ```sh
+        swiftwui dev --target \(name)
+        ```
+
+        Opens a Vapor-backed dev server with hot reload at <http://localhost:8080>.
+
+        ## Build for production
+
+        ```sh
+        swiftwui build --target \(name) --optimize size
+        ```
+
+        Outputs an optimised, brotli-compressed `dist/` directory ready for
+        upload to any static host (Cloudflare Pages, Netlify, Fastly, S3).
+        Each artefact has a sidecar `<file>.sri` with its SHA-384 hash for
+        Subresource Integrity.
+
+        ## Toolchain
+
+        Run `swiftwui doctor` to verify all required tools (`swift`, `wasm-opt`,
+        `brotli`, `gzip`, `openssl`, `fswatch`, swiftwasm SDK) are installed.
 
         """
     }
