@@ -215,6 +215,70 @@ public final class DOMRenderer {
                     }
                 }
             }
+
+        case .reorderChildren(let plan):
+            applyReorder(plan: plan, parent: element, animation: animation)
+        }
+    }
+
+    /// Apply a keyed-reorder plan to a parent DOM node.
+    ///
+    /// 1. Snapshot the existing DOM children up-front because `appendChild`
+    ///    on a node already attached to the same parent *moves* it (per the
+    ///    DOM spec), which would shift subsequent positional indices if we
+    ///    were to read them lazily.
+    /// 2. Walk the plan in order. Each `reuse(oldIndex:subPatch:)` first
+    ///    applies the optional sub-patch to the snapshotted JSObject, then
+    ///    `appendChild`s it on the parent — this moves it to the end. Each
+    ///    `insert(node:)` creates a fresh DOM subtree and appends it.
+    /// 3. Any old child that was not reused gets its observers torn down
+    ///    and is removed from the DOM. Because all reused children are now
+    ///    sitting at the end of the parent in plan order, the leftovers are
+    ///    exactly the unreused indices from the snapshot.
+    private func applyReorder(plan: [ReorderOp], parent: JSObject, animation: Animation?) {
+        // Step 1: snapshot.
+        var oldChildren: [JSObject] = []
+        if let kids = parent.childNodes.object {
+            let n = Int(kids.length.number ?? 0)
+            for i in 0..<n {
+                if let kid = kids[i].object {
+                    oldChildren.append(kid)
+                }
+            }
+        }
+
+        // Step 2: re-append in plan order. Track which old indices survive
+        // so we know what to remove afterwards.
+        var reused = Set<Int>()
+        for op in plan {
+            switch op {
+            case .reuse(let oldIndex, let subPatch):
+                guard oldIndex >= 0, oldIndex < oldChildren.count else { continue }
+                let node = oldChildren[oldIndex]
+                if let p = subPatch {
+                    applyPatch(p, to: node, animation: animation)
+                }
+                bridge.appendChild(parent, child: node)
+                reused.insert(oldIndex)
+
+            case .insert(let newNode):
+                if let dom = createDOMNode(newNode) {
+                    bridge.appendChild(parent, child: dom)
+                }
+            }
+        }
+
+        // Step 3: drop unreused old children. Iterate the snapshot in
+        // descending order so the remove loop is robust against any DOM
+        // restructuring `cleanupObservers` might trigger (mount/unmount
+        // observers can in theory mutate other DOM state, although today
+        // they only touch our internal dictionaries).
+        for i in (0..<oldChildren.count).reversed() where !reused.contains(i) {
+            let node = oldChildren[i]
+            cleanupObservers(for: node, fireUnmount: true)
+            if let p = node.parentNode.object {
+                bridge.removeChild(p, child: node)
+            }
         }
     }
 

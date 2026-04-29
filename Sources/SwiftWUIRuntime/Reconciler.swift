@@ -14,6 +14,25 @@ public enum Patch: Sendable {
     case updateEventListeners(add: [String: EventListenerID], remove: [String])
     case updateObservers(new: [WebObserver])
     case patchChildren([ChildPatch])
+    /// Keyed-children reorder. Each entry tells the renderer how to assemble
+    /// the new child list out of (a) DOM nodes that already exist at the
+    /// listed old positions (`reuse`), and (b) brand-new TagNode subtrees
+    /// (`insert`). The renderer applies the entries in order, calling
+    /// `appendChild` on the reused JSObjects (DOM standard says this *moves*
+    /// the node, preserving its identity, focus, scroll, in-flight animations,
+    /// and any `@State` storage tied to that DOM node), and finally removes
+    /// any old children whose indices were not reused.
+    case reorderChildren(plan: [ReorderOp])
+}
+
+/// Step in a keyed-reorder plan emitted by `reorderChildren`.
+public enum ReorderOp: Sendable {
+    /// Reuse the DOM node that was at `oldIndex` in the previous render.
+    /// `subPatch`, if non-nil, is applied to the reused node to bring its
+    /// content/attributes/etc up to date with the new TagNode.
+    case reuse(oldIndex: Int, subPatch: Patch?)
+    /// Create a brand-new node from the supplied TagNode and append it.
+    case insert(node: TagNode)
 }
 
 /// Patch operation for a child node at a given index.
@@ -120,10 +139,24 @@ public struct Reconciler: Sendable {
             patches.append(.updateObservers(new: new.observers))
         }
 
-        // Diff children
-        let childPatches = diffChildren(old: old.children, new: new.children)
-        if !childPatches.isEmpty {
-            patches.append(.patchChildren(childPatches))
+        // Diff children. When both sides are fully keyed (every child is an
+        // `.element` with a non-nil `key`, e.g. emitted by `ForEach`), use
+        // the keyed-reorder algorithm so DOM nodes physically move rather
+        // than have their contents rewritten in place. Otherwise the
+        // historical positional diff applies.
+        var positionalChildPatches: [ChildPatch] = []
+        if let plan = diffKeyedChildren(old: old.children, new: new.children) {
+            // Plan is non-empty by definition for non-trivial diffs; treat
+            // an all-`.reuse(_, nil)` plan as no-op only when the order is
+            // also unchanged, otherwise the renderer will move nodes.
+            if !planIsNoOp(plan) {
+                patches.append(.reorderChildren(plan: plan))
+            }
+        } else {
+            positionalChildPatches = diffChildren(old: old.children, new: new.children)
+            if !positionalChildPatches.isEmpty {
+                patches.append(.patchChildren(positionalChildPatches))
+            }
         }
 
         if patches.isEmpty { return nil }
@@ -131,10 +164,13 @@ public struct Reconciler: Sendable {
         // If only one patch, return it directly
         if patches.count == 1 { return patches[0] }
 
-        // Multiple patches need to be applied in sequence — wrap in children patches on self
-        // For simplicity, we use a compound approach
+        // Multiple patches need to be applied in sequence. Self-modifying
+        // patches (attribute/style/class/event/observer updates) get encoded
+        // as `ChildPatch(index: -1, patch: …)` entries that the renderer
+        // recognises as "apply to self". Keyed reorder patches stay outside
+        // this compound — they are emitted alongside.
         return patches.count == 1 ? patches[0] : .patchChildren(
-            childPatches + patches.compactMap { p -> ChildPatch? in
+            positionalChildPatches + patches.compactMap { p -> ChildPatch? in
                 if case .patchChildren = p { return nil }
                 return ChildPatch(index: -1, patch: p)  // -1 means "apply to self"
             }
@@ -155,6 +191,66 @@ public struct Reconciler: Sendable {
         }
 
         return patches
+    }
+
+    /// True when the plan is a strict identity (every entry reuses the same
+    /// old index it sits at, with no sub-patch). Used to suppress no-op
+    /// reorder patches.
+    private func planIsNoOp(_ plan: [ReorderOp]) -> Bool {
+        for (i, op) in plan.enumerated() {
+            switch op {
+            case .insert: return false
+            case .reuse(let oldIndex, let subPatch):
+                if oldIndex != i || subPatch != nil { return false }
+            }
+        }
+        return true
+    }
+
+    /// True when every child is an `.element` carrying a non-nil `key`. Mixed
+    /// keyed/unkeyed runs fall back to the positional path because matching
+    /// some children by key while leaving others positional is ambiguous and
+    /// would produce surprising state preservation in practice.
+    private func childrenAreFullyKeyed(_ children: [TagNode]) -> Bool {
+        guard !children.isEmpty else { return false }
+        for child in children {
+            guard case .element(let el) = child, el.key != nil else { return false }
+        }
+        return true
+    }
+
+    /// Build a keyed-reorder plan that, when applied, produces `new` from `old`
+    /// while preserving the DOM identity of every child whose key survived.
+    /// Returns nil if either side is not fully keyed (caller should fall back
+    /// to positional diff) or if the lists are identical.
+    private func diffKeyedChildren(old: [TagNode], new: [TagNode]) -> [ReorderOp]? {
+        guard childrenAreFullyKeyed(old), childrenAreFullyKeyed(new) else { return nil }
+
+        // Build key → old-index map. Duplicate keys in old are not allowed —
+        // first occurrence wins, the rest fall through to the unkeyed path.
+        var keyToOld: [String: Int] = [:]
+        for (i, node) in old.enumerated() {
+            guard case .element(let el) = node, let k = el.key else { return nil }
+            if keyToOld[k] != nil { return nil }   // duplicate key → bail
+            keyToOld[k] = i
+        }
+
+        var plan: [ReorderOp] = []
+        for newChild in new {
+            guard case .element(let newEl) = newChild, let k = newEl.key else {
+                // childrenAreFullyKeyed already guarantees this, but bail
+                // safely just in case the data shape changes.
+                return nil
+            }
+            if let oldIndex = keyToOld[k] {
+                let oldChild = old[oldIndex]
+                let sub = diffNodes(old: oldChild, new: newChild)
+                plan.append(.reuse(oldIndex: oldIndex, subPatch: sub))
+            } else {
+                plan.append(.insert(node: newChild))
+            }
+        }
+        return plan
     }
 
     private func diffDict(

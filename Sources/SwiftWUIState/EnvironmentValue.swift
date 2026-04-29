@@ -32,15 +32,26 @@ public struct EnvironmentValues: @unchecked Sendable {
     }
 }
 
-// MARK: - Global Environment
+// MARK: - Tree-scoped environment
 
-/// The current global environment values.
-///
-/// In a full runtime, each subtree can override values. This simplified
-/// version uses a single global instance. The Runtime module will replace
-/// this with proper tree-scoped injection.
+extension EnvironmentValues {
+    /// Tree-scoped current environment, resolved via Swift's TaskLocal so
+    /// each subtree's `.environment(_:_:)` override is visible only while
+    /// that subtree's `toTagNodes()` is running. The render pipeline is
+    /// synchronous, but `TaskLocal.withValue` works the same for both
+    /// sync and async callers and gives us correct push/pop semantics
+    /// without any explicit RenderContext plumbing.
+    @TaskLocal public static var current: EnvironmentValues = EnvironmentValues()
+}
+
+/// Back-compat shim. Older code wrote to a global to seed the environment;
+/// reading still resolves through the task-local view. Mutating the global
+/// has no effect on rendering — use `.environment(_:_:)` instead.
+@available(*, deprecated, message: "Use `.environment(_:_:)` for subtree overrides; this global is read-only.")
 public enum CurrentEnvironment {
-    nonisolated(unsafe) public static var values = EnvironmentValues()
+    public static var values: EnvironmentValues {
+        EnvironmentValues.current
+    }
 }
 
 // MARK: - @Environment Property Wrapper
@@ -56,6 +67,10 @@ public enum CurrentEnvironment {
 ///     }
 /// }
 /// ```
+///
+/// `wrappedValue` reads from the task-local current environment, so
+/// values flow through the tree via `.environment(_:_:)` modifiers
+/// applied to ancestor tags.
 @propertyWrapper
 public struct Environment<Value> {
     private let keyPath: KeyPath<EnvironmentValues, Value>
@@ -65,6 +80,6 @@ public struct Environment<Value> {
     }
 
     public var wrappedValue: Value {
-        CurrentEnvironment.values[keyPath: keyPath]
+        EnvironmentValues.current[keyPath: keyPath]
     }
 }

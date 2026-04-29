@@ -19,6 +19,16 @@ public enum TagNode: Equatable, Sendable {
         public var responsiveStyles: [String: [String: String]]
         /// Web API observers (resize, intersection, mutation, lifecycle) attached to this element.
         public var observers: [WebObserver]
+        /// Reconciliation key. When set, the reconciler matches old/new
+        /// children by `key` rather than by index, preserving DOM nodes
+        /// (and their state-bearing JSObject identity / @State storage)
+        /// across reorders, insertions, and removals. `ForEach` propagates
+        /// `Identifiable.id` here. `nil` means "use positional diff".
+        ///
+        /// Distinct from the `data-swiftwui-id` attribute (set by `.id(_:)`),
+        /// which forces a *replacement* on change. `key` is the opposite:
+        /// matching keys preserve, missing keys remove, new keys insert.
+        public var key: String?
 
         public init(
             tagName: String,
@@ -28,7 +38,8 @@ public enum TagNode: Equatable, Sendable {
             eventListeners: [String: EventListenerID] = [:],
             children: [TagNode] = [],
             responsiveStyles: [String: [String: String]] = [:],
-            observers: [WebObserver] = []
+            observers: [WebObserver] = [],
+            key: String? = nil
         ) {
             self.tagName = tagName
             self.attributes = attributes
@@ -38,6 +49,7 @@ public enum TagNode: Equatable, Sendable {
             self.children = children
             self.responsiveStyles = responsiveStyles
             self.observers = observers
+            self.key = key
         }
     }
 }
