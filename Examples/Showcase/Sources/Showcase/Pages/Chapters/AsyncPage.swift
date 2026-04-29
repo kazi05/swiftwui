@@ -1,0 +1,188 @@
+// AsyncPage.swift — Chapter 7: Async & Resources
+
+import SwiftWUI
+
+public struct AsyncPage: Tag {
+    public init() {}
+
+    public var body: some Tag {
+        SiteChrome {
+            ChapterIntro(
+                part: "Chapter 7 — Building UI",
+                title: "Async & Resources",
+                lead: "Async/await in SwiftWUI runs inside structured task scopes attached to tags. Use the .task modifier to kick off work when a component appears, and drive loading and error UI entirely through @State.",
+                meta: [
+                    ("Estimated time", "9 min"),
+                    ("Difficulty", "Intermediate"),
+                    ("Module", "SwiftWUICore"),
+                ]
+            )
+            ScrollyTeller(steps: asyncSteps)
+            ChapterFooter(prev: ("Routing & Guards", "/learn/routing"), next: ("Theming", "/learn/theming"))
+            HighlightOnMount()
+        }
+    }
+
+    private var asyncSteps: [ScrollyTeller.Step] { [
+        .init(
+            number: 1,
+            title: "Start a task with .task modifier",
+            prose: "`.task { … }` attaches a structured `Task` to the tag's lifetime. The closure is `@Sendable` and runs on the cooperative thread pool. The task is cancelled automatically when the tag leaves the tree.",
+            code: """
+            struct ItemList: Tag {
+              @State var items: [Item] = []
+
+              var body: some Tag {
+                Div { /* render items */ }
+                  .task { @Sendable in
+                    items = await ItemAPI.fetchAll()
+                  }
+              }
+            }
+            """,
+            preview: AnyTag(
+                Div {
+                    Span { Text(".task fires on mount") }
+                        .style("font-size", "12px")
+                        .style("color", "var(--swui-fg-3)")
+                    Div {
+                        Span { Text("Fetching…") }
+                            .style("font-size", "14px")
+                            .style("color", "var(--swui-accent)")
+                            .style("font-family", "var(--font-mono)")
+                    }
+                    .style("margin-top", "8px")
+                    .style("padding", "8px 12px")
+                    .style("background", "var(--swui-surface-2)")
+                    .style("border-radius", "6px")
+                }
+            )
+        ),
+        .init(
+            number: 2,
+            title: "Show a loading spinner via @State",
+            prose: "Declare `@State var loading = true`. Set it to `false` inside `.task` after the fetch completes. SwiftWUI re-renders once; the spinner branch disappears and the content branch appears.",
+            code: """
+            @State var items: [Item] = []
+            @State var loading = true
+
+            var body: some Tag {
+              if loading {
+                Div { Text("Loading…") }
+              } else {
+                ForEach(items) { item in Li { Text(item.name) } }
+              }
+            }
+            """,
+            preview: AnyTag(
+                Div {
+                    Div {
+                        Span { Text("loading = true") }
+                            .style("font-family", "var(--font-mono)")
+                            .style("font-size", "12px")
+                            .style("color", "var(--swui-fg-3)")
+                        Div {
+                            Div { EmptyTag() }
+                                .style("width", "20px")
+                                .style("height", "20px")
+                                .style("border", "3px solid var(--swui-border)")
+                                .style("border-top-color", "var(--swui-accent)")
+                                .style("border-radius", "50%")
+                            Span { Text("Loading…") }
+                                .style("font-size", "14px")
+                                .style("color", "var(--swui-fg-2)")
+                                .style("margin-left", "10px")
+                        }
+                        .style("display", "flex")
+                        .style("align-items", "center")
+                        .style("margin-top", "8px")
+                    }
+                }
+            )
+        ),
+        .init(
+            number: 3,
+            title: "Capture errors in @State",
+            prose: "Wrap the async work in `do/catch`. Store errors as `@State var error: Error?`. Render a friendly message when `error != nil`, with a retry button that resets the error and retriggers the task.",
+            code: """
+            @State var error: Error? = nil
+
+            var body: some Tag {
+              if let error {
+                P { Text("Error: \\(error.localizedDescription)") }
+                Button(onclick: { self.error = nil }) {
+                  Text("Retry")
+                }
+              } else { /* content */ }
+            }
+            """,
+            preview: AnyTag(
+                Div {
+                    Div {
+                        Span { Text("Network error: timeout") }
+                            .style("font-size", "14px")
+                            .style("color", "#ff6b6b")
+                        Span { Text("Retry") }
+                            .style("display", "inline-block")
+                            .style("margin-top", "8px")
+                            .style("background", "var(--swui-accent)")
+                            .style("color", "#fff")
+                            .style("padding", "5px 12px")
+                            .style("border-radius", "5px")
+                            .style("font-size", "12px")
+                            .style("cursor", "pointer")
+                    }
+                    .style("padding", "10px 14px")
+                    .style("background", "var(--swui-surface-2)")
+                    .style("border-radius", "6px")
+                }
+            )
+        ),
+        .init(
+            number: 4,
+            title: "Run parallel tasks with TaskGroup",
+            prose: "Inside a `.task` closure you can use Swift's `withTaskGroup` to fan out multiple async operations in parallel and collect their results, all within a single structured concurrency scope.",
+            code: """
+            .task { @Sendable in
+              await withTaskGroup(of: Item?.self) { group in
+                for id in ids {
+                  group.addTask { try? await API.fetch(id) }
+                }
+                for await item in group {
+                  if let item { items.append(item) }
+                }
+              }
+              loading = false
+            }
+            """,
+            preview: AnyTag(
+                Div {
+                    Span { Text("Parallel fetch — 3 tasks") }
+                        .style("font-size", "12px")
+                        .style("color", "var(--swui-fg-3)")
+                    Div {
+                        Span { Text("id=1  done") }
+                            .style("display", "block")
+                            .style("font-family", "var(--font-mono)")
+                            .style("font-size", "12px")
+                            .style("color", "#30d158")
+                        Span { Text("id=2  done") }
+                            .style("display", "block")
+                            .style("font-family", "var(--font-mono)")
+                            .style("font-size", "12px")
+                            .style("color", "#30d158")
+                        Span { Text("id=3  pending…") }
+                            .style("display", "block")
+                            .style("font-family", "var(--font-mono)")
+                            .style("font-size", "12px")
+                            .style("color", "var(--swui-fg-3)")
+                    }
+                    .style("margin-top", "8px")
+                    .style("padding", "8px 12px")
+                    .style("background", "var(--swui-surface-2)")
+                    .style("border-radius", "6px")
+                }
+            )
+        ),
+    ] }
+}
