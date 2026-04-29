@@ -150,7 +150,7 @@ struct TagTransitionTests {
     }
 }
 
-@Suite("AnimationContext")
+@Suite("AnimationContext", .serialized)
 struct AnimationContextTests {
     @Test("AnimationContext initially nil")
     func initiallyNil() {

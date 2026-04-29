@@ -2,7 +2,7 @@ import Testing
 @testable import SwiftWUICore
 @testable import SwiftWUIHTML
 
-@Suite("Event Modifiers")
+@Suite("Event Modifiers", .serialized)
 struct EventModifiersTests {
     @Test("onHover registers mouseenter and mouseleave listeners")
     func onHoverRegistersListeners() {

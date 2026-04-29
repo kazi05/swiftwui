@@ -1,7 +1,7 @@
 import Testing
 @testable import SwiftWUICore
 
-@Suite("WebEventTypes")
+@Suite("WebEventTypes", .serialized)
 struct WebEventTypesTests {
     @Test("ScrollOffset stores x and y")
     func scrollOffset() {

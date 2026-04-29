@@ -40,7 +40,7 @@ public final class DOMRenderer {
 
     /// Perform initial render of a tag tree.
     public func render(_ rootTag: some Tag) {
-        EventHandlerRegistry.clear()
+        EventHandlerRegistry.beginRender()
         let newTree = TagNode.fragment(resolveTagBody(rootTag))
         let domNode = createDOMNode(newTree)
         bridge.removeAllChildren(container)
@@ -54,7 +54,7 @@ public final class DOMRenderer {
     /// Update the DOM with a new tag tree (re-render).
     /// - Parameter animation: Optional animation to apply CSS transitions during style updates.
     public func update(_ rootTag: some Tag, animation: Animation? = nil) {
-        EventHandlerRegistry.clear()
+        EventHandlerRegistry.beginRender()
         let newTree = TagNode.fragment(resolveTagBody(rootTag))
 
         // Pre-register all responsive CSS rules before reconciliation
@@ -223,12 +223,18 @@ public final class DOMRenderer {
     /// Attach a typed event listener that extracts data from the JS event object.
     /// Events like "input", "scroll", "keydown", "keyup", "paste", "submit" receive
     /// special handling to populate the corresponding EventContext before calling the handler.
+    ///
+    /// The Swift handler is resolved from the registry at fire time (not at attachment
+    /// time). This way, when a re-render registers a new closure under the same stable
+    /// identity, the existing JS listener picks up the new handler without needing to
+    /// be detached and re-attached. With anonymous IDs the reconciler still emits
+    /// `.updateEventListeners` patches when IDs change, so behavior is unchanged for
+    /// non-stable call sites.
     private func attachEventListener(_ element: JSObject, event: String, listenerID: EventListenerID) {
-        guard let handler = EventHandlerRegistry.handler(for: listenerID) else { return }
-
         switch event {
         case "input":
             bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                guard let handler = EventHandlerRegistry.handler(for: listenerID) else { return }
                 let value = jsEvent.object?["target"].object?["value"].string ?? ""
                 InputEventContext.currentValue = value
                 handler()
@@ -236,6 +242,7 @@ public final class DOMRenderer {
             }
         case "scroll":
             bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                guard let handler = EventHandlerRegistry.handler(for: listenerID) else { return }
                 let target = jsEvent.object?["target"].object
                 let scrollLeft = target?["scrollLeft"].number ?? 0
                 let scrollTop = target?["scrollTop"].number ?? 0
@@ -245,6 +252,7 @@ public final class DOMRenderer {
             }
         case "keydown", "keyup":
             bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                guard let handler = EventHandlerRegistry.handler(for: listenerID) else { return }
                 let obj = jsEvent.object
                 let key = obj?["key"].string ?? ""
                 let code = obj?["code"].string ?? ""
@@ -262,6 +270,7 @@ public final class DOMRenderer {
             }
         case "paste":
             bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                guard let handler = EventHandlerRegistry.handler(for: listenerID) else { return }
                 let text = jsEvent.object?["clipboardData"].object?["getData"].function?("text/plain").string ?? ""
                 PasteEventContext.currentText = text
                 handler()
@@ -269,11 +278,15 @@ public final class DOMRenderer {
             }
         case "submit":
             bridge.setTrackedEventListenerWithEvent(element, event: event) { jsEvent in
+                guard let handler = EventHandlerRegistry.handler(for: listenerID) else { return }
                 _ = jsEvent.object?["preventDefault"]?()
                 handler()
             }
         default:
-            bridge.setTrackedEventListener(element, event: event, handler: handler)
+            bridge.setTrackedEventListener(element, event: event) {
+                guard let handler = EventHandlerRegistry.handler(for: listenerID) else { return }
+                handler()
+            }
         }
     }
 
