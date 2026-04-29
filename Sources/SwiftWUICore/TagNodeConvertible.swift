@@ -112,6 +112,15 @@ extension ModifiedContent: TagNodeConvertible {
 // MARK: - Tag Body Resolution
 
 /// Resolves a tag's body recursively until reaching a TagNodeConvertible.
+///
+/// Marked `@inlinable` because every Tag → TagNode conversion in user
+/// code goes through this function. With WMO + cross-module inlining
+/// the existential cast (`as? TagNodeConvertible`) collapses into a
+/// direct method dispatch when the concrete `T` is statically known to
+/// conform, removing one indirection per node per render. Important
+/// for the WASM target where the existential PWT lookup has no inline
+/// cache.
+@inlinable
 public func resolveTagBody<T: Tag>(_ tag: T) -> [TagNode] {
     if let convertible = tag as? TagNodeConvertible {
         return convertible.toTagNodes()

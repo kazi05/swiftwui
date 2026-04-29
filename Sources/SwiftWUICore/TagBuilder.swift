@@ -26,10 +26,13 @@ public struct TagBuilder {
 
     // MARK: - Multiple Components (using parameter packs)
 
-    public static func buildBlock<each T: Tag>(_ components: repeat each T) -> TupleTag {
-        var children: [any Tag] = []
-        repeat children.append(each components)
-        return TupleTag(children: children)
+    /// Pack-based builder. Returns a `TupleTag<each T>` carrying its
+    /// children in a statically typed pack tuple — no existential
+    /// boxing. Each distinct tuple shape produces a specialised
+    /// `TupleTag` instantiation, which lets the compiler inline
+    /// through `toTagNodes()` for every concrete combination.
+    public static func buildBlock<each T: Tag>(_ components: repeat each T) -> TupleTag<repeat each T> {
+        TupleTag(repeat each components)
     }
 
     // MARK: - Conditional Content
