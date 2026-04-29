@@ -58,25 +58,27 @@ struct Init: ParsableCommand {
     @Argument(help: "Project name (letters, digits, hyphens, underscores).")
     var projectName: String
 
+    @Flag(name: .long, help: "Use the minimal Counter-style scaffold instead of the showcase template.")
+    var minimal: Bool = false
+
     func run() throws {
         guard isValidProjectName(projectName) else {
             throw ValidationError(
                 "Project name must contain only letters, numbers, hyphens, and underscores."
             )
         }
-
-        let generator = FileGenerator(projectName: projectName)
+        let mode: FileGenerator.Mode = minimal ? .minimal : .showcase
+        let generator = FileGenerator(projectName: projectName, mode: mode)
         try generator.generate()
-
         print("""
 
-        Project '\(projectName)' created.
+        Project '\(projectName)' created (\(mode == .minimal ? "minimal" : "showcase") template).
 
         Next steps:
           cd \(projectName)
-          swiftwui dev
+          swiftwui dev --target \(projectName)
 
-        Then open http://localhost:8080 in your browser.
+        Then open http://localhost:8080.
         """)
     }
 
