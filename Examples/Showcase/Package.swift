@@ -15,9 +15,10 @@ let package = Package(
                 .product(name: "SwiftWUI", package: "SwiftWUI"),
             ]
         ),
-        // testTarget restored in Task 2.1 once the first test file
-        // (Tests/ShowcaseTests/ThemeTests.swift) lands. Declaring it
-        // here without an explicit path or source files triggers an
-        // "overlapping sources" SwiftPM error.
+        .testTarget(
+            name: "ShowcaseTests",
+            dependencies: ["Showcase"],
+            path: "Tests/ShowcaseTests"
+        ),
     ]
 )
