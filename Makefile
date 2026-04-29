@@ -35,6 +35,8 @@ help:
 	@echo "  format        swift format format --recursive --in-place Sources Tests"
 	@echo "  size          Report .wasm / .js / brotli sizes in $(OUT)/"
 	@echo "  clean         Remove .build, $(OUT), node_modules"
+	@echo "  showcase-build Native build of the Examples/Showcase project"
+	@echo "  ci             build + test + showcase-build (full CI)"
 	@echo "Variables: SDK=$(SDK)  TARGET=$(TARGET)  OUT=$(OUT)  PORT=$(PORT)"
 
 .PHONY: dev
@@ -116,3 +118,11 @@ format:
 clean:
 	rm -rf .build $(OUT)
 	@find . -name node_modules -type d -prune -exec rm -rf {} + 2>/dev/null || true
+
+.PHONY: showcase-build
+showcase-build:
+	cd Examples/Showcase && swift build
+
+.PHONY: ci
+ci: build test showcase-build
+	@echo "CI green."
