@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{PROJECT_NAME}} — built with SwiftWUI</title>
+    <script>
+        // Apply persisted colour-mode preference before any CSS resolves
+        // to prevent a flash of unstyled / wrong-theme content.
+        (function() {
+            try {
+                var t = localStorage.getItem("swui-theme");
+                if (t === "light" || t === "dark") {
+                    document.documentElement.dataset.theme = t;
+                }
+            } catch (_) { /* ignore quota / privacy errors */ }
+        })();
+    </script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/languages/swift.min.js"></script>
+    <style>
+        html, body { margin: 0; padding: 0; }
+        body { font-family: var(--font-text, system-ui), sans-serif; }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+    <script type="module">
+        import { init } from "{{project_name}}";
+        await init();
+    </script>
+</body>
+</html>

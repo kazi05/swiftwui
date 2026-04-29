@@ -35,8 +35,9 @@ help:
 	@echo "  format        swift format format --recursive --in-place Sources Tests"
 	@echo "  size          Report .wasm / .js / brotli sizes in $(OUT)/"
 	@echo "  clean         Remove .build, $(OUT), node_modules"
-	@echo "  showcase-build Native build of the Examples/Showcase project"
-	@echo "  ci             build + test + showcase-build (full CI)"
+	@echo "  showcase-build  Native build of the Examples/Showcase project"
+	@echo "  sync-templates  Sync Examples/Showcase to SwiftWUICLI Templates/ resource bundle"
+	@echo "  ci              build + test + showcase-build (full CI)"
 	@echo "Variables: SDK=$(SDK)  TARGET=$(TARGET)  OUT=$(OUT)  PORT=$(PORT)"
 
 .PHONY: dev
@@ -126,3 +127,19 @@ showcase-build:
 .PHONY: ci
 ci: build test showcase-build
 	@echo "CI green."
+
+.PHONY: sync-templates
+sync-templates:
+	rm -rf Sources/SwiftWUICLI/Templates/showcase
+	mkdir -p Sources/SwiftWUICLI/Templates
+	rsync -a --exclude='.build' --exclude='node_modules' \
+	      --exclude='Tests' --exclude='.swiftpm' --exclude='dist' \
+	      --exclude='Package.resolved' \
+	      Examples/Showcase/ Sources/SwiftWUICLI/Templates/showcase/
+	@# Replace literal "Showcase" / "showcase" with placeholder tokens.
+	@# BSD/GNU sed: -i '' on macOS, -i '' on linux gnu requires no space.
+	@# Use a portable workaround that writes to .bak then deletes.
+	find Sources/SwiftWUICLI/Templates/showcase -type f \
+	  \( -name '*.swift' -o -name '*.html' -o -name '*.md' \) \
+	  -exec sed -i.bak 's/Showcase/{{PROJECT_NAME}}/g; s/showcase/{{project_name}}/g' {} +
+	find Sources/SwiftWUICLI/Templates/showcase -type f -name '*.bak' -delete
