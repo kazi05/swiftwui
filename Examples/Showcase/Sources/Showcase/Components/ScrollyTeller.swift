@@ -1,5 +1,6 @@
 // ScrollyTeller.swift — 2-column scroll-driven teaching widget.
 
+import Foundation
 import SwiftWUI
 
 #if canImport(JavaScriptKit)
@@ -24,8 +25,12 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
 
     let steps: [Step]
     @State private var activeStep: Int = 1
+    private let containerId: String
 
-    public init(steps: [Step]) { self.steps = steps }
+    public init(steps: [Step]) {
+        self.steps = steps
+        self.containerId = "swui-scrolly-\(UUID().uuidString.prefix(8))"
+    }
 
     public var body: some Tag {
         Div {
@@ -39,9 +44,11 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
         .style("margin", "0 auto")
         .style("padding", "32px \(Layout.pageHorizontalPadding)")
         .attribute("data-swui-scrolly", "true")
+        .attribute("data-swui-scrolly-id", containerId)
         .task { @Sendable in
+            let id = containerId
             await MainActor.run {
-                installScrollyObserver { newValue in
+                installScrollyObserver(containerId: id) { newValue in
                     self.activeStep = newValue
                 }
             }
@@ -93,10 +100,17 @@ extension ScrollyTeller.Step: Identifiable {
 }
 
 #if canImport(JavaScriptKit)
+
+// Known: observer leaks across route changes; framework needs an unmount hook to release.
+nonisolated(unsafe) var scrollyObservers: [String: (closure: JSClosure, observer: JSObject)] = [:]
+
 @MainActor
-private func installScrollyObserver(setActive: @escaping @Sendable (Int) -> Void) {
+private func installScrollyObserver(containerId: String, setActive: @escaping @Sendable (Int) -> Void) {
     guard let document = JSObject.global.document.object else { return }
-    let stepsList = document.querySelectorAll!("[data-scrolly-step]").object
+
+    // Scope the container lookup to this specific ScrollyTeller instance.
+    guard let container = document.querySelector?("[data-swui-scrolly-id=\"\(containerId)\"]").object else { return }
+    let stepsList = container.querySelectorAll!("[data-scrolly-step]").object
     let length = Int(stepsList?["length"].number ?? 0)
     guard length > 0 else { return }
 
@@ -127,8 +141,12 @@ private func installScrollyObserver(setActive: @escaping @Sendable (Int) -> Void
             _ = observer.observe!(list[i])
         }
     }
+
+    // Retain the closure and observer for the process lifetime.
+    // Without this, JavaScriptKit's refcount drops to zero and JS callbacks crash.
+    scrollyObservers[containerId] = (closure: callback, observer: observer)
 }
 #else
 @MainActor
-private func installScrollyObserver(setActive: @escaping @Sendable (Int) -> Void) {}
+private func installScrollyObserver(containerId: String, setActive: @escaping @Sendable (Int) -> Void) {}
 #endif
