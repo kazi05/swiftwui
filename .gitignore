@@ -101,3 +101,6 @@ tmp
 .claude/
 .codex/
 .agents/
+
+# Brainstorming visual companion artifacts
+.superpowers/
