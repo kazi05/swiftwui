@@ -56,6 +56,148 @@ public final class DOMRenderer: Renderer {
         currentTree = newTree
     }
 
+    /// Adopt an existing server-rendered DOM subtree as the initial state
+    /// instead of recreating it from scratch.
+    ///
+    /// Walks the supplied tag tree and the existing DOM children of
+    /// `container` in parallel. For each element node, attaches event
+    /// listeners and observers to the corresponding pre-rendered DOM
+    /// element rather than calling `createElement`. The result is
+    /// equivalent to `render(_:)` semantically but avoids the FCP-killing
+    /// "blank page during WASM boot" gap when the server already shipped
+    /// the markup.
+    ///
+    /// **Matching strategy:** positional. The `i`-th child of a TagNode
+    /// element is paired with the `i`-th child of the corresponding DOM
+    /// element. Hydration relies on the SSR pipeline producing markup
+    /// that matches the client-side TagNode shape exactly. When a
+    /// mismatch is detected (different tag name, different child count),
+    /// the rendering for that subtree falls back to the standard
+    /// `render` path: the mismatched DOM is replaced with a freshly
+    /// created subtree.
+    ///
+    /// **Event listeners and observers** are always attached fresh —
+    /// the SSR side cannot serialise live closures, so client-side
+    /// hydration must wire them up. This is the entire point of
+    /// hydration vs static SSR.
+    ///
+    /// **Subsequent updates** work as usual via `update(_:)` — the
+    /// reconciler diffs the cached `currentTree` against new renders.
+    public func hydrate(_ rootTag: some Tag) {
+        EventHandlerRegistry.beginRender()
+        let newTree = TagNode.fragment(resolveTagBody(rootTag))
+        preRegisterResponsiveStyles(newTree)
+
+        // Hydrate against the container's existing children. The fragment
+        // wrapper is conceptual — its children pair 1:1 with the
+        // container's children in the SSR output.
+        let containerChildren = enumerateChildren(container)
+        if case .fragment(let topNodes) = newTree {
+            // Find a non-fragment-marker root to pair with the SSR output.
+            // SSR produces `<div id="app"><actual>...</actual></div>`, so
+            // children of the container ARE the rendered top-level.
+            for (i, node) in topNodes.enumerated() {
+                if i < containerChildren.count {
+                    hydrateNode(node, into: containerChildren[i])
+                } else {
+                    // SSR output had fewer top-level children than the
+                    // tag tree wants — fall back to creating the missing
+                    // ones from scratch.
+                    if let dom = createDOMNode(node) {
+                        bridge.appendChild(container, child: dom)
+                    }
+                }
+            }
+            // Excess SSR children we didn't pair → strip them.
+            if containerChildren.count > topNodes.count {
+                for i in topNodes.count..<containerChildren.count {
+                    bridge.removeChild(container, child: containerChildren[i])
+                }
+            }
+        }
+
+        currentTree = newTree
+        // Pick the first hydrated child as the rootDOMNode so subsequent
+        // `update(_:)` calls patch the right subtree. The fragment wrapper
+        // we'd otherwise create in `render()` is skipped here — SSR did
+        // not emit one.
+        rootDOMNode = containerChildren.first
+    }
+
+    /// Walk a TagNode and an existing DOM JSObject in parallel, attaching
+    /// listeners + observers to the existing element. Recurses into
+    /// children. Falls back to full re-render of any subtree that does
+    /// not structurally match.
+    private func hydrateNode(_ node: TagNode, into dom: JSObject) {
+        switch node {
+        case .text:
+            // Text children carry no listeners; nothing to attach.
+            return
+
+        case .fragment(let kids):
+            let domKids = enumerateChildren(dom)
+            for (i, kid) in kids.enumerated() where i < domKids.count {
+                hydrateNode(kid, into: domKids[i])
+            }
+
+        case .element(let el):
+            // Tag-name mismatch between SSR and client = irrecoverable
+            // for this subtree; replace it.
+            let domTag = dom.tagName.string?.lowercased() ?? ""
+            if domTag != el.tagName.lowercased() {
+                if let parent = dom.parentNode.object,
+                   let replacement = createDOMNode(node) {
+                    bridge.replaceChild(parent, newChild: replacement, oldChild: dom)
+                }
+                return
+            }
+
+            // Attach event listeners declared on the tag tree to the
+            // existing DOM element. SSR cannot serialise these — every
+            // hydration must reattach them.
+            for (event, listenerID) in el.eventListeners {
+                attachEventListener(dom, event: event, listenerID: listenerID)
+            }
+
+            // Attach web observers (intersection / resize / lifecycle).
+            if !el.observers.isEmpty {
+                createObservers(for: dom, observers: el.observers)
+            }
+
+            // Recurse into children. Mismatched child counts trigger a
+            // partial re-render of the tail.
+            let domChildren = enumerateChildren(dom)
+            for (i, child) in el.children.enumerated() {
+                if i < domChildren.count {
+                    hydrateNode(child, into: domChildren[i])
+                } else if let newDOM = createDOMNode(child) {
+                    bridge.appendChild(dom, child: newDOM)
+                }
+            }
+            if domChildren.count > el.children.count {
+                for i in el.children.count..<domChildren.count {
+                    bridge.removeChild(dom, child: domChildren[i])
+                }
+            }
+        }
+    }
+
+    /// Snapshot the live child JSObjects of an element so callers can
+    /// iterate without the snapshot shifting under them when DOM
+    /// mutations happen mid-walk.
+    private func enumerateChildren(_ element: JSObject) -> [JSObject] {
+        guard let kids = element.childNodes.object else { return [] }
+        let n = Int(kids.length.number ?? 0)
+        var out: [JSObject] = []
+        out.reserveCapacity(n)
+        for i in 0..<n {
+            if let kid = kids[i].object {
+                out.append(kid)
+            }
+        }
+        return out
+    }
+
     /// Update the DOM with a new tag tree (re-render).
     /// - Parameter animation: Optional animation to apply CSS transitions during style updates.
     public func update(_ rootTag: some Tag, animation: Animation? = nil) {

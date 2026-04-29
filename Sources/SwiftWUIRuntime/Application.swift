@@ -65,6 +65,62 @@ public struct Application {
     }
 
     #if canImport(JavaScriptKit)
+    /// Mount over an existing server-rendered DOM. Identical to
+    /// `mount(on:)` except the renderer adopts the pre-rendered markup
+    /// instead of recreating it. Pair with
+    /// `Application.renderHTMLDocument(_:)` on the server side: the
+    /// server emits the SSR HTML, the client boots the WASM, and this
+    /// call attaches event listeners + observers without flashing the
+    /// page.
+    ///
+    /// Subsequent state-driven re-renders go through the same
+    /// observation loop / `update(_:)` path as the non-hydrated mount.
+    public func hydrate(on elementId: String = "app") {
+        guard let container = DOMBridge().getElementById(elementId) else {
+            print("SwiftWUI Error: Could not find element with id '\(elementId)'")
+            return
+        }
+        let renderer = DOMRenderer(container: container)
+        let bridge = DOMBridge()
+        let state = RenderState()
+
+        nonisolated(unsafe) var renderCycle: (() -> Void)!
+        renderCycle = { [router] in
+            let animation = AnimationContext.current
+            AnimationContext.current = nil
+
+            withObservationTracking {
+                let path = router.currentPath
+                if state.cachedTag == nil || state.cachedPath != path {
+                    state.cachedTag = router.matchedTag(for: path)
+                    state.cachedPath = path
+                }
+                guard let tag = state.cachedTag else { return }
+
+                if state.isFirstRender {
+                    renderer.hydrate(tag)
+                    state.isFirstRender = false
+                } else {
+                    renderer.update(tag, animation: animation)
+                }
+            } onChange: {
+                guard !state.renderScheduled else { return }
+                state.renderScheduled = true
+                _ = JSObject.global.queueMicrotask!(JSOneshotClosure { _ in
+                    state.renderScheduled = false
+                    renderCycle()
+                    return .undefined
+                })
+            }
+        }
+
+        renderCycle()
+
+        bridge.onPopState { [router] path in
+            router.navigate(to: path)
+        }
+    }
+
     /// Mount the application to a DOM element.
     /// - Parameter elementId: The ID of the container element (default: "app").
     public func mount(on elementId: String = "app") {
