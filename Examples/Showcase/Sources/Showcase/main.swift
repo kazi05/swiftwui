@@ -1,5 +1,23 @@
 import SwiftWUI
 
+#if canImport(JavaScriptKit)
+import JavaScriptKit
+
+private func installThemeCSS() {
+    let css = ThemeCSS.definitions(light: ShowcaseTheme.light, dark: ShowcaseTheme.dark)
+    guard let document = JSObject.global.document.object,
+          let head = document.head.object,
+          let style = document.createElement?("style").object else {
+        return
+    }
+    _ = style.setAttribute?("data-swui-theme", "showcase")
+    style.textContent = .string(css)
+    _ = head.appendChild?(style)
+}
+#else
+private func installThemeCSS() {}
+#endif
+
 struct PlaceholderPage: Tag {
     let title: String
     var body: some Tag {
@@ -8,9 +26,13 @@ struct PlaceholderPage: Tag {
             P { Text("Coming soon — chapter content lands in Phase 4.") }
         }
         .padding(.px(48))
-        .style("font-family", "system-ui, sans-serif")
+        .style("font-family", "var(--font-text)")
+        .style("background", "var(--swui-bg)")
+        .style("color", "var(--swui-fg)")
     }
 }
+
+installThemeCSS()
 
 let app = Application {
     Route("/")                { PlaceholderPage(title: "Showcase") }
