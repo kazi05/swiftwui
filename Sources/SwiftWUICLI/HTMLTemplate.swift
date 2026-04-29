@@ -61,7 +61,9 @@ struct HTMLTemplate {
                 var ws = new WebSocket('ws://localhost:\(port)/_dev');
                 ws.onopen = function() {
                     console.log('[SwiftWUI] Dev server connected');
-                    if (overlay) { overlay.remove(); overlay = null; }
+                    if (overlay && overlay.dataset.kind === 'connection') {
+                        overlay.remove(); overlay = null;
+                    }
                     if (indicator) { indicator.remove(); indicator = null; }
                 };
                 ws.onmessage = function(e) {
@@ -79,7 +81,7 @@ struct HTMLTemplate {
                     } else if (msg.type === 'building') {
                         showIndicator('Rebuilding...');
                     } else if (msg.type === 'error') {
-                        showErrorOverlay(msg.message);
+                        showOverlay('build', 'Build error', msg.message);
                     }
                 };
                 ws.onclose = function() {
@@ -87,6 +89,35 @@ struct HTMLTemplate {
                     setTimeout(connect, 2000);
                 };
             }
+
+            // Capture runtime errors in the WASM client. window.onerror catches
+            // synchronous exceptions, including WASM traps that surface as
+            // JavaScript Error objects. unhandledrejection catches awaits
+            // (and Swift Tasks) that throw without a handler. We surface both
+            // through the same overlay infrastructure used for build errors,
+            // distinguished by the `kind` parameter.
+            window.addEventListener('error', function(ev) {
+                var stack = (ev.error && ev.error.stack) ? ev.error.stack : '';
+                var msg = (ev.message || 'Unknown error');
+                if (ev.filename) {
+                    msg += '\\n\\nat ' + ev.filename + ':' + ev.lineno + ':' + ev.colno;
+                }
+                if (stack) { msg += '\\n\\n' + stack; }
+                showOverlay('runtime', 'Runtime error', msg);
+            });
+            window.addEventListener('unhandledrejection', function(ev) {
+                var reason = ev.reason;
+                var msg = '';
+                if (reason instanceof Error) {
+                    msg = reason.message + (reason.stack ? '\\n\\n' + reason.stack : '');
+                } else if (typeof reason === 'string') {
+                    msg = reason;
+                } else {
+                    try { msg = JSON.stringify(reason); }
+                    catch (_) { msg = String(reason); }
+                }
+                showOverlay('rejection', 'Unhandled promise rejection', msg);
+            });
 
             function manifestsEqual(a, b) {
                 var ak = Object.keys(a), bk = Object.keys(b);
@@ -105,14 +136,53 @@ struct HTMLTemplate {
                 }
                 indicator.textContent = text;
             }
-            function showErrorOverlay(message) {
+            // Render an error overlay. `kind` is 'build' / 'runtime' /
+            // 'rejection' — the colour and header reflect which subsystem
+            // surfaced the error. `kind === 'build'` overlays are
+            // dismissed automatically on the next successful rebuild;
+            // 'runtime' / 'rejection' overlays carry an explicit
+            // dismiss button so the developer can keep interacting with
+            // the page after acknowledging the error.
+            function showOverlay(kind, title, message) {
                 if (indicator) { indicator.remove(); indicator = null; }
-                if (!overlay) {
-                    overlay = document.createElement('div');
-                    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);color:#ff6b6b;font:14px/1.6 monospace;padding:32px;overflow:auto;z-index:99999;white-space:pre-wrap';
-                    document.body.appendChild(overlay);
+                if (overlay) { overlay.remove(); overlay = null; }
+
+                overlay = document.createElement('div');
+                overlay.dataset.kind = kind;
+                var color = (kind === 'build') ? '#ff6b6b'
+                    : (kind === 'runtime') ? '#ffa057'
+                    : '#ffd166';
+                overlay.style.cssText = [
+                    'position:fixed;inset:0;background:rgba(0,0,0,0.88);',
+                    'color:' + color + ';font:13px/1.5 ui-monospace,SFMono-Regular,monospace;',
+                    'padding:32px;overflow:auto;z-index:2147483647;white-space:pre-wrap;'
+                ].join('');
+
+                var header = document.createElement('div');
+                header.style.cssText = 'font:bold 16px ui-sans-serif,system-ui;color:#fff;margin-bottom:16px;';
+                header.textContent = title;
+                overlay.appendChild(header);
+
+                var body = document.createElement('pre');
+                body.style.cssText = 'margin:0;white-space:pre-wrap;color:' + color + ';';
+                body.textContent = message;
+                overlay.appendChild(body);
+
+                if (kind !== 'build') {
+                    var btn = document.createElement('button');
+                    btn.textContent = 'Dismiss';
+                    btn.style.cssText = [
+                        'position:fixed;top:16px;right:16px;background:#fff;color:#000;',
+                        'border:0;border-radius:6px;padding:8px 14px;font:12px ui-sans-serif;',
+                        'cursor:pointer;z-index:2147483647;'
+                    ].join('');
+                    btn.onclick = function() {
+                        if (overlay) { overlay.remove(); overlay = null; }
+                    };
+                    overlay.appendChild(btn);
                 }
-                overlay.textContent = 'Build Error:\\n\\n' + message;
+
+                document.body.appendChild(overlay);
             }
             connect();
         })();
