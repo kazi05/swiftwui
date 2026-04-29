@@ -10,7 +10,11 @@ import SwiftWUIPage
 /// let renderer = StaticRenderer()
 /// let html = renderer.renderPage(HomePage())
 /// ```
-public struct StaticRenderer {
+///
+/// Conforms to `StringRendering` so SSR / SSG callers (Vapor request
+/// handlers, the static-site builder, snapshot test helpers) can target
+/// any string-emitting backend through the same protocol.
+public struct StaticRenderer: StringRendering {
     private let pageRenderer: PageRenderer
 
     public init() {
@@ -23,8 +27,8 @@ public struct StaticRenderer {
     }
 
     /// Render a Tag to an HTML fragment string (no html/head/body wrapper).
-    public func renderFragment(_ tag: some Tag) -> String {
-        let nodes = resolveTagBody(tag)
+    public func renderFragment<T: Tag>(_ rootTag: T) -> String {
+        let nodes = resolveTagBody(rootTag)
         return nodes.map { renderNode($0, indent: 0) }.joined()
     }
 

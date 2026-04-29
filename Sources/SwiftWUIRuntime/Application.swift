@@ -37,6 +37,31 @@ public struct Application {
         }
     }
 
+    /// Render the application's currently-matched route into an arbitrary
+    /// `Renderer`. Intended for native unit tests, snapshot tests, and
+    /// alternative backends (TUI, headless SSR, native canvas) that do
+    /// not need the WASM observation loop / History API integration.
+    ///
+    /// Returns the resolved tag for the current path so tests can drive
+    /// subsequent `update` calls after mutating its state.
+    @discardableResult
+    public func renderOnce<R: Renderer>(in renderer: R) -> AnyTag? {
+        let tag = router.matchedTag(for: router.currentPath)
+        if let tag {
+            renderer.render(tag)
+        }
+        return tag
+    }
+
+    /// Render the application as a one-shot HTML string. The supplied
+    /// renderer drives the conversion; callers typically use the
+    /// `StaticRenderer` from this module or any custom `StringRendering`
+    /// implementation (e.g. a streaming variant).
+    public func renderToString<R: StringRendering>(in renderer: R) -> String {
+        guard let tag = router.matchedTag(for: router.currentPath) else { return "" }
+        return renderer.renderFragment(tag)
+    }
+
     #if canImport(JavaScriptKit)
     /// Mount the application to a DOM element.
     /// - Parameter elementId: The ID of the container element (default: "app").

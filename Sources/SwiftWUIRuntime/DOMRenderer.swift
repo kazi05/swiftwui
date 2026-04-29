@@ -9,8 +9,13 @@ import SwiftWUIStyles
 
 /// Renders virtual DOM trees (TagNode) into real browser DOM elements.
 /// Handles initial rendering and subsequent updates via reconciliation.
+///
+/// Conforms to `Renderer` so `Application` and downstream test harnesses
+/// can target the DOM or any other backend (`TestRenderer`, future
+/// `CanvasRenderer`, etc.) through the same protocol.
+///
 /// - Note: Not isolated to an actor — WASM is single-threaded.
-public final class DOMRenderer {
+public final class DOMRenderer: Renderer {
 
     #if canImport(JavaScriptKit)
     private let bridge: DOMBridge
