@@ -28,6 +28,7 @@ public struct Application {
     /// Create an application with routes defined using a builder.
     public init(@RouteBuilder routes: () -> [Route]) {
         self.router = Router(routes: routes)
+        QueryParamContext.router = self.router
     }
 
     /// Create an application with a single page (no routing).
@@ -35,6 +36,7 @@ public struct Application {
         self.router = Router {
             Route("/") { page() }
         }
+        QueryParamContext.router = self.router
     }
 
     /// Render the application's currently-matched route into an arbitrary
