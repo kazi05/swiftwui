@@ -60,11 +60,17 @@ struct FileGenerator {
         }
 
         try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: false)
-
+        var success = false
+        defer {
+            if !success {
+                try? FileManager.default.removeItem(at: dest)
+            }
+        }
         switch mode {
         case .showcase: try scaffoldShowcase(at: dest)
         case .minimal:  try scaffoldMinimal(at: dest)
         }
+        success = true
     }
 
     // MARK: - Private helpers
@@ -80,11 +86,13 @@ struct FileGenerator {
         let templateRoot: URL
 
         // Try Bundle.module first (works for executable targets built with SPM
-        // resource support on Swift 5.9+). Fall back to a path-relative search
-        // for environments where Bundle.module is not synthesised.
+        // resource support on Swift 5.9+). The `forResource:withExtension:subdirectory:`
+        // form is required — forResource: does NOT treat slashes as path separators,
+        // so "Templates/showcase" would always return nil.
         if let bundledURL = Bundle.module.url(
-            forResource: "Templates/showcase",
-            withExtension: nil
+            forResource: "showcase",
+            withExtension: nil,
+            subdirectory: "Templates"
         ) {
             templateRoot = bundledURL
         } else if let fallbackURL = executableRelativeTemplateURL() {
@@ -92,11 +100,8 @@ struct FileGenerator {
         } else {
             throw NSError(
                 domain: "SwiftWUICLI", code: 100,
-                userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "Templates/showcase resource missing from bundle. " +
-                        "Re-run `make sync-templates` and rebuild the CLI."
-                ]
+                userInfo: [NSLocalizedDescriptionKey:
+                    "Templates/showcase resource missing — try `make sync-templates`"]
             )
         }
 

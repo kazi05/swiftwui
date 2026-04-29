@@ -136,6 +136,8 @@ sync-templates:
 	      --exclude='Tests' --exclude='.swiftpm' --exclude='dist' \
 	      --exclude='Package.resolved' \
 	      Examples/Showcase/ Sources/SwiftWUICLI/Templates/showcase/
+	rm -rf Sources/SwiftWUICLI/Templates/showcase/.build
+	rm -rf Sources/SwiftWUICLI/Templates/showcase/.swiftpm
 	@# Replace literal "Showcase" / "showcase" with placeholder tokens.
 	@# BSD/GNU sed: -i '' on macOS, -i '' on linux gnu requires no space.
 	@# Use a portable workaround that writes to .bak then deletes.

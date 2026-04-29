@@ -216,9 +216,37 @@ struct Doctor: ParsableCommand {
         }
     }
 
+    private static func locateRepoRoot() -> URL? {
+        // Walk up from the binary location looking for a directory that contains
+        // both `Examples/Showcase` and `Sources/SwiftWUICLI/Templates`, which
+        // together uniquely identify the SwiftWUI repo root. Cap the walk at 8
+        // levels to avoid scanning the entire filesystem on a mis-configured PATH.
+        var url = URL(fileURLWithPath: CommandLine.arguments[0])
+            .standardizedFileURL
+            .deletingLastPathComponent()
+        for _ in 0..<8 {
+            let exShowcase = url.appendingPathComponent("Examples/Showcase").path
+            let cliTemplates = url.appendingPathComponent("Sources/SwiftWUICLI/Templates").path
+            if FileManager.default.fileExists(atPath: exShowcase),
+               FileManager.default.fileExists(atPath: cliTemplates) {
+                return url
+            }
+            url.deleteLastPathComponent()
+        }
+        return nil
+    }
+
     private func checkShowcaseTemplateSync(_ allOK: inout Bool) {
+        guard let root = Self.locateRepoRoot() else {
+            // No dev tree found — running from an installed binary. The drift
+            // check requires the live source tree and is not applicable here.
+            print("• Showcase template drift check: skipped (not in dev tree)")
+            return
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.currentDirectoryURL = root
         process.arguments = [
             "-c",
             // Compare Examples/Showcase to the synced template, ignoring
