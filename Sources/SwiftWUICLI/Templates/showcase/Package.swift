@@ -15,10 +15,5 @@ let package = Package(
                 .product(name: "SwiftWUI", package: "SwiftWUI"),
             ]
         ),
-        .testTarget(
-            name: "{{PROJECT_NAME}}Tests",
-            dependencies: ["{{PROJECT_NAME}}"],
-            path: "Tests/{{PROJECT_NAME}}Tests"
-        ),
     ]
 )

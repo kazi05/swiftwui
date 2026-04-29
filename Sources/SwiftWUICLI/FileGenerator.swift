@@ -119,6 +119,14 @@ struct FileGenerator {
             "{{PROJECT_NAME}}": projectName,
             "{{project_name}}": projectName.lowercased(),
         ])
+
+        // Sync target rsyncs literal directory names; tokens are substituted
+        // inside file content only. The Swift module / target / test-target
+        // names produced after `renameTokens` need the source directories
+        // renamed to match (SwiftPM convention: `Sources/<targetName>/`).
+        try renameDirectories(in: destination, replacing: [
+            "Showcase": projectName,
+        ])
     }
 
     /// Locates the `Templates/showcase` directory relative to the CLI binary,
@@ -142,6 +150,56 @@ struct FileGenerator {
             candidate = candidate.deletingLastPathComponent()
         }
         return nil
+    }
+
+    /// Renames subdirectories inside `dir` whose names contain any of the
+    /// provided token strings.
+    ///
+    /// The walk is top-down (outer directories renamed before inner ones) so
+    /// that a parent rename does not invalidate a child URL already on the
+    /// pending stack.
+    ///
+    /// The showcase template stores source directories under their literal
+    /// names (`Sources/Showcase/`, `Tests/ShowcaseTests/`) because the
+    /// `make sync-templates` rsync step only substitutes tokens inside file
+    /// content, not in path components. This helper fixes up those names at
+    /// scaffold time so the generated project satisfies SwiftPM's
+    /// `Sources/<targetName>/` convention and builds without modification.
+    ///
+    /// - Parameters:
+    ///   - dir: Root directory to walk.
+    ///   - tokens: Dictionary mapping literal strings to their replacements.
+    /// - Throws: Any `FileManager.moveItem` error.
+    private func renameDirectories(in dir: URL, replacing tokens: [String: String]) throws {
+        let fm = FileManager.default
+        // Top-down breadth-first walk so we rename outer dirs before inner ones.
+        // Walk the tree manually so we don't fight a paused enumerator.
+        var pending: [URL] = [dir]
+        while let cur = pending.popLast() {
+            guard let entries = try? fm.contentsOfDirectory(
+                at: cur,
+                includingPropertiesForKeys: [.isDirectoryKey]
+            ) else { continue }
+            for entry in entries {
+                let isDir = (try? entry.resourceValues(
+                    forKeys: [.isDirectoryKey]
+                ).isDirectory) ?? false
+                guard isDir else { continue }
+                let name = entry.lastPathComponent
+                var newName = name
+                for (token, value) in tokens {
+                    newName = newName.replacingOccurrences(of: token, with: value)
+                }
+                if newName != name {
+                    let renamed = entry.deletingLastPathComponent()
+                        .appendingPathComponent(newName)
+                    try fm.moveItem(at: entry, to: renamed)
+                    pending.append(renamed)
+                } else {
+                    pending.append(entry)
+                }
+            }
+        }
     }
 
     /// Recursively walks `dir` and performs in-place token replacement on all
