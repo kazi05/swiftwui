@@ -4,6 +4,11 @@ import SwiftWUICore
 
 /// Represents an HTML `<img>` element.
 /// This is a self-closing tag with no children.
+///
+/// `alt` is required at the type level because every non-decorative image
+/// must carry alternative text for screen readers. For purely decorative
+/// images that should be ignored by assistive technology, pass `alt: ""`
+/// and add `.aria(hidden: true)`.
 public struct Img: HTMLTag, TagNodeConvertible {
     public static let tagName = "img"
 
@@ -16,7 +21,7 @@ public struct Img: HTMLTag, TagNodeConvertible {
 
     public init(
         src: String,
-        alt: String = "",
+        alt: String,
         width: Int? = nil,
         height: Int? = nil
     ) {

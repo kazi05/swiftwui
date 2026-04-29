@@ -62,4 +62,16 @@ public struct CSSColor: Sendable {
     public static func hsla(_ h: Int, _ s: Int, _ l: Int, _ a: Double) -> CSSColor {
         CSSColor(cssValue: "hsla(\(h), \(s)%, \(l)%, \(a))")
     }
+
+    /// Reference a CSS custom property (theme token). The supplied name is
+    /// emitted verbatim into a `var(--name)` expression, so a theme that
+    /// defines `--background: #fff` on `:root` will resolve `.token("background")`
+    /// to that value at paint time. Pairs with `Theme.cssDefinitions(...)`.
+    ///
+    /// ```swift
+    /// .background(.token("background"))
+    /// ```
+    public static func token(_ name: String) -> CSSColor {
+        CSSColor(cssValue: "var(--\(name))")
+    }
 }

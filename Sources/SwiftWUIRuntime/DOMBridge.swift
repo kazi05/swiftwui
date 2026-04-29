@@ -466,6 +466,26 @@ public final class DOMBridge {
         _ = JSObject.global.requestAnimationFrame!(closure)
     }
 
+    /// Wrap a DOM mutation in a `document.startViewTransition()` call so the
+    /// browser animates the before/after states using the View Transitions
+    /// API. Falls back to invoking the callback immediately on browsers
+    /// that lack the API. Pair with `.viewTransitionName(_:)` on
+    /// individual elements to enable matched-element morphs.
+    public func startViewTransition(_ callback: @escaping () -> Void) {
+        let doc = JSObject.global.document.object!
+        // Feature-detect: `startViewTransition` is undefined on browsers
+        // that have not shipped the API yet (Safari < 18, Firefox < 130).
+        guard doc.startViewTransition.function != nil else {
+            callback()
+            return
+        }
+        let closure = JSOneshotClosure { _ in
+            callback()
+            return .undefined
+        }
+        _ = doc.startViewTransition!(closure)
+    }
+
     // MARK: - Window
 
     /// Get a value from `window` by key.
