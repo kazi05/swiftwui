@@ -143,5 +143,10 @@ let package = Package(
             name: "SwiftWUIRuntimeTests",
             dependencies: ["SwiftWUIRuntime", "SwiftWUICore"]
         ),
+        .testTarget(
+            name: "SwiftWUICLITests",
+            dependencies: ["SwiftWUICLI"],
+            path: "Tests/SwiftWUICLITests"
+        ),
     ]
 )
