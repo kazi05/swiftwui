@@ -23,42 +23,42 @@ public struct CodeAndPreview: Tag {
     public var body: some Tag {
         Div {
             Span { Text("STEP \(stepNumber)") }
-                .style("display", "inline-block")
+                .display(.inlineBlock)
                 .style("background", "var(--swui-surface-2)")
-                .style("color", "var(--swui-fg-3)")
-                .style("font-size", "10px")
-                .style("font-weight", "600")
-                .style("padding", "2px 8px")
+                .foregroundColor(.token("swui-fg-3"))
+                .fontSize(.px(10))
+                .fontWeight(.w600)
+                .padding(.px(2), .px(8))
                 .style("border-radius", "var(--radius-sm)")
-                .style("margin-bottom", "10px")
+                .marginBottom(.px(10))
             H3 { Text(title) }
-                .style("font-size", "20px")
-                .style("font-weight", "600")
+                .fontSize(.px(20))
+                .fontWeight(.w600)
                 .style("margin", "0 0 8px")
-                .style("color", "var(--swui-fg)")
+                .foregroundColor(.token("swui-fg"))
             P { Text(prose) }
-                .style("color", "var(--swui-fg-2)")
-                .style("font-size", "14px")
+                .foregroundColor(.token("swui-fg-2"))
+                .fontSize(.px(14))
                 .style("line-height", "1.55")
                 .style("margin", "0 0 14px")
-                .style("max-width", "560px")
+                .maxWidth(.px(560))
             Pre {
                 Code { Text(code) }
                     .attribute("class", "language-swift")
             }
             .style("background", "var(--swui-code-bg)")
-            .style("color", "var(--swui-code-fg)")
+            .foregroundColor(.token("swui-code-fg"))
             .style("border-radius", "var(--radius-sm)")
-            .style("padding", "12px 14px")
-            .style("font-family", "var(--font-mono)")
-            .style("font-size", "12px")
+            .padding(.px(12), .px(14))
+            .fontFamily("var(--font-mono)")
+            .fontSize(.px(12))
             .style("margin", "0 0 16px")
-            .style("overflow-x", "auto")
+            .overflowX(.auto)
             if showInlinePreview {
                 Div { preview }
                     .style("border", "1px solid var(--swui-border)")
                     .style("border-radius", "var(--radius-sm)")
-                    .style("padding", "16px")
+                    .padding(.px(16))
                     .style("background", "var(--swui-surface)")
                     .attribute("data-mobile-preview", "true")
             }
@@ -66,7 +66,7 @@ public struct CodeAndPreview: Tag {
         .style("background", "var(--swui-surface)")
         .style("border", "1px solid var(--swui-border)")
         .style("border-radius", "var(--radius-md)")
-        .style("padding", "20px 22px")
+        .padding(.px(20), .px(22))
         .style("min-height", Layout.scrollyStepMinHeight)
         .attribute("data-scrolly-step", "\(stepNumber)")
     }

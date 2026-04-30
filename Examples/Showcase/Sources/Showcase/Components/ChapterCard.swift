@@ -21,42 +21,43 @@ public struct ChapterCard: Tag {
         A(href: href) {
             Div {
                 Div { Text(codeTeaser) }
-                    .style("font-family", "var(--font-mono)")
-                    .style("font-size", "11px")
-                    .style("color", "#884400")
-                    .style("padding", "0 16px")
-                    .style("display", "flex")
-                    .style("align-items", "center")
-                    .style("justify-content", "center")
-                    .style("height", "90px")
+                    .fontFamily("var(--font-mono)")
+                    .fontSize(.px(11))
+                    .foregroundColor(.init(hex: "884400"))
+                    .padding(.zero, .px(16))
+                    .display(.flex)
+                    .alignItems(.center)
+                    .justifyContent(.center)
+                    .height(.px(90))
                     .style("background", "linear-gradient(135deg, #fff5e8, #ffe4cc)")
                 Div {
                     P { Text("CHAPTER \(number)") }
-                        .style("font-size", "10px")
-                        .style("color", "var(--swui-fg-3)")
-                        .style("letter-spacing", "0.06em")
+                        .fontSize(.px(10))
+                        .foregroundColor(.token("swui-fg-3"))
+                        .letterSpacing(.em(0.06))
                         .style("margin", "0 0 4px")
                     H3 { Text(title) }
-                        .style("font-size", "16px")
-                        .style("font-weight", "600")
+                        .fontSize(.px(16))
+                        .fontWeight(.w600)
                         .style("margin", "0 0 6px")
-                        .style("color", "var(--swui-fg)")
+                        .foregroundColor(.token("swui-fg"))
                     P { Text(subtitle) }
-                        .style("font-size", "13px")
-                        .style("color", "var(--swui-fg-3)")
+                        .fontSize(.px(13))
+                        .foregroundColor(.token("swui-fg-3"))
                         .style("line-height", "1.4")
-                        .style("margin", "0")
+                        .margin(.zero)
                 }
-                .style("padding", "14px 16px 18px")
+                .padding(.px(14), .px(16))
+                .style("padding-bottom", "18px")
             }
             .style("background", "var(--swui-surface)")
             .style("border", "1px solid var(--swui-border)")
             .style("border-radius", "var(--radius-md)")
-            .style("overflow", "hidden")
+            .overflow(.hidden)
             .attribute("data-swui-chapter-card", "true")
         }
-        .style("text-decoration", "none")
-        .style("color", "inherit")
-        .style("display", "block")
+        .textDecoration(.none)
+        .foregroundColor(.inherit)
+        .display(.block)
     }
 }

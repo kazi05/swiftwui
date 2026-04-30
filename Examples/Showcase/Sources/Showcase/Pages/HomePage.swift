@@ -66,21 +66,21 @@ public struct HomePage: Tag {
         Div {
             Div {
                 P { Text(eyebrow) }
-                    .style("color", "var(--swui-accent)")
-                    .style("font-size", "11px")
-                    .style("font-weight", "600")
-                    .style("letter-spacing", "0.08em")
-                    .style("text-transform", "uppercase")
+                    .foregroundColor(.token("swui-accent"))
+                    .fontSize(.px(11))
+                    .fontWeight(.w600)
+                    .letterSpacing(.em(0.08))
+                    .textTransform(.uppercase)
                     .style("margin", "0 0 8px")
                 H2 { Text(title) }
-                    .style("font-family", "var(--font-display)")
-                    .style("font-size", "28px")
-                    .style("font-weight", "600")
+                    .fontFamily("var(--font-display)")
+                    .fontSize(.px(28))
+                    .fontWeight(.w600)
                     .style("margin", "0 0 4px")
-                    .style("color", "var(--swui-fg)")
+                    .foregroundColor(.token("swui-fg"))
                 P { Text(description) }
-                    .style("font-size", "14px")
-                    .style("color", "var(--swui-fg-3)")
+                    .fontSize(.px(14))
+                    .foregroundColor(.token("swui-fg-3"))
                     .style("margin", "0 0 24px")
                 cardGrid(cards: cards)
             }
@@ -102,28 +102,28 @@ public struct HomePage: Tag {
                 )
             }
         }
-        .style("display", "grid")
-        .style("grid-template-columns", "repeat(auto-fit, minmax(240px, 1fr))")
-        .style("gap", "16px")
+        .display(.grid)
+        .gridTemplateColumns("repeat(auto-fit, minmax(240px, 1fr))")
+        .gap(.px(16))
     }
 
     private var whatsInsideSection: some Tag {
         Div {
             Div {
                 P { Text("What's Inside") }
-                    .style("color", "var(--swui-accent)")
-                    .style("font-size", "11px")
-                    .style("font-weight", "600")
-                    .style("letter-spacing", "0.08em")
-                    .style("text-transform", "uppercase")
+                    .foregroundColor(.token("swui-accent"))
+                    .fontSize(.px(11))
+                    .fontWeight(.w600)
+                    .letterSpacing(.em(0.08))
+                    .textTransform(.uppercase)
                     .style("margin", "0 0 8px")
                 H2 { Text("Production-ready features") }
-                    .style("font-family", "var(--font-display)")
-                    .style("font-size", "24px")
+                    .fontFamily("var(--font-display)")
+                    .fontSize(.px(24))
                     .style("margin", "0 0 4px")
                 P { Text("Available in the framework — covered briefly in chapters or in the README.") }
-                    .style("font-size", "14px")
-                    .style("color", "var(--swui-fg-3)")
+                    .fontSize(.px(14))
+                    .foregroundColor(.token("swui-fg-3"))
                     .style("margin", "0 0 16px")
                 BadgeGrid(items: [
                     .init(title: "Container Queries",  description: "Component-level responsive styles"),
@@ -155,4 +155,3 @@ public struct HomePage: Tag {
         """
     }
 }
-
