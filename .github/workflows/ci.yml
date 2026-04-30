@@ -57,6 +57,21 @@ jobs:
       - name: Run showcase tests
         run: cd Examples/Showcase && swift test
 
+      - name: Scaffold roundtrip — `swiftwui init` produces a building project
+        # End-to-end check that catches token-substitution bugs the unit
+        # tests can't reach. Runs OUTSIDE `swift test` so the CLI's
+        # internal `swift build` doesn't deadlock on the parent test
+        # process's `.build` lock.
+        run: |
+          swift build --target SwiftWUICLI
+          ROUNDTRIP_DIR=$(mktemp -d)
+          (
+            cd "$ROUNDTRIP_DIR"
+            "$GITHUB_WORKSPACE/.build/debug/swiftwui" init CIRoundtripApp
+            cd CIRoundtripApp && swift build
+          )
+          rm -rf "$ROUNDTRIP_DIR"
+
       - name: Verify showcase template is in sync
         run: |
           make sync-templates
