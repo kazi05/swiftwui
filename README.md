@@ -1,184 +1,245 @@
 # SwiftWUI
 
-**Declarative web UI framework for Swift, compiled to WebAssembly.**
+A SwiftUI-inspired declarative web framework that compiles to WebAssembly.
 
 ![Swift 6.0+](https://img.shields.io/badge/Swift-6.0+-F05138?logo=swift&logoColor=white)
 ![WebAssembly](https://img.shields.io/badge/WebAssembly-654FF0?logo=webassembly&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Web-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-SwiftWUI brings SwiftUI's declarative programming model to the browser. Build interactive web applications in pure Swift using familiar patterns -- `Tag` (the SwiftUI `View` analog), `@State`, `@Environment`, result builders, and modifier chains -- all compiled to WebAssembly via SwiftWasm.
+SwiftWUI brings SwiftUI's declarative programming model to the browser. Build interactive web applications in pure Swift — `Tag` (the SwiftUI `View` analog), `@State`, `@Environment`, result builders, modifier chains — all compiled to WebAssembly via SwiftWasm.
 
 ---
 
 ## Quick Start
 
-### Scaffold a New Project
-
-```bash
-swift run swiftwui-init MyApp
-```
-
-This generates a ready-to-run project:
-
-```
-MyApp/
-  Package.swift          # Swift 6.0, WASM-ready
-  Sources/main.swift     # Application + ContentView template
-  index.html             # HTML entry point with <div id="app">
-  package.json           # Vite dev server
-  .gitignore
-```
-
-### Build and Run
-
-```bash
-cd MyApp
-npm install
-swift package --swift-sdk swift-6.2.3-RELEASE_wasm js -c debug
-npm run dev
-```
-
-Open `http://localhost:8080` in your browser.
-
----
-
-## Example: Counter App
-
-```swift
-import SwiftWUI
-
-struct CounterApp: Tag {
-    @State var count = 0
-
-    var body: some Tag {
-        Div {
-            H1 { "SwiftWUI Counter" }
-            P { Text("Count: \(count)") }.fontSize(.px(24))
-            Button(onclick: { count += 1 }) { Text("+") }
-                .padding(.px(8), .px(16))
-                .cursor(.pointer)
-        }
-        .padding(.px(32))
-    }
-}
-
-let app = Application {
-    Route("/") { CounterApp() }
-}
-app.mount()
-```
-
----
-
-## Features
-
-| Feature | Description |
-|---|---|
-| **Tag Protocol** | SwiftUI's `View` analog. Compose UI with `var body: some Tag`. |
-| **@TagBuilder** | Result builder for declarative tag composition, including conditionals and loops. |
-| **@State** | Reactive state backed by Swift's `@Observable`. Mutations trigger automatic re-renders. |
-| **Binding** | Two-way data binding via `$property`. Supports `$model.field` for `@Observable` classes. |
-| **@Environment** | Inject values down the tag tree with custom `EnvironmentKey` definitions. |
-| **TagModifier** | Reusable modifier protocol (analogous to SwiftUI's `ViewModifier`). |
-| **Type-Safe CSS** | Chainable modifiers: `.fontSize(.px(16))`, `.backgroundColor(.hex("#333"))`, `.display(.flex)`. |
-| **CSS Transitions** | `withAnimation(.easeInOut(duration: 0.3)) { ... }` and `.transition(.opacity)`. |
-| **URL Routing** | `Route`, `Link`, `NavigationStack`, and dynamic path parameters (`:id`). |
-| **Browser APIs** | `@AppStorage` (localStorage), `Geolocation`, `Clipboard`, `MediaQuery`, `Localization`. |
-| **Page Protocol** | Define page-level metadata (head tags, title). |
-| **CLI Scaffolding** | `swift run swiftwui-init <Name>` generates a complete project. |
-
----
-
-## Architecture
-
-SwiftWUI is organized into 8 focused modules, plus an umbrella module that re-exports them all:
-
-```
-SwiftWUI (umbrella)
-  |
-  +-- SwiftWUICore       Tag protocol, @TagBuilder, TagNode (virtual DOM),
-  |                      AnyTag, ModifiedContent, ForEach, EventHandlerRegistry
-  |
-  +-- SwiftWUIHTML       HTML tags: Div, Span, P, H1-H6, Button, Input,
-  |                      Form, Table, Select, Textarea, Img, A, and more
-  |
-  +-- SwiftWUIStyles     Type-safe CSS modifiers, CSSUnit, CSSColor,
-  |                      Animation, TagTransition, layout/flexbox/grid helpers
-  |
-  +-- SwiftWUIState      @State, Binding, @Environment, EnvironmentValues
-  |
-  +-- SwiftWUIPage       Page protocol, PageHead, PageRenderer
-  |
-  +-- SwiftWUIRouter     Router, Route, RouteBuilder, Link, NavigationStack
-  |
-  +-- SwiftWUIRuntime    Application, DOMRenderer, Reconciler, DOMBridge
-  |
-  +-- SwiftWUIBrowser    @AppStorage, @SessionStorage, Geolocation,
-                         Clipboard, MediaQuery, Localization
-```
-
-The virtual DOM (`TagNode`) is diffed by the `Reconciler`, which produces patch operations applied through `DOMBridge` (a thin wrapper over JavaScriptKit). State changes are tracked via Swift's Observation framework and re-renders are batched using `queueMicrotask`.
-
----
-
-## Requirements
+### Prerequisites
 
 | Dependency | Version |
 |---|---|
 | Swift | 6.0+ |
 | SwiftWasm SDK | `swift-6.2.3-RELEASE_wasm` or later |
-| Node.js | Required for Vite dev server |
-| JavaScriptKit | 0.22+ |
+| Node.js | Required for the Vite dev server |
+
+Install the SwiftWasm SDK once:
+
+```bash
+swift sdk install https://github.com/swiftwasm/swift/releases/download/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE-wasm32-unknown-wasi.artifactbundle.zip
+```
+
+### Install the CLI
+
+```bash
+swift build -c release --product swiftwui
+# Copy the binary to your PATH, e.g.:
+cp .build/release/swiftwui /usr/local/bin/swiftwui
+```
+
+### Create and run a project
+
+```bash
+swiftwui init MyApp          # scaffold the 12-chapter showcase template
+cd MyApp
+swiftwui dev --target MyApp  # build, serve, and hot-reload on http://localhost:8080
+```
 
 ---
 
-## Build Commands
+## Core Ideas
 
-**Native build and tests** (no WASM -- useful for unit testing core logic):
+- **`Tag` protocol** — SwiftUI's `View` analog. Compose UI with `var body: some Tag`.
+- **`@TagBuilder`** — result builder for declarative tag composition, including conditionals and `ForEach` loops.
+- **`@State` observation** — reactive state backed by Swift's `@Observable`. Mutations automatically re-render the affected subtree via `withObservationTracking`.
+- **Virtual-DOM reconciler** — `TagNode` trees are diffed by `Reconciler`, producing minimal patch operations applied through `DOMBridge` (JavaScriptKit).
+- **Type-safe CSS modifiers** — chainable `.fontSize(.px(16))`, `.backgroundColor(.hex("#333"))`, `.display(.flex)` with a `.style("prop", "val")` string escape hatch.
+- **Sticky-pair scrolly-telling** — `ScrollyTeller` and `CodeAndPreview` components used in the showcase template keep a live preview panel sticky while the user scrolls through a chapter's steps.
+
+---
+
+## What's in the Box
+
+Eight focused library modules, re-exported through the `SwiftWUI` umbrella:
+
+- **SwiftWUICore** — `Tag` protocol, `@TagBuilder`, `TagNode` (virtual DOM), `AnyTag`, `ModifiedContent`, `ForEach`, `EventHandlerRegistry`.
+- **SwiftWUIHTML** — HTML tags: `Div`, `Span`, `P`, `H1`–`H6`, `Button`, `Input`, `Form`, `Table`, `Select`, `Textarea`, `Img`, `A`, and more.
+- **SwiftWUIStyles** — Type-safe CSS modifiers, `CSSUnit`, `CSSColor`, `Animation`, `TagTransition`, layout / flexbox / grid helpers, CSS Container Queries, Anchor Positioning.
+- **SwiftWUIState** — `@State`, `Binding`, `@Environment`, `EnvironmentValues`.
+- **SwiftWUIPage** — `Page` protocol, `PageHead`, `PageRenderer`.
+- **SwiftWUIRouter** — `Router`, `Route`, `RouteBuilder`, `Link`, `NavigationStack`, dynamic path parameters.
+- **SwiftWUIRuntime** — `Application`, `DOMRenderer`, `Reconciler`, `DOMBridge` (JavaScriptKit wrapper).
+- **SwiftWUIBrowser** — `@AppStorage` (localStorage), `@SessionStorage`, `Geolocation`, `Clipboard`, `MediaQuery`, `Localization`, `WebAppManifest`, `ServiceWorker`.
+
+---
+
+## The CLI
+
+The `swiftwui` binary is the single entry point for all project operations. It is built from `Sources/SwiftWUICLI` using `swift-argument-parser`.
+
+### `swiftwui init`
+
+Scaffold a new SwiftWUI project.
+
+```
+swiftwui init <ProjectName> [--minimal]
+```
+
+- Default: generates the 12-chapter Apple-tutorial-style showcase template.
+- `--minimal`: generates a lean Counter-style scaffold for a blank-slate start.
 
 ```bash
-swift build
+swiftwui init MyApp           # showcase template (default)
+swiftwui init MyApp --minimal # minimal Counter-style template
+```
+
+### `swiftwui dev`
+
+Run the development server with hot reload.
+
+```
+swiftwui dev --target <Target> [--port <Port>] [--watch <Dir>] [--open]
+```
+
+```bash
+swiftwui dev --target MyApp
+swiftwui dev --target MyApp --port 3000 --open
+```
+
+Watches `Sources/` by default. The `--open` flag opens the project in the default browser on start.
+
+### `swiftwui build`
+
+Produce an optimised release build with brotli compression and SHA-384 SRI hashes.
+
+```
+swiftwui build --target <Target> [--output <Dir>] [--optimize default|size|aggressive]
+```
+
+```bash
+swiftwui build --target MyApp --optimize size
+```
+
+Artefacts land in `dist/` by default. The `size` optimize level runs `wasm-opt -Oz` and compresses with both brotli and gzip.
+
+### `swiftwui doctor`
+
+Check that all required toolchain components are installed.
+
+```bash
+swiftwui doctor
+```
+
+Verifies: `swift`, `wasm-opt`, `brotli`, `gzip`, `openssl`, `fswatch`, the swiftwasm SDK, and that the showcase template in `Sources/SwiftWUICLI/Templates/showcase/` is in sync with `Examples/Showcase/`.
+
+---
+
+## Project Layout
+
+```
+SwiftWUI/
+├── Sources/
+│   ├── SwiftWUI/           # Umbrella module (re-exports all 8 modules)
+│   ├── SwiftWUICore/       # Tag protocol, virtual DOM, result builder
+│   ├── SwiftWUIHTML/       # HTML tag library
+│   ├── SwiftWUIStyles/     # Type-safe CSS modifiers
+│   ├── SwiftWUIState/      # @State, Binding, @Environment
+│   ├── SwiftWUIPage/       # Page protocol and rendering
+│   ├── SwiftWUIRouter/     # URL routing and navigation
+│   ├── SwiftWUIRuntime/    # Application, Reconciler, DOMBridge
+│   ├── SwiftWUIBrowser/    # Browser APIs
+│   └── SwiftWUICLI/        # swiftwui CLI (init, dev, build, doctor)
+│       └── Templates/
+│           └── showcase/   # Bundled scaffold (synced from Examples/Showcase)
+├── Tests/
+│   ├── SwiftWUICoreTests/
+│   ├── SwiftWUIHTMLTests/
+│   ├── SwiftWUIStylesTests/
+│   ├── SwiftWUIStateTests/
+│   ├── SwiftWUIBrowserTests/
+│   ├── SwiftWUIRuntimeTests/
+│   └── SwiftWUICLITests/
+├── Examples/
+│   ├── Showcase/           # 12-chapter showcase app (default swiftwui init output)
+│   └── Counter/            # Minimal counter app (--minimal scaffold)
+├── docs/                   # Design specs, plans, tutorials
+├── Makefile
+└── Package.swift
+```
+
+---
+
+## Testing
+
+**Framework test suite** (315 tests, 7 suites):
+
+```bash
 swift test
 ```
 
-**WASM library build:**
+**Full CI pipeline** (framework build + tests + showcase build + showcase tests):
 
 ```bash
-swift build --swift-sdk swift-6.2.3-RELEASE_wasm
+make ci
 ```
 
-**Run an example (Counter):**
+**Showcase tests only** (28 tests):
 
 ```bash
-cd Examples/Counter
-swift package --swift-sdk swift-6.2.3-RELEASE_wasm js -c debug
-npm run dev
+make showcase-test
 ```
+
+Individual Makefile targets:
+
+```bash
+make test           # swift test --parallel
+make test-seq       # swift test (sequential, deterministic)
+make test-coverage  # swift test --enable-code-coverage --parallel
+```
+
+---
+
+## Examples
+
+### `Examples/Showcase/`
+
+The 12-chapter Apple-tutorial-style showcase app. This is what `swiftwui init MyApp` produces by default. See [`Examples/Showcase/README.md`](Examples/Showcase/README.md) for boot instructions and the full chapter listing.
+
+### `Examples/Counter/`
+
+A minimal counter application demonstrating `@State`, `Button`, and basic modifiers. This is the template produced by `swiftwui init MyApp --minimal`.
 
 ---
 
 ## Documentation
 
-Detailed documentation is available in the [`docs/`](docs/) folder:
+Design notes, specs, and tutorials live in [`docs/`](docs/):
 
-- **Getting Started** -- installation, first project, and dev workflow
-- **Tag Protocol** -- building custom components
-- **State Management** -- `@State`, `Binding`, `@Environment`
-- **Styling** -- type-safe CSS modifiers, animations, transitions
-- **Routing** -- URL routing, navigation, dynamic parameters
-- **Browser APIs** -- localStorage, geolocation, clipboard, media queries
-
----
-
-## Dependencies
-
-| Package | Purpose |
+| File | Content |
 |---|---|
-| [JavaScriptKit](https://github.com/swiftwasm/JavaScriptKit) 0.22+ | Swift-to-JavaScript bridge for WebAssembly |
+| `docs/getting-started.md` | Installation, first project, dev workflow |
+| `docs/architecture.md` | Module dependency graph and design decisions |
+| `docs/state-management.md` | `@State`, `Binding`, `@Environment` |
+| `docs/styling.md` | Type-safe CSS modifiers, animations, transitions |
+| `docs/routing.md` | URL routing, `NavigationStack`, dynamic parameters |
+| `docs/browser-apis.md` | localStorage, geolocation, clipboard, media queries |
+| `docs/animations.md` | CSS transitions and `withAnimation` |
+| `docs/api-reference.md` | Full public API surface |
+| `docs/tutorial.md` | Step-by-step tutorial |
+| `docs/superpowers/specs/` | Approved design specifications |
+| `docs/superpowers/plans/` | Implementation plans |
 
 ---
 
-## License
+## Contributing
 
-MIT
+1. Branch from `main` using the convention `feat/`, `fix/`, or `docs/`.
+2. Add tests for any new public API surface. The framework suite must stay green (`swift test`).
+3. Run `make sync-templates` before committing changes to `Examples/Showcase/` — this rsyncs the showcase into `Sources/SwiftWUICLI/Templates/showcase/` with project-name placeholders substituted. Never edit `Templates/showcase/` directly.
+4. Run `make ci` to verify the full pipeline before opening a pull request.
+
+---
+
+## License and Acknowledgements
+
+MIT. See `LICENSE` for details.
+
+Built on [JavaScriptKit](https://github.com/swiftwasm/JavaScriptKit) (SwiftWasm), [swift-argument-parser](https://github.com/apple/swift-argument-parser) (Apple), and [Vapor](https://github.com/vapor/vapor) (used by the dev server).
