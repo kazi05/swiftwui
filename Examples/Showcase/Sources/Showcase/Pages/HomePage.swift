@@ -82,12 +82,7 @@ public struct HomePage: Tag {
                     .style("font-size", "14px")
                     .style("color", "var(--swui-fg-3)")
                     .style("margin", "0 0 24px")
-                Div {
-                    cardGrid(cards: cards)
-                }
-                .style("display", "grid")
-                .style("grid-template-columns", "repeat(auto-fit, minmax(240px, 1fr))")
-                .style("gap", "16px")
+                cardGrid(cards: cards)
             }
             .style("max-width", Layout.maxContentWidth)
             .style("margin", "0 auto")
@@ -107,6 +102,9 @@ public struct HomePage: Tag {
                 )
             }
         }
+        .style("display", "grid")
+        .style("grid-template-columns", "repeat(auto-fit, minmax(240px, 1fr))")
+        .style("gap", "16px")
     }
 
     private var whatsInsideSection: some Tag {
