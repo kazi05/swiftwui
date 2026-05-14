@@ -113,6 +113,10 @@ Examples/Showcase/Tests/test-results/
 Examples/Showcase/Tests/playwright-report/
 Examples/Showcase/Tests/blob-report/
 
+# Generated previews — committed only when a chapter opts into .screenshot
+Examples/Showcase/Resources/snapshots/*.png
+!Examples/Showcase/Resources/snapshots/.gitkeep
+
 # Generated static dump (Examples/Showcase build artifact)
 Examples/Showcase/static-dump/
 

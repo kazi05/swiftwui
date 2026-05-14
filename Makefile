@@ -39,6 +39,7 @@ help:
 	@echo "  sync-templates  Sync Examples/Showcase to SwiftWUICLI Templates/ resource bundle"
 	@echo "  showcase-test   Run the Examples/Showcase test suite (28 tests)"
 	@echo "  showcase-playwright Run Playwright tests for Examples/Showcase (requires running dev server)"
+	@echo "  showcase-snapshots  Generate PNG snapshots for .screenshot previews"
 	@echo "  ci              build + test + showcase-build + showcase-test (full CI)"
 	@echo "  ci-playwright   ci + showcase-playwright (full CI incl. browser tests)"
 	@echo "Variables: SDK=$(SDK)  TARGET=$(TARGET)  OUT=$(OUT)  PORT=$(PORT)"
@@ -142,6 +143,10 @@ showcase-playwright:
 .PHONY: ci-playwright
 ci-playwright: ci showcase-playwright
 	@echo "Playwright CI green."
+
+.PHONY: showcase-snapshots
+showcase-snapshots:
+	cd Examples/Showcase/Tests && npx playwright test --grep "@generate-snapshots"
 
 .PHONY: sync-templates
 sync-templates:
