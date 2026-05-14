@@ -40,6 +40,7 @@ public struct PWAPage: Tag {
             let json = manifest.json()
             // Serve at /manifest.webmanifest
             """,
+            highlightLines: [1, 9],
             preview: AnyTag(
                 Div {
                     Span { Text("manifest.webmanifest") }
@@ -87,6 +88,7 @@ public struct PWAPage: Tag {
               ]
             )
             """,
+            highlightLines: [10],
             preview: AnyTag(
                 Div {
                     Div {
@@ -132,6 +134,7 @@ public struct PWAPage: Tag {
             // With explicit scope:
             ServiceWorker.register(at: "/sw.js", scope: "/app/")
             """,
+            highlightLines: [2],
             preview: AnyTag(
                 Div {
                     Div {
@@ -167,6 +170,7 @@ public struct PWAPage: Tag {
             // Also add to index.html <head>:
             // <link rel="manifest" href="/manifest.webmanifest">
             """,
+            highlightLines: [9],
             preview: AnyTag(
                 Div {
                     Div {

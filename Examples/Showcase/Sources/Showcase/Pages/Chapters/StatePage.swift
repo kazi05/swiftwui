@@ -37,6 +37,7 @@ public struct StatePage: Tag {
               }
             }
             """,
+            highlightLines: [2],
             preview: AnyTag(
                 Div {
                     Span { Text("count = 0") }
@@ -59,6 +60,7 @@ public struct StatePage: Tag {
             }
             P { Text("Count: \\(count)") }
             """,
+            highlightLines: [1],
             preview: AnyTag(
                 Div {
                     Div {
@@ -100,6 +102,7 @@ public struct StatePage: Tag {
               }
             }
             """,
+            highlightLines: [4, 10],
             preview: AnyTag(
                 Div {
                     Div {
@@ -128,6 +131,7 @@ public struct StatePage: Tag {
             }
             // call stop() to unsubscribe
             """,
+            highlightLines: [1, 2],
             preview: AnyTag(
                 Div {
                     Span { Text("observe { … } tracks only accessed state") }

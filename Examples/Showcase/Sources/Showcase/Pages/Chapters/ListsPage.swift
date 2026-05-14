@@ -45,6 +45,7 @@ public struct ListsPage: Tag {
               }
             }
             """,
+            highlightLines: [1, 12, 13],
             preview: AnyTag(
                 Div {
                     Div {
@@ -77,6 +78,7 @@ public struct ListsPage: Tag {
             // DOM move: node(b) → position 0, node(a) → position 1
             items.sort { $0.name < $1.name }
             """,
+            highlightLines: [5],
             preview: AnyTag(
                 Div {
                     Div {
@@ -121,6 +123,7 @@ public struct ListsPage: Tag {
               }
             }
             """,
+            highlightLines: [2, 5],
             preview: AnyTag(
                 Div {
                     Div {
@@ -161,6 +164,7 @@ public struct ListsPage: Tag {
               }
             }
             """,
+            highlightLines: [1, 3],
             preview: AnyTag(
                 Div {
                     Div {

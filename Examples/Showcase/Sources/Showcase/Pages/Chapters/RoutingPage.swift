@@ -36,6 +36,7 @@ public struct RoutingPage: Tag {
             }
             app.mount()
             """,
+            highlightLines: [2, 3, 4],
             preview: AnyTag(
                 Div {
                     Div {
@@ -60,6 +61,7 @@ public struct RoutingPage: Tag {
               return UserDetailPage(userID: uid)
             }
             """,
+            highlightLines: [1, 2],
             preview: AnyTag(
                 Div {
                     Div {
@@ -91,6 +93,7 @@ public struct RoutingPage: Tag {
               AdminDashboard()
             }
             """,
+            highlightLines: [2],
             preview: AnyTag(
                 Div {
                     Div {
@@ -124,6 +127,7 @@ public struct RoutingPage: Tag {
             // Usage:
             guard: { isLoggedIn ? .allow : .redirect("/login") }
             """,
+            highlightLines: [2, 3],
             preview: AnyTag(
                 Div {
                     Div {
@@ -157,6 +161,7 @@ public struct RoutingPage: Tag {
               Text("Go to Dashboard")
             }
             """,
+            highlightLines: [2],
             preview: AnyTag(
                 Div {
                     Span { Text("Go to Dashboard") }

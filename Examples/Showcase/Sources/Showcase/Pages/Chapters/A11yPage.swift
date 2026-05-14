@@ -35,6 +35,7 @@ public struct A11yPage: Tag {
             .aria(label: "Close dialog")
             .aria(role: .button)
             """,
+            highlightLines: [4],
             preview: AnyTag(
                 Div {
                     Div {
@@ -68,6 +69,7 @@ public struct A11yPage: Tag {
               .aria(role: .button)
               .aria(label: "Save document")
             """,
+            highlightLines: [3],
             preview: AnyTag(
                 Div {
                     Div { Text("Save") }
@@ -94,6 +96,7 @@ public struct A11yPage: Tag {
             }
             Footer { Text("© 2025") }
             """,
+            highlightLines: [1, 2, 6],
             preview: AnyTag(
                 Div {
                     Div {
@@ -133,6 +136,7 @@ public struct A11yPage: Tag {
               .aria(live: .polite)
               .aria(busy: isLoading)
             """,
+            highlightLines: [2],
             preview: AnyTag(
                 Div {
                     Span { Text("aria-live=\"polite\"") }

@@ -40,6 +40,7 @@ public struct AsyncPage: Tag {
               }
             }
             """,
+            highlightLines: [6, 7],
             preview: AnyTag(
                 Div {
                     Span { Text(".task fires on mount") }
@@ -74,6 +75,7 @@ public struct AsyncPage: Tag {
               }
             }
             """,
+            highlightLines: [2, 5],
             preview: AnyTag(
                 Div {
                     Div {
@@ -116,6 +118,7 @@ public struct AsyncPage: Tag {
               } else { /* content */ }
             }
             """,
+            highlightLines: [1, 4],
             preview: AnyTag(
                 Div {
                     Div {
@@ -155,6 +158,7 @@ public struct AsyncPage: Tag {
               loading = false
             }
             """,
+            highlightLines: [2, 4],
             preview: AnyTag(
                 Div {
                     Span { Text("Parallel fetch — 3 tasks") }

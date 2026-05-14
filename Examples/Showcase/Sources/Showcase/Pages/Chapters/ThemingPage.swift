@@ -44,6 +44,7 @@ public struct ThemingPage: Tag {
               ])
             }
             """,
+            highlightLines: [1, 2],
             preview: AnyTag(
                 Div {
                     Div {
@@ -82,6 +83,7 @@ public struct ThemingPage: Tag {
             )
             // css is a String — inject into <style> in index.html
             """,
+            highlightLines: [1, 2, 3],
             preview: AnyTag(
                 Div {
                     Span { Text(":root { --background: #fff; … }") }
@@ -117,6 +119,7 @@ public struct ThemingPage: Tag {
               Text("Switch to Dark")
             }
             """,
+            highlightLines: [3],
             preview: AnyTag(
                 Div {
                     Div {
@@ -156,6 +159,7 @@ public struct ThemingPage: Tag {
             let css = ThemeCSS.definitions(named: "sepia", theme: sepia)
             // [data-theme="sepia"] { --background: #f8f0e3; … }
             """,
+            highlightLines: [6],
             preview: AnyTag(
                 Div {
                     Div {

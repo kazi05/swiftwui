@@ -36,6 +36,7 @@ public struct ErrorsPage: Tag {
               try buildDashboard(for: userID) // can throw
             }
             """,
+            highlightLines: [1, 5],
             preview: AnyTag(
                 Div {
                     Div {
@@ -71,6 +72,7 @@ public struct ErrorsPage: Tag {
               try loadContent()
             }
             """,
+            highlightLines: [3],
             preview: AnyTag(
                 Div {
                     Div {
@@ -117,6 +119,7 @@ public struct ErrorsPage: Tag {
               try loadContent(attempt: retryCount)
             }
             """,
+            highlightLines: [1, 6],
             preview: AnyTag(
                 Div {
                     Div {
@@ -153,6 +156,7 @@ public struct ErrorsPage: Tag {
               }
             }
             """,
+            highlightLines: [2, 5],
             preview: AnyTag(
                 Div {
                     Div {

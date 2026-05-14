@@ -37,6 +37,7 @@ public struct SSRPage: Tag {
             )
             // html == "<div><h1>Hello, SSR</h1></div>"
             """,
+            highlightLines: [3, 4],
             preview: AnyTag(
                 Div {
                     Span { Text("StaticRenderer output") }
@@ -74,6 +75,7 @@ public struct SSRPage: Tag {
             ))
             // Serve html from Vapor route handler
             """,
+            highlightLines: [5, 6, 7],
             preview: AnyTag(
                 Div {
                     Span { Text("<!DOCTYPE html>") }
@@ -108,6 +110,7 @@ public struct SSRPage: Tag {
             }
             app.hydrate(on: "app")
             """,
+            highlightLines: [5],
             preview: AnyTag(
                 Div {
                     Div {
@@ -148,6 +151,7 @@ public struct SSRPage: Tag {
             // Browser sees:
             // <script id="__swiftwui_state">{"user":"…"}</script>
             """,
+            highlightLines: [4],
             preview: AnyTag(
                 Div {
                     Span { Text("<script id=\"__swiftwui_state\">") }

@@ -32,6 +32,7 @@ public struct ModifiersPage: Tag {
             Div { Text("Hello") }
               .padding(.px(16))
             """,
+            highlightLines: [2],
             preview: AnyTag(
                 Div {
                     Div { Text("Hello") }
@@ -52,6 +53,7 @@ public struct ModifiersPage: Tag {
               .fontSize(.px(20))
               .style("color", "var(--swui-accent)")
             """,
+            highlightLines: [2],
             preview: AnyTag(
                 H2 { Text("Welcome") }
                     .fontSize(.px(20))
@@ -70,6 +72,7 @@ public struct ModifiersPage: Tag {
               .style("border-radius", "999px")
               .style("padding", "2px 10px")
             """,
+            highlightLines: [2, 3],
             preview: AnyTag(
                 Span { Text("Badge") }
                     .style("background", "#0a84ff")
@@ -90,6 +93,7 @@ public struct ModifiersPage: Tag {
               .style("color", "red")
               .style("color", "blue")
             """,
+            highlightLines: [3, 4],
             preview: AnyTag(
                 P { Text("Ordering demo — last style wins") }
                     .style("color", "red")

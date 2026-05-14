@@ -34,6 +34,7 @@ public struct FormsPage: Tag {
             Slider("Temperature", value: $temperature, in: 0...100)
             P { Text("\\(Int(temperature)) °C") }
             """,
+            highlightLines: [1, 3],
             preview: AnyTag(
                 Div {
                     Span { Text("Temperature") }
@@ -65,6 +66,7 @@ public struct FormsPage: Tag {
             Stepper("Quantity", value: $quantity, in: 1...99, step: 1)
             P { Text("Items: \\(quantity)") }
             """,
+            highlightLines: [1, 3],
             preview: AnyTag(
                 Div {
                     Span { Text("Quantity") }
@@ -109,6 +111,7 @@ public struct FormsPage: Tag {
               Option(value: "large")  { Text("Large") }
             }
             """,
+            highlightLines: [1, 9],
             preview: AnyTag(
                 Div {
                     Span { Text("Size") }
@@ -143,6 +146,7 @@ public struct FormsPage: Tag {
             .style("opacity", isValid ? "1" : "0.4")
             .attribute("disabled", isValid ? nil : "true")
             """,
+            highlightLines: [3, 8, 9],
             preview: AnyTag(
                 Div {
                     Div {
@@ -180,6 +184,7 @@ public struct FormsPage: Tag {
             .style("flex-direction", "column")
             .style("gap", "12px")
             """,
+            highlightLines: [7, 8, 9],
             preview: AnyTag(
                 Div {
                     Span { Text("Name field") }

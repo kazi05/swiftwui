@@ -39,6 +39,7 @@ public struct HelloPage: Tag {
               }
             }
             """,
+            highlightLines: [1, 2],
             preview: AnyTag(
                 Div {
                     H1 { Text("Hello, SwiftWUI") }
@@ -59,6 +60,7 @@ public struct HelloPage: Tag {
               }
             }
             """,
+            highlightLines: [2, 3, 4],
             preview: AnyTag(
                 Div {
                     H1 { Text("Hello") }
@@ -78,6 +80,7 @@ public struct HelloPage: Tag {
             let app = Application(page: { Greeting() })
             app.mount()
             """,
+            highlightLines: [2],
             preview: AnyTag(
                 Div {
                     Text("Mounted! Open the browser console and inspect #app.")
@@ -97,6 +100,7 @@ public struct HelloPage: Tag {
               .style("padding", "16px")
               .style("color", "var(--swui-accent)")
             """,
+            highlightLines: [2, 3, 4],
             preview: AnyTag(
                 H1 { Text("Hello") }
                     .fontSize(.px(28))
