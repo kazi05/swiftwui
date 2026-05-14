@@ -71,21 +71,21 @@ public struct HomePage: Tag {
                     .fontWeight(.w600)
                     .letterSpacing(.em(0.08))
                     .textTransform(.uppercase)
-                    .style("margin", "0 0 8px")
+                    .marginBottom(.px(8))
                 H2 { Text(title) }
                     .fontFamily("var(--font-display)")
                     .fontSize(.px(28))
                     .fontWeight(.w600)
-                    .style("margin", "0 0 4px")
+                    .marginBottom(.px(4))
                     .foregroundColor(.token("swui-fg"))
                 P { Text(description) }
                     .fontSize(.px(14))
                     .foregroundColor(.token("swui-fg-3"))
-                    .style("margin", "0 0 24px")
+                    .marginBottom(.px(24))
                 cardGrid(cards: cards)
             }
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "48px \(Layout.pageHorizontalPadding)")
         }
     }
@@ -116,15 +116,15 @@ public struct HomePage: Tag {
                     .fontWeight(.w600)
                     .letterSpacing(.em(0.08))
                     .textTransform(.uppercase)
-                    .style("margin", "0 0 8px")
+                    .marginBottom(.px(8))
                 H2 { Text("Production-ready features") }
                     .fontFamily("var(--font-display)")
                     .fontSize(.px(24))
-                    .style("margin", "0 0 4px")
+                    .marginBottom(.px(4))
                 P { Text("Available in the framework — covered briefly in chapters or in the README.") }
                     .fontSize(.px(14))
                     .foregroundColor(.token("swui-fg-3"))
-                    .style("margin", "0 0 16px")
+                    .marginBottom(.px(16))
                 BadgeGrid(items: [
                     .init(title: "Container Queries",  description: "Component-level responsive styles"),
                     .init(title: "Anchor Positioning", description: "Type-safe popover positioning"),
@@ -137,7 +137,7 @@ public struct HomePage: Tag {
                 ])
             }
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "32px \(Layout.pageHorizontalPadding) 64px")
         }
     }

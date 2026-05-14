@@ -43,29 +43,29 @@ public struct PWAPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("manifest.webmanifest") }
-                        .style("font-size", "12px")
-                        .style("color", "var(--swui-fg-3)")
+                        .fontSize(.px(12))
+                        .foregroundColor(.token("swui-fg-3"))
                     Div {
                         Span { Text("{\"name\": \"SwiftWUI Counter\",") }
-                            .style("display", "block")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "11px")
-                            .style("color", "var(--swui-fg-2)")
+                            .display(.block)
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(11))
+                            .foregroundColor(.token("swui-fg-2"))
                         Span { Text(" \"display\": \"standalone\",") }
-                            .style("display", "block")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "11px")
-                            .style("color", "var(--swui-fg-2)")
+                            .display(.block)
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(11))
+                            .foregroundColor(.token("swui-fg-2"))
                         Span { Text(" \"theme_color\": \"#0a84ff\"}") }
-                            .style("display", "block")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "11px")
-                            .style("color", "var(--swui-accent)")
+                            .display(.block)
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(11))
+                            .foregroundColor(.token("swui-accent"))
                     }
                     .style("margin-top", "8px")
-                    .style("padding", "8px 12px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(8), .px(12))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -92,32 +92,32 @@ public struct PWAPage: Tag {
                     Div {
                         Div {
                             Span { Text("192x192") }
-                                .style("font-size", "11px")
-                                .style("color", "var(--swui-fg-3)")
+                                .fontSize(.px(11))
+                                .foregroundColor(.token("swui-fg-3"))
                         }
                         .style("width", "48px")
                         .style("height", "48px")
-                        .style("border-radius", "10px")
-                        .style("background", "var(--swui-accent)")
-                        .style("display", "flex")
-                        .style("align-items", "center")
+                        .borderRadius(.px(10))
+                        .backgroundColor(.token("swui-accent"))
+                        .display(.flex)
+                        .alignItems(.center)
                         .style("justify-content", "center")
                         Div {
                             Span { Text("512x512 maskable") }
-                                .style("font-size", "11px")
-                                .style("color", "#fff")
+                                .fontSize(.px(11))
+                                .foregroundColor(.css("#fff"))
                         }
                         .style("width", "64px")
                         .style("height", "64px")
-                        .style("border-radius", "16px")
-                        .style("background", "var(--swui-accent)")
-                        .style("display", "flex")
-                        .style("align-items", "center")
+                        .borderRadius(.px(16))
+                        .backgroundColor(.token("swui-accent"))
+                        .display(.flex)
+                        .alignItems(.center)
                         .style("justify-content", "center")
                         .style("margin-left", "12px")
                     }
-                    .style("display", "flex")
-                    .style("align-items", "center")
+                    .display(.flex)
+                    .alignItems(.center)
                 }
             )
         ),
@@ -136,19 +136,19 @@ public struct PWAPage: Tag {
                 Div {
                     Div {
                         Span { Text("navigator.serviceWorker.register(\"/sw.js\")") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "11px")
-                            .style("color", "var(--swui-fg-2)")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(11))
+                            .foregroundColor(.token("swui-fg-2"))
                         Div {
                             Span { Text("Registration successful ✓") }
-                                .style("font-size", "13px")
-                                .style("color", "#30d158")
+                                .fontSize(.px(13))
+                                .foregroundColor(.css("#30d158"))
                         }
                         .style("margin-top", "8px")
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -171,25 +171,25 @@ public struct PWAPage: Tag {
                 Div {
                     Div {
                         Span { Text("<link rel=\"manifest\"") }
-                            .style("display", "block")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "11px")
-                            .style("color", "var(--swui-fg-2)")
+                            .display(.block)
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(11))
+                            .foregroundColor(.token("swui-fg-2"))
                         Span { Text("      href=\"/manifest.webmanifest\">") }
-                            .style("display", "block")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "11px")
-                            .style("color", "var(--swui-accent)")
+                            .display(.block)
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(11))
+                            .foregroundColor(.token("swui-accent"))
                         Div {
                             Span { Text("Install prompt available ✓") }
-                                .style("font-size", "13px")
-                                .style("color", "#30d158")
+                                .fontSize(.px(13))
+                                .foregroundColor(.css("#30d158"))
                         }
                         .style("margin-top", "8px")
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),

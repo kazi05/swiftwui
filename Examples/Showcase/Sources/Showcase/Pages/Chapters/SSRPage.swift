@@ -40,18 +40,18 @@ public struct SSRPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("StaticRenderer output") }
-                        .style("font-size", "12px")
-                        .style("color", "var(--swui-fg-3)")
+                        .fontSize(.px(12))
+                        .foregroundColor(.token("swui-fg-3"))
                     Div {
                         Span { Text("<div><h1>Hello, SSR</h1></div>") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "13px")
-                            .style("color", "#30d158")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(13))
+                            .foregroundColor(.css("#30d158"))
                     }
                     .style("margin-top", "8px")
-                    .style("padding", "8px 12px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(8), .px(12))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -77,24 +77,24 @@ public struct SSRPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("<!DOCTYPE html>") }
-                        .style("display", "block")
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "11px")
-                        .style("color", "var(--swui-fg-2)")
+                        .display(.block)
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(11))
+                        .foregroundColor(.token("swui-fg-2"))
                     Span { Text("<html><head><title>My App</title>…") }
-                        .style("display", "block")
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "11px")
-                        .style("color", "var(--swui-fg-2)")
+                        .display(.block)
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(11))
+                        .foregroundColor(.token("swui-fg-2"))
                     Span { Text("<div id=\"app\"><!-- SSR content --></div>") }
-                        .style("display", "block")
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "11px")
-                        .style("color", "var(--swui-accent)")
+                        .display(.block)
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(11))
+                        .foregroundColor(.token("swui-accent"))
                 }
-                .style("padding", "10px 14px")
-                .style("background", "var(--swui-surface-2)")
-                .style("border-radius", "6px")
+                .padding(.px(10), .px(14))
+                .backgroundColor(.token("swui-surface-2"))
+                .borderRadius(.px(6))
             )
         ),
         .init(
@@ -112,26 +112,26 @@ public struct SSRPage: Tag {
                 Div {
                     Div {
                         Span { Text("Server renders HTML") }
-                            .style("display", "block")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
-                            .style("font-family", "var(--font-mono)")
+                            .display(.block)
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
+                            .fontFamily("var(--font-mono)")
                         Span { Text("WASM loads → hydrate(on: \"app\")") }
-                            .style("display", "block")
+                            .display(.block)
                             .style("margin-top", "4px")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-accent)")
-                            .style("font-family", "var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-accent"))
+                            .fontFamily("var(--font-mono)")
                         Span { Text("Event listeners attached ✓") }
-                            .style("display", "block")
+                            .display(.block)
                             .style("margin-top", "4px")
-                            .style("font-size", "12px")
-                            .style("color", "#30d158")
-                            .style("font-family", "var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.css("#30d158"))
+                            .fontFamily("var(--font-mono)")
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -151,24 +151,24 @@ public struct SSRPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("<script id=\"__swiftwui_state\">") }
-                        .style("display", "block")
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "11px")
-                        .style("color", "var(--swui-fg-2)")
+                        .display(.block)
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(11))
+                        .foregroundColor(.token("swui-fg-2"))
                     Span { Text("  {\"user\":{\"id\":42,\"name\":\"Kay\"}}") }
-                        .style("display", "block")
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "11px")
-                        .style("color", "var(--swui-accent)")
+                        .display(.block)
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(11))
+                        .foregroundColor(.token("swui-accent"))
                     Span { Text("</script>") }
-                        .style("display", "block")
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "11px")
-                        .style("color", "var(--swui-fg-2)")
+                        .display(.block)
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(11))
+                        .foregroundColor(.token("swui-fg-2"))
                 }
-                .style("padding", "10px 14px")
-                .style("background", "var(--swui-surface-2)")
-                .style("border-radius", "6px")
+                .padding(.px(10), .px(14))
+                .backgroundColor(.token("swui-surface-2"))
+                .borderRadius(.px(6))
             )
         ),
     ] }

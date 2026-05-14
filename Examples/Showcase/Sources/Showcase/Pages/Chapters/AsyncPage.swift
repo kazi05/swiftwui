@@ -43,18 +43,18 @@ public struct AsyncPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text(".task fires on mount") }
-                        .style("font-size", "12px")
-                        .style("color", "var(--swui-fg-3)")
+                        .fontSize(.px(12))
+                        .foregroundColor(.token("swui-fg-3"))
                     Div {
                         Span { Text("Fetching…") }
-                            .style("font-size", "14px")
-                            .style("color", "var(--swui-accent)")
-                            .style("font-family", "var(--font-mono)")
+                            .fontSize(.px(14))
+                            .foregroundColor(.token("swui-accent"))
+                            .fontFamily("var(--font-mono)")
                     }
                     .style("margin-top", "8px")
-                    .style("padding", "8px 12px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(8), .px(12))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -78,23 +78,23 @@ public struct AsyncPage: Tag {
                 Div {
                     Div {
                         Span { Text("loading = true") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
                         Div {
                             Div { EmptyTag() }
                                 .style("width", "20px")
                                 .style("height", "20px")
-                                .style("border", "3px solid var(--swui-border)")
+                                .border(.px(3), .solid, .token("swui-border"))
                                 .style("border-top-color", "var(--swui-accent)")
-                                .style("border-radius", "50%")
+                                .borderRadius(.percent(50))
                             Span { Text("Loading…") }
-                                .style("font-size", "14px")
-                                .style("color", "var(--swui-fg-2)")
+                                .fontSize(.px(14))
+                                .foregroundColor(.token("swui-fg-2"))
                                 .style("margin-left", "10px")
                         }
-                        .style("display", "flex")
-                        .style("align-items", "center")
+                        .display(.flex)
+                        .alignItems(.center)
                         .style("margin-top", "8px")
                     }
                 }
@@ -120,21 +120,21 @@ public struct AsyncPage: Tag {
                 Div {
                     Div {
                         Span { Text("Network error: timeout") }
-                            .style("font-size", "14px")
-                            .style("color", "#ff6b6b")
+                            .fontSize(.px(14))
+                            .foregroundColor(.css("#ff6b6b"))
                         Span { Text("Retry") }
-                            .style("display", "inline-block")
+                            .display(.inlineBlock)
                             .style("margin-top", "8px")
-                            .style("background", "var(--swui-accent)")
-                            .style("color", "#fff")
-                            .style("padding", "5px 12px")
-                            .style("border-radius", "5px")
-                            .style("font-size", "12px")
-                            .style("cursor", "pointer")
+                            .backgroundColor(.token("swui-accent"))
+                            .foregroundColor(.css("#fff"))
+                            .padding(.px(5), .px(12))
+                            .borderRadius(.px(5))
+                            .fontSize(.px(12))
+                            .cursor(.pointer)
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -158,29 +158,29 @@ public struct AsyncPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("Parallel fetch — 3 tasks") }
-                        .style("font-size", "12px")
-                        .style("color", "var(--swui-fg-3)")
+                        .fontSize(.px(12))
+                        .foregroundColor(.token("swui-fg-3"))
                     Div {
                         Span { Text("id=1  done") }
-                            .style("display", "block")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "#30d158")
+                            .display(.block)
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.css("#30d158"))
                         Span { Text("id=2  done") }
-                            .style("display", "block")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "#30d158")
+                            .display(.block)
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.css("#30d158"))
                         Span { Text("id=3  pending…") }
-                            .style("display", "block")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
+                            .display(.block)
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
                     }
                     .style("margin-top", "8px")
-                    .style("padding", "8px 12px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(8), .px(12))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),

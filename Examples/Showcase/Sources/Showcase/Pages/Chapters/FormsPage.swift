@@ -37,20 +37,20 @@ public struct FormsPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("Temperature") }
-                        .style("font-size", "12px")
-                        .style("color", "var(--swui-fg-3)")
+                        .fontSize(.px(12))
+                        .foregroundColor(.token("swui-fg-3"))
                     Div {
                         Span { Text("22 °C") }
-                            .style("font-size", "20px")
-                            .style("font-family", "var(--font-mono)")
-                            .style("color", "var(--swui-accent)")
+                            .fontSize(.px(20))
+                            .fontFamily("var(--font-mono)")
+                            .foregroundColor(.token("swui-accent"))
                     }
                     .style("margin-top", "6px")
                     Div { EmptyTag() }
                         .style("width", "100%")
                         .style("height", "4px")
                         .style("background", "linear-gradient(to right, var(--swui-accent) 22%, var(--swui-border) 22%)")
-                        .style("border-radius", "2px")
+                        .borderRadius(.px(2))
                         .style("margin-top", "10px")
                 }
             )
@@ -68,23 +68,23 @@ public struct FormsPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("Quantity") }
-                        .style("font-size", "12px")
-                        .style("color", "var(--swui-fg-3)")
+                        .fontSize(.px(12))
+                        .foregroundColor(.token("swui-fg-3"))
                     Div {
                         Span { Text("Items: 1") }
-                            .style("font-size", "16px")
-                            .style("font-family", "var(--font-mono)")
-                            .style("color", "var(--swui-fg)")
+                            .fontSize(.px(16))
+                            .fontFamily("var(--font-mono)")
+                            .foregroundColor(.token("swui-fg"))
                     }
                     .style("margin-top", "6px")
                     Div {
                         Span { Text("[ 1 ]") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "18px")
-                            .style("color", "var(--swui-accent)")
-                            .style("border", "1px solid var(--swui-border)")
-                            .style("padding", "4px 12px")
-                            .style("border-radius", "6px")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(18))
+                            .foregroundColor(.token("swui-accent"))
+                            .border(.px(1), .solid, .token("swui-border"))
+                            .padding(.px(4), .px(12))
+                            .borderRadius(.px(6))
                     }
                     .style("margin-top", "8px")
                 }
@@ -112,17 +112,17 @@ public struct FormsPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("Size") }
-                        .style("font-size", "12px")
-                        .style("color", "var(--swui-fg-3)")
+                        .fontSize(.px(12))
+                        .foregroundColor(.token("swui-fg-3"))
                     Div {
                         Span { Text("Medium  ▾") }
-                            .style("font-size", "14px")
-                            .style("padding", "6px 12px")
-                            .style("border", "1px solid var(--swui-border)")
-                            .style("border-radius", "6px")
-                            .style("color", "var(--swui-fg)")
-                            .style("background", "var(--swui-surface)")
-                            .style("cursor", "pointer")
+                            .fontSize(.px(14))
+                            .padding(.px(6), .px(12))
+                            .border(.px(1), .solid, .token("swui-border"))
+                            .borderRadius(.px(6))
+                            .foregroundColor(.token("swui-fg"))
+                            .backgroundColor(.token("swui-surface"))
+                            .cursor(.pointer)
                     }
                     .style("margin-top", "8px")
                 }
@@ -147,17 +147,17 @@ public struct FormsPage: Tag {
                 Div {
                     Div {
                         Span { Text("email = \"\"  — disabled") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
                     }
                     Div {
                         Span { Text("Submit") }
-                            .style("background", "var(--swui-accent)")
-                            .style("color", "#fff")
-                            .style("padding", "7px 18px")
-                            .style("border-radius", "6px")
-                            .style("font-size", "13px")
+                            .backgroundColor(.token("swui-accent"))
+                            .foregroundColor(.css("#fff"))
+                            .padding(.px(7), .px(18))
+                            .borderRadius(.px(6))
+                            .fontSize(.px(13))
                             .style("opacity", "0.4")
                             .style("cursor", "not-allowed")
                     }
@@ -183,29 +183,29 @@ public struct FormsPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("Name field") }
-                        .style("display", "block")
-                        .style("padding", "6px 10px")
-                        .style("border", "1px solid var(--swui-border)")
-                        .style("border-radius", "6px")
-                        .style("font-size", "13px")
-                        .style("color", "var(--swui-fg-3)")
-                        .style("background", "var(--swui-surface)")
+                        .display(.block)
+                        .padding(.px(6), .px(10))
+                        .border(.px(1), .solid, .token("swui-border"))
+                        .borderRadius(.px(6))
+                        .fontSize(.px(13))
+                        .foregroundColor(.token("swui-fg-3"))
+                        .backgroundColor(.token("swui-surface"))
                     Div { EmptyTag() }
                         .style("height", "4px")
                         .style("background", "linear-gradient(to right, var(--swui-accent) 60%, var(--swui-border) 60%)")
-                        .style("border-radius", "2px")
+                        .borderRadius(.px(2))
                     Span { Text("Save") }
-                        .style("display", "inline-block")
-                        .style("background", "var(--swui-accent)")
-                        .style("color", "#fff")
-                        .style("padding", "6px 14px")
-                        .style("border-radius", "6px")
-                        .style("font-size", "13px")
-                        .style("cursor", "pointer")
+                        .display(.inlineBlock)
+                        .backgroundColor(.token("swui-accent"))
+                        .foregroundColor(.css("#fff"))
+                        .padding(.px(6), .px(14))
+                        .borderRadius(.px(6))
+                        .fontSize(.px(13))
+                        .cursor(.pointer)
                 }
-                .style("display", "flex")
-                .style("flex-direction", "column")
-                .style("gap", "10px")
+                .display(.flex)
+                .flexDirection(.column)
+                .gap(.px(10))
             )
         ),
     ] }
