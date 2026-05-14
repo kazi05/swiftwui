@@ -38,7 +38,9 @@ help:
 	@echo "  showcase-build  Native build of the Examples/Showcase project"
 	@echo "  sync-templates  Sync Examples/Showcase to SwiftWUICLI Templates/ resource bundle"
 	@echo "  showcase-test   Run the Examples/Showcase test suite (28 tests)"
+	@echo "  showcase-playwright Run Playwright tests for Examples/Showcase (requires running dev server)"
 	@echo "  ci              build + test + showcase-build + showcase-test (full CI)"
+	@echo "  ci-playwright   ci + showcase-playwright (full CI incl. browser tests)"
 	@echo "Variables: SDK=$(SDK)  TARGET=$(TARGET)  OUT=$(OUT)  PORT=$(PORT)"
 
 .PHONY: dev
@@ -132,6 +134,14 @@ showcase-test:
 .PHONY: ci
 ci: build test showcase-build showcase-test
 	@echo "CI green."
+
+.PHONY: showcase-playwright
+showcase-playwright:
+	cd Examples/Showcase/Tests && npm install --silent && npx playwright install chromium && npx playwright test
+
+.PHONY: ci-playwright
+ci-playwright: ci showcase-playwright
+	@echo "Playwright CI green."
 
 .PHONY: sync-templates
 sync-templates:
