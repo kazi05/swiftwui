@@ -70,6 +70,7 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
                     title: step.title,
                     prose: step.prose,
                     code: step.code,
+                    highlightLines: step.highlightLines,
                     preview: step.preview,
                     showInlinePreview: false
                 )
