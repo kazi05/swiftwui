@@ -152,3 +152,49 @@ jobs:
           swift-version: "6.2.3"
       - name: Lint
         run: swift format lint --recursive --strict Sources Tests || echo "::warning::swift format lint produced warnings"
+
+  showcase-playwright:
+    name: Showcase Playwright suite
+    runs-on: ubuntu-24.04
+    needs: [test, wasm-build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Swift 6.2.3
+        uses: SwiftyLab/setup-swift@latest
+        with:
+          swift-version: "6.2.3"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache swiftwasm SDK
+        id: swiftwasm-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.swiftpm/swift-sdks
+          key: swiftwasm-sdk-6.2.3
+
+      - name: Install swiftwasm SDK
+        if: steps.swiftwasm-cache.outputs.cache-hit != 'true'
+        run: |
+          swift sdk install \
+            https://github.com/swiftwasm/swift/releases/download/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE-wasm32-unknown-wasi.artifactbundle.zip
+
+      - name: Install Playwright deps
+        run: |
+          cd Examples/Showcase/Tests
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright suite
+        run: cd Examples/Showcase/Tests && npx playwright test
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: Examples/Showcase/Tests/playwright-report/
+          retention-days: 14
