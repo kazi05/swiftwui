@@ -31,30 +31,30 @@ public struct Hero: Tag {
                         .fontWeight(.w600)
                         .letterSpacing(.em(0.08))
                         .textTransform(.uppercase)
-                        .style("margin", "0 0 12px")
+                        .marginBottom(.px(12))
                     H1 { Text(headline) }
                         .fontFamily("var(--font-display)")
                         .fontSize(.px(48))
                         .fontWeight(.w700)
                         .letterSpacing(.em(-0.02))
-                        .style("line-height", "1.05")
-                        .style("margin", "0 0 16px")
+                        .lineHeight(.unitless(1.05))
+                        .marginBottom(.px(16))
                     P { Text(subhead) }
                         .foregroundColor(.token("swui-fg-2"))
                         .fontSize(.px(17))
-                        .style("line-height", "1.5")
+                        .lineHeight(.unitless(1.5))
                         .maxWidth(.px(520))
-                        .style("margin", "0 0 24px")
+                        .marginBottom(.px(24))
                     Div {
                         A(href: primaryCTA.href) { Text(primaryCTA.label) }
-                            .style("background", "var(--swui-fg)")
+                            .backgroundColor(.token("swui-fg"))
                             .foregroundColor(.token("swui-bg"))
                             .padding(.px(10), .px(22))
                             .borderRadius(.px(22))
                             .textDecoration(.none)
                             .fontWeight(.w500)
                         A(href: ghostCTA.href) { Text(ghostCTA.label) }
-                            .style("border", "1px solid var(--swui-border-strong)")
+                            .border(.px(1), .solid, .token("swui-border-strong"))
                             .foregroundColor(.token("swui-fg"))
                             .padding(.px(10), .px(22))
                             .borderRadius(.px(22))
@@ -71,7 +71,7 @@ public struct Hero: Tag {
             .gap(.px(48))
             .alignItems(.center)
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "64px \(Layout.pageHorizontalPadding)")
         }
         .style("background", "linear-gradient(180deg, var(--swui-surface-2) 0%, var(--swui-bg) 100%)")
@@ -104,7 +104,7 @@ struct CodeFrame: Tag {
             .fontFamily("var(--font-mono)")
             .overflowX(.auto)
         }
-        .style("background", "var(--swui-code-bg)")
+        .backgroundColor(.token("swui-code-bg"))
         .style("border-radius", "var(--radius-md)")
         .boxShadow("0 20px 50px rgba(0,0,0,0.15)")
         .overflow(.hidden)
@@ -116,6 +116,6 @@ struct CodeFrame: Tag {
             .width(.px(9))
             .height(.px(9))
             .borderRadius(.percent(50))
-            .style("background", "#5e5e5e")
+            .backgroundColor(.css("#5e5e5e"))
     }
 }
