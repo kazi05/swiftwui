@@ -13,12 +13,19 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
         public let title: String
         public let prose: String
         public let code: String
+        public let highlightLines: [Int]
         public let preview: AnyTag
-        public init(number: Int, title: String, prose: String, code: String, preview: AnyTag) {
+        public init(number: Int,
+                    title: String,
+                    prose: String,
+                    code: String,
+                    highlightLines: [Int] = [],
+                    preview: AnyTag) {
             self.number = number
             self.title = title
             self.prose = prose
             self.code = code
+            self.highlightLines = highlightLines
             self.preview = preview
         }
     }
