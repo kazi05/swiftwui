@@ -15,7 +15,11 @@ public struct SiteChrome<Content: Tag>: Tag {
 
     public var body: some Tag {
         Div {
-            navbar
+            TutorialTopBar(
+                currentChapter: SiteChromeHelpers.currentChapterID(),
+                stepTitles: SiteChromeHelpers.stepTitles(),
+                currentStep: SiteChromeHelpers.currentStep()
+            )
             Main { content }
                 .style("min-height", "calc(100vh - 160px)")
                 .attribute("data-swui-main", "true")
@@ -25,41 +29,6 @@ public struct SiteChrome<Content: Tag>: Tag {
         .foregroundColor(.token("swui-fg"))
         .fontFamily("var(--font-text)")
         .attribute("data-swui-chrome", "true")
-    }
-
-    private var navbar: some Tag {
-        Div {
-            Div {
-                A(href: "/") { Text("SwiftWUI") }
-                    .fontWeight(.w700)
-                    .foregroundColor(.token("swui-fg"))
-                    .textDecoration(.none)
-                    .fontFamily("var(--font-display)")
-                Div { EmptyTag() }.flex(1)
-                Button(onclick: { toggleTheme() }) { Text("☀︎ / ☾") }
-                    .border(.px(1), .solid, .token("swui-border-strong"))
-                    .borderRadius(.px(14))
-                    .padding(.px(4), .px(12))
-                    .backgroundColor(.transparent)
-                    .foregroundColor(.token("swui-fg"))
-                    .fontSize(.px(11))
-                    .cursor(.pointer)
-                    .attribute("aria-label", "Toggle colour theme")
-            }
-            .display(.flex)
-            .alignItems(.center)
-            .gap(.px(16))
-            .style("max-width", Layout.maxContentWidth)
-            .margin(.zero, .auto)
-            .style("padding", "12px \(Layout.pageHorizontalPadding)")
-        }
-        .style("background", "color-mix(in srgb, var(--swui-surface) 92%, transparent)")
-        .borderBottom(width: .px(1), style: .solid, color: .token("swui-border"))
-        .position(.sticky)
-        .top(.zero)
-        .zIndex(50)
-        .backdropFilter("saturate(180%) blur(20px)")
-        .attribute("data-swui-navbar", "true")
     }
 
     private var footer: some Tag {
@@ -79,14 +48,22 @@ public struct SiteChrome<Content: Tag>: Tag {
     }
 }
 
-#if canImport(JavaScriptKit)
-private func toggleTheme() {
-    guard let html = JSObject.global.document.object?.documentElement.object else { return }
-    let current = html.getAttribute?("data-theme").string ?? ""
-    let next = current == "dark" ? "light" : "dark"
-    _ = html.setAttribute?("data-theme", next)
-    _ = JSObject.global.localStorage.object?.setItem?("swui-theme", next)
+enum SiteChromeHelpers {
+    static func currentChapterID() -> String {
+        #if canImport(JavaScriptKit)
+        if let path = JSObject.global.window.object?.location.object?.pathname.string,
+           let chapter = ChapterRegistry.chapter(forPath: path) {
+            return chapter.id
+        }
+        #endif
+        return "home"
+    }
+
+    static func stepTitles() -> [String] {
+        return ScrollyStepRegistry.titles
+    }
+
+    static func currentStep() -> Int {
+        return ScrollyStepRegistry.currentStep
+    }
 }
-#else
-private func toggleTheme() {}
-#endif
