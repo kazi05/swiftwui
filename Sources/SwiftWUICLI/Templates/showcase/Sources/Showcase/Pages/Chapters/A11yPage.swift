@@ -39,21 +39,21 @@ public struct A11yPage: Tag {
                 Div {
                     Div {
                         Span { Text("aria-label=\"Close dialog\"") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
                         Span { Text("×") }
-                            .style("display", "inline-block")
+                            .display(.inlineBlock)
                             .style("margin-top", "8px")
                             .style("width", "28px")
                             .style("height", "28px")
                             .style("line-height", "28px")
                             .style("text-align", "center")
-                            .style("border", "1px solid var(--swui-border)")
-                            .style("border-radius", "6px")
-                            .style("font-size", "16px")
-                            .style("color", "var(--swui-fg)")
-                            .style("cursor", "pointer")
+                            .border(.px(1), .solid, .token("swui-border"))
+                            .borderRadius(.px(6))
+                            .fontSize(.px(16))
+                            .foregroundColor(.token("swui-fg"))
+                            .cursor(.pointer)
                     }
                 }
             )
@@ -71,14 +71,14 @@ public struct A11yPage: Tag {
             preview: AnyTag(
                 Div {
                     Div { Text("Save") }
-                        .style("cursor", "pointer")
-                        .style("display", "inline-block")
-                        .style("padding", "7px 16px")
-                        .style("background", "var(--swui-surface-2)")
-                        .style("border", "1px solid var(--swui-border)")
-                        .style("border-radius", "6px")
-                        .style("font-size", "13px")
-                        .style("color", "var(--swui-fg)")
+                        .cursor(.pointer)
+                        .display(.inlineBlock)
+                        .padding(.px(7), .px(16))
+                        .backgroundColor(.token("swui-surface-2"))
+                        .border(.px(1), .solid, .token("swui-border"))
+                        .borderRadius(.px(6))
+                        .fontSize(.px(13))
+                        .foregroundColor(.token("swui-fg"))
                 }
             )
         ),
@@ -98,29 +98,29 @@ public struct A11yPage: Tag {
                 Div {
                     Div {
                         Span { Text("header (role=banner)") }
-                            .style("display", "block")
-                            .style("padding", "5px 10px")
-                            .style("background", "var(--swui-surface-2)")
-                            .style("font-size", "12px")
-                            .style("font-family", "var(--font-mono)")
-                            .style("color", "var(--swui-fg-3)")
+                            .display(.block)
+                            .padding(.px(5), .px(10))
+                            .backgroundColor(.token("swui-surface-2"))
+                            .fontSize(.px(12))
+                            .fontFamily("var(--font-mono)")
+                            .foregroundColor(.token("swui-fg-3"))
                         Span { Text("main (role=main)") }
-                            .style("display", "block")
-                            .style("padding", "5px 10px")
-                            .style("font-size", "12px")
-                            .style("font-family", "var(--font-mono)")
-                            .style("color", "var(--swui-accent)")
+                            .display(.block)
+                            .padding(.px(5), .px(10))
+                            .fontSize(.px(12))
+                            .fontFamily("var(--font-mono)")
+                            .foregroundColor(.token("swui-accent"))
                         Span { Text("footer (role=contentinfo)") }
-                            .style("display", "block")
-                            .style("padding", "5px 10px")
-                            .style("background", "var(--swui-surface-2)")
-                            .style("font-size", "12px")
-                            .style("font-family", "var(--font-mono)")
-                            .style("color", "var(--swui-fg-3)")
+                            .display(.block)
+                            .padding(.px(5), .px(10))
+                            .backgroundColor(.token("swui-surface-2"))
+                            .fontSize(.px(12))
+                            .fontFamily("var(--font-mono)")
+                            .foregroundColor(.token("swui-fg-3"))
                     }
-                    .style("border", "1px solid var(--swui-border)")
-                    .style("border-radius", "6px")
-                    .style("overflow", "hidden")
+                    .border(.px(1), .solid, .token("swui-border"))
+                    .borderRadius(.px(6))
+                    .overflow(.hidden)
                 }
             )
         ),
@@ -136,19 +136,19 @@ public struct A11yPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("aria-live=\"polite\"") }
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "12px")
-                        .style("color", "var(--swui-fg-3)")
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(12))
+                        .foregroundColor(.token("swui-fg-3"))
                     Div {
                         Span { Text("3 items saved successfully") }
-                            .style("font-size", "14px")
-                            .style("color", "#30d158")
-                            .style("font-weight", "500")
+                            .fontSize(.px(14))
+                            .foregroundColor(.css("#30d158"))
+                            .fontWeight(.w500)
                     }
                     .style("margin-top", "6px")
-                    .style("padding", "8px 12px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(8), .px(12))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),

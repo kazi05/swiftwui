@@ -28,7 +28,7 @@ public struct HighlightOnMount: Tag {
     public init() {}
     public var body: some Tag {
         Div { EmptyTag() }
-            .style("display", "none")
+            .display(.none)
             .task { SyntaxHighlight.apply() }
             .attribute("data-swui-highlight-anchor", "true")
     }

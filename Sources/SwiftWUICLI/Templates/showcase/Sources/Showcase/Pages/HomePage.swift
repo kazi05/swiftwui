@@ -66,31 +66,26 @@ public struct HomePage: Tag {
         Div {
             Div {
                 P { Text(eyebrow) }
-                    .style("color", "var(--swui-accent)")
-                    .style("font-size", "11px")
-                    .style("font-weight", "600")
-                    .style("letter-spacing", "0.08em")
-                    .style("text-transform", "uppercase")
-                    .style("margin", "0 0 8px")
+                    .foregroundColor(.token("swui-accent"))
+                    .fontSize(.px(11))
+                    .fontWeight(.w600)
+                    .letterSpacing(.em(0.08))
+                    .textTransform(.uppercase)
+                    .marginBottom(.px(8))
                 H2 { Text(title) }
-                    .style("font-family", "var(--font-display)")
-                    .style("font-size", "28px")
-                    .style("font-weight", "600")
-                    .style("margin", "0 0 4px")
-                    .style("color", "var(--swui-fg)")
+                    .fontFamily("var(--font-display)")
+                    .fontSize(.px(28))
+                    .fontWeight(.w600)
+                    .marginBottom(.px(4))
+                    .foregroundColor(.token("swui-fg"))
                 P { Text(description) }
-                    .style("font-size", "14px")
-                    .style("color", "var(--swui-fg-3)")
-                    .style("margin", "0 0 24px")
-                Div {
-                    cardGrid(cards: cards)
-                }
-                .style("display", "grid")
-                .style("grid-template-columns", "repeat(auto-fit, minmax(240px, 1fr))")
-                .style("gap", "16px")
+                    .fontSize(.px(14))
+                    .foregroundColor(.token("swui-fg-3"))
+                    .marginBottom(.px(24))
+                cardGrid(cards: cards)
             }
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "48px \(Layout.pageHorizontalPadding)")
         }
     }
@@ -107,26 +102,29 @@ public struct HomePage: Tag {
                 )
             }
         }
+        .display(.grid)
+        .gridTemplateColumns("repeat(auto-fit, minmax(240px, 1fr))")
+        .gap(.px(16))
     }
 
     private var whatsInsideSection: some Tag {
         Div {
             Div {
                 P { Text("What's Inside") }
-                    .style("color", "var(--swui-accent)")
-                    .style("font-size", "11px")
-                    .style("font-weight", "600")
-                    .style("letter-spacing", "0.08em")
-                    .style("text-transform", "uppercase")
-                    .style("margin", "0 0 8px")
+                    .foregroundColor(.token("swui-accent"))
+                    .fontSize(.px(11))
+                    .fontWeight(.w600)
+                    .letterSpacing(.em(0.08))
+                    .textTransform(.uppercase)
+                    .marginBottom(.px(8))
                 H2 { Text("Production-ready features") }
-                    .style("font-family", "var(--font-display)")
-                    .style("font-size", "24px")
-                    .style("margin", "0 0 4px")
+                    .fontFamily("var(--font-display)")
+                    .fontSize(.px(24))
+                    .marginBottom(.px(4))
                 P { Text("Available in the framework — covered briefly in chapters or in the README.") }
-                    .style("font-size", "14px")
-                    .style("color", "var(--swui-fg-3)")
-                    .style("margin", "0 0 16px")
+                    .fontSize(.px(14))
+                    .foregroundColor(.token("swui-fg-3"))
+                    .marginBottom(.px(16))
                 BadgeGrid(items: [
                     .init(title: "Container Queries",  description: "Component-level responsive styles"),
                     .init(title: "Anchor Positioning", description: "Type-safe popover positioning"),
@@ -139,7 +137,7 @@ public struct HomePage: Tag {
                 ])
             }
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "32px \(Layout.pageHorizontalPadding) 64px")
         }
     }
@@ -157,4 +155,3 @@ public struct HomePage: Tag {
         """
     }
 }
-

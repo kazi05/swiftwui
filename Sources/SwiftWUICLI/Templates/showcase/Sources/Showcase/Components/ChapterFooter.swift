@@ -15,17 +15,17 @@ public struct ChapterFooter: Tag {
         Div {
             Div {
                 prevLink
-                Div { EmptyTag() }.style("flex", "1")
+                Div { EmptyTag() }.flex(1)
                 nextLink
             }
-            .style("display", "flex")
-            .style("align-items", "center")
+            .display(.flex)
+            .alignItems(.center)
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "32px \(Layout.pageHorizontalPadding)")
         }
-        .style("border-top", "1px solid var(--swui-border)")
-        .style("background", "var(--swui-surface)")
+        .borderTop(width: .px(1), style: .solid, color: .token("swui-border"))
+        .backgroundColor(.token("swui-surface"))
         .attribute("data-swui-chapter-footer", "true")
     }
 
@@ -33,10 +33,10 @@ public struct ChapterFooter: Tag {
         Div {
             if let prev {
                 A(href: prev.href) { Text("← \(prev.label)") }
-                    .style("color", "var(--swui-accent)")
-                    .style("font-size", "13px")
-                    .style("font-weight", "500")
-                    .style("text-decoration", "none")
+                    .foregroundColor(.token("swui-accent"))
+                    .fontSize(.px(13))
+                    .fontWeight(.w500)
+                    .textDecoration(.none)
             } else {
                 Span { EmptyTag() }
             }
@@ -48,18 +48,18 @@ public struct ChapterFooter: Tag {
             if let next {
                 Div {
                     P { Text("UP NEXT") }
-                        .style("font-size", "10px")
-                        .style("color", "var(--swui-fg-3)")
-                        .style("text-transform", "uppercase")
-                        .style("letter-spacing", "0.06em")
-                        .style("margin", "0 0 4px")
+                        .fontSize(.px(10))
+                        .foregroundColor(.token("swui-fg-3"))
+                        .textTransform(.uppercase)
+                        .letterSpacing(.em(0.06))
+                        .marginBottom(.px(4))
                     A(href: next.href) { Text("\(next.label) →") }
-                        .style("color", "var(--swui-accent)")
-                        .style("font-size", "13px")
-                        .style("font-weight", "600")
-                        .style("text-decoration", "none")
+                        .foregroundColor(.token("swui-accent"))
+                        .fontSize(.px(13))
+                        .fontWeight(.w600)
+                        .textDecoration(.none)
                 }
-                .style("text-align", "right")
+                .textAlign(.right)
             } else {
                 Span { EmptyTag() }
             }

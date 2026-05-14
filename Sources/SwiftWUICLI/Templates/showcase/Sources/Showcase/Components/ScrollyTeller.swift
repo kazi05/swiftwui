@@ -37,11 +37,11 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
             leftColumn
             rightColumn
         }
-        .style("display", "grid")
-        .style("grid-template-columns", "1fr 1fr")
-        .style("gap", "48px")
+        .display(.grid)
+        .gridTemplateColumns("1fr 1fr")
+        .gap(.px(48))
         .style("max-width", Layout.maxContentWidth)
-        .style("margin", "0 auto")
+        .margin(.zero, .auto)
         .style("padding", "32px \(Layout.pageHorizontalPadding)")
         .attribute("data-swui-scrolly", "true")
         .attribute("data-swui-scrolly-id", containerId)
@@ -68,9 +68,9 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
                 )
             }
         }
-        .style("display", "flex")
-        .style("flex-direction", "column")
-        .style("gap", "32px")
+        .display(.flex)
+        .flexDirection(.column)
+        .gap(.px(32))
     }
 
     private var rightColumn: some Tag {
@@ -82,14 +82,14 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
                     first.preview
                 }
             }
-            .style("padding", "32px 24px")
-            .style("background", "var(--swui-surface)")
-            .style("border", "1px solid var(--swui-border)")
+            .padding(.px(32), .px(24))
+            .backgroundColor(.token("swui-surface"))
+            .border(.px(1), .solid, .token("swui-border"))
             .style("border-radius", "var(--radius-md)")
             .attribute("data-swui-scrolly-sticky", "true")
             .attribute("data-active-step", "\(activeStep)")
         }
-        .style("position", "sticky")
+        .position(.sticky)
         .style("top", Layout.stickyTopOffset)
         .style("align-self", "start")
     }

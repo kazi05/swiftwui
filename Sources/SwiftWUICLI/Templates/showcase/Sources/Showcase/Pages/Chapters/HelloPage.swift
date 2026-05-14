@@ -42,7 +42,7 @@ public struct HelloPage: Tag {
             preview: AnyTag(
                 Div {
                     H1 { Text("Hello, SwiftWUI") }
-                        .style("font-family", "var(--font-display)")
+                        .fontFamily("var(--font-display)")
                         .style("margin", "0")
                 }
             )
@@ -62,10 +62,10 @@ public struct HelloPage: Tag {
             preview: AnyTag(
                 Div {
                     H1 { Text("Hello") }
-                        .style("font-family", "var(--font-display)")
+                        .fontFamily("var(--font-display)")
                         .style("margin", "0")
                     P { Text("Welcome.") }
-                        .style("color", "var(--swui-fg-2)")
+                        .foregroundColor(.token("swui-fg-2"))
                         .style("margin", "8px 0 0")
                 }
             )
@@ -82,9 +82,9 @@ public struct HelloPage: Tag {
                 Div {
                     Text("Mounted! Open the browser console and inspect #app.")
                 }
-                .style("font-family", "var(--font-mono)")
-                .style("font-size", "12px")
-                .style("color", "var(--swui-fg-3)")
+                .fontFamily("var(--font-mono)")
+                .fontSize(.px(12))
+                .foregroundColor(.token("swui-fg-3"))
             )
         ),
         .init(
@@ -99,9 +99,9 @@ public struct HelloPage: Tag {
             """,
             preview: AnyTag(
                 H1 { Text("Hello") }
-                    .style("font-size", "28px")
-                    .style("padding", "16px")
-                    .style("color", "var(--swui-accent)")
+                    .fontSize(.px(28))
+                    .padding(.px(16))
+                    .foregroundColor(.token("swui-accent"))
                     .style("margin", "0")
             )
         ),

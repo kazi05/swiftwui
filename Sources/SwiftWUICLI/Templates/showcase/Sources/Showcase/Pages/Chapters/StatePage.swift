@@ -40,12 +40,12 @@ public struct StatePage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("count = 0") }
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "14px")
-                        .style("padding", "6px 12px")
-                        .style("background", "var(--swui-surface-2)")
-                        .style("border-radius", "6px")
-                        .style("color", "var(--swui-fg)")
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(14))
+                        .padding(.px(6), .px(12))
+                        .backgroundColor(.token("swui-surface-2"))
+                        .borderRadius(.px(6))
+                        .foregroundColor(.token("swui-fg"))
                 }
             )
         ),
@@ -63,17 +63,17 @@ public struct StatePage: Tag {
                 Div {
                     Div {
                         Span { Text("Count: 7") }
-                            .style("font-size", "20px")
-                            .style("font-family", "var(--font-mono)")
-                            .style("color", "var(--swui-fg)")
+                            .fontSize(.px(20))
+                            .fontFamily("var(--font-mono)")
+                            .foregroundColor(.token("swui-fg"))
                         Div {
                             Span { Text("+ Increment") }
-                                .style("background", "var(--swui-accent)")
-                                .style("color", "#fff")
-                                .style("padding", "6px 14px")
-                                .style("border-radius", "6px")
-                                .style("font-size", "13px")
-                                .style("cursor", "pointer")
+                                .backgroundColor(.token("swui-accent"))
+                                .foregroundColor(.css("#fff"))
+                                .padding(.px(6), .px(14))
+                                .borderRadius(.px(6))
+                                .fontSize(.px(13))
+                                .cursor(.pointer)
                         }
                         .style("margin-top", "10px")
                     }
@@ -104,13 +104,13 @@ public struct StatePage: Tag {
                 Div {
                     Div {
                         Span { Text("Child writes via $name") }
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
                         Div {
                             Span { Text("Hello, SwiftWUI") }
-                                .style("font-size", "16px")
-                                .style("color", "var(--swui-fg)")
-                                .style("font-family", "var(--font-display)")
+                                .fontSize(.px(16))
+                                .foregroundColor(.token("swui-fg"))
+                                .fontFamily("var(--font-display)")
                         }
                         .style("margin-top", "8px")
                     }
@@ -131,14 +131,14 @@ public struct StatePage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("observe { … } tracks only accessed state") }
-                        .style("font-size", "12px")
-                        .style("color", "var(--swui-fg-3)")
-                        .style("font-family", "var(--font-mono)")
+                        .fontSize(.px(12))
+                        .foregroundColor(.token("swui-fg-3"))
+                        .fontFamily("var(--font-mono)")
                     Div {
                         Span { Text("x2 = 14") }
-                            .style("font-size", "18px")
-                            .style("color", "var(--swui-accent)")
-                            .style("font-family", "var(--font-mono)")
+                            .fontSize(.px(18))
+                            .foregroundColor(.token("swui-accent"))
+                            .fontFamily("var(--font-mono)")
                     }
                     .style("margin-top", "8px")
                 }

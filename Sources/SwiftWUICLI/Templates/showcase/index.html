@@ -5,16 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{PROJECT_NAME}} — built with SwiftWUI</title>
     <script>
-        // Apply persisted colour-mode preference before any CSS resolves
-        // to prevent a flash of unstyled / wrong-theme content.
-        (function() {
-            try {
-                var t = localStorage.getItem("swui-theme");
-                if (t === "light" || t === "dark") {
-                    document.documentElement.dataset.theme = t;
-                }
-            } catch (_) { /* ignore quota / privacy errors */ }
-        })();
+      // Theme bootstrap: respect saved choice, else fall back to system pref.
+      (function () {
+        var saved = null;
+        try { saved = localStorage.getItem("swui-theme"); } catch (_) {}
+        if (saved === "light" || saved === "dark") {
+          document.documentElement.setAttribute("data-theme", saved);
+        }
+      })();
     </script>
     <link
       rel="stylesheet"

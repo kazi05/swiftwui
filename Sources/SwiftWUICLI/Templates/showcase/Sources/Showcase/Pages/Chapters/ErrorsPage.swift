@@ -40,22 +40,22 @@ public struct ErrorsPage: Tag {
                 Div {
                     Div {
                         Span { Text("Fallback rendered") }
-                            .style("font-size", "11px")
-                            .style("color", "var(--swui-fg-3)")
-                            .style("text-transform", "uppercase")
-                            .style("letter-spacing", "0.06em")
+                            .fontSize(.px(11))
+                            .foregroundColor(.token("swui-fg-3"))
+                            .textTransform(.uppercase)
+                            .letterSpacing(.em(0.06))
                         Div {
                             Span { Text("Failed: user not found") }
-                                .style("font-size", "14px")
-                                .style("color", "#ff6b6b")
-                                .style("font-weight", "500")
+                                .fontSize(.px(14))
+                                .foregroundColor(.css("#ff6b6b"))
+                                .fontWeight(.w500)
                         }
                         .style("margin-top", "6px")
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border", "1px solid #ff6b6b40")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .border(.px(1), .solid, .css("#ff6b6b40"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -75,27 +75,27 @@ public struct ErrorsPage: Tag {
                 Div {
                     Div {
                         Span { Text("onError called first") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
                         Div {
                             Span { Text("Logger.report(error) → ✓") }
-                                .style("font-family", "var(--font-mono)")
-                                .style("font-size", "13px")
-                                .style("color", "#30d158")
+                                .fontFamily("var(--font-mono)")
+                                .fontSize(.px(13))
+                                .foregroundColor(.css("#30d158"))
                         }
                         .style("margin-top", "6px")
                         Div {
                             Span { Text("Fallback renders") }
-                                .style("font-family", "var(--font-mono)")
-                                .style("font-size", "13px")
-                                .style("color", "var(--swui-accent)")
+                                .fontFamily("var(--font-mono)")
+                                .fontSize(.px(13))
+                                .foregroundColor(.token("swui-accent"))
                         }
                         .style("margin-top", "4px")
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -121,21 +121,21 @@ public struct ErrorsPage: Tag {
                 Div {
                     Div {
                         Span { Text("Something went wrong.") }
-                            .style("font-size", "14px")
-                            .style("color", "var(--swui-fg)")
+                            .fontSize(.px(14))
+                            .foregroundColor(.token("swui-fg"))
                         Span { Text("Try again") }
-                            .style("display", "inline-block")
+                            .display(.inlineBlock)
                             .style("margin-top", "10px")
-                            .style("background", "var(--swui-accent)")
-                            .style("color", "#fff")
-                            .style("padding", "6px 14px")
-                            .style("border-radius", "6px")
-                            .style("font-size", "13px")
-                            .style("cursor", "pointer")
+                            .backgroundColor(.token("swui-accent"))
+                            .foregroundColor(.css("#fff"))
+                            .padding(.px(6), .px(14))
+                            .borderRadius(.px(6))
+                            .fontSize(.px(13))
+                            .cursor(.pointer)
                     }
-                    .style("padding", "12px 16px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(12), .px(16))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -157,22 +157,22 @@ public struct ErrorsPage: Tag {
                 Div {
                     Div {
                         Span { Text("Sidebar: error isolated") }
-                            .style("display", "block")
-                            .style("padding", "5px 10px")
-                            .style("background", "var(--swui-surface-2)")
-                            .style("border-left", "3px solid #ff6b6b")
-                            .style("font-size", "12px")
-                            .style("color", "#ff6b6b")
+                            .display(.block)
+                            .padding(.px(5), .px(10))
+                            .backgroundColor(.token("swui-surface-2"))
+                            .borderLeft(width: .px(3), style: .solid, color: .css("#ff6b6b"))
+                            .fontSize(.px(12))
+                            .foregroundColor(.css("#ff6b6b"))
                         Span { Text("NewsFeed: renders normally") }
-                            .style("display", "block")
-                            .style("padding", "5px 10px")
-                            .style("border-left", "3px solid #30d158")
-                            .style("font-size", "12px")
-                            .style("color", "#30d158")
+                            .display(.block)
+                            .padding(.px(5), .px(10))
+                            .borderLeft(width: .px(3), style: .solid, color: .css("#30d158"))
+                            .fontSize(.px(12))
+                            .foregroundColor(.css("#30d158"))
                     }
-                    .style("border", "1px solid var(--swui-border)")
-                    .style("border-radius", "6px")
-                    .style("overflow", "hidden")
+                    .border(.px(1), .solid, .token("swui-border"))
+                    .borderRadius(.px(6))
+                    .overflow(.hidden)
                 }
             )
         ),

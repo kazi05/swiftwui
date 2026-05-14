@@ -20,32 +20,32 @@ public struct ChapterIntro: Tag {
         Div {
             Div {
                 P { Text(part) }
-                    .style("color", "var(--swui-accent)")
-                    .style("font-size", "10px")
-                    .style("font-weight", "600")
-                    .style("letter-spacing", "0.08em")
-                    .style("text-transform", "uppercase")
-                    .style("margin", "0 0 8px")
+                    .foregroundColor(.token("swui-accent"))
+                    .fontSize(.px(10))
+                    .fontWeight(.w600)
+                    .letterSpacing(.em(0.08))
+                    .textTransform(.uppercase)
+                    .marginBottom(.px(8))
                 H1 { Text(title) }
-                    .style("font-family", "var(--font-display)")
-                    .style("font-size", "32px")
-                    .style("font-weight", "700")
-                    .style("letter-spacing", "-0.02em")
-                    .style("margin", "0 0 12px")
-                    .style("color", "var(--swui-fg)")
+                    .fontFamily("var(--font-display)")
+                    .fontSize(.px(32))
+                    .fontWeight(.w700)
+                    .letterSpacing(.em(-0.02))
+                    .marginBottom(.px(12))
+                    .foregroundColor(.token("swui-fg"))
                 P { Text(lead) }
-                    .style("font-size", "15px")
-                    .style("color", "var(--swui-fg-2)")
-                    .style("line-height", "1.55")
-                    .style("max-width", "640px")
-                    .style("margin", "0 0 18px")
+                    .fontSize(.px(15))
+                    .foregroundColor(.token("swui-fg-2"))
+                    .lineHeight(.unitless(1.55))
+                    .maxWidth(.px(640))
+                    .marginBottom(.px(18))
                 metaRow
             }
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "40px \(Layout.pageHorizontalPadding) 24px")
         }
-        .style("border-bottom", "1px solid var(--swui-border)")
+        .borderBottom(width: .px(1), style: .solid, color: .token("swui-border"))
         .attribute("data-swui-chapter-intro", "true")
     }
 
@@ -55,17 +55,17 @@ public struct ChapterIntro: Tag {
                 Span {
                     Text("\(item.label): ")
                     Span { Text(item.value) }
-                        .style("color", "var(--swui-fg)")
-                        .style("font-weight", "600")
+                        .foregroundColor(.token("swui-fg"))
+                        .fontWeight(.w600)
                 }
-                .style("color", "var(--swui-fg-3)")
-                .style("font-size", "11px")
-                .style("margin-right", "20px")
+                .foregroundColor(.token("swui-fg-3"))
+                .fontSize(.px(11))
+                .marginRight(.px(20))
             }
         }
-        .style("display", "flex")
-        .style("flex-wrap", "wrap")
-        .style("gap", "0")
+        .display(.flex)
+        .flexWrap(.wrap)
+        .gap(.zero)
     }
 
     private var metaItems: [MetaItem] {

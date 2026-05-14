@@ -40,13 +40,13 @@ public struct RoutingPage: Tag {
                 Div {
                     Div {
                         Span { Text("GET /about  → AboutPage rendered") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-accent)")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-accent"))
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -64,19 +64,19 @@ public struct RoutingPage: Tag {
                 Div {
                     Div {
                         Span { Text("URL: /users/42") }
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
-                            .style("font-family", "var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
+                            .fontFamily("var(--font-mono)")
                         Span { Text("params[\"id\"] = \"42\"") }
-                            .style("display", "block")
-                            .style("font-size", "14px")
-                            .style("color", "var(--swui-accent)")
-                            .style("font-family", "var(--font-mono)")
+                            .display(.block)
+                            .fontSize(.px(14))
+                            .foregroundColor(.token("swui-accent"))
+                            .fontFamily("var(--font-mono)")
                             .style("margin-top", "6px")
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -95,19 +95,19 @@ public struct RoutingPage: Tag {
                 Div {
                     Div {
                         Span { Text("isAdmin = false") }
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
-                            .style("font-family", "var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
+                            .fontFamily("var(--font-mono)")
                         Span { Text(".redirect(\"/login\")") }
-                            .style("display", "block")
-                            .style("font-size", "14px")
-                            .style("color", "#ff6b6b")
-                            .style("font-family", "var(--font-mono)")
+                            .display(.block)
+                            .fontSize(.px(14))
+                            .foregroundColor(.css("#ff6b6b"))
+                            .fontFamily("var(--font-mono)")
                             .style("margin-top", "6px")
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -128,21 +128,21 @@ public struct RoutingPage: Tag {
                 Div {
                     Div {
                         Span { Text(".allow") }
-                            .style("display", "block")
-                            .style("padding", "5px 10px")
-                            .style("color", "#30d158")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "14px")
+                            .display(.block)
+                            .padding(.px(5), .px(10))
+                            .foregroundColor(.css("#30d158"))
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(14))
                         Span { Text(".redirect(\"/login\")") }
-                            .style("display", "block")
-                            .style("padding", "5px 10px")
-                            .style("color", "#ff6b6b")
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "14px")
+                            .display(.block)
+                            .padding(.px(5), .px(10))
+                            .foregroundColor(.css("#ff6b6b"))
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(14))
                     }
-                    .style("border", "1px solid var(--swui-border)")
-                    .style("border-radius", "6px")
-                    .style("overflow", "hidden")
+                    .border(.px(1), .solid, .token("swui-border"))
+                    .borderRadius(.px(6))
+                    .overflow(.hidden)
                 }
             )
         ),
@@ -160,18 +160,18 @@ public struct RoutingPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text("Go to Dashboard") }
-                        .style("display", "inline-block")
-                        .style("background", "var(--swui-accent)")
-                        .style("color", "#fff")
-                        .style("padding", "7px 16px")
-                        .style("border-radius", "6px")
-                        .style("font-size", "13px")
-                        .style("cursor", "pointer")
+                        .display(.inlineBlock)
+                        .backgroundColor(.token("swui-accent"))
+                        .foregroundColor(.css("#fff"))
+                        .padding(.px(7), .px(16))
+                        .borderRadius(.px(6))
+                        .fontSize(.px(13))
+                        .cursor(.pointer)
                     Div {
                         Span { Text("→ navigate(\"/dashboard\")") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-3)")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-3"))
                     }
                     .style("margin-top", "8px")
                 }

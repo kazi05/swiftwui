@@ -1,63 +1,108 @@
-// {{PROJECT_NAME}}Theme.swift — light/dark token sets for the SwiftWUI {{project_name}}.
+// {{PROJECT_NAME}}Theme.swift — Apple Tutorials–fidelity token set.
+// Dark-default (matches cited reference). Light variant designed to feel
+// like Apple's lighter docs sections. Manual override via
+// <html data-theme="light|dark"> beats the @media default.
 
-import SwiftWUIStyles
+import SwiftWUI
 
-public struct {{PROJECT_NAME}}Theme: Theme {
-    public let tokens: [String: String]
+public enum {{PROJECT_NAME}}Theme {
+    public static let css: String = """
+    :root {
+      --swui-bg: #000000;
+      --swui-surface: #1c1c1e;
+      --swui-surface-2: #2c2c2e;
+      --swui-fg: #f5f5f7;
+      --swui-fg-2: #98989d;
+      --swui-fg-3: #6e6e73;
+      --swui-border: rgba(255, 255, 255, 0.10);
+      --swui-border-strong: rgba(255, 255, 255, 0.22);
+      --swui-accent: #5ac8b0;
+      --swui-accent-strong: #66e1c1;
+      --swui-code-bg: #1d1d1f;
+      --swui-code-line-hl: rgba(255, 255, 255, 0.06);
+      --syntax-keyword: #fc5fa3;
+      --syntax-type: #5dd8ff;
+      --syntax-string: #fc6a5d;
+      --syntax-number: #d0bf69;
+      --syntax-comment: #7f8c98;
+      --font-display: -apple-system, "SF Pro Display", "Segoe UI", sans-serif;
+      --font-text: -apple-system, "SF Pro Text", "Segoe UI", sans-serif;
+      --font-mono: "SF Mono", "Menlo", "Cascadia Code", monospace;
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-pill: 999px;
+    }
 
-    private init(tokens: [String: String]) { self.tokens = tokens }
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        --swui-bg: #ffffff;
+        --swui-surface: #f5f5f7;
+        --swui-surface-2: #ebebf0;
+        --swui-fg: #1d1d1f;
+        --swui-fg-2: #6e6e73;
+        --swui-fg-3: #aeaeb2;
+        --swui-border: rgba(0, 0, 0, 0.10);
+        --swui-border-strong: rgba(0, 0, 0, 0.18);
+        --swui-accent: #0a84ff;
+        --swui-accent-strong: #007aff;
+        --swui-code-bg: #f5f5f7;
+        --swui-code-line-hl: rgba(0, 0, 0, 0.04);
+        --syntax-keyword: #ad3da4;
+        --syntax-type: #0f68a2;
+        --syntax-string: #c41a16;
+        --syntax-number: #272ad8;
+        --syntax-comment: #5d6c79;
+      }
+    }
 
-    public static let requiredTokens: [String] = [
-        "swui-bg", "swui-surface", "swui-surface-2",
-        "swui-fg", "swui-fg-2", "swui-fg-3",
-        "swui-border", "swui-border-strong",
-        "swui-accent", "swui-accent-bg",
-        "swui-code-bg", "swui-code-fg",
-        "space-1", "space-2", "space-3", "space-4",
-        "space-5", "space-6", "space-7", "space-8",
-        "radius-sm", "radius-md", "radius-lg",
-        "font-display", "font-text", "font-mono",
-    ]
+    :root[data-theme="light"] {
+      --swui-bg: #ffffff;
+      --swui-surface: #f5f5f7;
+      --swui-surface-2: #ebebf0;
+      --swui-fg: #1d1d1f;
+      --swui-fg-2: #6e6e73;
+      --swui-fg-3: #aeaeb2;
+      --swui-border: rgba(0, 0, 0, 0.10);
+      --swui-border-strong: rgba(0, 0, 0, 0.18);
+      --swui-accent: #0a84ff;
+      --swui-accent-strong: #007aff;
+      --swui-code-bg: #f5f5f7;
+      --swui-code-line-hl: rgba(0, 0, 0, 0.04);
+      --syntax-keyword: #ad3da4;
+      --syntax-type: #0f68a2;
+      --syntax-string: #c41a16;
+      --syntax-number: #272ad8;
+      --syntax-comment: #5d6c79;
+    }
 
-    public static let light = {{PROJECT_NAME}}Theme(tokens: [
-        "swui-bg":             "#fbfbfd",
-        "swui-surface":        "#ffffff",
-        "swui-surface-2":      "#f5f5f7",
-        "swui-fg":             "#1d1d1f",
-        "swui-fg-2":           "#424245",
-        "swui-fg-3":           "#6e6e73",
-        "swui-border":         "#e8e8ed",
-        "swui-border-strong":  "#d2d2d7",
-        "swui-accent":         "#ff9500",
-        "swui-accent-bg":      "#fff5e8",
-        "swui-code-bg":        "#1d1d1f",
-        "swui-code-fg":        "#f5f5f7",
-        "space-1": "4px",  "space-2": "8px",  "space-3": "12px", "space-4": "16px",
-        "space-5": "24px", "space-6": "32px", "space-7": "48px", "space-8": "64px",
-        "radius-sm": "8px", "radius-md": "12px", "radius-lg": "18px",
-        "font-display": "-apple-system, \"SF Pro Display\", system-ui, \"Segoe UI\", Roboto, sans-serif",
-        "font-text":    "-apple-system, \"SF Pro Text\", system-ui, \"Segoe UI\", Roboto, sans-serif",
-        "font-mono":    "ui-monospace, \"SF Mono\", \"Cascadia Code\", Menlo, Consolas, monospace",
-    ])
+    :root[data-theme="dark"] {
+      --swui-bg: #000000;
+      --swui-surface: #1c1c1e;
+      --swui-surface-2: #2c2c2e;
+      --swui-fg: #f5f5f7;
+      --swui-fg-2: #98989d;
+      --swui-fg-3: #6e6e73;
+      --swui-border: rgba(255, 255, 255, 0.10);
+      --swui-border-strong: rgba(255, 255, 255, 0.22);
+      --swui-accent: #5ac8b0;
+      --swui-accent-strong: #66e1c1;
+      --swui-code-bg: #1d1d1f;
+      --swui-code-line-hl: rgba(255, 255, 255, 0.06);
+      --syntax-keyword: #fc5fa3;
+      --syntax-type: #5dd8ff;
+      --syntax-string: #fc6a5d;
+      --syntax-number: #d0bf69;
+      --syntax-comment: #7f8c98;
+    }
 
-    public static let dark = {{PROJECT_NAME}}Theme(tokens: [
-        "swui-bg":             "#000000",
-        "swui-surface":        "#1d1d1f",
-        "swui-surface-2":      "#2c2c2e",
-        "swui-fg":             "#f5f5f7",
-        "swui-fg-2":           "#a1a1a6",
-        "swui-fg-3":           "#86868b",
-        "swui-border":         "#3a3a3c",
-        "swui-border-strong":  "#48484a",
-        "swui-accent":         "#ff9f0a",
-        "swui-accent-bg":      "#3a2410",
-        "swui-code-bg":        "#0d0d0f",
-        "swui-code-fg":        "#f5f5f7",
-        "space-1": "4px",  "space-2": "8px",  "space-3": "12px", "space-4": "16px",
-        "space-5": "24px", "space-6": "32px", "space-7": "48px", "space-8": "64px",
-        "radius-sm": "8px", "radius-md": "12px", "radius-lg": "18px",
-        "font-display": "-apple-system, \"SF Pro Display\", system-ui, \"Segoe UI\", Roboto, sans-serif",
-        "font-text":    "-apple-system, \"SF Pro Text\", system-ui, \"Segoe UI\", Roboto, sans-serif",
-        "font-mono":    "ui-monospace, \"SF Mono\", \"Cascadia Code\", Menlo, Consolas, monospace",
-    ])
+    html, body {
+      background: var(--swui-bg);
+      color: var(--swui-fg);
+      font-family: var(--font-text);
+      -webkit-font-smoothing: antialiased;
+      margin: 0;
+      padding: 0;
+    }
+    """
 }

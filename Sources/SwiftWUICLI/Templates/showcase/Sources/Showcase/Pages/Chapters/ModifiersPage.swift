@@ -35,11 +35,11 @@ public struct ModifiersPage: Tag {
             preview: AnyTag(
                 Div {
                     Div { Text("Hello") }
-                        .style("padding", "16px")
-                        .style("background", "var(--swui-surface-2)")
-                        .style("border-radius", "6px")
-                        .style("display", "inline-block")
-                        .style("color", "var(--swui-fg)")
+                        .padding(.px(16))
+                        .backgroundColor(.token("swui-surface-2"))
+                        .borderRadius(.px(6))
+                        .display(.inlineBlock)
+                        .foregroundColor(.token("swui-fg"))
                 }
             )
         ),
@@ -54,8 +54,8 @@ public struct ModifiersPage: Tag {
             """,
             preview: AnyTag(
                 H2 { Text("Welcome") }
-                    .style("font-size", "20px")
-                    .style("color", "var(--swui-accent)")
+                    .fontSize(.px(20))
+                    .foregroundColor(.token("swui-accent"))
                     .style("margin", "0")
             )
         ),
@@ -76,8 +76,8 @@ public struct ModifiersPage: Tag {
                     .style("color", "#fff")
                     .style("border-radius", "999px")
                     .style("padding", "2px 10px")
-                    .style("font-size", "12px")
-                    .style("font-weight", "600")
+                    .fontSize(.px(12))
+                    .fontWeight(.w600)
             )
         ),
         .init(
@@ -95,7 +95,7 @@ public struct ModifiersPage: Tag {
                     .style("color", "red")
                     .style("color", "blue")
                     .style("margin", "0")
-                    .style("font-size", "15px")
+                    .fontSize(.px(15))
             )
         ),
     ] }

@@ -48,26 +48,26 @@ public struct ThemingPage: Tag {
                 Div {
                     Div {
                         Span { Text("tokens: [String: String]") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "var(--swui-fg-2)")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.token("swui-fg-2"))
                         Div {
                             Span { Text("--background: #ffffff") }
-                                .style("display", "block")
-                                .style("font-family", "var(--font-mono)")
-                                .style("font-size", "12px")
-                                .style("color", "#30d158")
+                                .display(.block)
+                                .fontFamily("var(--font-mono)")
+                                .fontSize(.px(12))
+                                .foregroundColor(.css("#30d158"))
                             Span { Text("--accent: #0066ff") }
-                                .style("display", "block")
-                                .style("font-family", "var(--font-mono)")
-                                .style("font-size", "12px")
-                                .style("color", "#0066ff")
+                                .display(.block)
+                                .fontFamily("var(--font-mono)")
+                                .fontSize(.px(12))
+                                .foregroundColor(.css("#0066ff"))
                         }
                         .style("margin-top", "6px")
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "var(--swui-surface-2)")
-                    .style("border-radius", "6px")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.token("swui-surface-2"))
+                    .borderRadius(.px(6))
                 }
             )
         ),
@@ -85,24 +85,24 @@ public struct ThemingPage: Tag {
             preview: AnyTag(
                 Div {
                     Span { Text(":root { --background: #fff; … }") }
-                        .style("display", "block")
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "11px")
-                        .style("color", "var(--swui-fg-2)")
+                        .display(.block)
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(11))
+                        .foregroundColor(.token("swui-fg-2"))
                     Span { Text("@media (prefers-color-scheme: dark) { … }") }
-                        .style("display", "block")
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "11px")
-                        .style("color", "var(--swui-fg-2)")
+                        .display(.block)
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(11))
+                        .foregroundColor(.token("swui-fg-2"))
                     Span { Text("[data-theme=\"dark\"] { … }") }
-                        .style("display", "block")
-                        .style("font-family", "var(--font-mono)")
-                        .style("font-size", "11px")
-                        .style("color", "var(--swui-accent)")
+                        .display(.block)
+                        .fontFamily("var(--font-mono)")
+                        .fontSize(.px(11))
+                        .foregroundColor(.token("swui-accent"))
                 }
-                .style("padding", "10px 14px")
-                .style("background", "var(--swui-surface-2)")
-                .style("border-radius", "6px")
+                .padding(.px(10), .px(14))
+                .backgroundColor(.token("swui-surface-2"))
+                .borderRadius(.px(6))
             )
         ),
         .init(
@@ -122,22 +122,22 @@ public struct ThemingPage: Tag {
                     Div {
                         Div {
                             Span { Text("Light theme") }
-                                .style("font-size", "13px")
-                                .style("color", "#111")
+                                .fontSize(.px(13))
+                                .foregroundColor(.css("#111"))
                         }
-                        .style("padding", "8px 14px")
-                        .style("background", "#fff")
-                        .style("border", "1px solid #e0e0e0")
-                        .style("border-radius", "6px")
+                        .padding(.px(8), .px(14))
+                        .backgroundColor(.css("#fff"))
+                        .border(.px(1), .solid, .css("#e0e0e0"))
+                        .borderRadius(.px(6))
                         Div {
                             Span { Text("Dark theme") }
-                                .style("font-size", "13px")
-                                .style("color", "#f5f5f5")
+                                .fontSize(.px(13))
+                                .foregroundColor(.css("#f5f5f5"))
                         }
-                        .style("padding", "8px 14px")
-                        .style("background", "#0a0a0a")
-                        .style("border", "1px solid #333")
-                        .style("border-radius", "6px")
+                        .padding(.px(8), .px(14))
+                        .backgroundColor(.css("#0a0a0a"))
+                        .border(.px(1), .solid, .css("#333"))
+                        .borderRadius(.px(6))
                         .style("margin-top", "8px")
                     }
                 }
@@ -160,20 +160,20 @@ public struct ThemingPage: Tag {
                 Div {
                     Div {
                         Span { Text("data-theme=\"sepia\"") }
-                            .style("font-family", "var(--font-mono)")
-                            .style("font-size", "12px")
-                            .style("color", "#a0522d")
+                            .fontFamily("var(--font-mono)")
+                            .fontSize(.px(12))
+                            .foregroundColor(.css("#a0522d"))
                         Div {
                             Span { Text("Warm reading palette") }
-                                .style("font-size", "14px")
-                                .style("color", "#5c4033")
+                                .fontSize(.px(14))
+                                .foregroundColor(.css("#5c4033"))
                         }
                         .style("margin-top", "6px")
                     }
-                    .style("padding", "10px 14px")
-                    .style("background", "#f8f0e3")
-                    .style("border-radius", "6px")
-                    .style("border", "1px solid #d4b896")
+                    .padding(.px(10), .px(14))
+                    .backgroundColor(.css("#f8f0e3"))
+                    .borderRadius(.px(6))
+                    .border(.px(1), .solid, .css("#d4b896"))
                 }
             )
         ),

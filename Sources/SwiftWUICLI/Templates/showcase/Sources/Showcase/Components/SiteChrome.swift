@@ -21,9 +21,9 @@ public struct SiteChrome<Content: Tag>: Tag {
                 .attribute("data-swui-main", "true")
             footer
         }
-        .style("background", "var(--swui-bg)")
-        .style("color", "var(--swui-fg)")
-        .style("font-family", "var(--font-text)")
+        .backgroundColor(.token("swui-bg"))
+        .foregroundColor(.token("swui-fg"))
+        .fontFamily("var(--font-text)")
         .attribute("data-swui-chrome", "true")
     }
 
@@ -31,34 +31,34 @@ public struct SiteChrome<Content: Tag>: Tag {
         Div {
             Div {
                 A(href: "/") { Text("SwiftWUI") }
-                    .style("font-weight", "700")
-                    .style("color", "var(--swui-fg)")
-                    .style("text-decoration", "none")
-                    .style("font-family", "var(--font-display)")
-                Div { EmptyTag() }.style("flex", "1")
+                    .fontWeight(.w700)
+                    .foregroundColor(.token("swui-fg"))
+                    .textDecoration(.none)
+                    .fontFamily("var(--font-display)")
+                Div { EmptyTag() }.flex(1)
                 Button(onclick: { toggleTheme() }) { Text("☀︎ / ☾") }
-                    .style("border", "1px solid var(--swui-border-strong)")
-                    .style("border-radius", "14px")
-                    .style("padding", "4px 12px")
-                    .style("background", "transparent")
-                    .style("color", "var(--swui-fg)")
-                    .style("font-size", "11px")
-                    .style("cursor", "pointer")
+                    .border(.px(1), .solid, .token("swui-border-strong"))
+                    .borderRadius(.px(14))
+                    .padding(.px(4), .px(12))
+                    .backgroundColor(.transparent)
+                    .foregroundColor(.token("swui-fg"))
+                    .fontSize(.px(11))
+                    .cursor(.pointer)
                     .attribute("aria-label", "Toggle colour theme")
             }
-            .style("display", "flex")
-            .style("align-items", "center")
-            .style("gap", "16px")
+            .display(.flex)
+            .alignItems(.center)
+            .gap(.px(16))
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "12px \(Layout.pageHorizontalPadding)")
         }
         .style("background", "color-mix(in srgb, var(--swui-surface) 92%, transparent)")
-        .style("border-bottom", "1px solid var(--swui-border)")
-        .style("position", "sticky")
-        .style("top", "0")
-        .style("z-index", "50")
-        .style("backdrop-filter", "saturate(180%) blur(20px)")
+        .borderBottom(width: .px(1), style: .solid, color: .token("swui-border"))
+        .position(.sticky)
+        .top(.zero)
+        .zIndex(50)
+        .backdropFilter("saturate(180%) blur(20px)")
         .attribute("data-swui-navbar", "true")
     }
 
@@ -66,15 +66,15 @@ public struct SiteChrome<Content: Tag>: Tag {
         Div {
             Div {
                 P { Text("Built with SwiftWUI · Real Swift in WebAssembly.") }
-                    .style("color", "var(--swui-fg-3)")
-                    .style("font-size", "12px")
-                    .style("margin", "0")
+                    .foregroundColor(.token("swui-fg-3"))
+                    .fontSize(.px(12))
+                    .margin(.zero)
             }
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "32px \(Layout.pageHorizontalPadding)")
         }
-        .style("border-top", "1px solid var(--swui-border)")
+        .borderTop(width: .px(1), style: .solid, color: .token("swui-border"))
         .attribute("data-swui-footer", "true")
     }
 }
