@@ -12,7 +12,7 @@ struct ScrollyTellerTests {
                 title: "Step \(n)",
                 prose: "Prose \(n)",
                 code: "code \(n)",
-                preview: AnyTag(Div { Text("preview \(n)") })
+                preview: .live(AnyTag(Div { Text("preview \(n)") }))
             )
         }
         let html = StaticRenderer().renderFragment(ScrollyTeller(steps: steps))
@@ -27,7 +27,7 @@ struct ScrollyTellerTests {
         let step = ScrollyTeller.Step(
             number: 1, title: "t", prose: "p",
             code: "let x = 1\nlet y = 2", highlightLines: [2],
-            preview: AnyTag(Text("ok"))
+            preview: .live(AnyTag(Text("ok")))
         )
         let html = StaticRenderer().renderFragment(ScrollyTeller(steps: [step]))
         #expect(html.contains("data-line=\"1\""))
@@ -39,7 +39,7 @@ struct ScrollyTellerTests {
         let step = ScrollyTeller.Step(
             number: 1, title: "t", prose: "p",
             code: "a\nb\nc", highlightLines: [2],
-            preview: AnyTag(Text("ok"))
+            preview: .live(AnyTag(Text("ok")))
         )
         let html = StaticRenderer().renderFragment(ScrollyTeller(steps: [step]))
         #expect(html.contains("data-line-hl=\"2\""))

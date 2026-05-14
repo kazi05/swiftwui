@@ -37,7 +37,7 @@ public struct ErrorsPage: Tag {
             }
             """,
             highlightLines: [1, 5],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Fallback rendered") }
@@ -58,7 +58,7 @@ public struct ErrorsPage: Tag {
                     .border(.px(1), .solid, .css("#ff6b6b40"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -73,7 +73,7 @@ public struct ErrorsPage: Tag {
             }
             """,
             highlightLines: [3],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("onError called first") }
@@ -99,7 +99,7 @@ public struct ErrorsPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -120,7 +120,7 @@ public struct ErrorsPage: Tag {
             }
             """,
             highlightLines: [1, 6],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Something went wrong.") }
@@ -140,7 +140,7 @@ public struct ErrorsPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -157,7 +157,7 @@ public struct ErrorsPage: Tag {
             }
             """,
             highlightLines: [2, 5],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Sidebar: error isolated") }
@@ -178,7 +178,7 @@ public struct ErrorsPage: Tag {
                     .borderRadius(.px(6))
                     .overflow(.hidden)
                 }
-            )
+            ))
         ),
     ] }
 }

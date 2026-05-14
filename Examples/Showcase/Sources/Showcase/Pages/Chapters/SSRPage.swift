@@ -38,7 +38,7 @@ public struct SSRPage: Tag {
             // html == "<div><h1>Hello, SSR</h1></div>"
             """,
             highlightLines: [3, 4],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("StaticRenderer output") }
                         .fontSize(.px(12))
@@ -54,7 +54,7 @@ public struct SSRPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -76,7 +76,7 @@ public struct SSRPage: Tag {
             // Serve html from Vapor route handler
             """,
             highlightLines: [5, 6, 7],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("<!DOCTYPE html>") }
                         .display(.block)
@@ -97,7 +97,7 @@ public struct SSRPage: Tag {
                 .padding(.px(10), .px(14))
                 .backgroundColor(.token("swui-surface-2"))
                 .borderRadius(.px(6))
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -111,7 +111,7 @@ public struct SSRPage: Tag {
             app.hydrate(on: "app")
             """,
             highlightLines: [5],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Server renders HTML") }
@@ -136,7 +136,7 @@ public struct SSRPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -152,7 +152,7 @@ public struct SSRPage: Tag {
             // <script id="__swiftwui_state">{"user":"…"}</script>
             """,
             highlightLines: [4],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("<script id=\"__swiftwui_state\">") }
                         .display(.block)
@@ -173,7 +173,7 @@ public struct SSRPage: Tag {
                 .padding(.px(10), .px(14))
                 .backgroundColor(.token("swui-surface-2"))
                 .borderRadius(.px(6))
-            )
+            ))
         ),
     ] }
 }

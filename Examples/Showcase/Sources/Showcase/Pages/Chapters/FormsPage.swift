@@ -35,7 +35,7 @@ public struct FormsPage: Tag {
             P { Text("\\(Int(temperature)) °C") }
             """,
             highlightLines: [1, 3],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("Temperature") }
                         .fontSize(.px(12))
@@ -54,7 +54,7 @@ public struct FormsPage: Tag {
                         .borderRadius(.px(2))
                         .style("margin-top", "10px")
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -67,7 +67,7 @@ public struct FormsPage: Tag {
             P { Text("Items: \\(quantity)") }
             """,
             highlightLines: [1, 3],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("Quantity") }
                         .fontSize(.px(12))
@@ -90,7 +90,7 @@ public struct FormsPage: Tag {
                     }
                     .style("margin-top", "8px")
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -112,7 +112,7 @@ public struct FormsPage: Tag {
             }
             """,
             highlightLines: [1, 9],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("Size") }
                         .fontSize(.px(12))
@@ -129,7 +129,7 @@ public struct FormsPage: Tag {
                     }
                     .style("margin-top", "8px")
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -147,7 +147,7 @@ public struct FormsPage: Tag {
             .attribute("disabled", isValid ? nil : "true")
             """,
             highlightLines: [3, 8, 9],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("email = \"\"  — disabled") }
@@ -167,7 +167,7 @@ public struct FormsPage: Tag {
                     }
                     .style("margin-top", "10px")
                 }
-            )
+            ))
         ),
         .init(
             number: 5,
@@ -185,7 +185,7 @@ public struct FormsPage: Tag {
             .style("gap", "12px")
             """,
             highlightLines: [7, 8, 9],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("Name field") }
                         .display(.block)
@@ -211,7 +211,7 @@ public struct FormsPage: Tag {
                 .display(.flex)
                 .flexDirection(.column)
                 .gap(.px(10))
-            )
+            ))
         ),
     ] }
 }

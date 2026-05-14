@@ -40,13 +40,13 @@ public struct HelloPage: Tag {
             }
             """,
             highlightLines: [1, 2],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     H1 { Text("Hello, SwiftWUI") }
                         .fontFamily("var(--font-display)")
                         .style("margin", "0")
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -61,7 +61,7 @@ public struct HelloPage: Tag {
             }
             """,
             highlightLines: [2, 3, 4],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     H1 { Text("Hello") }
                         .fontFamily("var(--font-display)")
@@ -70,7 +70,7 @@ public struct HelloPage: Tag {
                         .foregroundColor(.token("swui-fg-2"))
                         .style("margin", "8px 0 0")
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -81,14 +81,14 @@ public struct HelloPage: Tag {
             app.mount()
             """,
             highlightLines: [2],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Text("Mounted! Open the browser console and inspect #app.")
                 }
                 .fontFamily("var(--font-mono)")
                 .fontSize(.px(12))
                 .foregroundColor(.token("swui-fg-3"))
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -101,13 +101,13 @@ public struct HelloPage: Tag {
               .style("color", "var(--swui-accent)")
             """,
             highlightLines: [2, 3, 4],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 H1 { Text("Hello") }
                     .fontSize(.px(28))
                     .padding(.px(16))
                     .foregroundColor(.token("swui-accent"))
                     .style("margin", "0")
-            )
+            ))
         ),
     ] }
 }

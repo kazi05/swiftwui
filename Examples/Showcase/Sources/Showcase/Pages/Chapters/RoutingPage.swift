@@ -37,7 +37,7 @@ public struct RoutingPage: Tag {
             app.mount()
             """,
             highlightLines: [2, 3, 4],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("GET /about  → AboutPage rendered") }
@@ -49,7 +49,7 @@ public struct RoutingPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -62,7 +62,7 @@ public struct RoutingPage: Tag {
             }
             """,
             highlightLines: [1, 2],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("URL: /users/42") }
@@ -80,7 +80,7 @@ public struct RoutingPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -94,7 +94,7 @@ public struct RoutingPage: Tag {
             }
             """,
             highlightLines: [2],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("isAdmin = false") }
@@ -112,7 +112,7 @@ public struct RoutingPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -128,7 +128,7 @@ public struct RoutingPage: Tag {
             guard: { isLoggedIn ? .allow : .redirect("/login") }
             """,
             highlightLines: [2, 3],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text(".allow") }
@@ -148,7 +148,7 @@ public struct RoutingPage: Tag {
                     .borderRadius(.px(6))
                     .overflow(.hidden)
                 }
-            )
+            ))
         ),
         .init(
             number: 5,
@@ -162,7 +162,7 @@ public struct RoutingPage: Tag {
             }
             """,
             highlightLines: [2],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("Go to Dashboard") }
                         .display(.inlineBlock)
@@ -180,7 +180,7 @@ public struct RoutingPage: Tag {
                     }
                     .style("margin-top", "8px")
                 }
-            )
+            ))
         ),
     ] }
 }

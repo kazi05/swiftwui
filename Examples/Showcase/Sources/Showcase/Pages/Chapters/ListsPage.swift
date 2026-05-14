@@ -46,7 +46,7 @@ public struct ListsPage: Tag {
             }
             """,
             highlightLines: [1, 12, 13],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Apple") }
@@ -65,7 +65,7 @@ public struct ListsPage: Tag {
                     .borderRadius(.px(6))
                     .overflow(.hidden)
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -79,7 +79,7 @@ public struct ListsPage: Tag {
             items.sort { $0.name < $1.name }
             """,
             highlightLines: [5],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Banana  id=b  [moved, not recreated]") }
@@ -106,7 +106,7 @@ public struct ListsPage: Tag {
                     .borderRadius(.px(6))
                     .overflow(.hidden)
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -124,7 +124,7 @@ public struct ListsPage: Tag {
             }
             """,
             highlightLines: [2, 5],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Swift  (active)") }
@@ -150,7 +150,7 @@ public struct ListsPage: Tag {
                     .borderRadius(.px(6))
                     .overflow(.hidden)
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -165,7 +165,7 @@ public struct ListsPage: Tag {
             }
             """,
             highlightLines: [1, 3],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Fruits") }
@@ -199,7 +199,7 @@ public struct ListsPage: Tag {
                     .borderRadius(.px(6))
                     .overflow(.hidden)
                 }
-            )
+            ))
         ),
     ] }
 }

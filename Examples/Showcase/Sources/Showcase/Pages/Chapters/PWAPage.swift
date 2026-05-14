@@ -41,7 +41,7 @@ public struct PWAPage: Tag {
             // Serve at /manifest.webmanifest
             """,
             highlightLines: [1, 9],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("manifest.webmanifest") }
                         .fontSize(.px(12))
@@ -68,7 +68,7 @@ public struct PWAPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -89,7 +89,7 @@ public struct PWAPage: Tag {
             )
             """,
             highlightLines: [10],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Div {
@@ -121,7 +121,7 @@ public struct PWAPage: Tag {
                     .display(.flex)
                     .alignItems(.center)
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -135,7 +135,7 @@ public struct PWAPage: Tag {
             ServiceWorker.register(at: "/sw.js", scope: "/app/")
             """,
             highlightLines: [2],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("navigator.serviceWorker.register(\"/sw.js\")") }
@@ -153,7 +153,7 @@ public struct PWAPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -171,7 +171,7 @@ public struct PWAPage: Tag {
             // <link rel="manifest" href="/manifest.webmanifest">
             """,
             highlightLines: [9],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("<link rel=\"manifest\"") }
@@ -195,7 +195,7 @@ public struct PWAPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
     ] }
 }

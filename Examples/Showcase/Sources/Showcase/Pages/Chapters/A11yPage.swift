@@ -36,7 +36,7 @@ public struct A11yPage: Tag {
             .aria(role: .button)
             """,
             highlightLines: [4],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("aria-label=\"Close dialog\"") }
@@ -57,7 +57,7 @@ public struct A11yPage: Tag {
                             .cursor(.pointer)
                     }
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -70,7 +70,7 @@ public struct A11yPage: Tag {
               .aria(label: "Save document")
             """,
             highlightLines: [3],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div { Text("Save") }
                         .cursor(.pointer)
@@ -82,7 +82,7 @@ public struct A11yPage: Tag {
                         .fontSize(.px(13))
                         .foregroundColor(.token("swui-fg"))
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -97,7 +97,7 @@ public struct A11yPage: Tag {
             Footer { Text("© 2025") }
             """,
             highlightLines: [1, 2, 6],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("header (role=banner)") }
@@ -125,7 +125,7 @@ public struct A11yPage: Tag {
                     .borderRadius(.px(6))
                     .overflow(.hidden)
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -137,7 +137,7 @@ public struct A11yPage: Tag {
               .aria(busy: isLoading)
             """,
             highlightLines: [2],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("aria-live=\"polite\"") }
                         .fontFamily("var(--font-mono)")
@@ -154,7 +154,7 @@ public struct A11yPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
     ] }
 }

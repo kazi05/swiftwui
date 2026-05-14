@@ -33,7 +33,7 @@ public struct ModifiersPage: Tag {
               .padding(.px(16))
             """,
             highlightLines: [2],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Div {
                     Div { Text("Hello") }
                         .padding(.px(16))
@@ -42,7 +42,7 @@ public struct ModifiersPage: Tag {
                         .display(.inlineBlock)
                         .foregroundColor(.token("swui-fg"))
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -54,12 +54,12 @@ public struct ModifiersPage: Tag {
               .style("color", "var(--swui-accent)")
             """,
             highlightLines: [2],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 H2 { Text("Welcome") }
                     .fontSize(.px(20))
                     .foregroundColor(.token("swui-accent"))
                     .style("margin", "0")
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -73,7 +73,7 @@ public struct ModifiersPage: Tag {
               .style("padding", "2px 10px")
             """,
             highlightLines: [2, 3],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 Span { Text("Badge") }
                     .style("background", "#0a84ff")
                     .style("color", "#fff")
@@ -81,7 +81,7 @@ public struct ModifiersPage: Tag {
                     .style("padding", "2px 10px")
                     .fontSize(.px(12))
                     .fontWeight(.w600)
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -94,13 +94,13 @@ public struct ModifiersPage: Tag {
               .style("color", "blue")
             """,
             highlightLines: [3, 4],
-            preview: AnyTag(
+            preview: .live(AnyTag(
                 P { Text("Ordering demo — last style wins") }
                     .style("color", "red")
                     .style("color", "blue")
                     .style("margin", "0")
                     .fontSize(.px(15))
-            )
+            ))
         ),
     ] }
 }
