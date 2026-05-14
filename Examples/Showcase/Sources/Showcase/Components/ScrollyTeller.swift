@@ -76,6 +76,8 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
                 )
                 .attribute("class", "swui-step-card")
                 .attribute("data-active", step.number == activeStep ? "true" : "false")
+                .attribute("data-swui-step-card", "true")
+                .attribute("id", "swui-step-\(step.number)")
             }
         }
         .display(.flex)
