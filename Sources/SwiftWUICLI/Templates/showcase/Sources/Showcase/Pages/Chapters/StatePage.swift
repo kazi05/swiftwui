@@ -37,7 +37,8 @@ public struct StatePage: Tag {
               }
             }
             """,
-            preview: AnyTag(
+            highlightLines: [2],
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("count = 0") }
                         .fontFamily("var(--font-mono)")
@@ -47,7 +48,7 @@ public struct StatePage: Tag {
                         .borderRadius(.px(6))
                         .foregroundColor(.token("swui-fg"))
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -59,7 +60,8 @@ public struct StatePage: Tag {
             }
             P { Text("Count: \\(count)") }
             """,
-            preview: AnyTag(
+            highlightLines: [1],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Count: 7") }
@@ -78,7 +80,7 @@ public struct StatePage: Tag {
                         .style("margin-top", "10px")
                     }
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -100,7 +102,8 @@ public struct StatePage: Tag {
               }
             }
             """,
-            preview: AnyTag(
+            highlightLines: [4, 10],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Child writes via $name") }
@@ -115,7 +118,7 @@ public struct StatePage: Tag {
                         .style("margin-top", "8px")
                     }
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -128,7 +131,8 @@ public struct StatePage: Tag {
             }
             // call stop() to unsubscribe
             """,
-            preview: AnyTag(
+            highlightLines: [1, 2],
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("observe { … } tracks only accessed state") }
                         .fontSize(.px(12))
@@ -142,7 +146,7 @@ public struct StatePage: Tag {
                     }
                     .style("margin-top", "8px")
                 }
-            )
+            ))
         ),
     ] }
 }

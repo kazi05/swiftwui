@@ -40,7 +40,8 @@ public struct AsyncPage: Tag {
               }
             }
             """,
-            preview: AnyTag(
+            highlightLines: [6, 7],
+            preview: .live(AnyTag(
                 Div {
                     Span { Text(".task fires on mount") }
                         .fontSize(.px(12))
@@ -56,7 +57,7 @@ public struct AsyncPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -74,7 +75,8 @@ public struct AsyncPage: Tag {
               }
             }
             """,
-            preview: AnyTag(
+            highlightLines: [2, 5],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("loading = true") }
@@ -98,7 +100,7 @@ public struct AsyncPage: Tag {
                         .style("margin-top", "8px")
                     }
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -116,7 +118,8 @@ public struct AsyncPage: Tag {
               } else { /* content */ }
             }
             """,
-            preview: AnyTag(
+            highlightLines: [1, 4],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Network error: timeout") }
@@ -136,7 +139,7 @@ public struct AsyncPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -155,7 +158,8 @@ public struct AsyncPage: Tag {
               loading = false
             }
             """,
-            preview: AnyTag(
+            highlightLines: [2, 4],
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("Parallel fetch — 3 tasks") }
                         .fontSize(.px(12))
@@ -182,7 +186,7 @@ public struct AsyncPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
     ] }
 }

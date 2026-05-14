@@ -104,5 +104,29 @@ public enum {{PROJECT_NAME}}Theme {
       margin: 0;
       padding: 0;
     }
+
+    /* Active-step accent + preview crossfade */
+    .swui-step-card {
+      border-left: 3px solid transparent;
+      padding-left: 12px;
+      transition: border-left-color .2s ease, opacity .2s ease;
+      opacity: 0.5;
+    }
+    .swui-step-card[data-active="true"] {
+      border-left-color: var(--swui-accent);
+      opacity: 1;
+    }
+
+    .swui-preview-pane {
+      transition: opacity .2s ease;
+    }
+    .swui-preview-pane[data-preview-fading="true"] {
+      opacity: 0;
+    }
+
+    /* Highlighted code line (paired with LineNumberedCode's data-line-hl) */
+    .swui-code-line-hl {
+      background: var(--swui-code-line-hl);
+    }
     """
 }

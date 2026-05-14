@@ -36,7 +36,8 @@ public struct ErrorsPage: Tag {
               try buildDashboard(for: userID) // can throw
             }
             """,
-            preview: AnyTag(
+            highlightLines: [1, 5],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Fallback rendered") }
@@ -57,7 +58,7 @@ public struct ErrorsPage: Tag {
                     .border(.px(1), .solid, .css("#ff6b6b40"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -71,7 +72,8 @@ public struct ErrorsPage: Tag {
               try loadContent()
             }
             """,
-            preview: AnyTag(
+            highlightLines: [3],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("onError called first") }
@@ -97,7 +99,7 @@ public struct ErrorsPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -117,7 +119,8 @@ public struct ErrorsPage: Tag {
               try loadContent(attempt: retryCount)
             }
             """,
-            preview: AnyTag(
+            highlightLines: [1, 6],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Something went wrong.") }
@@ -137,7 +140,7 @@ public struct ErrorsPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -153,7 +156,8 @@ public struct ErrorsPage: Tag {
               }
             }
             """,
-            preview: AnyTag(
+            highlightLines: [2, 5],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("Sidebar: error isolated") }
@@ -174,7 +178,7 @@ public struct ErrorsPage: Tag {
                     .borderRadius(.px(6))
                     .overflow(.hidden)
                 }
-            )
+            ))
         ),
     ] }
 }

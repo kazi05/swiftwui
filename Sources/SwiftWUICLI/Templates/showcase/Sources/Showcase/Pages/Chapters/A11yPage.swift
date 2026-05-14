@@ -35,7 +35,8 @@ public struct A11yPage: Tag {
             .aria(label: "Close dialog")
             .aria(role: .button)
             """,
-            preview: AnyTag(
+            highlightLines: [4],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("aria-label=\"Close dialog\"") }
@@ -56,7 +57,7 @@ public struct A11yPage: Tag {
                             .cursor(.pointer)
                     }
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -68,7 +69,8 @@ public struct A11yPage: Tag {
               .aria(role: .button)
               .aria(label: "Save document")
             """,
-            preview: AnyTag(
+            highlightLines: [3],
+            preview: .live(AnyTag(
                 Div {
                     Div { Text("Save") }
                         .cursor(.pointer)
@@ -80,7 +82,7 @@ public struct A11yPage: Tag {
                         .fontSize(.px(13))
                         .foregroundColor(.token("swui-fg"))
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -94,7 +96,8 @@ public struct A11yPage: Tag {
             }
             Footer { Text("© 2025") }
             """,
-            preview: AnyTag(
+            highlightLines: [1, 2, 6],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("header (role=banner)") }
@@ -122,7 +125,7 @@ public struct A11yPage: Tag {
                     .borderRadius(.px(6))
                     .overflow(.hidden)
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -133,7 +136,8 @@ public struct A11yPage: Tag {
               .aria(live: .polite)
               .aria(busy: isLoading)
             """,
-            preview: AnyTag(
+            highlightLines: [2],
+            preview: .live(AnyTag(
                 Div {
                     Span { Text("aria-live=\"polite\"") }
                         .fontFamily("var(--font-mono)")
@@ -150,7 +154,7 @@ public struct A11yPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
     ] }
 }

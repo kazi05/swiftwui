@@ -13,12 +13,19 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
         public let title: String
         public let prose: String
         public let code: String
-        public let preview: AnyTag
-        public init(number: Int, title: String, prose: String, code: String, preview: AnyTag) {
+        public let highlightLines: [Int]
+        public let preview: PreviewKind
+        public init(number: Int,
+                    title: String,
+                    prose: String,
+                    code: String,
+                    highlightLines: [Int] = [],
+                    preview: PreviewKind) {
             self.number = number
             self.title = title
             self.prose = prose
             self.code = code
+            self.highlightLines = highlightLines
             self.preview = preview
         }
     }
@@ -58,14 +65,30 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
     private var leftColumn: some Tag {
         Div {
             ForEach(steps) { step in
+                let inlinePreview: AnyTag = {
+                    switch step.preview {
+                    case .live(let tag): return tag
+                    case .screenshot(let path):
+                        return AnyTag(
+                            Img(src: "/snapshots/\(path)", alt: "Preview screenshot")
+                                .maxWidth(.percent(100))
+                                .display(.block)
+                        )
+                    }
+                }()
                 CodeAndPreview(
                     stepNumber: step.number,
                     title: step.title,
                     prose: step.prose,
                     code: step.code,
-                    preview: step.preview,
+                    highlightLines: step.highlightLines,
+                    preview: inlinePreview,
                     showInlinePreview: false
                 )
+                .attribute("class", "swui-step-card")
+                .attribute("data-active", step.number == activeStep ? "true" : "false")
+                .attribute("data-swui-step-card", "true")
+                .attribute("id", "swui-step-\(step.number)")
             }
         }
         .display(.flex)
@@ -75,18 +98,17 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
 
     private var rightColumn: some Tag {
         Div {
+            StepNavButtons(total: steps.count, current: activeStep)
             Div {
                 if let active = steps.first(where: { $0.number == activeStep }) {
-                    active.preview
+                    PreviewFrame(kind: active.preview)
                 } else if let first = steps.first {
-                    first.preview
+                    PreviewFrame(kind: first.preview)
                 }
             }
-            .padding(.px(32), .px(24))
-            .backgroundColor(.token("swui-surface"))
-            .border(.px(1), .solid, .token("swui-border"))
-            .style("border-radius", "var(--radius-md)")
             .attribute("data-swui-scrolly-sticky", "true")
+            .attribute("data-swui-preview-pane", "true")
+            .attribute("class", "swui-preview-pane")
             .attribute("data-active-step", "\(activeStep)")
         }
         .position(.sticky)

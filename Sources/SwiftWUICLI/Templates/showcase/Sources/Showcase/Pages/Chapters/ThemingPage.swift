@@ -44,7 +44,8 @@ public struct ThemingPage: Tag {
               ])
             }
             """,
-            preview: AnyTag(
+            highlightLines: [1, 2],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("tokens: [String: String]") }
@@ -69,7 +70,7 @@ public struct ThemingPage: Tag {
                     .backgroundColor(.token("swui-surface-2"))
                     .borderRadius(.px(6))
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -82,7 +83,8 @@ public struct ThemingPage: Tag {
             )
             // css is a String — inject into <style> in index.html
             """,
-            preview: AnyTag(
+            highlightLines: [1, 2, 3],
+            preview: .live(AnyTag(
                 Div {
                     Span { Text(":root { --background: #fff; … }") }
                         .display(.block)
@@ -103,7 +105,7 @@ public struct ThemingPage: Tag {
                 .padding(.px(10), .px(14))
                 .backgroundColor(.token("swui-surface-2"))
                 .borderRadius(.px(6))
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -117,7 +119,8 @@ public struct ThemingPage: Tag {
               Text("Switch to Dark")
             }
             """,
-            preview: AnyTag(
+            highlightLines: [3],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Div {
@@ -141,7 +144,7 @@ public struct ThemingPage: Tag {
                         .style("margin-top", "8px")
                     }
                 }
-            )
+            ))
         ),
         .init(
             number: 4,
@@ -156,7 +159,8 @@ public struct ThemingPage: Tag {
             let css = ThemeCSS.definitions(named: "sepia", theme: sepia)
             // [data-theme="sepia"] { --background: #f8f0e3; … }
             """,
-            preview: AnyTag(
+            highlightLines: [6],
+            preview: .live(AnyTag(
                 Div {
                     Div {
                         Span { Text("data-theme=\"sepia\"") }
@@ -175,7 +179,7 @@ public struct ThemingPage: Tag {
                     .borderRadius(.px(6))
                     .border(.px(1), .solid, .css("#d4b896"))
                 }
-            )
+            ))
         ),
     ] }
 }

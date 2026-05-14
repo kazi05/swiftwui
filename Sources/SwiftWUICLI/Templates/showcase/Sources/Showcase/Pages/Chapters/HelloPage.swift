@@ -39,13 +39,14 @@ public struct HelloPage: Tag {
               }
             }
             """,
-            preview: AnyTag(
+            highlightLines: [1, 2],
+            preview: .live(AnyTag(
                 Div {
                     H1 { Text("Hello, SwiftWUI") }
                         .fontFamily("var(--font-display)")
                         .style("margin", "0")
                 }
-            )
+            ))
         ),
         .init(
             number: 2,
@@ -59,7 +60,8 @@ public struct HelloPage: Tag {
               }
             }
             """,
-            preview: AnyTag(
+            highlightLines: [2, 3, 4],
+            preview: .live(AnyTag(
                 Div {
                     H1 { Text("Hello") }
                         .fontFamily("var(--font-display)")
@@ -68,7 +70,7 @@ public struct HelloPage: Tag {
                         .foregroundColor(.token("swui-fg-2"))
                         .style("margin", "8px 0 0")
                 }
-            )
+            ))
         ),
         .init(
             number: 3,
@@ -78,14 +80,13 @@ public struct HelloPage: Tag {
             let app = Application(page: { Greeting() })
             app.mount()
             """,
-            preview: AnyTag(
-                Div {
-                    Text("Mounted! Open the browser console and inspect #app.")
-                }
-                .fontFamily("var(--font-mono)")
-                .fontSize(.px(12))
-                .foregroundColor(.token("swui-fg-3"))
-            )
+            highlightLines: [2],
+            // Demo: opts into PreviewKind.screenshot. The PNG itself is generated
+            // by `make {{project_name}}-snapshots` against a running dev server (requires
+            // SwiftWasm SDK) and committed selectively. Until then the Img path
+            // resolves to a 404; the wiring is intentionally complete so the
+            // first author with an SDK can commit the PNG and immediately ship.
+            preview: .screenshot("hello-step-3.png")
         ),
         .init(
             number: 4,
@@ -97,13 +98,14 @@ public struct HelloPage: Tag {
               .style("padding", "16px")
               .style("color", "var(--swui-accent)")
             """,
-            preview: AnyTag(
+            highlightLines: [2, 3, 4],
+            preview: .live(AnyTag(
                 H1 { Text("Hello") }
                     .fontSize(.px(28))
                     .padding(.px(16))
                     .foregroundColor(.token("swui-accent"))
                     .style("margin", "0")
-            )
+            ))
         ),
     ] }
 }

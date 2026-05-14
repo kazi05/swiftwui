@@ -7,15 +7,18 @@ public struct CodeAndPreview: Tag {
     let title: String
     let prose: String
     let code: String
+    let highlightLines: [Int]
     let preview: AnyTag
     let showInlinePreview: Bool
 
     public init(stepNumber: Int, title: String, prose: String, code: String,
+                highlightLines: [Int] = [],
                 preview: AnyTag, showInlinePreview: Bool = true) {
         self.stepNumber = stepNumber
         self.title = title
         self.prose = prose
         self.code = code
+        self.highlightLines = highlightLines
         self.preview = preview
         self.showInlinePreview = showInlinePreview
     }
@@ -42,18 +45,32 @@ public struct CodeAndPreview: Tag {
                 .lineHeight(.unitless(1.55))
                 .marginBottom(.px(14))
                 .maxWidth(.px(560))
-            Pre {
-                Code { Text(code) }
-                    .attribute("class", "language-swift")
+            if highlightLines.isEmpty {
+                Pre {
+                    Code { Text(code) }
+                        .attribute("class", "language-swift")
+                }
+                .backgroundColor(.token("swui-code-bg"))
+                .foregroundColor(.token("swui-code-fg"))
+                .style("border-radius", "var(--radius-sm)")
+                .padding(.px(12), .px(14))
+                .fontFamily("var(--font-mono)")
+                .fontSize(.px(12))
+                .marginBottom(.px(16))
+                .overflowX(.auto)
+            } else {
+                Div {
+                    LineNumberedCode(code: code, highlightLines: highlightLines)
+                }
+                .backgroundColor(.token("swui-code-bg"))
+                .foregroundColor(.token("swui-code-fg"))
+                .style("border-radius", "var(--radius-sm)")
+                .padding(.px(12), .px(14))
+                .fontFamily("var(--font-mono)")
+                .fontSize(.px(12))
+                .marginBottom(.px(16))
+                .overflowX(.auto)
             }
-            .backgroundColor(.token("swui-code-bg"))
-            .foregroundColor(.token("swui-code-fg"))
-            .style("border-radius", "var(--radius-sm)")
-            .padding(.px(12), .px(14))
-            .fontFamily("var(--font-mono)")
-            .fontSize(.px(12))
-            .marginBottom(.px(16))
-            .overflowX(.auto)
             if showInlinePreview {
                 Div { preview }
                     .border(.px(1), .solid, .token("swui-border"))
