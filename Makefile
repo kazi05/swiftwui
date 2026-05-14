@@ -150,6 +150,8 @@ sync-templates:
 	rsync -a --exclude='.build' --exclude='node_modules' \
 	      --exclude='.swiftpm' --exclude='dist' \
 	      --exclude='Package.resolved' \
+	      --exclude='static-dump' --exclude='test-results' \
+	      --exclude='playwright-report' --exclude='blob-report' \
 	      Examples/Showcase/ Sources/SwiftWUICLI/Templates/showcase/
 	rm -rf Sources/SwiftWUICLI/Templates/showcase/.build
 	rm -rf Sources/SwiftWUICLI/Templates/showcase/.swiftpm
