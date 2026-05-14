@@ -74,4 +74,11 @@ public struct CSSColor: Sendable {
     public static func token(_ name: String) -> CSSColor {
         CSSColor(cssValue: "var(--\(name))")
     }
+
+    /// Pass through a raw CSS color string verbatim. Useful for hex strings
+    /// not pre-bound to a named constant (e.g. `.css("#0a84ff")`) or any
+    /// other CSS color expression (e.g. `color-mix(...)`, `oklch(...)`).
+    public static func css(_ value: String) -> CSSColor {
+        CSSColor(cssValue: value)
+    }
 }

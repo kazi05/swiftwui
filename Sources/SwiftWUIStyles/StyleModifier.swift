@@ -439,3 +439,65 @@ extension ModifiedContent {
         var copy = self; copy.styles.append(("transition", trans.animation.cssTransitionAll)); return copy
     }
 }
+
+// MARK: - Phase 1 additions: backdropFilter & side-specific borders
+
+extension Tag {
+    /// Apply a `backdrop-filter` value verbatim (e.g. `"saturate(180%) blur(20px)"`).
+    public func backdropFilter(_ value: String) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, styles: [("backdrop-filter", value)])
+    }
+
+    /// Set the top border using shorthand width/style/color.
+    public func borderTop(width: CSSUnit, style: BorderStyle, color: CSSColor) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, styles: [("border-top", "\(width.cssValue) \(style.rawValue) \(color.cssValue)")])
+    }
+
+    /// Set the right border using shorthand width/style/color.
+    public func borderRight(width: CSSUnit, style: BorderStyle, color: CSSColor) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, styles: [("border-right", "\(width.cssValue) \(style.rawValue) \(color.cssValue)")])
+    }
+
+    /// Set the bottom border using shorthand width/style/color (labeled variant
+    /// alongside the existing positional `borderBottom(_:_:_:)` overload).
+    public func borderBottom(width: CSSUnit, style: BorderStyle, color: CSSColor) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, styles: [("border-bottom", "\(width.cssValue) \(style.rawValue) \(color.cssValue)")])
+    }
+
+    /// Set the left border using shorthand width/style/color.
+    public func borderLeft(width: CSSUnit, style: BorderStyle, color: CSSColor) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, styles: [("border-left", "\(width.cssValue) \(style.rawValue) \(color.cssValue)")])
+    }
+}
+
+// MARK: - Phase 1 additions: ModifiedContent chaining
+
+extension ModifiedContent {
+    public func backdropFilter(_ value: String) -> ModifiedContent<Content> {
+        var copy = self; copy.styles.append(("backdrop-filter", value)); return copy
+    }
+
+    public func borderTop(width: CSSUnit, style: BorderStyle, color: CSSColor) -> ModifiedContent<Content> {
+        var copy = self
+        copy.styles.append(("border-top", "\(width.cssValue) \(style.rawValue) \(color.cssValue)"))
+        return copy
+    }
+
+    public func borderRight(width: CSSUnit, style: BorderStyle, color: CSSColor) -> ModifiedContent<Content> {
+        var copy = self
+        copy.styles.append(("border-right", "\(width.cssValue) \(style.rawValue) \(color.cssValue)"))
+        return copy
+    }
+
+    public func borderBottom(width: CSSUnit, style: BorderStyle, color: CSSColor) -> ModifiedContent<Content> {
+        var copy = self
+        copy.styles.append(("border-bottom", "\(width.cssValue) \(style.rawValue) \(color.cssValue)"))
+        return copy
+    }
+
+    public func borderLeft(width: CSSUnit, style: BorderStyle, color: CSSColor) -> ModifiedContent<Content> {
+        var copy = self
+        copy.styles.append(("border-left", "\(width.cssValue) \(style.rawValue) \(color.cssValue)"))
+        return copy
+    }
+}
