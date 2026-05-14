@@ -72,10 +72,10 @@ public struct ModifiersPage: Tag {
             """,
             preview: AnyTag(
                 Span { Text("Badge") }
-                    .backgroundColor(.css("#0a84ff"))
-                    .foregroundColor(.css("#fff"))
-                    .borderRadius(.px(999))
-                    .padding(.px(2), .px(10))
+                    .style("background", "#0a84ff")
+                    .style("color", "#fff")
+                    .style("border-radius", "999px")
+                    .style("padding", "2px 10px")
                     .fontSize(.px(12))
                     .fontWeight(.w600)
             )
@@ -92,8 +92,8 @@ public struct ModifiersPage: Tag {
             """,
             preview: AnyTag(
                 P { Text("Ordering demo — last style wins") }
-                    .foregroundColor(.css("red"))
-                    .foregroundColor(.css("blue"))
+                    .style("color", "red")
+                    .style("color", "blue")
                     .style("margin", "0")
                     .fontSize(.px(15))
             )

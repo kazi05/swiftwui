@@ -101,7 +101,7 @@ public struct PWAPage: Tag {
                         .backgroundColor(.token("swui-accent"))
                         .display(.flex)
                         .alignItems(.center)
-                        .style("justify-content", "center")
+                        .justifyContent(.center)
                         Div {
                             Span { Text("512x512 maskable") }
                                 .fontSize(.px(11))
@@ -113,7 +113,7 @@ public struct PWAPage: Tag {
                         .backgroundColor(.token("swui-accent"))
                         .display(.flex)
                         .alignItems(.center)
-                        .style("justify-content", "center")
+                        .justifyContent(.center)
                         .style("margin-left", "12px")
                     }
                     .display(.flex)
