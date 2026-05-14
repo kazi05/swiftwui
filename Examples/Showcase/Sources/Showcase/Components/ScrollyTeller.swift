@@ -83,6 +83,7 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
 
     private var rightColumn: some Tag {
         Div {
+            StepNavButtons(total: steps.count, current: activeStep)
             Div {
                 if let active = steps.first(where: { $0.number == activeStep }) {
                     active.preview
