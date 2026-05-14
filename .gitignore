@@ -104,3 +104,11 @@ tmp
 
 # Brainstorming visual companion artifacts
 .superpowers/
+
+# Playwright (Examples/Showcase/Tests)
+# Filesystem is case-insensitive on macOS, so the plan's `tests/` resolves
+# to the existing `Tests/` directory that already hosts Swift unit tests.
+Examples/Showcase/Tests/node_modules/
+Examples/Showcase/Tests/test-results/
+Examples/Showcase/Tests/playwright-report/
+Examples/Showcase/Tests/blob-report/
