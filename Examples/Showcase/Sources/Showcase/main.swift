@@ -4,14 +4,11 @@ import SwiftWUI
 import JavaScriptKit
 
 private func installThemeCSS() {
-    let css = ThemeCSS.definitions(light: ShowcaseTheme.light, dark: ShowcaseTheme.dark)
     guard let document = JSObject.global.document.object,
           let head = document.head.object,
-          let style = document.createElement?("style").object else {
-        return
-    }
+          let style = document.createElement?("style").object else { return }
     _ = style.setAttribute?("data-swui-theme", "showcase")
-    style.textContent = .string(css)
+    style.textContent = .string(ShowcaseTheme.css)
     _ = head.appendChild?(style)
 }
 #else
