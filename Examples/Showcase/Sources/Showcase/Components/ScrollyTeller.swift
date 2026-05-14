@@ -74,6 +74,8 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
                     preview: step.preview,
                     showInlinePreview: false
                 )
+                .attribute("class", "swui-step-card")
+                .attribute("data-active", step.number == activeStep ? "true" : "false")
             }
         }
         .display(.flex)
@@ -96,6 +98,8 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
             .border(.px(1), .solid, .token("swui-border"))
             .style("border-radius", "var(--radius-md)")
             .attribute("data-swui-scrolly-sticky", "true")
+            .attribute("data-swui-preview-pane", "true")
+            .attribute("class", "swui-preview-pane")
             .attribute("data-active-step", "\(activeStep)")
         }
         .position(.sticky)
