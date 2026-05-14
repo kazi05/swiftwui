@@ -208,6 +208,10 @@ extension Tag {
     public func wordBreak(_ value: WordBreak) -> ModifiedContent<Self> {
         ModifiedContent(content: self, styles: [("word-break", value.rawValue)])
     }
+
+    public func textIndent(_ value: CSSUnit) -> ModifiedContent<Self> {
+        ModifiedContent(content: self, styles: [("text-indent", value.cssValue)])
+    }
 }
 
 // MARK: - Border

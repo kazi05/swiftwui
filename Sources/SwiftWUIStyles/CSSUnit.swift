@@ -13,6 +13,7 @@ public enum CSSUnit: Sendable, Hashable, Equatable {
     case vmin(Double)
     case vmax(Double)
     case fr(Double)
+    case unitless(Double)
     case auto
     case zero
     case inherit
@@ -33,6 +34,7 @@ public enum CSSUnit: Sendable, Hashable, Equatable {
         case .vmin(let v): return "\(formatNumber(v))vmin"
         case .vmax(let v): return "\(formatNumber(v))vmax"
         case .fr(let v): return "\(formatNumber(v))fr"
+        case .unitless(let v): return formatNumber(v)
         case .auto: return "auto"
         case .zero: return "0"
         case .inherit: return "inherit"
