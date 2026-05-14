@@ -58,9 +58,12 @@ final class DevServer: @unchecked Sendable {
             print("[SwiftWUI] Build succeeded in \(String(format: "%.1f", result.duration))s")
         }
 
-        // Configure Vapor
+        // Configure Vapor. argv[0] is the program name; Vapor's CommandRunner
+        // skips index 0 when locating the subcommand, so a placeholder is
+        // required or `serve` is parsed as argv[0] and `--port` is mistaken
+        // for the command name.
         var env = try Environment.detect()
-        env.arguments = ["serve", "--port", "\(options.port)", "--hostname", "0.0.0.0"]
+        env.arguments = ["swiftwui-dev", "serve", "--port", "\(options.port)", "--hostname", "0.0.0.0"]
         let app = try await Application.make(env)
 
         // Serve index.html at root
