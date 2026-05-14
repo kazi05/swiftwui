@@ -25,27 +25,27 @@ public struct ChapterIntro: Tag {
                     .fontWeight(.w600)
                     .letterSpacing(.em(0.08))
                     .textTransform(.uppercase)
-                    .style("margin", "0 0 8px")
+                    .marginBottom(.px(8))
                 H1 { Text(title) }
                     .fontFamily("var(--font-display)")
                     .fontSize(.px(32))
                     .fontWeight(.w700)
                     .letterSpacing(.em(-0.02))
-                    .style("margin", "0 0 12px")
+                    .marginBottom(.px(12))
                     .foregroundColor(.token("swui-fg"))
                 P { Text(lead) }
                     .fontSize(.px(15))
                     .foregroundColor(.token("swui-fg-2"))
-                    .style("line-height", "1.55")
+                    .lineHeight(.unitless(1.55))
                     .maxWidth(.px(640))
-                    .style("margin", "0 0 18px")
+                    .marginBottom(.px(18))
                 metaRow
             }
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "40px \(Layout.pageHorizontalPadding) 24px")
         }
-        .style("border-bottom", "1px solid var(--swui-border)")
+        .borderBottom(width: .px(1), style: .solid, color: .token("swui-border"))
         .attribute("data-swui-chapter-intro", "true")
     }
 

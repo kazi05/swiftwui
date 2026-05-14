@@ -21,7 +21,7 @@ public struct SiteChrome<Content: Tag>: Tag {
                 .attribute("data-swui-main", "true")
             footer
         }
-        .style("background", "var(--swui-bg)")
+        .backgroundColor(.token("swui-bg"))
         .foregroundColor(.token("swui-fg"))
         .fontFamily("var(--font-text)")
         .attribute("data-swui-chrome", "true")
@@ -37,10 +37,10 @@ public struct SiteChrome<Content: Tag>: Tag {
                     .fontFamily("var(--font-display)")
                 Div { EmptyTag() }.flex(1)
                 Button(onclick: { toggleTheme() }) { Text("☀︎ / ☾") }
-                    .style("border", "1px solid var(--swui-border-strong)")
+                    .border(.px(1), .solid, .token("swui-border-strong"))
                     .borderRadius(.px(14))
                     .padding(.px(4), .px(12))
-                    .style("background", "transparent")
+                    .backgroundColor(.transparent)
                     .foregroundColor(.token("swui-fg"))
                     .fontSize(.px(11))
                     .cursor(.pointer)
@@ -50,15 +50,15 @@ public struct SiteChrome<Content: Tag>: Tag {
             .alignItems(.center)
             .gap(.px(16))
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "12px \(Layout.pageHorizontalPadding)")
         }
         .style("background", "color-mix(in srgb, var(--swui-surface) 92%, transparent)")
-        .style("border-bottom", "1px solid var(--swui-border)")
+        .borderBottom(width: .px(1), style: .solid, color: .token("swui-border"))
         .position(.sticky)
         .top(.zero)
         .zIndex(50)
-        .style("backdrop-filter", "saturate(180%) blur(20px)")
+        .backdropFilter("saturate(180%) blur(20px)")
         .attribute("data-swui-navbar", "true")
     }
 
@@ -71,10 +71,10 @@ public struct SiteChrome<Content: Tag>: Tag {
                     .margin(.zero)
             }
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "32px \(Layout.pageHorizontalPadding)")
         }
-        .style("border-top", "1px solid var(--swui-border)")
+        .borderTop(width: .px(1), style: .solid, color: .token("swui-border"))
         .attribute("data-swui-footer", "true")
     }
 }

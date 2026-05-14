@@ -21,11 +21,11 @@ public struct ChapterFooter: Tag {
             .display(.flex)
             .alignItems(.center)
             .style("max-width", Layout.maxContentWidth)
-            .style("margin", "0 auto")
+            .margin(.zero, .auto)
             .style("padding", "32px \(Layout.pageHorizontalPadding)")
         }
-        .style("border-top", "1px solid var(--swui-border)")
-        .style("background", "var(--swui-surface)")
+        .borderTop(width: .px(1), style: .solid, color: .token("swui-border"))
+        .backgroundColor(.token("swui-surface"))
         .attribute("data-swui-chapter-footer", "true")
     }
 
@@ -52,7 +52,7 @@ public struct ChapterFooter: Tag {
                         .foregroundColor(.token("swui-fg-3"))
                         .textTransform(.uppercase)
                         .letterSpacing(.em(0.06))
-                        .style("margin", "0 0 4px")
+                        .marginBottom(.px(4))
                     A(href: next.href) { Text("\(next.label) →") }
                         .foregroundColor(.token("swui-accent"))
                         .fontSize(.px(13))

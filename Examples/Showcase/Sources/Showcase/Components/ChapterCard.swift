@@ -35,23 +35,23 @@ public struct ChapterCard: Tag {
                         .fontSize(.px(10))
                         .foregroundColor(.token("swui-fg-3"))
                         .letterSpacing(.em(0.06))
-                        .style("margin", "0 0 4px")
+                        .marginBottom(.px(4))
                     H3 { Text(title) }
                         .fontSize(.px(16))
                         .fontWeight(.w600)
-                        .style("margin", "0 0 6px")
+                        .marginBottom(.px(6))
                         .foregroundColor(.token("swui-fg"))
                     P { Text(subtitle) }
                         .fontSize(.px(13))
                         .foregroundColor(.token("swui-fg-3"))
-                        .style("line-height", "1.4")
+                        .lineHeight(.unitless(1.4))
                         .margin(.zero)
                 }
                 .padding(.px(14), .px(16))
                 .style("padding-bottom", "18px")
             }
-            .style("background", "var(--swui-surface)")
-            .style("border", "1px solid var(--swui-border)")
+            .backgroundColor(.token("swui-surface"))
+            .border(.px(1), .solid, .token("swui-border"))
             .style("border-radius", "var(--radius-md)")
             .overflow(.hidden)
             .attribute("data-swui-chapter-card", "true")

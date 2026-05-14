@@ -24,16 +24,16 @@ public struct BadgeGrid: Tag {
                     H4 { Text(item.title) }
                         .fontSize(.px(12))
                         .fontWeight(.w600)
-                        .style("margin", "0 0 4px")
+                        .marginBottom(.px(4))
                         .foregroundColor(.token("swui-fg"))
                     P { Text(item.description) }
                         .fontSize(.px(11))
                         .foregroundColor(.token("swui-fg-3"))
-                        .style("line-height", "1.3")
+                        .lineHeight(.unitless(1.3))
                         .margin(.zero)
                 }
-                .style("background", "var(--swui-surface)")
-                .style("border", "1px solid var(--swui-border)")
+                .backgroundColor(.token("swui-surface"))
+                .border(.px(1), .solid, .token("swui-border"))
                 .style("border-radius", "var(--radius-sm)")
                 .padding(.px(12), .px(14))
             }
