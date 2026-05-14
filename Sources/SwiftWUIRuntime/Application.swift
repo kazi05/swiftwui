@@ -181,6 +181,10 @@ public struct Application {
         bridge.onPopState { [router] path in
             router.navigate(to: path)
         }
+
+        // Signal hydration completion to Playwright / external tooling.
+        _ = JSObject.global.document.object?.documentElement.object?.setAttribute?(
+            "data-swui-mounted", "true")
     }
     #else
     public func mount(on elementId: String = "app") {
