@@ -24,7 +24,7 @@ public struct CodeAndPreview: Tag {
         Div {
             Span { Text("STEP \(stepNumber)") }
                 .display(.inlineBlock)
-                .style("background", "var(--swui-surface-2)")
+                .backgroundColor(.token("swui-surface-2"))
                 .foregroundColor(.token("swui-fg-3"))
                 .fontSize(.px(10))
                 .fontWeight(.w600)
@@ -34,37 +34,37 @@ public struct CodeAndPreview: Tag {
             H3 { Text(title) }
                 .fontSize(.px(20))
                 .fontWeight(.w600)
-                .style("margin", "0 0 8px")
+                .marginBottom(.px(8))
                 .foregroundColor(.token("swui-fg"))
             P { Text(prose) }
                 .foregroundColor(.token("swui-fg-2"))
                 .fontSize(.px(14))
-                .style("line-height", "1.55")
-                .style("margin", "0 0 14px")
+                .lineHeight(.unitless(1.55))
+                .marginBottom(.px(14))
                 .maxWidth(.px(560))
             Pre {
                 Code { Text(code) }
                     .attribute("class", "language-swift")
             }
-            .style("background", "var(--swui-code-bg)")
+            .backgroundColor(.token("swui-code-bg"))
             .foregroundColor(.token("swui-code-fg"))
             .style("border-radius", "var(--radius-sm)")
             .padding(.px(12), .px(14))
             .fontFamily("var(--font-mono)")
             .fontSize(.px(12))
-            .style("margin", "0 0 16px")
+            .marginBottom(.px(16))
             .overflowX(.auto)
             if showInlinePreview {
                 Div { preview }
-                    .style("border", "1px solid var(--swui-border)")
+                    .border(.px(1), .solid, .token("swui-border"))
                     .style("border-radius", "var(--radius-sm)")
                     .padding(.px(16))
-                    .style("background", "var(--swui-surface)")
+                    .backgroundColor(.token("swui-surface"))
                     .attribute("data-mobile-preview", "true")
             }
         }
-        .style("background", "var(--swui-surface)")
-        .style("border", "1px solid var(--swui-border)")
+        .backgroundColor(.token("swui-surface"))
+        .border(.px(1), .solid, .token("swui-border"))
         .style("border-radius", "var(--radius-md)")
         .padding(.px(20), .px(22))
         .style("min-height", Layout.scrollyStepMinHeight)

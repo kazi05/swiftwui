@@ -41,7 +41,7 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
         .gridTemplateColumns("1fr 1fr")
         .gap(.px(48))
         .style("max-width", Layout.maxContentWidth)
-        .style("margin", "0 auto")
+        .margin(.zero, .auto)
         .style("padding", "32px \(Layout.pageHorizontalPadding)")
         .attribute("data-swui-scrolly", "true")
         .attribute("data-swui-scrolly-id", containerId)
@@ -83,8 +83,8 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
                 }
             }
             .padding(.px(32), .px(24))
-            .style("background", "var(--swui-surface)")
-            .style("border", "1px solid var(--swui-border)")
+            .backgroundColor(.token("swui-surface"))
+            .border(.px(1), .solid, .token("swui-border"))
             .style("border-radius", "var(--radius-md)")
             .attribute("data-swui-scrolly-sticky", "true")
             .attribute("data-active-step", "\(activeStep)")
