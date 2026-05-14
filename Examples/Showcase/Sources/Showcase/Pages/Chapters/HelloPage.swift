@@ -81,14 +81,12 @@ public struct HelloPage: Tag {
             app.mount()
             """,
             highlightLines: [2],
-            preview: .live(AnyTag(
-                Div {
-                    Text("Mounted! Open the browser console and inspect #app.")
-                }
-                .fontFamily("var(--font-mono)")
-                .fontSize(.px(12))
-                .foregroundColor(.token("swui-fg-3"))
-            ))
+            // Demo: opts into PreviewKind.screenshot. The PNG itself is generated
+            // by `make showcase-snapshots` against a running dev server (requires
+            // SwiftWasm SDK) and committed selectively. Until then the Img path
+            // resolves to a 404; the wiring is intentionally complete so the
+            // first author with an SDK can commit the PNG and immediately ship.
+            preview: .screenshot("hello-step-3.png")
         ),
         .init(
             number: 4,
