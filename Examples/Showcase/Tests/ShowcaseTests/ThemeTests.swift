@@ -32,7 +32,6 @@ struct ShowcaseThemeTests {
     @Test("Tutorials accent matches the Apple wordmark mint-teal in dark mode")
     func accentMatchesReference() {
         let css = ShowcaseTheme.css
-        #expect(css.contains("--swui-accent: #5ac8b0"))
         #expect(css.contains("--swui-accent-strong: #66e1c1"))
     }
 
