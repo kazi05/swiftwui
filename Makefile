@@ -37,7 +37,7 @@ help:
 	@echo "  clean         Remove .build, $(OUT), node_modules"
 	@echo "  showcase-build  Native build of the Examples/Showcase project"
 	@echo "  sync-templates  Sync Examples/Showcase to SwiftWUICLI Templates/ resource bundle"
-	@echo "  showcase-test   Run the Examples/Showcase test suite (28 tests)"
+	@echo "  showcase-test   Run the Examples/Showcase test suite (51 tests)"
 	@echo "  showcase-playwright Run Playwright tests for Examples/Showcase (requires running dev server)"
 	@echo "  showcase-snapshots  Generate PNG snapshots for .screenshot previews"
 	@echo "  ci              build + test + showcase-build + showcase-test (full CI)"

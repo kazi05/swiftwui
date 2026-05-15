@@ -45,8 +45,14 @@ CI enforces that the two directories stay in sync on every push.
 
 ## Tests
 
-28 tests across 12 suites in `Tests/{{PROJECT_NAME}}Tests/`. Run with:
+51 tests across 20 suites in `Tests/{{PROJECT_NAME}}Tests/`. Run with:
 
 ```bash
 make {{project_name}}-test
+```
+
+End-to-end Playwright suites (smoke, nav, scrolly, a11y, visual, preview) live in `Tests/*.spec.ts`. Run with:
+
+```bash
+make {{project_name}}-playwright
 ```
