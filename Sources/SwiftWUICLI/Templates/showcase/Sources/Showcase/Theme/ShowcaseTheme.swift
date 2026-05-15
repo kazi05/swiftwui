@@ -105,6 +105,17 @@ public enum {{PROJECT_NAME}}Theme {
       padding: 0;
     }
 
+    /* Keyboard focus — WCAG 2.4.7. Override the default platform outline so
+       the accent stays visible against any surface (the framework never sets
+       its own focus-visible rule). */
+    a:focus-visible, button:focus-visible, summary:focus-visible,
+    input:focus-visible, select:focus-visible, textarea:focus-visible,
+    [tabindex]:focus-visible {
+      outline: 2px solid var(--swui-accent);
+      outline-offset: 2px;
+      border-radius: inherit;
+    }
+
     /* Active-step accent + preview crossfade */
     .swui-step-card {
       border-left: 3px solid transparent;

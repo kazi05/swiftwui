@@ -50,14 +50,14 @@ public struct Hero: Tag {
                             .backgroundColor(.token("swui-fg"))
                             .foregroundColor(.token("swui-bg"))
                             .padding(.px(10), .px(22))
-                            .borderRadius(.px(22))
+                            .style("border-radius", "var(--radius-pill)")
                             .textDecoration(.none)
                             .fontWeight(.w500)
                         A(href: ghostCTA.href) { Text(ghostCTA.label) }
                             .border(.px(1), .solid, .token("swui-border-strong"))
                             .foregroundColor(.token("swui-fg"))
                             .padding(.px(10), .px(22))
-                            .borderRadius(.px(22))
+                            .style("border-radius", "var(--radius-pill)")
                             .textDecoration(.none)
                             .fontWeight(.w500)
                     }
@@ -92,7 +92,7 @@ struct CodeFrame: Tag {
             .display(.flex)
             .gap(.px(5))
             .padding(.px(12), .px(14))
-            .borderBottom(.px(1), .solid, .init(hex: "2a2a2c"))
+            .style("border-bottom", "1px solid rgba(255, 255, 255, 0.08)")
             Pre {
                 Code { Text(code) }
                     .attribute("class", "language-swift")

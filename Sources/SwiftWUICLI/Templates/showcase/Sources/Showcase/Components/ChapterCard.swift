@@ -23,13 +23,13 @@ public struct ChapterCard: Tag {
                 Div { Text(codeTeaser) }
                     .fontFamily("var(--font-mono)")
                     .fontSize(.px(11))
-                    .foregroundColor(.init(hex: "884400"))
+                    .foregroundColor(.token("swui-accent"))
                     .padding(.zero, .px(16))
                     .display(.flex)
                     .alignItems(.center)
                     .justifyContent(.center)
                     .height(.px(90))
-                    .style("background", "linear-gradient(135deg, #fff5e8, #ffe4cc)")
+                    .style("background", "linear-gradient(135deg, var(--swui-surface), var(--swui-surface-2))")
                 Div {
                     P { Text("CHAPTER \(number)") }
                         .fontSize(.px(10))
