@@ -12,7 +12,7 @@ struct HelloPageTests {
         #expect(html.contains("data-scrolly-step=\"1\""))
         #expect(html.contains("data-scrolly-step=\"4\""))
         #expect(html.contains("Application(page:") || html.contains("Application {"))
-        #expect(html.contains("data-swui-navbar"))   // SiteChrome wraps the page
+        #expect(html.contains("data-swui-topbar"))   // SiteChrome's TutorialTopBar
         #expect(html.contains("data-swui-chapter-footer"))
     }
 }

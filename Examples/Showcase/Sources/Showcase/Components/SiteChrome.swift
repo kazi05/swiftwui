@@ -50,7 +50,13 @@ public struct SiteChrome<Content: Tag>: Tag {
 
 enum SiteChromeHelpers {
     static func currentChapterID() -> String {
-        #if canImport(JavaScriptKit)
+        // `#if arch(wasm32)`, not `canImport(JavaScriptKit)`. JavaScriptKit imports
+        // fine on the macOS host (it's a dependency in Package.swift), but its
+        // bridge globals abort when there is no JS runtime. Confining the lookup
+        // to the wasm target keeps `body` evaluation safe on the host so
+        // snapshot tests using `StaticRenderer().renderFragment(...)` don't
+        // SIGABRT.
+        #if arch(wasm32)
         if let path = JSObject.global.window.object?.location.object?.pathname.string,
            let chapter = ChapterRegistry.chapter(forPath: path) {
             return chapter.id

@@ -11,7 +11,7 @@ struct HomePageTests {
         #expect(html.contains("CHAPTER 1"))
         #expect(html.contains("CHAPTER 12"))
         #expect(html.contains("Container Queries"))
-        #expect(html.contains("data-swui-navbar"))
+        #expect(html.contains("data-swui-topbar"))
         #expect(html.contains("data-swui-footer"))
     }
 
