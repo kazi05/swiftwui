@@ -1,3 +1,4 @@
+import ArgumentParser
 import Foundation
 
 /// Generates the file system structure for a new SwiftWUI project.
@@ -55,8 +56,11 @@ struct FileGenerator {
             .appendingPathComponent(projectName)
 
         if FileManager.default.fileExists(atPath: dest.path) {
-            print("Error: Directory '\(projectName)' already exists.")
-            exit(1)
+            // Throw a ValidationError so swift-argument-parser surfaces a
+            // single clean error message and a non-zero exit, without
+            // killing the process from inside a library helper. This also
+            // keeps `generate()` callable from unit tests.
+            throw ValidationError("Directory '\(projectName)' already exists.")
         }
 
         try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: false)
@@ -115,7 +119,18 @@ struct FileGenerator {
         )
         for item in items {
             let target = destination.appendingPathComponent(item.lastPathComponent)
-            try fm.copyItem(at: item, to: target)
+            do {
+                try fm.copyItem(at: item, to: target)
+            } catch {
+                // Surface which item failed — a generic NSCocoaErrorDomain
+                // message gives no hint about the partial copy state, and
+                // `defer { rm dest }` will already clean up.
+                throw NSError(
+                    domain: "SwiftWUICLI", code: 101,
+                    userInfo: [NSLocalizedDescriptionKey:
+                        "Failed copying '\(item.lastPathComponent)' into '\(projectName)/': \(error.localizedDescription)"]
+                )
+            }
             print("  Created \(projectName)/\(item.lastPathComponent)")
         }
 
@@ -144,7 +159,7 @@ struct FileGenerator {
         guard CommandLine.arguments.count > 0 else { return nil }
         var candidate = URL(fileURLWithPath: CommandLine.arguments[0])
             .deletingLastPathComponent()
-        // Walk up at most four levels (covers .build/debug/swiftwui → project root).
+        // Walk up at most five levels (covers .build/debug/swiftwui → project root).
         for _ in 0..<5 {
             let probe = candidate
                 .appendingPathComponent("Templates")

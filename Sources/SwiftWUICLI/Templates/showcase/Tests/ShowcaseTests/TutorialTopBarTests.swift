@@ -5,15 +5,15 @@ import SwiftWUIRuntime
 
 @Suite("TutorialTopBar")
 struct TutorialTopBarTests {
-    @Test("Renders 'Develop in Swift' wordmark with accent on 'Tutorials'")
+    @Test("Renders 'SwiftWUI {{PROJECT_NAME}}' wordmark with accent on '{{PROJECT_NAME}}'")
     func wordmark() {
         let html = StaticRenderer().renderFragment(
             TutorialTopBar(currentChapter: "hello",
                            stepTitles: ["a", "b"],
                            currentStep: 1)
         )
-        #expect(html.contains("Develop in Swift"))
-        #expect(html.contains("Tutorials"))
+        #expect(html.contains("SwiftWUI"))
+        #expect(html.contains("{{PROJECT_NAME}}"))
         #expect(html.contains("var(--swui-accent)"))    // accent color used somewhere on the wordmark
     }
 

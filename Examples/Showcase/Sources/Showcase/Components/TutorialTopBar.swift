@@ -1,4 +1,4 @@
-// TutorialTopBar.swift — dual-dropdown top bar matching Apple Tutorials.
+// TutorialTopBar.swift — dual-dropdown top bar in an Apple-style tutorial layout.
 
 import SwiftWUI
 
@@ -21,12 +21,12 @@ public struct TutorialTopBar: Tag {
         return Div {
             // Wordmark
             Div {
-                Span { Text("Develop in Swift") }
+                Span { Text("SwiftWUI") }
                     .fontFamily("var(--font-display)")
                     .fontSize(.px(14))
                     .fontWeight(.w600)
                     .foregroundColor(.token("swui-fg"))
-                Span { Text(" Tutorials") }
+                Span { Text(" Showcase") }
                     .fontFamily("var(--font-display)")
                     .fontSize(.px(14))
                     .fontWeight(.w600)

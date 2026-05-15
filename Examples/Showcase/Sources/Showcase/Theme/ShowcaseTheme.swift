@@ -1,4 +1,4 @@
-// ShowcaseTheme.swift — Apple Tutorials–fidelity token set.
+// ShowcaseTheme.swift — Apple-style documentation token set.
 // Dark-default (matches cited reference). Light variant designed to feel
 // like Apple's lighter docs sections. Manual override via
 // <html data-theme="light|dark"> beats the @media default.

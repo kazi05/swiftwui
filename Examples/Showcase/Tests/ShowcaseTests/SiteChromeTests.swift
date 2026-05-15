@@ -10,7 +10,7 @@ struct SiteChromeTests {
         let html = StaticRenderer().renderFragment(SiteChrome { Stub() })
         #expect(html.contains("data-swui-topbar"))   // TutorialTopBar replaced navbar
         #expect(html.contains("data-swui-footer"))
-        #expect(html.contains("Develop in Swift"))   // TutorialTopBar wordmark
+        #expect(html.contains("SwiftWUI"))   // TutorialTopBar wordmark
         #expect(html.contains("inner-body-marker"))
     }
 

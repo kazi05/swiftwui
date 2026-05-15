@@ -29,7 +29,7 @@ struct {{PROJECT_NAME}}ThemeTests {
         #expect(css.contains(":root[data-theme=\"dark\"]"))
     }
 
-    @Test("Tutorials accent matches the Apple wordmark mint-teal in dark mode")
+    @Test("Dark-mode accent is the mint-teal documentation hue")
     func accentMatchesReference() {
         let css = {{PROJECT_NAME}}Theme.css
         #expect(css.contains("--swui-accent-strong: #66e1c1"))

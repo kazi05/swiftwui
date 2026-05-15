@@ -273,7 +273,7 @@ struct Doctor: ParsableCommand {
             try process.run()
             process.waitUntilExit()
             let data = (try? stdout.fileHandleForReading.readToEnd()) ?? Data()
-            let output = String(data: data ?? Data(), encoding: .utf8) ?? ""
+            let output = String(data: data, encoding: .utf8) ?? ""
             if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 print("✓ Showcase template in sync with Examples/Showcase")
             } else {
