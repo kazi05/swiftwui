@@ -13,6 +13,7 @@ let package = Package(
             name: "Showcase",
             dependencies: [
                 .product(name: "SwiftWUI", package: "SwiftWUI"),
+                .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
             ]
         ),
         .testTarget(

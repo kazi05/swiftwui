@@ -44,6 +44,10 @@ struct HTMLTemplate {
         """
     }
 
+    func devClientScriptBody(port: Int) -> String {
+        devClientScript(port: port)
+    }
+
     private func devClientScript(port: Int) -> String {
         """
         <script>

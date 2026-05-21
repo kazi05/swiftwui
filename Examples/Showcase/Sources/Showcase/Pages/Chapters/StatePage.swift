@@ -61,26 +61,7 @@ public struct StatePage: Tag {
             P { Text("Count: \\(count)") }
             """,
             highlightLines: [1],
-            preview: .live(AnyTag(
-                Div {
-                    Div {
-                        Span { Text("Count: 7") }
-                            .fontSize(.px(20))
-                            .fontFamily("var(--font-mono)")
-                            .foregroundColor(.token("swui-fg"))
-                        Div {
-                            Span { Text("+ Increment") }
-                                .backgroundColor(.token("swui-accent"))
-                                .foregroundColor(.css("#fff"))
-                                .padding(.px(6), .px(14))
-                                .borderRadius(.px(6))
-                                .fontSize(.px(13))
-                                .cursor(.pointer)
-                        }
-                        .style("margin-top", "10px")
-                    }
-                }
-            ))
+            preview: .live(AnyTag(LiveCounter()))
         ),
         .init(
             number: 3,

@@ -91,12 +91,12 @@ public struct HelloPage: Tag {
         .init(
             number: 4,
             title: "Style with chained modifiers",
-            prose: "Add style by chaining modifiers. They are type-safe; raw CSS escape hatches via .style() when no typed modifier exists yet.",
+            prose: "Chain typed modifiers for type-safe, autocomplete-friendly styling. Raw CSS via .style() remains as an escape hatch when no typed modifier exists yet.",
             code: """
             H1 { Text("Hello") }
-              .style("font-size", "28px")
-              .style("padding", "16px")
-              .style("color", "var(--swui-accent)")
+              .fontSize(.px(28))
+              .padding(.px(16))
+              .foregroundColor(.token("swui-accent"))
             """,
             highlightLines: [2, 3, 4],
             preview: .live(AnyTag(

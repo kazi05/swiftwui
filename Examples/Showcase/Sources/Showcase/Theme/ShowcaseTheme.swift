@@ -139,5 +139,72 @@ public enum ShowcaseTheme {
     .swui-code-line-hl {
       background: var(--swui-code-line-hl);
     }
+
+    /* Xcode Default Dark / Light syntax theme — overrides highlight.js
+       atom-one-dark defaults by mapping hljs token classes to the
+       --syntax-* CSS variables defined per theme above. Loaded after
+       atom-one-dark.css so these rules win on specificity. */
+    pre code.hljs,
+    code.hljs {
+      background: transparent;
+      color: var(--swui-fg);
+      padding: 0;
+    }
+    .hljs-keyword,
+    .hljs-literal,
+    .hljs-built_in,
+    .hljs-keyword.hljs-flow,
+    .hljs-selector-tag {
+      color: var(--syntax-keyword);
+      font-weight: 600;
+    }
+    .hljs-type,
+    .hljs-title.class_,
+    .hljs-title.class_.inherited__ {
+      color: var(--syntax-type);
+    }
+    .hljs-string,
+    .hljs-attr,
+    .hljs-template-variable,
+    .hljs-template-tag {
+      color: var(--syntax-string);
+    }
+    .hljs-number,
+    .hljs-symbol {
+      color: var(--syntax-number);
+    }
+    .hljs-comment,
+    .hljs-quote,
+    .hljs-meta {
+      color: var(--syntax-comment);
+      font-style: italic;
+    }
+    .hljs-title,
+    .hljs-title.function_,
+    .hljs-section {
+      color: #67b7a4;
+    }
+    .hljs-variable,
+    .hljs-params,
+    .hljs-property {
+      color: var(--swui-fg);
+    }
+    .hljs-name,
+    .hljs-tag {
+      color: var(--syntax-type);
+    }
+    .hljs-attribute,
+    .hljs-meta-keyword {
+      color: #d0a8ff;
+    }
+
+    :root[data-theme="light"] .hljs-title,
+    :root:not([data-theme="dark"]) .hljs-title {
+      color: #326d74;
+    }
+    :root[data-theme="light"] .hljs-attribute,
+    :root:not([data-theme="dark"]) .hljs-attribute {
+      color: #804fb8;
+    }
     """
 }

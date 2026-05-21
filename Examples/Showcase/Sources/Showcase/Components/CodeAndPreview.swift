@@ -55,7 +55,7 @@ public struct CodeAndPreview: Tag {
                 .style("border-radius", "var(--radius-sm)")
                 .padding(.px(12), .px(14))
                 .fontFamily("var(--font-mono)")
-                .fontSize(.px(12))
+                .fontSize(.px(14))
                 .marginBottom(.px(16))
                 .overflowX(.auto)
             } else {
@@ -67,7 +67,7 @@ public struct CodeAndPreview: Tag {
                 .style("border-radius", "var(--radius-sm)")
                 .padding(.px(12), .px(14))
                 .fontFamily("var(--font-mono)")
-                .fontSize(.px(12))
+                .fontSize(.px(14))
                 .marginBottom(.px(16))
                 .overflowX(.auto)
             }

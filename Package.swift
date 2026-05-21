@@ -58,7 +58,10 @@ let package = Package(
         // State - Reactivity (@State, @Binding, observe)
         .target(
             name: "SwiftWUIState",
-            dependencies: ["SwiftWUICore"]
+            dependencies: [
+                "SwiftWUICore",
+                .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+            ]
         ),
 
         // Page - Page protocol and rendering

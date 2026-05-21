@@ -66,26 +66,42 @@ final class DevServer: @unchecked Sendable {
         env.arguments = ["swiftwui-dev", "serve", "--port", "\(options.port)", "--hostname", "0.0.0.0"]
         let app = try await Application.make(env)
 
-        // Serve index.html at root
-        let template = htmlTemplate
+        // Serve PackageToJS output files. SPA fallback: any non-file path
+        // returns the packaged index.html so client-side routing reloads
+        // cleanly at any URL.
+        let outputDir = builder.outputDirectory
         let port = options.port
-        app.get { req -> Response in
-            let html = template.devHTML(port: port)
+        let devClient = htmlTemplate.devClientScriptBody(port: port)
+
+        func serveIndex() -> Response {
+            let indexPath = outputDir + "/index.html"
+            guard let html = try? String(contentsOfFile: indexPath, encoding: .utf8) else {
+                return Response(status: .notFound, body: .init(string: "index.html not found at \(indexPath)"))
+            }
+            // Inject the dev-client websocket / overlay just before </body>.
+            let injected = html.replacingOccurrences(
+                of: "</body>",
+                with: devClient + "\n</body>"
+            )
             return Response(
                 status: .ok,
-                headers: ["Content-Type": "text/html; charset=utf-8"],
-                body: .init(string: html)
+                headers: [
+                    "Content-Type": "text/html; charset=utf-8",
+                    "Cache-Control": "no-cache",
+                ],
+                body: .init(string: injected)
             )
         }
 
-        // Serve PackageToJS output files
-        let outputDir = builder.outputDirectory
+        app.get { _ -> Response in serveIndex() }
+
         app.get("**") { req -> Response in
             let path = req.url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
             let filePath = outputDir + "/" + path
 
             guard FileManager.default.fileExists(atPath: filePath) else {
-                return Response(status: .notFound, body: .init(string: "Not found: \(path)"))
+                // SPA fallback for client-routed paths.
+                return serveIndex()
             }
 
             let data = try Data(contentsOf: URL(fileURLWithPath: filePath))

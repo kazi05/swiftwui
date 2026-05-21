@@ -1,11 +1,34 @@
 // ScrollyTeller.swift — 2-column scroll-driven teaching widget.
 
 import Foundation
+import Observation
 import SwiftWUI
 
 #if canImport(JavaScriptKit)
 import JavaScriptKit
 #endif
+
+// Persists across re-renders so the IntersectionObserver setter, which
+// captures a reference to one specific instance, keeps writing to the
+// same observable storage that current `body` evaluations read.
+// `@State` storage is recreated on every render of a descendant struct,
+// so it cannot back this widget — see also the unresolved framework gap
+// noted in main.swift's `app.mount()` comment.
+@Observable
+final class ScrollyTellerState: @unchecked Sendable {
+    var activeStep: Int = 1
+}
+
+// WASM is single-threaded, so the storage lookup is safe under
+// `nonisolated(unsafe)` — there is no other thread that could race.
+nonisolated(unsafe) private var scrollyTellerStates: [String: ScrollyTellerState] = [:]
+
+private func scrollyTellerState(for identity: String) -> ScrollyTellerState {
+    if let existing = scrollyTellerStates[identity] { return existing }
+    let new = ScrollyTellerState()
+    scrollyTellerStates[identity] = new
+    return new
+}
 
 public struct ScrollyTeller: Tag, @unchecked Sendable {
     public struct Step: @unchecked Sendable {
@@ -31,12 +54,22 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
     }
 
     let steps: [Step]
-    @State private var activeStep: Int = 1
     private let containerId: String
 
-    public init(steps: [Step]) {
+    public init(
+        steps: [Step],
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        column: UInt = #column
+    ) {
         self.steps = steps
-        self.containerId = "swui-scrolly-\(UUID().uuidString.prefix(8))"
+        // Stable per call site — same chapter page always resolves to the
+        // same observable storage across re-renders.
+        self.containerId = "swui-scrolly-\(file):\(line):\(column)"
+    }
+
+    private var activeStep: Int {
+        scrollyTellerState(for: containerId).activeStep
     }
 
     public var body: some Tag {
@@ -55,8 +88,10 @@ public struct ScrollyTeller: Tag, @unchecked Sendable {
         .task { @Sendable in
             let id = containerId
             await MainActor.run {
+                let state = scrollyTellerState(for: id)
                 installScrollyObserver(containerId: id) { newValue in
-                    self.activeStep = newValue
+                    state.activeStep = newValue
+                    ScrollyStepRegistry.currentStep = newValue
                 }
             }
         }
@@ -123,11 +158,37 @@ extension ScrollyTeller.Step: Identifiable {
 
 #if canImport(JavaScriptKit)
 
-// Known: observer leaks across route changes; framework needs an unmount hook to release.
+// Re-installing the observer on every render would attach N copies to
+// the same target. Guard so install runs once per containerId for the
+// lifetime of the document.
 nonisolated(unsafe) var scrollyObservers: [String: (closure: JSClosure, observer: JSObject)] = [:]
+
+// SPA nav reuses the outer scrolly Div across chapters (reconciler keeps
+// elements with the same tag name and only patches attributes). The
+// `.task` mount handler only fires on element CREATION, so the new
+// chapter never installs its observer. This scanner walks the document
+// after every render and installs observers for any container that
+// does not yet have one.
+@MainActor
+public func scanAndInstallScrollyObservers() {
+    guard let document = JSObject.global.document.object,
+          let containers = document.querySelectorAll?("[data-swui-scrolly-id]").object else { return }
+    let count = Int(containers["length"].number ?? 0)
+    for i in 0..<count {
+        guard let el = containers[i].object,
+              let id = el.getAttribute?("data-swui-scrolly-id").string,
+              scrollyObservers[id] == nil else { continue }
+        let state = scrollyTellerState(for: id)
+        installScrollyObserver(containerId: id) { newValue in
+            state.activeStep = newValue
+            ScrollyStepRegistry.currentStep = newValue
+        }
+    }
+}
 
 @MainActor
 private func installScrollyObserver(containerId: String, setActive: @escaping @Sendable (Int) -> Void) {
+    if scrollyObservers[containerId] != nil { return }
     guard let document = JSObject.global.document.object else { return }
 
     // Scope the container lookup to this specific ScrollyTeller instance.

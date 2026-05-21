@@ -7,11 +7,37 @@ import JavaScriptKit
 
 public enum SyntaxHighlight {
     /// Trigger highlight.js to scan the document and apply colours to all
-    /// `<pre><code class="language-*">…</code></pre>` blocks. Safe to call
-    /// after every route change.
+    /// `<pre><code class="language-*">…</code></pre>` blocks. Also runs a
+    /// per-line pass over `[data-swui-code-panel] code` elements — the
+    /// `LineNumberedCode` component renders bare `<code>` tags without a
+    /// surrounding `<pre>`, which `highlightAll()` skips by design.
+    /// Safe to call after every route change.
     public static func apply() {
         guard let hljs = JSObject.global.hljs.object else { return }
         _ = hljs.highlightAll?()
+
+        // Per-line bare `<code>` rendered by LineNumberedCode is not
+        // wrapped in a `<pre>`, so highlightAll skips it. Iterate and
+        // call hljs.highlight on each block manually.
+        guard let document = JSObject.global.document.object,
+              let nodes = document.querySelectorAll?("[data-swui-code-panel] code").object else { return }
+        let count = Int(nodes["length"].number ?? 0)
+        for i in 0..<count {
+            let entry = nodes[i]
+            guard let el = entry.object else { continue }
+            if el["dataset"].object?["swuiHighlighted"].string == "yes" { continue }
+            let text = el["textContent"].string ?? ""
+            let opts = JSObject.global.Object.function!.new()
+            opts["language"] = .string("swift")
+            opts["ignoreIllegals"] = .boolean(true)
+            let result = hljs.highlight?(text, opts)
+            guard let value = result?.object?["value"].string else { continue }
+            el["innerHTML"] = .string(value)
+            _ = el["classList"].object?.add?("hljs", "language-swift")
+            if let ds = el["dataset"].object {
+                ds["swuiHighlighted"] = .string("yes")
+            }
+        }
     }
 }
 #else
@@ -69,7 +95,7 @@ public struct LineNumberedCode: Tag {
                 }
                 .display(.grid)
                 .gridTemplateColumns("36px 1fr")
-                .fontSize(.px(12))
+                .fontSize(.px(14))
                 .attribute("data-line", "\(row.id)")
                 .attribute("class", row.highlighted ? "swui-code-line swui-code-line-hl" : "swui-code-line")
                 .attribute("data-line-hl", row.highlighted ? "\(row.id)" : "")
