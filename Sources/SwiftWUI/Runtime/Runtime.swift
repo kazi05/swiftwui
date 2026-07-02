@@ -12,6 +12,8 @@ public final class Runtime<Backend: RendererBackend> {
     private var scheduled = false
     private var isRendering = false
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
+    var _store: StateStore { store }            // test hooks
+    var _listenerCount: Int { listeners.count }
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void) {
