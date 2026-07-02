@@ -1,15 +1,14 @@
 /// Shadow tree: the single owner of virtual-identity → host-node mapping and
 /// listener bookkeeping (spec §8.4, traps T5/T10).
 final class MountedNode<N> {
-    var vnode: Node
     let host: N?                       // nil for component shadow nodes
     let hostParent: N                  // nearest enclosing realized element
     weak var parent: MountedNode<N>?
     var indexInParent: Int = 0
     var children: [MountedNode<N>] = []
     var events: Set<String> = []
-    init(vnode: Node, host: N?, hostParent: N) {
-        self.vnode = vnode; self.host = host; self.hostParent = hostParent
+    init(host: N?, hostParent: N) {
+        self.host = host; self.hostParent = hostParent
     }
 }
 
@@ -22,7 +21,7 @@ final class TreeApplier<Backend: RendererBackend> {
 
     init(backend: Backend, container: Backend.HostNode) {
         self.backend = backend
-        root = MountedNode(vnode: .text(""), host: container, hostParent: container)
+        root = MountedNode(host: container, hostParent: container)
     }
 
     // MARK: Mount / unmount
@@ -33,7 +32,7 @@ final class TreeApplier<Backend: RendererBackend> {
         case .text(let s):
             let h = backend.createTextNode(s)
             backend.insert(h, into: hostParent, before: anchor)
-            return MountedNode(vnode: node, host: h, hostParent: hostParent)
+            return MountedNode(host: h, hostParent: hostParent)
 
         case .element(let el):
             let h = backend.createElement(el.tag)
@@ -44,7 +43,7 @@ final class TreeApplier<Backend: RendererBackend> {
                 backend.setEventListener(h, event: event, id: el.listeners[event]!)
             }
             backend.insert(h, into: hostParent, before: anchor)
-            let m = MountedNode(vnode: node, host: h, hostParent: hostParent)
+            let m = MountedNode(host: h, hostParent: hostParent)
             m.events = Set(el.listeners.keys)
             for child in el.children {
                 let cm = mount(child, hostParent: h, before: nil)
@@ -56,7 +55,7 @@ final class TreeApplier<Backend: RendererBackend> {
         case .component(let c):
             // Transparent: children realize into the SAME hostParent, in order,
             // each before the same outer anchor.
-            let m = MountedNode(vnode: node, host: nil, hostParent: hostParent)
+            let m = MountedNode(host: nil, hostParent: hostParent)
             for child in c.children {
                 let cm = mount(child, hostParent: hostParent, before: anchor)
                 cm.parent = m; cm.indexInParent = m.children.count
@@ -110,7 +109,7 @@ final class TreeApplier<Backend: RendererBackend> {
         for p in patches {
             switch p {
             case .setText(let s):
-                backend.setText(m.host!, s); m.vnode = .text(s)
+                backend.setText(m.host!, s)
             case .setAttribute(let name, let value):
                 backend.setAttribute(m.host!, name: name, value: value)
             case .removeAttribute(let name):
@@ -129,6 +128,10 @@ final class TreeApplier<Backend: RendererBackend> {
         }
     }
 
+    // Reachable ONLY from a top-level diff of same-position roots (renderPass /
+    // subtree pass). diffChildren never emits replaceSelf into a reuse slot:
+    // sameIdentity() gates reuse, and diff() emits replaceSelf only on
+    // identity/tag mismatch (pinned by ApplierRegressionTests).
     private func replace(_ m: MountedNode<Backend.HostNode>, with new: Node,
                          endAnchor: Backend.HostNode?? = nil) {
         guard let parent = m.parent else { preconditionFailure("replace at shadow root") }

@@ -1,3 +1,4 @@
+@MainActor
 public protocol Tag {
     associatedtype Body: Tag
     @TagBuilder var body: Body { get }

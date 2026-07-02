@@ -83,4 +83,28 @@ private struct HostView2: Tag {
                               root: root, scheduleMicrotask: sched.schedule)
         return (runtime, backend, sched)
     }
+
+    // M2 (phase-1 review): replaceSelf inside a reuse slot must be unreachable —
+    // sameIdentity() gates every reuse, and diff() only emits replaceSelf when
+    // identity/tag mismatch. Pin the two mismatch shapes as fresh+removed plans.
+    @Test func mismatchProducesFreshNotReplaceSelf() {
+        let r = Reconciler()
+        let oldE = Node.element(ElementNode(identity: .root.appending(.child(0)), tag: "div",
+                                            attributes: [:], listeners: [:], children: [], key: nil))
+        let newE = Node.element(ElementNode(identity: .root.appending(.child(0)), tag: "span",
+                                            attributes: [:], listeners: [:], children: [], key: nil))
+        let plan = r.diffChildren(old: [oldE], new: [newE])
+        // tag change at same identity → NOT a reuse slot
+        guard case .fresh = plan.slots[0] else { Issue.record("expected fresh slot"); return }
+        #expect(plan.removedOldIndices == [0])
+    }
+
+    @Test func textToElementProducesFreshNotReplaceSelf() {
+        let r = Reconciler()
+        let newE = Node.element(ElementNode(identity: .root.appending(.child(0)), tag: "div",
+                                            attributes: [:], listeners: [:], children: [], key: nil))
+        let plan = r.diffChildren(old: [.text("x")], new: [newE])
+        guard case .fresh = plan.slots[0] else { Issue.record("expected fresh slot"); return }
+        #expect(plan.removedOldIndices == [0])
+    }
 }
