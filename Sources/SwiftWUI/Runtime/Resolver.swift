@@ -64,11 +64,23 @@ func coalesceText(_ nodes: [Node]) -> [Node] {
 func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
                     path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
     var listeners: [String: ListenerID] = [:]
+    // Same-event handlers compose in registration order (e.g. an auto-registered
+    // controlled-input binding writer followed by a user `.on()` handler) rather
+    // than last-wins, which would silently drop the earlier handler.
+    var byEvent: [String: [(Any?) -> Void]] = [:]
+    var eventOrder: [String] = []
     for (event, action) in bag.handlers {
-        let lid = ListenerID(owner: path, event: event.rawValue)
-        ctx.listeners.set(lid, payloadHandler: action)
+        if byEvent[event.rawValue] == nil { eventOrder.append(event.rawValue) }
+        byEvent[event.rawValue, default: []].append(action)
+    }
+    for event in eventOrder {
+        let lid = ListenerID(owner: path, event: event)
+        let chain = byEvent[event]!
+        ctx.listeners.set(lid, payloadHandler: { payload in
+            for handler in chain { handler(payload) }
+        })
         ctx.liveListeners.insert(lid)
-        listeners[event.rawValue] = lid
+        listeners[event] = lid
     }
     let children = coalesceText(resolve(content, path: path.appending(.child(0)), ctx: &ctx))
     return [.element(ElementNode(identity: path, tag: tagName, attributes: bag.flattened(),

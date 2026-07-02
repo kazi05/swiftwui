@@ -59,4 +59,28 @@ private struct CheckFixture: Tag {
         form._attributes.handlers[0].action(SubmitEvent())
         #expect(submitted == 1)
     }
+
+    @Test func escapeHatchComposesWithControlledBinding() {
+        let backend = MockBackend(); let sched = TestScheduler()
+        var hatchValues: [String?] = []
+        struct F: Tag {
+            @State var text = ""
+            let onHatch: (GenericEvent) -> Void
+            var body: some Tag {
+                Div {
+                    Input(type: .text, value: $text).on(.input) { onHatch($0) }
+                    P { text }
+                }
+            }
+        }
+        let rt = Runtime(backend: backend, container: backend.container,
+                         root: F(onHatch: { hatchValues.append($0.targetValue) }),
+                         scheduleMicrotask: sched.schedule)
+        rt.mount()
+        let input = findFirst(backend.container, tag: "input")!
+        rt.dispatch(input.events["input"]!, payload: InputEvent(value: "both"))
+        sched.pump()
+        #expect(findFirst(backend.container, tag: "p")!.children[0].text == "both")  // binding fired
+        #expect(hatchValues == ["both"])                                              // hatch fired too
+    }
 }
