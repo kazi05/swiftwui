@@ -3,12 +3,13 @@
 final class MountedNode<N> {
     let host: N?                       // nil for component shadow nodes
     let hostParent: N                  // nearest enclosing realized element
+    let componentIdentity: NodeIdentity?   // set for component shadow nodes only
     weak var parent: MountedNode<N>?
     var indexInParent: Int = 0
     var children: [MountedNode<N>] = []
     var events: Set<String> = []
-    init(host: N?, hostParent: N) {
-        self.host = host; self.hostParent = hostParent
+    init(host: N?, hostParent: N, componentIdentity: NodeIdentity? = nil) {
+        self.host = host; self.hostParent = hostParent; self.componentIdentity = componentIdentity
     }
 }
 
@@ -18,6 +19,8 @@ final class TreeApplier<Backend: RendererBackend> {
     /// Root wraps the container element (host != nil) — anchor recursion
     /// terminates here (spec §8.4, decision 22).
     let root: MountedNode<Backend.HostNode>
+    /// Component shadow-node lookup by identity, kept in sync by mount/unmount.
+    private(set) var componentIndex: [NodeIdentity: MountedNode<Backend.HostNode>] = [:]
 
     init(backend: Backend, container: Backend.HostNode) {
         self.backend = backend
@@ -58,7 +61,8 @@ final class TreeApplier<Backend: RendererBackend> {
         case .component(let c):
             // Transparent: children realize into the SAME hostParent, in order,
             // each before the same outer anchor.
-            let m = MountedNode(host: nil, hostParent: hostParent)
+            let m = MountedNode(host: nil, hostParent: hostParent, componentIdentity: c.identity)
+            componentIndex[c.identity] = m
             for child in c.children {
                 let cm = mount(child, hostParent: hostParent, before: anchor)
                 cm.parent = m; cm.indexInParent = m.children.count
@@ -69,8 +73,13 @@ final class TreeApplier<Backend: RendererBackend> {
     }
 
     func unmount(_ m: MountedNode<Backend.HostNode>) {
+        unregister(m)
         tearDownListeners(m)
         removeHosts(m)
+    }
+    private func unregister(_ m: MountedNode<Backend.HostNode>) {
+        if let id = m.componentIdentity { componentIndex[id] = nil }
+        for c in m.children { unregister(c) }
     }
     private func tearDownListeners(_ m: MountedNode<Backend.HostNode>) {
         for c in m.children { tearDownListeners(c) }

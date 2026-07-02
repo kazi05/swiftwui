@@ -11,6 +11,7 @@ public final class Runtime<Backend: RendererBackend> {
     private var dirty: Set<NodeIdentity> = []
     private var scheduled = false
     private var isRendering = false
+    var _forceFullPasses = false     // test hook (Task 7): bypass scoping
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void) {
@@ -39,8 +40,47 @@ public final class Runtime<Backend: RendererBackend> {
     public func flush() {
         scheduled = false
         guard !dirty.isEmpty else { return }
-        dirty.removeAll()      // phase 1: any dirt ⇒ full pass from root.
-        renderPass()           // phase 2 reads the set for scoped re-render (spec §7).
+        let ids = dirty
+        dirty.removeAll()
+        if current == nil || _forceFullPasses || ids.contains(.root) {
+            renderPass(); return
+        }
+        for id in minimalCover(ids) {
+            guard let row = store.retainedRow(at: id) else { continue }   // removed this flush
+            subtreePass(id, row)
+        }
+    }
+
+    /// Drops ids that are descendants of other dirty ids (spec §2.2).
+    func minimalCover(_ ids: Set<NodeIdentity>) -> [NodeIdentity] {
+        var cover: [NodeIdentity] = []
+        for id in ids.sorted(by: { $0.segments.count < $1.segments.count }) {
+            if !cover.contains(where: { id.isSelfOrDescendant(of: $0) }) { cover.append(id) }
+        }
+        return cover
+    }
+
+    private func subtreePass(_ id: NodeIdentity, _ row: RetainedComponent) {
+        guard let old = findNode(current!, at: id),
+              let mounted = applier.componentIndex[id] else {
+            renderPass(); return                                  // defensive: fall back to full
+        }
+        var ctx = ResolveContext(store: store, listeners: listeners,
+                                 invalidate: { [weak self] in self?.markDirty($0) })
+        ctx.environment = row.environment
+        isRendering = true
+        let parentPath = NodeIdentity(segments: Array(id.segments.dropLast()))
+        let nodes = resolve(row.tag, path: parentPath, ctx: &ctx)   // re-appends .type → same id
+        isRendering = false
+        assert(nodes.count == 1, "component must resolve to exactly one node")
+        let new = nodes[0]
+
+        store.sweep(under: id, reachable: ctx.reachable)
+        listeners.sweep(under: id, keep: ctx.liveListeners)
+
+        let patches = Reconciler().diff(old: old, new: new)
+        applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
+        current = splicing(current!, at: id, with: new)
     }
 
     private func renderPass() {
