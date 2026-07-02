@@ -411,3 +411,20 @@ Native-first via MockBackend + Runtime (phase-1 pattern); browser run is accepta
 | D13 | Async executor | `JavaScriptEventLoop.installGlobalExecutor()` in `DOMRuntime.mount` (wasm only) |
 | D14 | Acceptance app | TodoMVC (single example; async simulated via `.task`) |
 | D15 | Branch strategy | continue on `feature/fable-new-vision`; no merge before phase 2 |
+
+## 14. Post-review addenda (2026-07-03, final whole-branch review)
+
+- **D6 clarification:** within a multi-survivor flush, effects run per subtree
+  pass (after that pass's commit), not batched after all passes. Effects may
+  observe intermediate DOM states a single full pass would not produce; final
+  states converge.
+- **Known limitation (fix in phase 3):** @Observable reads inside ForEach row
+  closures are not tracked (they execute outside the component body's tracking
+  window). Constraint: reads belong in a component's `body`; ForEach rows that
+  read models must be components. Phase 3 threads tracking through primitive
+  content resolution.
+- **Constraint:** @Observable model writes must occur on the main actor;
+  off-main writes trap in the invalidation path by design (all-@MainActor
+  pipeline).
+- Same-event handlers on one element compose in registration order (auto-
+  registered controlled-input writers first, then `.on(...)` handlers).

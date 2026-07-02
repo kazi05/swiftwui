@@ -4,6 +4,11 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Tag>:
     public typealias Body = Never
     let data: Data
     let id: KeyPath<Data.Element, ID>
+    /// KNOWN LIMITATION (phase 2): `content` runs during ForEach's own _resolve,
+    /// OUTSIDE the parent component's withObservationTracking window. @Observable
+    /// properties read directly inside this closure are NOT tracked — mutations
+    /// will not invalidate. Wrap rows in a component (reads inside its `body` are
+    /// tracked) until phase 3 threads tracking through primitive resolution.
     let content: (Data.Element) -> Content
 
     public init(_ data: Data, id: KeyPath<Data.Element, ID>,

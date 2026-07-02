@@ -32,6 +32,8 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     let inv = ctx.invalidate
     ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body
     let box = _InvalidateBox(fire: { inv(id) })
+    // Tracking covers body evaluation only; reads inside primitive content
+    // closures (ForEach) are not tracked — see ForEach's `content` doc.
     let body = withObservationTracking {
         tag.body
     } onChange: {

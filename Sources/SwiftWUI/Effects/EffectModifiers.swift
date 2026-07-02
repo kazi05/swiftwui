@@ -46,6 +46,9 @@ extension Tag {
                                        _ action: @escaping (V, V) -> Void) -> some Tag {
         _OnChangeEffect(value: value, initial: initial, action: action, content: self)
     }
+    /// The action runs on the main actor's executor; writes to @Observable
+    /// models from detached/background tasks trap in Observation's onChange
+    /// (all state writes must be main-actor).
     public func task(_ action: @escaping () async -> Void) -> some Tag {
         _TaskEffect(taskID: nil, action: action, content: self)
     }
