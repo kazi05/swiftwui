@@ -23,7 +23,7 @@ import Testing
         n.key = NodeKey(7)
         #expect(n.key == NodeKey(7))
         var t = Node.text("x")
-        t.key = NodeKey(1)          // wraps text in synthetic element to support keying
-        #expect(t.key == NodeKey(1))
+        t.key = NodeKey(1)          // no-op on text
+        #expect(t.key == nil)
     }
 }

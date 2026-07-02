@@ -35,9 +35,7 @@ public enum Node: Equatable {
         }
         set {
             switch self {
-            case .text(let t):
-                // Wrap text in synthetic element to support keying (ForEach requires keys on all nodes)
-                self = .element(ElementNode(identity: .root, tag: "__text", attributes: [:], listeners: [:], children: [.text(t)], key: newValue))
+            case .text: break
             case .element(var e): e.key = newValue; self = .element(e)
             case .component(var c): c.key = newValue; self = .component(c)
             }

@@ -64,12 +64,14 @@ private struct Pair: Tag {
     }
 
     @Test func forEachItemsCarryKeys() {
+        struct Item: Tag { let i: Int; var body: some Tag { Text("i\(i)") } }
         var ctx = makeCtx()
-        let fe = ForEach(0..<3) { i in Text("i\(i)") }
+        let fe = ForEach(0..<3) { i in Item(i: i) }
         let nodes = fe._resolve(path: .root, ctx: &ctx)
         #expect(nodes.count == 3)
         #expect(nodes[0].key == NodeKey(0))
         #expect(nodes[2].key == NodeKey(2))
+        guard case .component = nodes[0] else { Issue.record("expected component"); return }
     }
 
     @Test func coalesceMergesAdjacentText() {
