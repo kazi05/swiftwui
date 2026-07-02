@@ -1,0 +1,72 @@
+public final class MockNode {
+    public var tag: String?
+    public var text: String?
+    public var attrs: [String: String] = [:]
+    public var events: [String: ListenerID] = [:]
+    public var children: [MockNode] = []
+    public weak var parent: MockNode?
+    public init() {}
+}
+
+/// Native reference backend: counts every primitive call (churn assertions)
+/// and serializes to HTML for the cross-check property (spec §10.4).
+@MainActor
+public final class MockBackend: RendererBackend {
+    public typealias HostNode = MockNode
+    public let container = MockNode()
+    public private(set) var counts: [String: Int] = [:]
+    public init() {}
+    private func bump(_ k: String) { counts[k, default: 0] += 1 }
+
+    public func createElement(_ tag: String) -> MockNode {
+        bump("createElement"); let n = MockNode(); n.tag = tag; return n
+    }
+    public func createTextNode(_ text: String) -> MockNode {
+        bump("createTextNode"); let n = MockNode(); n.text = text; return n
+    }
+    public func setText(_ node: MockNode, _ text: String) { bump("setText"); node.text = text }
+    public func setAttribute(_ node: MockNode, name: String, value: String) {
+        bump("setAttribute"); node.attrs[name] = value
+    }
+    public func removeAttribute(_ node: MockNode, name: String) {
+        bump("removeAttribute"); node.attrs[name] = nil
+    }
+    public func setEventListener(_ node: MockNode, event: String, id: ListenerID) {
+        bump("setEventListener"); node.events[event] = id
+    }
+    public func removeEventListener(_ node: MockNode, event: String) {
+        bump("removeEventListener"); node.events[event] = nil
+    }
+    public func insert(_ child: MockNode, into parent: MockNode, before anchor: MockNode?) {
+        bump("insert")
+        child.parent?.children.removeAll { $0 === child }          // DOM move semantics
+        if let anchor, let i = parent.children.firstIndex(where: { $0 === anchor }) {
+            parent.children.insert(child, at: i)
+        } else {
+            parent.children.append(child)
+        }
+        child.parent = parent
+    }
+    public func remove(_ child: MockNode, from parent: MockNode) {
+        bump("remove")
+        parent.children.removeAll { $0 === child }
+        child.parent = nil
+    }
+
+    /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
+    public func serializeHTML(_ node: MockNode? = nil) -> String {
+        let n = node ?? container
+        if let text = n.text { return HTMLEscaping.text(text) }
+        guard let tag = n.tag else {                               // container root
+            return n.children.map { serializeHTML($0) }.joined()
+        }
+        var out = "<" + tag
+        for name in n.attrs.keys.sorted() {
+            let value = n.attrs[name]!
+            out += value.isEmpty ? " " + name : " \(name)=\"\(HTMLEscaping.text(value))\""
+        }
+        out += ">"
+        if HTMLRenderer.voidElements.contains(tag) { return out }
+        return out + n.children.map { serializeHTML($0) }.joined() + "</" + tag + ">"
+    }
+}

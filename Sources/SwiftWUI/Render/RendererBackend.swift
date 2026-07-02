@@ -1,0 +1,15 @@
+/// Host primitives a live renderer provides (spec §8.1). Deliberately dumb:
+/// no diffing, no bookkeeping, no handler storage.
+@MainActor
+public protocol RendererBackend: AnyObject {
+    associatedtype HostNode
+    func createElement(_ tag: String) -> HostNode
+    func createTextNode(_ text: String) -> HostNode
+    func setText(_ node: HostNode, _ text: String)
+    func setAttribute(_ node: HostNode, name: String, value: String)
+    func removeAttribute(_ node: HostNode, name: String)
+    func setEventListener(_ node: HostNode, event: String, id: ListenerID)
+    func removeEventListener(_ node: HostNode, event: String)
+    func insert(_ child: HostNode, into parent: HostNode, before anchor: HostNode?)
+    func remove(_ child: HostNode, from parent: HostNode)
+}
