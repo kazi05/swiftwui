@@ -1,0 +1,53 @@
+public struct _AttributeBag {
+    private(set) var pairs: [(name: String, value: String)] = []
+    private(set) var handlers: [(event: EventName, action: () -> Void)] = []
+
+    init(id: String? = nil, class classes: String? = nil) {
+        if let id { set("id", id) }
+        if let classes { set("class", classes) }
+    }
+
+    mutating func set(_ name: String, _ value: String?) {
+        guard let value else { return }
+        guard Self.isValidName(name) else {
+            assertionFailure("invalid attribute name: \(name)")   // debug trap, drop in release
+            return
+        }
+        pairs.append((name, value))
+    }
+
+    mutating func appendClasses(_ names: [String]) {
+        for n in names { pairs.append(("class", n)) }
+    }
+
+    mutating func addHandler(_ event: EventName, _ action: @escaping () -> Void) {
+        handlers.append((event, action))
+    }
+
+    /// Last-wins per name, except `class` accumulates space-joined (spec decision 5).
+    func flattened() -> [String: String] {
+        var out: [String: String] = [:]
+        for (name, value) in pairs {
+            if name == "class", let existing = out["class"], !existing.isEmpty {
+                out["class"] = existing + " " + value
+            } else {
+                out[name] = value
+            }
+        }
+        return out
+    }
+
+    /// [a-zA-Z_:][a-zA-Z0-9_.:-]* — spec §11 point 3. Foundation-free.
+    static func isValidName(_ name: String) -> Bool {
+        guard let first = name.unicodeScalars.first else { return false }
+        func isAlpha(_ c: Unicode.Scalar) -> Bool {
+            ("a"..."z").contains(c) || ("A"..."Z").contains(c)
+        }
+        guard isAlpha(first) || first == "_" || first == ":" else { return false }
+        for c in name.unicodeScalars.dropFirst() {
+            guard isAlpha(c) || ("0"..."9").contains(c)
+                || c == "_" || c == "." || c == ":" || c == "-" else { return false }
+        }
+        return true
+    }
+}

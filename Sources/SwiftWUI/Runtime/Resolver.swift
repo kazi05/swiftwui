@@ -39,3 +39,20 @@ func coalesceText(_ nodes: [Node]) -> [Node] {
     }
     return out
 }
+
+/// The single element resolution path (spec §3.3): registers listeners under
+/// structural IDs, resolves content under path + .child(0), emits ElementNode.
+@MainActor
+func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
+                    path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
+    var listeners: [String: ListenerID] = [:]
+    for (event, action) in bag.handlers {
+        let lid = ListenerID(owner: path, event: event.rawValue)
+        ctx.listeners.set(lid, handler: action)
+        ctx.liveListeners.insert(lid)
+        listeners[event.rawValue] = lid
+    }
+    let children = coalesceText(resolve(content, path: path.appending(.child(0)), ctx: &ctx))
+    return [.element(ElementNode(identity: path, tag: tagName, attributes: bag.flattened(),
+                                 listeners: listeners, children: children, key: nil))]
+}

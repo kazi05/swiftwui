@@ -91,3 +91,56 @@ private struct Pair: Tag {
         #expect(reg.count == 1)
     }
 }
+
+@Suite @MainActor struct ElementResolveTests {
+    func makeCtx() -> (ResolveContext, ListenerRegistry) {
+        let reg = ListenerRegistry()
+        return (ResolveContext(store: StateStore(), listeners: reg, invalidate: { _ in }), reg)
+    }
+
+    @Test func elementCarriesIdentityAttributesChildren() {
+        var (ctx, _) = makeCtx()
+        let div = Div(class: "counter") { H1("Hello") }
+        let nodes = div._resolve(path: .root, ctx: &ctx)
+        guard case .element(let el) = nodes[0] else { Issue.record("expected element"); return }
+        #expect(el.tag == "div")
+        #expect(el.identity == .root)
+        #expect(el.attributes == ["class": "counter"])
+        guard case .element(let h1) = el.children[0] else { Issue.record("expected h1"); return }
+        #expect(h1.identity == NodeIdentity.root.appending(.child(0)))   // content slot
+        #expect(h1.children == [.text("Hello")])
+    }
+    @Test func nestedSingleChildNoPathCollision() {
+        var (ctx, _) = makeCtx()
+        let nodes = Div { Div {} }._resolve(path: .root, ctx: &ctx)
+        guard case .element(let outer) = nodes[0],
+              case .element(let inner) = outer.children[0] else { Issue.record("shape"); return }
+        #expect(outer.identity != inner.identity)     // spec decision 11
+    }
+    @Test func buttonRegistersClickListenerWithStructuralID() {
+        var (ctx, reg) = makeCtx()
+        var clicked = false
+        let nodes = Button("+", onClick: { clicked = true })._resolve(path: .root, ctx: &ctx)
+        guard case .element(let el) = nodes[0] else { Issue.record("shape"); return }
+        let lid = el.listeners["click"]
+        #expect(lid == ListenerID(owner: .root, event: "click"))
+        #expect(ctx.liveListeners.contains(lid!))
+        reg.handler(for: lid!)?()
+        #expect(clicked)
+    }
+    @Test func classAccumulatesOtherAttributesLastWin() {
+        var bag = _AttributeBag(id: "x", class: "a")
+        bag.appendClasses(["b", "c"])
+        bag.set("id", "y")
+        #expect(bag.flattened() == ["id": "y", "class": "a b c"])
+    }
+    @Test func invalidAttributeNameDropped() {
+        var bag = _AttributeBag()
+        bag.set("ok-name_1", "v")
+        // NOTE: assertionFailure fires in debug test runs — validate via isValidName instead
+        #expect(_AttributeBag.isValidName("ok-name_1"))
+        #expect(!_AttributeBag.isValidName("x onmouseover=alert(1)"))
+        #expect(!_AttributeBag.isValidName("1leading-digit"))
+        #expect(bag.flattened() == ["ok-name_1": "v"])
+    }
+}
