@@ -1,0 +1,41 @@
+# SwiftWUI
+
+Swift web UI framework: SwiftUI-inspired declarative API compiled to WebAssembly. Build websites in pure Swift — `Tag` protocol (analog of SwiftUI's `View`), `@TagBuilder` result builder, `@State` reactivity, DOM via JavaScriptKit.
+
+## Project status
+
+**v2 clean-slate rewrite in progress** on `feature/fable-new-vision`. The working tree was deliberately emptied on 2026-07-02 (commit "Clear for empty"). The full v1 implementation (8 modules, 51 tests, Showcase site) lives on branch `master` — **reference material only**: known bugs, WASM workarounds, audited security code. Do not port v1 code wholesale; re-derive per the spec.
+
+- Phase 1 spec (approved design): `docs/superpowers/specs/2026-07-02-phase1-core-design.md`
+- Roadmap: 7 phases (core slice → reactivity → styles → routing → full HTML/SSG → toolchain/CLI → docs site). Each phase gets its own brainstorm + spec before implementation.
+
+## Core architecture (v2, phase 1)
+
+- **Two modules only:** `SwiftWUI` (renderer-agnostic core, zero deps, builds natively) and `SwiftWUIDOM` (JavaScriptKit backend, WASM).
+- **SwiftUI-style API:** protocols + structs, value semantics. No class inheritance. `struct Counter: Tag { @State …; var body: some Tag { … } }`, `@main struct App: App`.
+- **Hybrid tag style:** uppercase tag names, HTML attributes as typed init params: `Div(class: "x") { H1("Hi"); Button("+") { count += 1 } }`.
+- **VDOM + structural identity in the tree:** `Node` enum (text/element/component), `NodeIdentity` = typed segment path (`child/branch/keyed/type`). Identity is part of the tree, never a side table — v1's biggest failure was retrofitted identity.
+- **State:** `@State` → Slot → StateBox; `StateStore` keyed by `NodeIdentity`; graft before `body` evaluation; didSet invalidation; **no Observation in phase 1**.
+- **Events:** closures in a `ListenerRegistry` keyed by `ListenerID(owner: identity, event)`; DOM listeners do fire-time lookup — zero listener churn on re-render.
+- **Explicit `ResolveContext` parameter** — no TaskLocal, no globals, no Sendable in the pipeline. Everything `@MainActor`.
+- **Escaping:** single `HTMLEscaping` choke point, serializer-only. Port from v1 verbatim (audited).
+
+## Build & test
+
+- Native (primary gate): `swift build` / `swift test` — no browser needed; reconciler/applier tested via MockBackend.
+- Toolchain: Swift **6.3.3** (swiftly) + official Swift.org WASM SDK `swift-6.3.3-RELEASE_wasm`. Host and SDK versions must match exactly. Never pass `-disable-reflection-metadata` (breaks Mirror → silently resets all @State; runtime has a startup canary).
+- WASM example: `cd Examples/Counter && swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug`; Vite as dev server.
+
+## Hard-won WASM knowledge (from v1 — still true)
+
+- `#if arch(wasm32)` for runtime forks, never `canImport(JavaScriptKit)`.
+- `JSClosure` must be retained Swift-side while attached; `JSOneshotClosure` for one-shots.
+- Never key a dictionary by `ObjectIdentifier(JSObject)` — JavaScriptKit makes a new wrapper per access.
+- Microtask-deferred re-render; coalesce N writes into one flush.
+
+## Workflow conventions
+
+- Communicate with the user in Russian; code, commits, and docs in English.
+- Design/review/research: Fable-tier agents. Implementation from an approved spec: voltagent agents (e.g. `voltagent-lang:swift-expert`).
+- Each phase: brainstorm → spec in `docs/superpowers/specs/` → implementation plan → code with tests.
+- No new dependencies without discussion (v1's Vapor-in-framework pinned 32 packages on every contributor).
