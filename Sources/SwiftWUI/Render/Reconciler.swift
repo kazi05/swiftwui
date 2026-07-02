@@ -84,6 +84,67 @@ struct Reconciler {
     }
 
     func diffChildren(old: [Node], new: [Node]) -> ChildrenPlan {
-        fatalError("implemented in Task 10")
+        var start = 0
+        while start < old.count && start < new.count && sameIdentity(old[start], new[start]) {
+            start += 1
+        }
+        var endOld = old.count
+        var endNew = new.count
+        while endOld > start && endNew > start && sameIdentity(old[endOld - 1], new[endNew - 1]) {
+            endOld -= 1; endNew -= 1
+        }
+
+        var slots: [ChildrenPlan.Slot] = []
+        var usedOld = Set<Int>()
+
+        for i in 0..<start {
+            slots.append(.reuse(oldIndex: i, patches: diff(old: old[i], new: new[i])))
+            usedOld.insert(i)
+        }
+
+        // Middle: keyed map + positional keyless matching.
+        var keyToOld: [NodeKey: Int] = [:]
+        for i in start..<endOld {
+            if let k = old[i].key {
+                assert(keyToOld[k] == nil, "duplicate key in child list")   // last-wins in release
+                keyToOld[k] = i
+            }
+        }
+        let unkeyedOld = (start..<endOld).filter { old[$0].key == nil }
+        var unkeyedCursor = 0
+
+        for j in start..<endNew {
+            let n = new[j]
+            if let k = n.key {
+                if let oi = keyToOld[k], !usedOld.contains(oi), sameIdentity(old[oi], n) {
+                    slots.append(.reuse(oldIndex: oi, patches: diff(old: old[oi], new: n)))
+                    usedOld.insert(oi)
+                } else {
+                    slots.append(.fresh(n))
+                }
+            } else {
+                while unkeyedCursor < unkeyedOld.count && usedOld.contains(unkeyedOld[unkeyedCursor]) {
+                    unkeyedCursor += 1
+                }
+                if unkeyedCursor < unkeyedOld.count, sameIdentity(old[unkeyedOld[unkeyedCursor]], n) {
+                    let oi = unkeyedOld[unkeyedCursor]
+                    unkeyedCursor += 1
+                    slots.append(.reuse(oldIndex: oi, patches: diff(old: old[oi], new: n)))
+                    usedOld.insert(oi)
+                } else {
+                    slots.append(.fresh(n))
+                }
+            }
+        }
+
+        for offset in 0..<(new.count - endNew) {
+            let oi = endOld + offset
+            let nj = endNew + offset
+            slots.append(.reuse(oldIndex: oi, patches: diff(old: old[oi], new: new[nj])))
+            usedOld.insert(oi)
+        }
+
+        let removed = (0..<old.count).filter { !usedOld.contains($0) }
+        return ChildrenPlan(slots: slots, removedOldIndices: removed)
     }
 }

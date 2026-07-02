@@ -50,12 +50,75 @@ private func el(_ tag: String, id: NodeIdentity = .root, attrs: [String: String]
         let b = Node.component(ComponentNode(identity: NodeIdentity.root.appending(.child(1)), typeName: "B", key: nil, children: []))
         #expect(r.diff(old: a, new: b) == [.replaceSelf(with: b)])
     }
-    @Test(.disabled("needs Task 10")) func childTextChangeProducesNestedPlan() {
+    @Test func childTextChangeProducesNestedPlan() {
         let old = el("div", children: [.text("a")])
         let new = el("div", children: [.text("b")])
         let patches = r.diff(old: old, new: new)
         guard case .updateChildren(let plan) = patches.first else { Issue.record("expected plan"); return }
         #expect(plan.slots == [.reuse(oldIndex: 0, patches: [.setText("b")])])
         #expect(plan.removedOldIndices.isEmpty)
+    }
+}
+
+@Suite struct DiffChildrenTests {
+    let r = Reconciler()
+    func keyed(_ tag: String, _ key: Int) -> Node {
+        el(tag, id: NodeIdentity.root.appending(.keyed(NodeKey(key))), key: NodeKey(key))
+    }
+    func pos(_ tag: String, _ slot: Int) -> Node {
+        el(tag, id: NodeIdentity.root.appending(.child(slot)))
+    }
+
+    @Test func identityPlanForEqualLists() {
+        let list = [pos("div", 0), pos("span", 1)]
+        #expect(r.diffChildren(old: list, new: list).isIdentity)
+    }
+    @Test func appendIsSuffixFresh() {
+        let old = [pos("div", 0)]
+        let new = [pos("div", 0), pos("span", 1)]
+        let plan = r.diffChildren(old: old, new: new)
+        #expect(plan.slots == [.reuse(oldIndex: 0, patches: []), .fresh(pos("span", 1))])
+        #expect(plan.removedOldIndices.isEmpty)
+    }
+    @Test func removeMiddle() {
+        let old = [keyed("li", 1), keyed("li", 2), keyed("li", 3)]
+        let new = [keyed("li", 1), keyed("li", 3)]
+        let plan = r.diffChildren(old: old, new: new)
+        #expect(plan.slots == [.reuse(oldIndex: 0, patches: []), .reuse(oldIndex: 2, patches: [])])
+        #expect(plan.removedOldIndices == [1])
+    }
+    @Test func keyedReorderReusesByKey() {
+        let old = [keyed("li", 1), keyed("li", 2), keyed("li", 3)]
+        let new = [keyed("li", 3), keyed("li", 1), keyed("li", 2)]
+        let plan = r.diffChildren(old: old, new: new)
+        #expect(plan.slots == [
+            .reuse(oldIndex: 2, patches: []),
+            .reuse(oldIndex: 0, patches: []),
+            .reuse(oldIndex: 1, patches: []),
+        ])
+        #expect(plan.removedOldIndices.isEmpty)
+    }
+    @Test func keyedItemVanishesAndNewAppears() {
+        let old = [keyed("li", 1)]
+        let new = [keyed("li", 9)]
+        let plan = r.diffChildren(old: old, new: new)
+        #expect(plan.slots == [.fresh(keyed("li", 9))])
+        #expect(plan.removedOldIndices == [0])
+    }
+    @Test func positionalShiftReplacesShiftedIdentities() {
+        // Prepend without keys: every element's structural identity shifted →
+        // fresh mounts (state resets by sweep, DOM matches — spec decision 12).
+        let old = [pos("div", 0)]
+        let new = [pos("span", 0), pos("div", 1)]
+        let plan = r.diffChildren(old: old, new: new)
+        #expect(plan.slots == [.fresh(pos("span", 0)), .fresh(pos("div", 1))])
+        #expect(plan.removedOldIndices == [0])
+    }
+    @Test func emptyToNonEmptyAndBack() {
+        let list = [pos("div", 0)]
+        #expect(r.diffChildren(old: [], new: list).slots == [.fresh(pos("div", 0))])
+        let plan = r.diffChildren(old: list, new: [])
+        #expect(plan.slots.isEmpty)
+        #expect(plan.removedOldIndices == [0])
     }
 }
