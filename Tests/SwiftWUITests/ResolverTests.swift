@@ -39,7 +39,6 @@ private struct Pair: Tag {
     @Test func statePersistsAcrossReResolve_viaStore() {
         let store = StateStore()
         var ctx1 = makeCtx(store)
-        var captured: Leaf?
         // resolve, then mutate the linked state, then re-resolve: text must update
         _ = resolve(Leaf(), path: .root, ctx: &ctx1)
         let leaf = Leaf()   // fresh struct; link grafts persisted box
@@ -50,7 +49,6 @@ private struct Pair: Tag {
         let nodes = resolve(Leaf(), path: .root, ctx: &ctx3)
         guard case .component(let c) = nodes[0] else { Issue.record("shape"); return }
         #expect(c.children == [.text("leaf:42")])
-        _ = captured
     }
 
     @Test func branchSegmentsDiffer() {

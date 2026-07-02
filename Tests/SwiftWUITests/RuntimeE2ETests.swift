@@ -94,12 +94,13 @@ func clickFirst(_ backend: MockBackend, _ runtime: Runtime<MockBackend>,
     @Test func coalescedWritesOneRender() {
         let (runtime, backend, sched) = makeRuntime(Counter())
         let button = findFirst(backend.container, tag: "button")!
-        let creates = backend.counts["createElement", default: 0]
+        let setTextsBefore = backend.counts["setText", default: 0]
         runtime.dispatch(button.events["click"]!)
         runtime.dispatch(button.events["click"]!)     // second write before pump
         sched.pump()                                  // ONE flush
         #expect(backend.serializeHTML().contains("Count: 2"))
-        _ = creates
+        // Two coalesced writes → exactly one render pass, not two.
+        #expect(backend.counts["setText", default: 0] - setTextsBefore == 1)
     }
     @Test func siblingCountersIndependent() {
         let (runtime, backend, sched) = makeRuntime(TwoCounters())

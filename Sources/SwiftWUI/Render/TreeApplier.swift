@@ -100,7 +100,13 @@ final class TreeApplier<Backend: RendererBackend> {
 
     // MARK: Patch application
 
-    func apply(_ patches: [Patch], to m: MountedNode<Backend.HostNode>) {
+    /// `endAnchor` is the live host that should end up right after `m`'s block,
+    /// threaded down by an enclosing `applyChildren` call that is still mid-flight
+    /// (its shadow `children`/`indexInParent` aren't updated yet). `nil` (not
+    /// `.some(nil)`) means "not threaded" — recompute via the shadow tree, which
+    /// is only safe for non-nested/top-level callers (spec §8.4, C1 fix).
+    func apply(_ patches: [Patch], to m: MountedNode<Backend.HostNode>,
+               endAnchor: Backend.HostNode?? = nil) {
         for p in patches {
             switch p {
             case .setText(let s):
@@ -116,17 +122,19 @@ final class TreeApplier<Backend: RendererBackend> {
                 backend.removeEventListener(m.host!, event: event)
                 m.events.remove(event)
             case .replaceSelf(let new):
-                replace(m, with: new)
+                replace(m, with: new, endAnchor: endAnchor)
             case .updateChildren(let plan):
-                applyChildren(plan, on: m)
+                applyChildren(plan, on: m, endAnchor: endAnchor)
             }
         }
     }
 
-    private func replace(_ m: MountedNode<Backend.HostNode>, with new: Node) {
+    private func replace(_ m: MountedNode<Backend.HostNode>, with new: Node,
+                         endAnchor: Backend.HostNode?? = nil) {
         guard let parent = m.parent else { preconditionFailure("replace at shadow root") }
-        // Position marker: m's own first host, else the next sibling's.
-        let a = firstHost(m) ?? anchor(after: m.indexInParent, in: parent)
+        // Position marker: m's own first host, else the threaded live anchor if
+        // given, else the (only safe when non-nested) shadow-tree fallback.
+        let a = firstHost(m) ?? (endAnchor ?? anchor(after: m.indexInParent, in: parent))
         let nm = mount(new, hostParent: m.hostParent, before: a)
         unmount(m)
         nm.parent = parent
@@ -137,7 +145,8 @@ final class TreeApplier<Backend: RendererBackend> {
     /// Normative application order (spec decision 22): removals first, then the
     /// shadow children array adopts the NEW order, then slots realize
     /// RIGHT-TO-LEFT so anchor scans always see already-attached later siblings.
-    func applyChildren(_ plan: ChildrenPlan, on parent: MountedNode<Backend.HostNode>) {
+    func applyChildren(_ plan: ChildrenPlan, on parent: MountedNode<Backend.HostNode>,
+                       endAnchor: Backend.HostNode?? = nil) {
         let oldChildren = parent.children
 
         for i in plan.removedOldIndices { unmount(oldChildren[i]) }
@@ -145,9 +154,13 @@ final class TreeApplier<Backend: RendererBackend> {
         let hostParent = parent.host ?? parent.hostParent
         var newChildren = [MountedNode<Backend.HostNode>?](repeating: nil, count: plan.slots.count)
 
-        // Anchor past the end of this child list (walks up through components).
+        // Anchor past the end of this child list. If the caller threaded a live
+        // anchor (we're a component-hosted child of an in-flight outer
+        // applyChildren), trust it; otherwise walk up through components via the
+        // shadow tree (only safe when not nested inside another application).
         var anchorNode: Backend.HostNode? = {
             if parent.host != nil { return nil }
+            if let threaded = endAnchor { return threaded }
             guard let gp = parent.parent else { return nil }
             return anchor(after: parent.indexInParent, in: gp)
         }()
@@ -159,12 +172,14 @@ final class TreeApplier<Backend: RendererBackend> {
                 newChildren[idx] = mount(node, hostParent: hostParent, before: anchorNode)
             case .reuse(let oldIndex, let patches):
                 let m = oldChildren[oldIndex]
+                // Apply patches (which may grow/reorder m's own children) BEFORE
+                // moving m's hosts, so a moved block carries its updated children.
+                apply(patches, to: m, endAnchor: m.host == nil ? anchorNode : nil)
                 if oldIndex > minOldToRight {
                     moveHosts(m, before: anchorNode, in: hostParent)   // out of order → move
                 } else {
                     minOldToRight = oldIndex                           // greedy in-place check
                 }
-                apply(patches, to: m)
                 newChildren[idx] = m
             }
             anchorNode = firstHost(newChildren[idx]!) ?? anchorNode
