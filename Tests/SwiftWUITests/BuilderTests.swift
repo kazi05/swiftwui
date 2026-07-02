@@ -1,6 +1,5 @@
 import Testing
 @testable import SwiftWUI
-typealias Tag = SwiftWUI.Tag
 
 @Suite struct BuilderTests {
     @Test func stringBecomesText() {
