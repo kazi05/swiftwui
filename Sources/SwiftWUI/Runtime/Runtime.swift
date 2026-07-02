@@ -15,6 +15,7 @@ public final class Runtime<Backend: RendererBackend> {
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
     var _store: StateStore { store }            // test hooks
     var _listenerCount: Int { listeners.count }
+    var _current: Node? { current }
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void) {
@@ -76,7 +77,8 @@ public final class Runtime<Backend: RendererBackend> {
         let nodes = resolve(row.tag, path: parentPath, ctx: &ctx)   // re-appends .type → same id
         isRendering = false
         assert(nodes.count == 1, "component must resolve to exactly one node")
-        let new = nodes[0]
+        var new = nodes[0]
+        new.key = old.key   // resolve() doesn't see ForEach's key tagging (one level up); preserve it
 
         store.sweep(under: id, reachable: ctx.reachable)
         listeners.sweep(under: id, keep: ctx.liveListeners)

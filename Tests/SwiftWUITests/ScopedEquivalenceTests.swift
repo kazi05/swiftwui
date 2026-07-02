@@ -80,11 +80,13 @@ private struct PropRoot: Tag {
             #expect(backA.serializeHTML() == backB.serializeHTML(),
                     "diverged at seed \(seed)")
             #expect(scopedStore(scoped).rowCount == scopedStore(full).rowCount)
+            #expect(scoped._current == full._current, "current trees diverged at seed \(seed)")
+            #expect(scoped._listenerCount == full._listenerCount)
         }
     }
 }
 
 // @testable access helper: expose store/listeners counts for the invariant.
-// If Runtime's `store`/`listeners` are private, add `var _storeRowCount: Int`
-// and `var _listenerCount: Int` internal accessors to Runtime in this task.
+// Runtime's `store`/`listeners` are private; this reads via the `_store` and
+// `_listenerCount` internal accessors declared on Runtime.
 @MainActor private func scopedStore(_ rt: Runtime<MockBackend>) -> StateStore { rt._store }
