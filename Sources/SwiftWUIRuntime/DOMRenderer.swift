@@ -34,6 +34,9 @@ public final class DOMRenderer: Renderer {
     /// Unmount callback IDs keyed by the ObjectIdentifier of the DOM element.
     private var unmountCallbacks: [ObjectIdentifier: [EventListenerID]] = [:]
 
+    /// Persists @State across renders via structural component identity.
+    private let renderContext = RenderContext()
+
     public init(container: JSObject) {
         self.bridge = DOMBridge()
         self.reconciler = Reconciler()
@@ -46,7 +49,7 @@ public final class DOMRenderer: Renderer {
     /// Perform initial render of a tag tree.
     public func render(_ rootTag: some Tag) {
         EventHandlerRegistry.beginRender()
-        let newTree = TagNode.fragment(resolveTagBody(rootTag))
+        let newTree = TagNode.fragment(renderContext.resolveRoot(rootTag))
         let domNode = createDOMNode(newTree)
         bridge.removeAllChildren(container)
         if let domNode {
@@ -85,7 +88,7 @@ public final class DOMRenderer: Renderer {
     /// reconciler diffs the cached `currentTree` against new renders.
     public func hydrate(_ rootTag: some Tag) {
         EventHandlerRegistry.beginRender()
-        let newTree = TagNode.fragment(resolveTagBody(rootTag))
+        let newTree = TagNode.fragment(renderContext.resolveRoot(rootTag))
         preRegisterResponsiveStyles(newTree)
 
         // Hydrate against the container's existing children. The fragment
@@ -202,7 +205,7 @@ public final class DOMRenderer: Renderer {
     /// - Parameter animation: Optional animation to apply CSS transitions during style updates.
     public func update(_ rootTag: some Tag, animation: Animation? = nil) {
         EventHandlerRegistry.beginRender()
-        let newTree = TagNode.fragment(resolveTagBody(rootTag))
+        let newTree = TagNode.fragment(renderContext.resolveRoot(rootTag))
 
         // Pre-register all responsive CSS rules before reconciliation
         // so that .updateClasses patches can rely on rules existing

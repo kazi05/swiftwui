@@ -19,7 +19,7 @@ jobs:
 
       - uses: SwiftyLab/setup-swift@latest
         with:
-          swift-version: "6.2.3"
+          swift-version: "6.3.3"
 
       - name: Build swiftwui CLI (universal)
         run: |

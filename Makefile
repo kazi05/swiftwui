@@ -13,7 +13,7 @@
 #   release (optimised)   : binaryen (`brew install binaryen`) for wasm-opt
 #   release (compressed)  : brotli, gzip, openssl  (all standard on macOS / Linux)
 
-SDK    ?= swift-6.2.3-RELEASE_wasm
+SDK    ?= swift-6.3.3-RELEASE_wasm
 TARGET ?= Counter
 OUT    ?= dist
 PORT   ?= 8080
@@ -46,11 +46,14 @@ help:
 
 .PHONY: dev
 dev:
-	swift run swiftwui-dev dev --target $(TARGET) --port $(PORT)
+	swift run swiftwui dev --target $(TARGET) --port $(PORT)
 
+# Example targets (Counter, Showcase) live in their own packages under
+# Examples/, so the wasm build runs from there — the root package has no such
+# product.
 .PHONY: build
 build:
-	swift package --swift-sdk $(SDK) js -c debug --product $(TARGET)
+	cd Examples/$(TARGET) && swift package --swift-sdk $(SDK) js -c debug --product $(TARGET)
 
 .PHONY: release
 release:
@@ -130,7 +133,7 @@ showcase-build:
 
 .PHONY: showcase-test
 showcase-test:
-	cd Examples/Showcase && swift test 2>&1 | tail -5
+	cd Examples/Showcase && swift test
 
 .PHONY: ci
 ci: build test showcase-build showcase-test

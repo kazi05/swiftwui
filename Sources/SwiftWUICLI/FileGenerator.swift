@@ -74,7 +74,58 @@ struct FileGenerator {
         case .showcase: try scaffoldShowcase(at: dest)
         case .minimal:  try scaffoldMinimal(at: dest)
         }
+        pointDependencyAtSwiftWUI(in: dest)
         success = true
+    }
+
+    /// Rewrites the scaffold's `path: "../../"` SwiftWUI dependency to an
+    /// absolute path to the local SwiftWUI checkout.
+    ///
+    /// The templates ship with the relative `../../` that only resolves when
+    /// the project sits two levels under the SwiftWUI repo (i.e. inside
+    /// `Examples/`). A real `swiftwui init MyApp` creates the project in the
+    /// user's own directory, where `../../` points nowhere and `swift build`
+    /// fails immediately. Detecting the checkout and writing its absolute path
+    /// makes the generated project build wherever it was created. If no
+    /// checkout is found (installed binary, no source tree) the relative path
+    /// is left in place and the user is told to fix it.
+    private func pointDependencyAtSwiftWUI(in destination: URL) {
+        let pkgURL = destination.appendingPathComponent("Package.swift")
+        guard let contents = try? String(contentsOf: pkgURL, encoding: .utf8) else { return }
+        let marker = ".package(name: \"SwiftWUI\", path: \"../../\")"
+        guard contents.contains(marker) else { return }
+
+        guard let root = Self.swiftWUIRoot() else {
+            print("""
+              ⚠︎ Could not locate a local SwiftWUI checkout. Edit \(projectName)/Package.swift
+                and set the SwiftWUI dependency path before building.
+            """)
+            return
+        }
+        let fixed = contents.replacingOccurrences(
+            of: marker,
+            with: ".package(name: \"SwiftWUI\", path: \"\(root)\")"
+        )
+        try? fixed.write(to: pkgURL, atomically: true, encoding: .utf8)
+    }
+
+    /// Walks up from the CLI binary looking for the SwiftWUI checkout root — a
+    /// directory containing both `Package.swift` and `Sources/SwiftWUICore`.
+    private static func swiftWUIRoot() -> String? {
+        guard !CommandLine.arguments.isEmpty else { return nil }
+        var url = URL(fileURLWithPath: CommandLine.arguments[0])
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+        for _ in 0..<10 {
+            let pkg = url.appendingPathComponent("Package.swift").path
+            let core = url.appendingPathComponent("Sources/SwiftWUICore").path
+            if FileManager.default.fileExists(atPath: pkg),
+               FileManager.default.fileExists(atPath: core) {
+                return url.standardizedFileURL.path
+            }
+            url = url.deletingLastPathComponent()
+        }
+        return nil
     }
 
     // MARK: - Private helpers

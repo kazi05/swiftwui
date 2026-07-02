@@ -5,7 +5,7 @@ This step-by-step tutorial walks you through building progressively more complex
 **Prerequisites:**
 
 - Swift 6.0+ toolchain with WebAssembly support
-- The `swift-6.2.3-RELEASE_wasm` SDK installed
+- The `swift-6.3.3-RELEASE_wasm` SDK installed
 - Basic familiarity with Swift and SwiftUI concepts
 
 ---
@@ -42,7 +42,9 @@ let package = Package(
     name: "MyApp",
     platforms: [.macOS(.v14)],
     dependencies: [
-        .package(url: "https://github.com/aspect-build/SwiftWUI.git", from: "0.1.0"),
+        // SwiftWUI is not yet published to a public registry; depend on your
+        // local checkout. `swiftwui init` writes this path for you.
+        .package(name: "SwiftWUI", path: "/path/to/SwiftWUI"),
         .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.22.0"),
     ],
     targets: [
@@ -177,7 +179,7 @@ struct Counter: Tag {
 Build for WebAssembly and start the development server:
 
 ```bash
-swift package --swift-sdk swift-6.2.3-RELEASE_wasm js -c debug
+swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug
 npm run dev -- --port 8080
 ```
 

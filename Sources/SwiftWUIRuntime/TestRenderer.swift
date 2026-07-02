@@ -35,17 +35,19 @@ public final class TestRenderer: Renderer {
 
     private let reconciler = Reconciler()
     private var currentTree: TagNode?
+    /// Persists @State across render/update calls via structural identity.
+    private let renderContext = RenderContext()
 
     public init() {}
 
     public func render<T: Tag>(_ rootTag: T) {
-        let tree = TagNode.fragment(resolveTagBody(rootTag))
+        let tree = TagNode.fragment(renderContext.resolveRoot(rootTag))
         renderedTrees.append(tree)
         currentTree = tree
     }
 
     public func update<T: Tag>(_ rootTag: T, animation: Animation? = nil) {
-        let next = TagNode.fragment(resolveTagBody(rootTag))
+        let next = TagNode.fragment(renderContext.resolveRoot(rootTag))
         if let prior = currentTree, let patch = reconciler.diff(old: prior, new: next) {
             patches.append(patch)
             animations.append(animation)

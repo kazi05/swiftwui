@@ -92,19 +92,19 @@ extension Application {
         html += "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
 
         if let desc = options.description {
-            html += "  <meta name=\"description\" content=\"\(escape(desc))\">\n"
+            html += "  <meta name=\"description\" content=\"\(HTMLEscaping.text(desc))\">\n"
         }
-        html += "  <title>\(escape(options.title))</title>\n"
+        html += "  <title>\(HTMLEscaping.text(options.title))</title>\n"
 
         if let theme = options.themeCSS {
-            html += "  <style>\(theme)</style>\n"
+            html += "  <style>\(HTMLEscaping.rawTextElement(theme))</style>\n"
         }
         for sheet in options.stylesheets {
             switch sheet {
             case .url(let u):
-                html += "  <link rel=\"stylesheet\" href=\"\(escape(u))\">\n"
+                html += "  <link rel=\"stylesheet\" href=\"\(HTMLEscaping.text(u))\">\n"
             case .inline(let css):
-                html += "  <style>\(css)</style>\n"
+                html += "  <style>\(HTMLEscaping.rawTextElement(css))</style>\n"
             }
         }
 
@@ -112,33 +112,16 @@ extension Application {
         html += "  <div id=\"app\">\n\(bodyHTML)\n  </div>\n"
 
         if let state = options.initialState {
-            html += "  <script id=\"__swiftwui_state\" type=\"application/json\">\(state)</script>\n"
+            html += "  <script id=\"__swiftwui_state\" type=\"application/json\">\(HTMLEscaping.scriptJSON(state))</script>\n"
         }
         if let jsURL = options.wasmJSURL {
             html += "  <script type=\"module\">\n"
-            html += "    import { init } from \"\(escape(jsURL))\";\n"
+            html += "    import { init } from \"\(HTMLEscaping.text(jsURL))\";\n"
             html += "    init();\n"
             html += "  </script>\n"
         }
 
         html += "</body>\n</html>\n"
         return html
-    }
-
-    /// Single-pass HTML escaping. Mirrors `StaticRenderer.escapeHTML`.
-    private static func escape(_ s: String) -> String {
-        var out = ""
-        out.reserveCapacity(s.utf8.count)
-        for scalar in s.unicodeScalars {
-            switch scalar {
-            case "&": out += "&amp;"
-            case "<": out += "&lt;"
-            case ">": out += "&gt;"
-            case "\"": out += "&quot;"
-            case "'": out += "&#39;"
-            default: out.unicodeScalars.append(scalar)
-            }
-        }
-        return out
     }
 }

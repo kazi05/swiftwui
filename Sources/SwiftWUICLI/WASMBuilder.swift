@@ -55,13 +55,28 @@ class WASMBuilder {
 
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
             return BuildResult(success: false, output: "Failed to start build: \(error)", duration: Date().timeIntervalSince(start))
         }
 
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
+        // Drain the pipe on a background queue while the process runs. A pipe
+        // buffer is ~64KB; a verbose or failing `swift package js` easily emits
+        // more, at which point the child blocks writing while the parent blocks
+        // in waitUntilExit() — a deadlock that froze the dev-server rebuild loop.
+        // Reading only after run() succeeds guarantees the child's write end
+        // closes (delivering EOF) when it exits.
+        nonisolated(unsafe) var collected = Data()
+        let handle = pipe.fileHandleForReading
+        let group = DispatchGroup()
+        group.enter()
+        DispatchQueue.global().async {
+            collected = handle.readDataToEndOfFile()
+            group.leave()
+        }
+        process.waitUntilExit()
+        group.wait()
+
+        let output = String(data: collected, encoding: .utf8) ?? ""
         let success = process.terminationStatus == 0
 
         return BuildResult(success: success, output: output, duration: Date().timeIntervalSince(start))

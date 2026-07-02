@@ -1,5 +1,7 @@
 // EnvironmentValue.swift - Environment values that flow down the tag tree
 
+import SwiftWUICore
+
 /// A key for accessing values in the environment.
 ///
 /// Define custom environment keys by conforming to this protocol:
@@ -74,12 +76,35 @@ public enum CurrentEnvironment {
 @propertyWrapper
 public struct Environment<Value> {
     private let keyPath: KeyPath<EnvironmentValues, Value>
+    private let slot: EnvironmentSnapshotSlot
 
     public init(_ keyPath: KeyPath<EnvironmentValues, Value>) {
         self.keyPath = keyPath
+        self.slot = EnvironmentSnapshotSlot()
     }
 
     public var wrappedValue: Value {
-        EnvironmentValues.current[keyPath: keyPath]
+        // Prefer the snapshot captured at render time — it stays correct inside
+        // event handlers and async closures that run after the environment's
+        // task-local scope has popped. Falls back to the live task-local when no
+        // render context captured a snapshot (e.g. one-shot SSR).
+        if let snapshot = slot.captured {
+            return snapshot[keyPath: keyPath]
+        }
+        return EnvironmentValues.current[keyPath: keyPath]
+    }
+}
+
+/// Relocatable holder for a component's environment snapshot. A reference type
+/// so the copy of the `@Environment` wrapper obtained via `Mirror` shares the
+/// same slot as the component being rendered — capturing on the copy is visible
+/// to the original.
+final class EnvironmentSnapshotSlot: @unchecked Sendable {
+    var captured: EnvironmentValues?
+}
+
+extension Environment: _EnvironmentReader {
+    public func _captureEnvironment() {
+        slot.captured = EnvironmentValues.current
     }
 }

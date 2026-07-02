@@ -25,7 +25,7 @@ public struct A: HTMLTag, TagNodeConvertible {
         self.classes = []
         self.children = [AnyTag(content())]
 
-        if let href { self.attributes["href"] = href }
+        if let href { self.attributes["href"] = HTMLEscaping.sanitizeURL(href) }
         if let target { self.attributes["target"] = target.htmlValue }
         if let rel { self.attributes["rel"] = rel }
     }

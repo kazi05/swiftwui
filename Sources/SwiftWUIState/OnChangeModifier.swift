@@ -76,12 +76,18 @@ public struct OnChangeTag<Content: Tag, V: Equatable & Sendable>: Tag, TagNodeCo
     public func toTagNodes() -> [TagNode] {
         let currentValue = getValue()
 
-        if let oldValue = OnChangeStorage.value(for: storageKey) as? V {
+        // Scope the call-site key by the enclosing component's structural path
+        // so two instances of the same component keep independent previous-value
+        // slots. Without this, sibling instances share one slot and fire
+        // spurious change callbacks against each other's values.
+        let scopedKey = "\(RenderContext.current?.currentPath ?? "")|\(storageKey)"
+
+        if let oldValue = OnChangeStorage.value(for: scopedKey) as? V {
             if oldValue != currentValue {
                 action(oldValue, currentValue)
             }
         }
-        OnChangeStorage.setValue(currentValue, for: storageKey)
+        OnChangeStorage.setValue(currentValue, for: scopedKey)
 
         if let convertible = content as? TagNodeConvertible {
             return convertible.toTagNodes()

@@ -1,11 +1,12 @@
 import Foundation
+import Crypto
 
 class ProductionBuilder {
     let options: BuildOptions
     let builder: WASMBuilder
 
     init(options: BuildOptions) {
-        let sdk = options.sdk ?? WASMBuilder.detectSDK() ?? "swift-6.2.3-RELEASE_wasm"
+        let sdk = options.sdk ?? WASMBuilder.detectSDK() ?? "swift-6.3.3-RELEASE_wasm"
         self.options = options
         self.builder = WASMBuilder(target: options.target, sdk: sdk, configuration: "release")
     }
@@ -24,26 +25,42 @@ class ProductionBuilder {
         let fm = FileManager.default
         let outputDir = options.output
 
-        // Clean and create output directory
-        if fm.fileExists(atPath: outputDir) {
-            try? fm.removeItem(atPath: outputDir)
+        // Guard against destroying the working tree. `--output .` (or any
+        // ancestor of the cwd) would recursively delete the user's project.
+        let resolvedOut = URL(fileURLWithPath: outputDir, relativeTo: URL(fileURLWithPath: fm.currentDirectoryPath))
+            .standardizedFileURL.path
+        let resolvedCwd = URL(fileURLWithPath: fm.currentDirectoryPath).standardizedFileURL.path
+        guard resolvedOut != resolvedCwd,
+              resolvedOut != "/",
+              !(resolvedCwd + "/").hasPrefix(resolvedOut + "/") else {
+            print("[SwiftWUI] Refusing to build into '\(outputDir)': it is the current directory or an ancestor of it. Use a dedicated output directory such as 'dist'.")
+            exit(1)
         }
-        try? fm.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
 
-        // Copy PackageToJS output
-        let srcDir = builder.outputDirectory
-        if let files = try? fm.contentsOfDirectory(atPath: srcDir) {
+        // Clean and populate the output directory. Every step propagates its
+        // error and aborts non-zero — a half-written deploy dir (missing
+        // .wasm / index.html) must never be reported as success.
+        do {
+            if fm.fileExists(atPath: outputDir) {
+                try fm.removeItem(atPath: outputDir)
+            }
+            try fm.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
+
+            let srcDir = builder.outputDirectory
+            let files = try fm.contentsOfDirectory(atPath: srcDir)
             for file in files {
-                try? fm.copyItem(
+                try fm.copyItem(
                     atPath: srcDir + "/" + file,
                     toPath: outputDir + "/" + file
                 )
             }
-        }
 
-        // Generate production HTML
-        let html = HTMLTemplate(target: options.target).productionHTML()
-        try? html.write(toFile: outputDir + "/index.html", atomically: true, encoding: .utf8)
+            let html = HTMLTemplate(target: options.target).productionHTML()
+            try html.write(toFile: outputDir + "/index.html", atomically: true, encoding: .utf8)
+        } catch {
+            print("[SwiftWUI] Build failed while writing output to '\(outputDir)': \(error)")
+            exit(1)
+        }
 
         // Optimize WASM. The size pass is the bulk of the win — `-Oz` plus
         // strip-debug/strip-producers/converge typically takes a 60+MB debug
@@ -123,26 +140,14 @@ class ProductionBuilder {
 
         for file in files where file.hasSuffix(".wasm") || file.hasSuffix(".js") {
             let path = outputDir + "/" + file
-            // openssl dgst -sha384 -binary path | openssl base64 -A
-            let hash = Process()
-            hash.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-            hash.arguments = ["sh", "-c",
-                "openssl dgst -sha384 -binary '\(path)' | openssl base64 -A"]
-            let pipe = Pipe()
-            hash.standardOutput = pipe
-            do {
-                try hash.run()
-                hash.waitUntilExit()
-                guard hash.terminationStatus == 0 else { continue }
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                guard let b64 = String(data: data, encoding: .utf8)?
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                      !b64.isEmpty else { continue }
-                let line = "sha384-\(b64)\n"
-                try line.write(toFile: path + ".sri", atomically: true, encoding: .utf8)
-            } catch {
-                continue
-            }
+            // Compute SHA-384 in-process with swift-crypto (already linked via
+            // Vapor). Avoids shelling out to openssl with an interpolated path
+            // — no quoting hazard, one fewer required tool.
+            guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { continue }
+            let digest = SHA384.hash(data: data)
+            let b64 = Data(digest).base64EncodedString()
+            let line = "sha384-\(b64)\n"
+            try? line.write(toFile: path + ".sri", atomically: true, encoding: .utf8)
         }
         print("[SwiftWUI] SHA-384 SRI files emitted")
     }

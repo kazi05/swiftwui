@@ -113,18 +113,33 @@ extension ModifiedContent: TagNodeConvertible {
 
 /// Resolves a tag's body recursively until reaching a TagNodeConvertible.
 ///
-/// Marked `@inlinable` because every Tag → TagNode conversion in user
-/// code goes through this function. With WMO + cross-module inlining
-/// the existential cast (`as? TagNodeConvertible`) collapses into a
-/// direct method dispatch when the concrete `T` is statically known to
-/// conform, removing one indirection per node per render. Important
-/// for the WASM target where the existential PWT lookup has no inline
-/// cache.
-@inlinable
+/// Every Tag → TagNode conversion in user code goes through this function, so
+/// it is also where component identity is established: when a `RenderContext`
+/// is active, each custom component (the `else` path that evaluates `body`) is
+/// assigned a structural path and its `@State` is grafted onto persisted
+/// storage before `body` runs, so nested state survives re-renders. With no
+/// active context — one-shot SSR/SSG — the behaviour is unchanged.
 public func resolveTagBody<T: Tag>(_ tag: T) -> [TagNode] {
     if let convertible = tag as? TagNodeConvertible {
         return convertible.toTagNodes()
     }
+
+    // Custom component with a body.
+    guard let context = RenderContext.current else {
+        let body = tag.body
+        if let convertible = body as? TagNodeConvertible {
+            return convertible.toTagNodes()
+        }
+        return resolveTagBody(body)
+    }
+
+    let path = context.enterComponent(typeName: String(reflecting: T.self))
+    defer { context.exitComponent() }
+    // Link BEFORE evaluating body so closures created in body (event handlers,
+    // bindings) capture the persisted storage and the environment snapshot, not
+    // the throwaway instance's fresh storage / a popped environment scope.
+    context.linkProperties(of: tag, at: path)
+
     let body = tag.body
     if let convertible = body as? TagNodeConvertible {
         return convertible.toTagNodes()

@@ -43,6 +43,12 @@ public struct CSSColor: Sendable {
         self.cssValue = hex
     }
 
+    /// Create a color from a hex string, usable via implicit-member syntax:
+    /// `.background(.hex("#0a84ff"))`. Mirrors `init(hex:)`.
+    public static func hex(_ value: String) -> CSSColor {
+        CSSColor(hex: value)
+    }
+
     /// Create an RGB color.
     public static func rgb(_ r: Int, _ g: Int, _ b: Int) -> CSSColor {
         CSSColor(cssValue: "rgb(\(r), \(g), \(b))")

@@ -13,6 +13,7 @@ import Foundation
 struct DevOptions {
     var target: String
     var port: Int = 8080
+    var host: String = "127.0.0.1"
     var sdk: String?
     var watchPath: String = "Sources"
     var openBrowser: Bool = false
@@ -102,6 +103,9 @@ struct Dev: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "HTTP port to bind.")
     var port: Int = 8080
 
+    @Option(help: "Hostname to bind. Defaults to 127.0.0.1 (localhost only); pass 0.0.0.0 to expose the server on the local network.")
+    var host: String = "127.0.0.1"
+
     @Option(help: "swiftwasm SDK identifier (auto-detected if omitted).")
     var sdk: String?
 
@@ -115,6 +119,7 @@ struct Dev: AsyncParsableCommand {
         let options = DevOptions(
             target: target,
             port: port,
+            host: host,
             sdk: sdk,
             watchPath: watch,
             openBrowser: open
@@ -178,7 +183,6 @@ struct Doctor: ParsableCommand {
         check("wasm-opt",   "wasm-opt --version") { allOK = $0 && allOK }
         check("brotli",     "brotli --version") { allOK = $0 && allOK }
         check("gzip",       "gzip --version") { allOK = $0 && allOK }
-        check("openssl",    "openssl version") { allOK = $0 && allOK }
         check("fswatch",    "fswatch --version") { allOK = $0 && allOK }
 
         if let sdk = WASMBuilder.detectSDK() {

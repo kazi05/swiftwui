@@ -18,13 +18,13 @@ SwiftWUI brings SwiftUI's declarative programming model to the browser. Build in
 | Dependency | Version |
 |---|---|
 | Swift | 6.0+ |
-| SwiftWasm SDK | `swift-6.2.3-RELEASE_wasm` or later |
+| SwiftWasm SDK | `swift-6.3.3-RELEASE_wasm` or later |
 | Node.js | Required for the Vite dev server |
 
 Install the SwiftWasm SDK once:
 
 ```bash
-swift sdk install https://github.com/swiftwasm/swift/releases/download/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE-wasm32-unknown-wasi.artifactbundle.zip
+swift sdk install https://download.swift.org/swift-6.3.3-release/wasm-sdk/swift-6.3.3-RELEASE/swift-6.3.3-RELEASE_wasm.artifactbundle.tar.gz --checksum cabfa08b73bb8ac783927ecd15fa386e99d0c139c5f232445067bcf58379cae7
 ```
 
 ### Install the CLI
@@ -169,7 +169,7 @@ SwiftWUI/
 
 ## Testing
 
-**Framework test suite** (315 tests, 7 suites):
+**Framework test suite** (340 tests, 55 suites):
 
 ```bash
 swift test
@@ -181,7 +181,7 @@ swift test
 make ci
 ```
 
-**Showcase tests only** (28 tests):
+**Showcase tests only** (51 tests):
 
 ```bash
 make showcase-test

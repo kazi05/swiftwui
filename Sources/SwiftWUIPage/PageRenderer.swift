@@ -27,23 +27,23 @@ public struct PageRenderer {
         for meta in page.meta {
             head += "  <meta"
             for (key, value) in meta.attributes {
-                head += " \(key)=\"\(escapeHTML(value))\""
+                head += " \(key)=\"\(HTMLEscaping.text(value))\""
             }
             head += ">\n"
         }
 
         // Title
-        head += "  <title>\(escapeHTML(page.title))</title>\n"
+        head += "  <title>\(HTMLEscaping.text(page.title))</title>\n"
 
         // Stylesheets
         for sheet in page.styleSheets {
             switch sheet.source {
             case .file(let path):
-                head += "  <link rel=\"stylesheet\" href=\"\(escapeHTML(path))\">\n"
+                head += "  <link rel=\"stylesheet\" href=\"\(HTMLEscaping.text(path))\">\n"
             case .url(let url):
-                head += "  <link rel=\"stylesheet\" href=\"\(escapeHTML(url))\">\n"
+                head += "  <link rel=\"stylesheet\" href=\"\(HTMLEscaping.text(url))\">\n"
             case .inline(let css):
-                head += "  <style>\(css)</style>\n"
+                head += "  <style>\(HTMLEscaping.rawTextElement(css))</style>\n"
             }
         }
 
@@ -81,19 +81,19 @@ public struct PageRenderer {
 
         switch node {
         case .text(let text):
-            return "\(padding)\(escapeHTML(text))\n"
+            return "\(padding)\(HTMLEscaping.text(text))\n"
 
         case .element(let element):
             var html = "\(padding)<\(element.tagName)"
 
             // Attributes
             for (key, value) in element.attributes.sorted(by: { $0.key < $1.key }) {
-                html += " \(key)=\"\(escapeHTML(value))\""
+                html += " \(key)=\"\(HTMLEscaping.text(value))\""
             }
 
             // Classes
             if !element.classes.isEmpty {
-                html += " class=\"\(element.classes.joined(separator: " "))\""
+                html += " class=\"\(HTMLEscaping.text(element.classes.joined(separator: " ")))\""
             }
 
             // Styles
@@ -102,7 +102,7 @@ public struct PageRenderer {
                     .sorted(by: { $0.key < $1.key })
                     .map { "\($0.key): \($0.value)" }
                     .joined(separator: "; ")
-                html += " style=\"\(styleStr)\""
+                html += " style=\"\(HTMLEscaping.text(styleStr))\""
             }
 
             // Self-closing tags
@@ -135,22 +135,13 @@ public struct PageRenderer {
 
         switch script.source {
         case .file(let path):
-            tag += " src=\"\(escapeHTML(path))\"></script>"
+            tag += " src=\"\(HTMLEscaping.text(path))\"></script>"
         case .url(let url):
-            tag += " src=\"\(escapeHTML(url))\"></script>"
+            tag += " src=\"\(HTMLEscaping.text(url))\"></script>"
         case .inline(let code):
-            tag += ">\(code)</script>"
+            tag += ">\(HTMLEscaping.rawTextElement(code))</script>"
         }
 
         return tag
-    }
-
-    private func escapeHTML(_ string: String) -> String {
-        string
-            .replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&#39;")
     }
 }

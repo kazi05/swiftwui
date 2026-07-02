@@ -20,7 +20,7 @@ final class DevServer: @unchecked Sendable {
     private let clientsLock = NSLock()
 
     init(options: DevOptions) {
-        let sdk = options.sdk ?? WASMBuilder.detectSDK() ?? "swift-6.2.3-RELEASE_wasm"
+        let sdk = options.sdk ?? WASMBuilder.detectSDK() ?? "swift-6.3.3-RELEASE_wasm"
         self.options = options
         self.builder = WASMBuilder(target: options.target, sdk: sdk)
         self.htmlTemplate = HTMLTemplate(target: options.target)
@@ -63,13 +63,17 @@ final class DevServer: @unchecked Sendable {
         // required or `serve` is parsed as argv[0] and `--port` is mistaken
         // for the command name.
         var env = try Environment.detect()
-        env.arguments = ["swiftwui-dev", "serve", "--port", "\(options.port)", "--hostname", "0.0.0.0"]
+        env.arguments = ["swiftwui-dev", "serve", "--port", "\(options.port)", "--hostname", options.host]
         let app = try await Application.make(env)
 
         // Serve PackageToJS output files. SPA fallback: any non-file path
         // returns the packaged index.html so client-side routing reloads
         // cleanly at any URL.
         let outputDir = builder.outputDirectory
+        // Canonical base for the static-file handler's containment check. Any
+        // resolved request path must sit inside this directory or it is
+        // rejected — without this, `..` segments escape to arbitrary files.
+        let baseDir = URL(fileURLWithPath: outputDir).standardizedFileURL.resolvingSymlinksInPath().path
         let port = options.port
         let devClient = htmlTemplate.devClientScriptBody(port: port)
 
@@ -97,7 +101,15 @@ final class DevServer: @unchecked Sendable {
 
         app.get("**") { req -> Response in
             let path = req.url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            let filePath = outputDir + "/" + path
+            // Resolve `..` and symlinks, then require the result to stay inside
+            // baseDir. Anything escaping the output directory falls through to
+            // the SPA index rather than serving an arbitrary file.
+            let resolved = URL(fileURLWithPath: baseDir + "/" + path)
+                .standardizedFileURL.resolvingSymlinksInPath().path
+            guard resolved == baseDir || resolved.hasPrefix(baseDir + "/") else {
+                return serveIndex()
+            }
+            let filePath = resolved
 
             guard FileManager.default.fileExists(atPath: filePath) else {
                 // SPA fallback for client-routed paths.
@@ -119,7 +131,6 @@ final class DevServer: @unchecked Sendable {
                 headers: [
                     "Content-Type": contentType,
                     "Cache-Control": "no-cache",
-                    "Access-Control-Allow-Origin": "*",
                 ],
                 body: .init(data: data)
             )
@@ -140,13 +151,17 @@ final class DevServer: @unchecked Sendable {
         }
         watcher.watch(directory: options.watchPath)
 
-        print("[SwiftWUI] Dev server running at http://localhost:\(options.port)")
+        let displayHost = (options.host == "0.0.0.0" || options.host == "::") ? "localhost" : options.host
+        print("[SwiftWUI] Dev server running at http://\(displayHost):\(options.port)")
+        if options.host == "0.0.0.0" || options.host == "::" {
+            print("[SwiftWUI] Bound to \(options.host) — reachable from other devices on your network.")
+        }
 
         if options.openBrowser {
             #if os(macOS)
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-            proc.arguments = ["http://localhost:\(options.port)"]
+            proc.arguments = ["http://\(displayHost):\(options.port)"]
             try? proc.run()
             #endif
         }

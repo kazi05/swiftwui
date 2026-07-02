@@ -34,17 +34,17 @@ into your existing Swift toolchain as an SDK.
 Install it with a single command:
 
 ```bash
-swift sdk install https://github.com/aspect-build/aspect-wasm/releases/download/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE_wasm.artifactbundle.tar.gz
+swift sdk install https://download.swift.org/swift-6.3.3-release/wasm-sdk/swift-6.3.3-RELEASE/swift-6.3.3-RELEASE_wasm.artifactbundle.tar.gz --checksum cabfa08b73bb8ac783927ecd15fa386e99d0c139c5f232445067bcf58379cae7
 ```
 
 This downloads the pre-built SDK artifact bundle and registers it so you can reference
-it later with `--swift-sdk swift-6.2.3-RELEASE_wasm`.
+it later with `--swift-sdk swift-6.3.3-RELEASE_wasm`.
 
 Verify the SDK was registered:
 
 ```bash
 swift sdk list
-# swift-6.2.3-RELEASE_wasm
+# swift-6.3.3-RELEASE_wasm
 ```
 
 ### 3. Node.js 18+
@@ -70,35 +70,46 @@ npm --version
 
 ## Creating a New Project
 
-SwiftWUI ships with a CLI scaffolding tool called `swiftwui-init`. Run it from the
-SwiftWUI repository root to generate a ready-to-build project:
+SwiftWUI ships a unified `swiftwui` CLI. Use its `init` subcommand to scaffold a
+new project. By default it produces the full interactive showcase template; pass
+`--minimal` for a small Counter-style scaffold.
 
 ```bash
-swift run --package-path /path/to/SwiftWUI swiftwui-init MyApp
+swift run --package-path /path/to/SwiftWUI swiftwui init MyApp
 cd MyApp
 ```
 
 Replace `/path/to/SwiftWUI` with the actual path to your local SwiftWUI checkout.
+`init` writes an absolute path to that checkout into the generated `Package.swift`
+so the project builds from wherever you created it.
 
-You will see output confirming that each file was created:
+For the minimal Counter scaffold instead:
+
+```bash
+swift run --package-path /path/to/SwiftWUI swiftwui init MyApp --minimal
+```
+
+The minimal scaffold creates:
 
 ```
   Created MyApp/Package.swift
   Created MyApp/Sources/main.swift
   Created MyApp/index.html
-  Created MyApp/package.json
+  Created MyApp/README.md
   Created MyApp/.gitignore
 
-Project 'MyApp' created successfully!
+Project 'MyApp' created (minimal template).
 
 Next steps:
   cd MyApp
-  npm install
-  swift package --swift-sdk swift-6.2.3-RELEASE_wasm js -c debug
-  npm run dev
+  swiftwui dev --target MyApp
 
-Then open http://localhost:8080 in your browser.
+Then open http://localhost:8080.
 ```
+
+`swiftwui dev` builds the WASM bundle and starts the hot-reload dev server. Run it
+via `swift run --package-path /path/to/SwiftWUI swiftwui dev --target MyApp` if the
+CLI is not installed on your `PATH`.
 
 ---
 
@@ -229,7 +240,7 @@ Compile your Swift code into a WASM binary using the JavaScriptKit `PackageToJS`
 plugin:
 
 ```bash
-swift package --swift-sdk swift-6.2.3-RELEASE_wasm js -c debug
+swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug
 ```
 
 This command does the following:
@@ -275,7 +286,7 @@ For quick reference, here is the complete sequence from a freshly scaffolded pro
 
 ```bash
 cd MyApp
-swift package --swift-sdk swift-6.2.3-RELEASE_wasm js -c debug
+swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug
 npm install
 npm run dev
 # Open http://localhost:5173
@@ -285,7 +296,7 @@ After making changes to your Swift code, re-run the WASM build command and refre
 the browser:
 
 ```bash
-swift package --swift-sdk swift-6.2.3-RELEASE_wasm js -c debug
+swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug
 ```
 
 ---
@@ -525,7 +536,7 @@ The `app.mount()` call looks for this element by default.
 **WASM build fails with missing SDK**
 
 Confirm the SDK is installed by running `swift sdk list`. If
-`swift-6.2.3-RELEASE_wasm` does not appear, re-run the install command from the
+`swift-6.3.3-RELEASE_wasm` does not appear, re-run the install command from the
 [Prerequisites](#2-swiftwasm-sdk) section.
 
 **`npm run dev` shows module resolution errors**

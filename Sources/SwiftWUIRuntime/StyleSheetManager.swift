@@ -71,9 +71,12 @@ public final class StyleSheetManager {
     /// Generate the CSS rule text for a responsive class (for testing/inspection).
     public func cssRuleText(mediaQuery: String, styles: [String: String]) -> String {
         let className = responsiveClassName(mediaQuery: mediaQuery, styles: styles)
+        // Values/names are interpolated into `<style>` text, so a stray `}` or
+        // `</style>` would break out of the rule. cssToken strips the
+        // structure-breaking characters; a legitimate declaration never needs them.
         let declarations = styles
             .sorted(by: { $0.key < $1.key })
-            .map { "  \($0.key): \($0.value) !important;" }
+            .map { "  \(HTMLEscaping.cssToken($0.key)): \(HTMLEscaping.cssToken($0.value)) !important;" }
             .joined(separator: "\n")
         return "\(mediaQuery) {\n  .\(className) {\n\(declarations)\n  }\n}"
     }

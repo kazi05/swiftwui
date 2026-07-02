@@ -342,15 +342,24 @@ struct HomePage: Tag {
     }
 }
 
+struct User: Identifiable {
+    let id: Int
+    let name: String
+}
+
 struct UserListPage: Tag {
-    let users = ["Alice", "Bob", "Charlie"]
+    let users = [
+        User(id: 0, name: "Alice"),
+        User(id: 1, name: "Bob"),
+        User(id: 2, name: "Charlie"),
+    ]
 
     var body: some Tag {
         Div {
             H1 { "Users" }
-            ForEach(users.indices) { i in
-                Link("/users/\(i)") {
-                    P { Text(users[i]) }
+            ForEach(users) { user in
+                Link("/users/\(user.id)") {
+                    P { Text(user.name) }
                 }
             }
             Link("/") { Text("Back to Home") }

@@ -35,7 +35,7 @@ extension Link: TagNodeConvertible {
         return [.element(.init(
             tagName: "a",
             attributes: [
-                "href": destination,
+                "href": HTMLEscaping.sanitizeURL(destination),
                 "data-swiftwui-link": "true",
             ],
             children: childNodes

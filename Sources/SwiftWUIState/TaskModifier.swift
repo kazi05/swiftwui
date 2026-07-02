@@ -34,16 +34,21 @@ public struct TaskTag<Content: Tag>: Tag, TagNodeConvertible {
             nodes = resolveTagBody(content)
         }
 
-        // Mark the first element node with a lifecycle mount observer
+        // Mark the first element node with a lifecycle mount observer.
+        // Scope the call-site identity by the enclosing component's structural
+        // path so two instances of the same component (e.g. ForEach rows) each
+        // register their own mount handler instead of overwriting one shared
+        // slot — otherwise every instance runs the last one's task.
         if case .element(var el) = nodes.first {
             let taskAction = action
+            let scopedIdentity = "\(RenderContext.current?.currentPath ?? "")|\(identity)"
             let id = EventHandlerRegistry.register(
                 {
                     #if canImport(JavaScriptKit)
                     Task { await taskAction() }
                     #endif
                 },
-                identity: identity
+                identity: scopedIdentity
             )
             el.observers.append(.lifecycle(event: .mount, callbackID: id))
             nodes[0] = .element(el)

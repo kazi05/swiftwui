@@ -148,26 +148,41 @@ public final class Router: @unchecked Sendable {
     /// invalid escapes untouched. Avoids pulling Foundation's
     /// `removingPercentEncoding` so the router stays usable from
     /// Foundation-free builds (e.g. Embedded Swift in the long term).
+    ///
+    /// Decoded `%XX` escapes are accumulated as raw bytes and interpreted as
+    /// UTF-8 at the end — a multi-byte character such as "Привет"
+    /// ("%D0%9F%D1%80…") or "✓" ("%E2%9C%93") spans several escapes and must
+    /// not be turned into one Latin-1 scalar per byte.
     private static func percentDecode(_ s: String) -> String {
-        var out = ""
-        out.reserveCapacity(s.utf8.count)
-        var i = s.startIndex
-        while i < s.endIndex {
-            let c = s[i]
-            if c == "+" {
-                out.append(" ")
-                i = s.index(after: i)
-            } else if c == "%", let hi = s.index(i, offsetBy: 1, limitedBy: s.endIndex),
-                      let lo = s.index(i, offsetBy: 2, limitedBy: s.endIndex),
-                      hi < s.endIndex, lo < s.endIndex,
-                      let byte = UInt8(s[hi...lo], radix: 16) {
-                out.append(Character(Unicode.Scalar(byte)))
-                i = s.index(after: lo)
-            } else {
-                out.append(c)
-                i = s.index(after: i)
+        let src = Array(s.utf8)
+        var bytes: [UInt8] = []
+        bytes.reserveCapacity(src.count)
+
+        func hexValue(_ b: UInt8) -> UInt8? {
+            switch b {
+            case 0x30...0x39: return b - 0x30            // 0-9
+            case 0x41...0x46: return b - 0x41 + 10       // A-F
+            case 0x61...0x66: return b - 0x61 + 10       // a-f
+            default: return nil
             }
         }
-        return out
+
+        var i = 0
+        while i < src.count {
+            let c = src[i]
+            if c == 0x2B {                                // '+'
+                bytes.append(0x20)                       // space
+                i += 1
+            } else if c == 0x25, i + 2 < src.count,      // '%XX'
+                      let hi = hexValue(src[i + 1]),
+                      let lo = hexValue(src[i + 2]) {
+                bytes.append(hi << 4 | lo)
+                i += 3
+            } else {
+                bytes.append(c)
+                i += 1
+            }
+        }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }

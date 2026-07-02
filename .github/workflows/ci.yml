@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-15, ubuntu-24.04]
-        swift: ["6.2.3"]
+        swift: ["6.3.3"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -92,7 +92,7 @@ jobs:
 
       - uses: SwiftyLab/setup-swift@latest
         with:
-          swift-version: "6.2.3"
+          swift-version: "6.3.3"
 
       - name: Install binaryen + brotli
         run: |
@@ -104,20 +104,21 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.swiftpm/swift-sdks
-          key: swiftwasm-sdk-6.2.3
+          key: wasm-sdk-6.3.3
 
-      - name: Install swiftwasm SDK
+      - name: Install WebAssembly SDK
         if: steps.sdk-cache.outputs.cache-hit != 'true'
         run: |
           swift sdk install \
-            https://github.com/swiftwasm/swift/releases/download/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE-wasm32-unknown-wasi.artifactbundle.zip
+            https://download.swift.org/swift-6.3.3-release/wasm-sdk/swift-6.3.3-RELEASE/swift-6.3.3-RELEASE_wasm.artifactbundle.tar.gz \
+            --checksum cabfa08b73bb8ac783927ecd15fa386e99d0c139c5f232445067bcf58379cae7
 
       - name: Build Counter (release, optimised)
         run: |
           cd Examples/Counter
           make release TARGET=Counter || \
             (cd ../.. && \
-             swift package --swift-sdk swift-6.2.3-RELEASE_wasm \
+             swift package --swift-sdk swift-6.3.3-RELEASE_wasm \
                -c release \
                -Xswiftc -Osize -Xswiftc -wmo \
                -Xswiftc -gnone -Xswiftc -disable-reflection-metadata \
@@ -149,7 +150,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: SwiftyLab/setup-swift@latest
         with:
-          swift-version: "6.2.3"
+          swift-version: "6.3.3"
       - name: Lint
         run: swift format lint --recursive --strict Sources Tests || echo "::warning::swift format lint produced warnings"
 
@@ -160,10 +161,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Swift 6.2.3
+      - name: Install Swift 6.3.3
         uses: SwiftyLab/setup-swift@latest
         with:
-          swift-version: "6.2.3"
+          swift-version: "6.3.3"
 
       - uses: actions/setup-node@v4
         with:
@@ -174,13 +175,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.swiftpm/swift-sdks
-          key: swiftwasm-sdk-6.2.3
+          key: wasm-sdk-6.3.3
 
-      - name: Install swiftwasm SDK
+      - name: Install WebAssembly SDK
         if: steps.swiftwasm-cache.outputs.cache-hit != 'true'
         run: |
           swift sdk install \
-            https://github.com/swiftwasm/swift/releases/download/swift-6.2.3-RELEASE/swift-6.2.3-RELEASE-wasm32-unknown-wasi.artifactbundle.zip
+            https://download.swift.org/swift-6.3.3-release/wasm-sdk/swift-6.3.3-RELEASE/swift-6.3.3-RELEASE_wasm.artifactbundle.tar.gz \
+            --checksum cabfa08b73bb8ac783927ecd15fa386e99d0c139c5f232445067bcf58379cae7
 
       - name: Install Playwright deps
         run: |
