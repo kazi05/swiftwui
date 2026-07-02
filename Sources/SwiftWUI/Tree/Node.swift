@@ -4,10 +4,16 @@ public struct ListenerID: Hashable {
     public init(owner: NodeIdentity, event: String) { self.owner = owner; self.event = event }
 }
 
+public enum PropertyValue: Equatable {
+    case string(String)
+    case bool(Bool)
+}
+
 public struct ElementNode: Equatable {
     public var identity: NodeIdentity
     public var tag: String
     public var attributes: [String: String]
+    public var properties: [String: PropertyValue] = [:]
     public var listeners: [String: ListenerID]
     public var children: [Node]
     public var key: NodeKey?

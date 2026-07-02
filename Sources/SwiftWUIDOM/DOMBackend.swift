@@ -33,6 +33,12 @@ public final class DOMBackend: RendererBackend {
     public func removeAttribute(_ node: JSObject, name: String) {
         _ = node.removeAttribute?(name)
     }
+    public func setProperty(_ node: JSObject, name: String, value: PropertyValue) {
+        switch value {
+        case .string(let s): node[name] = .string(s)
+        case .bool(let b):   node[name] = .boolean(b)
+        }
+    }
 
     public func setEventListener(_ node: JSObject, event: String, id: ListenerID) {
         let key = closureKey(node, event)

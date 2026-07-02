@@ -54,5 +54,6 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
     }
     let children = coalesceText(resolve(content, path: path.appending(.child(0)), ctx: &ctx))
     return [.element(ElementNode(identity: path, tag: tagName, attributes: bag.flattened(),
+                                 properties: bag.flattenedProperties(),
                                  listeners: listeners, children: children, key: nil))]
 }

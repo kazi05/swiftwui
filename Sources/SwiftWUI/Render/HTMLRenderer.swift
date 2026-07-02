@@ -26,6 +26,13 @@ public enum HTMLRenderer {
                     ? " " + name                              // boolean attribute
                     : " " + name + "=\"" + HTMLEscaping.text(value) + "\""
             }
+            for name in el.properties.keys.sorted() {
+                switch el.properties[name]! {
+                case .string(let s): out += " " + name + "=\"" + HTMLEscaping.text(s) + "\""
+                case .bool(true):    out += " " + name
+                case .bool(false):   break
+                }
+            }
             out += ">"
             if voidElements.contains(el.tag) {
                 assert(el.children.isEmpty, "void element <\(el.tag)> cannot have children")

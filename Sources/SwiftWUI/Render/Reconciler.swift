@@ -2,6 +2,7 @@ enum Patch: Equatable {
     case setText(String)
     case setAttribute(name: String, value: String)
     case removeAttribute(name: String)
+    case setProperty(name: String, value: PropertyValue)
     case setListener(event: String, id: ListenerID)
     case removeListener(event: String)
     case replaceSelf(with: Node)
@@ -47,6 +48,16 @@ struct Reconciler {
             }
             for name in o.attributes.keys.sorted() where n.attributes[name] == nil {
                 patches.append(.removeAttribute(name: name))
+            }
+            for name in n.properties.keys.sorted() where o.properties[name] != n.properties[name] {
+                patches.append(.setProperty(name: name, value: n.properties[name]!))
+            }
+            for name in o.properties.keys.sorted() where n.properties[name] == nil {
+                // property "removal" = write the neutral value (spec §7: value="" clears, checked=false unchecks)
+                switch o.properties[name]! {
+                case .string: patches.append(.setProperty(name: name, value: .string("")))
+                case .bool:   patches.append(.setProperty(name: name, value: .bool(false)))
+                }
             }
             for event in n.listeners.keys.sorted() where o.listeners[event] != n.listeners[event] {
                 patches.append(.setListener(event: event, id: n.listeners[event]!))

@@ -8,6 +8,7 @@ public protocol RendererBackend: AnyObject {
     func setText(_ node: HostNode, _ text: String)
     func setAttribute(_ node: HostNode, name: String, value: String)
     func removeAttribute(_ node: HostNode, name: String)
+    func setProperty(_ node: HostNode, name: String, value: PropertyValue)
     func setEventListener(_ node: HostNode, event: String, id: ListenerID)
     func removeEventListener(_ node: HostNode, event: String)
     func insert(_ child: HostNode, into parent: HostNode, before anchor: HostNode?)

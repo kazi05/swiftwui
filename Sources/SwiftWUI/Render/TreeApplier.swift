@@ -39,6 +39,9 @@ final class TreeApplier<Backend: RendererBackend> {
             for name in el.attributes.keys.sorted() {
                 backend.setAttribute(h, name: name, value: el.attributes[name]!)
             }
+            for name in el.properties.keys.sorted() {
+                backend.setProperty(h, name: name, value: el.properties[name]!)
+            }
             for event in el.listeners.keys.sorted() {
                 backend.setEventListener(h, event: event, id: el.listeners[event]!)
             }
@@ -114,6 +117,8 @@ final class TreeApplier<Backend: RendererBackend> {
                 backend.setAttribute(m.host!, name: name, value: value)
             case .removeAttribute(let name):
                 backend.removeAttribute(m.host!, name: name)
+            case .setProperty(let name, let value):
+                backend.setProperty(m.host!, name: name, value: value)
             case .setListener(let event, let id):
                 backend.setEventListener(m.host!, event: event, id: id)
                 m.events.insert(event)

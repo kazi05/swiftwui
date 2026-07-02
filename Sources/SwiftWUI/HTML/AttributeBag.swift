@@ -1,5 +1,6 @@
 public struct _AttributeBag {
     private(set) var pairs: [(name: String, value: String)] = []
+    private(set) var properties: [(name: String, value: PropertyValue)] = []
     private(set) var handlers: [(event: EventName, action: (Any?) -> Void)] = []
 
     init(id: String? = nil, class classes: String? = nil) {
@@ -14,6 +15,13 @@ public struct _AttributeBag {
             return
         }
         pairs.append((name, value))
+    }
+
+    mutating func setProperty(_ name: String, _ value: PropertyValue) { properties.append((name, value)) }
+    func flattenedProperties() -> [String: PropertyValue] {
+        var out: [String: PropertyValue] = [:]
+        for (name, value) in properties { out[name] = value }     // last-wins
+        return out
     }
 
     mutating func appendClasses(_ names: [String]) {

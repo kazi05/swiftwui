@@ -2,6 +2,7 @@ public final class MockNode {
     public var tag: String?
     public var text: String?
     public var attrs: [String: String] = [:]
+    public var props: [String: PropertyValue] = [:]
     public var events: [String: ListenerID] = [:]
     public var children: [MockNode] = []
     public weak var parent: MockNode?
@@ -30,6 +31,9 @@ public final class MockBackend: RendererBackend {
     }
     public func removeAttribute(_ node: MockNode, name: String) {
         bump("removeAttribute"); node.attrs[name] = nil
+    }
+    public func setProperty(_ node: MockNode, name: String, value: PropertyValue) {
+        bump("setProperty"); node.props[name] = value
     }
     public func setEventListener(_ node: MockNode, event: String, id: ListenerID) {
         bump("setEventListener"); node.events[event] = id
@@ -64,6 +68,13 @@ public final class MockBackend: RendererBackend {
         for name in n.attrs.keys.sorted() {
             let value = n.attrs[name]!
             out += value.isEmpty ? " " + name : " \(name)=\"\(HTMLEscaping.text(value))\""
+        }
+        for name in n.props.keys.sorted() {
+            switch n.props[name]! {
+            case .string(let s): out += " \(name)=\"\(HTMLEscaping.text(s))\""
+            case .bool(true):    out += " " + name
+            case .bool(false):   break
+            }
         }
         out += ">"
         if HTMLRenderer.voidElements.contains(tag) { return out }
