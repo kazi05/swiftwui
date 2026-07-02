@@ -98,6 +98,44 @@ public struct Input: _HTMLVoidTag {
     }
 }
 
+extension Input {
+    /// Controlled text input: DOM `value` property tracks the binding; every
+    /// input event writes it back (spec §7).
+    public init(type: InputType = .text, value: Binding<String>,
+                placeholder: String? = nil, disabled: Bool = false,
+                id: String? = nil, class classes: String? = nil,
+                onInput: ((InputEvent) -> Void)? = nil,
+                onKeyDown: ((KeyEvent) -> Void)? = nil) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        _attributes.set("type", type.rawValue)
+        _attributes.set("placeholder", placeholder)
+        if disabled { _attributes.set("disabled", "") }
+        _attributes.setProperty("value", .string(value.wrappedValue))
+        _attributes.addHandler(.input, payload: InputEvent.self) { e in
+            value.wrappedValue = e.value
+            onInput?(e)
+        }
+        if let onKeyDown {
+            _attributes.addHandler(.keydown, payload: KeyEvent.self, onKeyDown)
+        }
+    }
+
+    /// Controlled checkbox.
+    public init(checked: Binding<Bool>, name: String? = nil, disabled: Bool = false,
+                id: String? = nil, class classes: String? = nil,
+                onChange: ((ChangeEvent) -> Void)? = nil) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        _attributes.set("type", "checkbox")
+        _attributes.set("name", name)
+        if disabled { _attributes.set("disabled", "") }
+        _attributes.setProperty("checked", .bool(checked.wrappedValue))
+        _attributes.addHandler(.change, payload: ChangeEvent.self) { e in
+            checked.wrappedValue = e.checked
+            onChange?(e)
+        }
+    }
+}
+
 // MARK: - H2–H6 (Headings)
 
 public struct H2<Content: Tag>: _HTMLContainerTag {
@@ -296,6 +334,18 @@ public struct Form<Content: Tag>: _HTMLContainerTag {
     }
 }
 
+extension Form {
+    /// Submit-handling form. The backend ALWAYS calls preventDefault() for
+    /// submit events (spec D10) — no page reloads.
+    public init(onSubmit: @escaping (SubmitEvent) -> Void,
+                id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        _attributes.addHandler(.submit, payload: SubmitEvent.self, onSubmit)
+        self.content = content()
+    }
+}
+
 public struct Label<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "label" }
     public var _attributes: _AttributeBag
@@ -363,6 +413,16 @@ public struct Textarea<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+
+extension Textarea where Content == EmptyTag {
+    /// Controlled textarea (text-only mode — phase-1 review backlog item 3).
+    public init(text: Binding<String>, id: String? = nil, class classes: String? = nil) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        _attributes.setProperty("value", .string(text.wrappedValue))
+        _attributes.addHandler(.input, payload: InputEvent.self) { text.wrappedValue = $0.value }
+        content = EmptyTag()
     }
 }
 
