@@ -14,6 +14,7 @@ public struct ResolveContext {
     var reachable: Set<NodeIdentity> = []
     var liveListeners: Set<ListenerID> = []
     var environment = EnvironmentValues()
+    var effects: [EffectRequest] = []
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }

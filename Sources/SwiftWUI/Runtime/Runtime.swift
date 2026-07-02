@@ -5,6 +5,7 @@ public final class Runtime<Backend: RendererBackend> {
     private let applier: TreeApplier<Backend>
     private let store = StateStore()
     private let listeners = ListenerRegistry()
+    private let effects = EffectStore()
     private let rootTag: AnyTag
     private let scheduleMicrotask: (@escaping () -> Void) -> Void
     private var current: Node?
@@ -83,6 +84,9 @@ public final class Runtime<Backend: RendererBackend> {
         let patches = Reconciler().diff(old: old, new: new)
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
         current = splicing(current!, at: id, with: new)
+
+        let callbacks = effects.reconcile(ctx.effects, under: id)
+        for cb in callbacks { cb() }
     }
 
     private func renderPass() {
@@ -109,5 +113,8 @@ public final class Runtime<Backend: RendererBackend> {
         }
         // 5. COMMIT.
         current = new
+
+        let callbacks = effects.reconcile(ctx.effects, under: .root)
+        for cb in callbacks { cb() }
     }
 }
