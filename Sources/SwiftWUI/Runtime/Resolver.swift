@@ -4,6 +4,7 @@ public struct ResolveContext {
     let invalidate: (NodeIdentity) -> Void
     var reachable: Set<NodeIdentity> = []
     var liveListeners: Set<ListenerID> = []
+    var environment = EnvironmentValues()
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }
@@ -18,7 +19,7 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     let id = path.appending(.type(ObjectIdentifier(T.self)))
     ctx.reachable.insert(id)
     let inv = ctx.invalidate
-    ctx.store.link(tag, at: id, invalidate: { inv(id) })          // graft BEFORE body
+    ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body
     let children = resolve(tag.body, path: id.appending(.child(0)), ctx: &ctx)
     return [.component(ComponentNode(identity: id,
                                      typeName: String(describing: T.self),
