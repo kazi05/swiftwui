@@ -3,4 +3,12 @@ public struct EventName: RawRepresentable, Hashable, ExpressibleByStringLiteral 
     public init(rawValue: String) { self.rawValue = rawValue }
     public init(stringLiteral value: String) { rawValue = value }
     public static let click: EventName = "click"
+    public static let input: EventName = "input"
+    public static let change: EventName = "change"
+    public static let keydown: EventName = "keydown"
+    public static let keyup: EventName = "keyup"
+    public static let submit: EventName = "submit"
+    public static let focus: EventName = "focus"
+    public static let blur: EventName = "blur"
+    public static let dblclick: EventName = "dblclick"
 }

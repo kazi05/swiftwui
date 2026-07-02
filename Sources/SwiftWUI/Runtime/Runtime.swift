@@ -21,8 +21,8 @@ public final class Runtime<Backend: RendererBackend> {
 
     /// Event entry point: backends' listeners call this with the fired ID;
     /// tests call it directly to simulate clicks.
-    public func dispatch(_ id: ListenerID) {
-        listeners.handler(for: id)?()
+    public func dispatch(_ id: ListenerID, payload: Any? = nil) {
+        listeners.handler(for: id)?(payload)
     }
 
     func markDirty(_ id: NodeIdentity) {

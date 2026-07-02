@@ -15,6 +15,15 @@ extension HTMLTag {
     public func classes(_ names: String...) -> Self {
         var copy = self; copy._attributes.appendClasses(names); return copy
     }
+
+    /// Escape hatch: any registered event, generic payload shape (spec D11).
+    public func on(_ event: EventName, perform action: @escaping (GenericEvent) -> Void) -> Self {
+        var copy = self
+        copy._attributes.addRawHandler(event) { any in
+            action(GenericEvent(type: event.rawValue, payload: any))
+        }
+        return copy
+    }
 }
 
 /// Container tags: generic content, ONE shared resolution path (spec §3.3).

@@ -48,7 +48,7 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
     var listeners: [String: ListenerID] = [:]
     for (event, action) in bag.handlers {
         let lid = ListenerID(owner: path, event: event.rawValue)
-        ctx.listeners.set(lid, handler: action)
+        ctx.listeners.set(lid, payloadHandler: action)
         ctx.liveListeners.insert(lid)
         listeners[event.rawValue] = lid
     }

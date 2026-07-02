@@ -123,7 +123,7 @@ private struct Pair: Tag {
         let lid = el.listeners["click"]
         #expect(lid == ListenerID(owner: .root, event: "click"))
         #expect(ctx.liveListeners.contains(lid!))
-        reg.handler(for: lid!)?()
+        reg.handler(for: lid!)?(nil)
         #expect(clicked)
     }
     @Test func classAccumulatesOtherAttributesLastWin() {

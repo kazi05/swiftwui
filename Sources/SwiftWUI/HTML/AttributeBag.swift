@@ -1,6 +1,6 @@
 public struct _AttributeBag {
     private(set) var pairs: [(name: String, value: String)] = []
-    private(set) var handlers: [(event: EventName, action: () -> Void)] = []
+    private(set) var handlers: [(event: EventName, action: (Any?) -> Void)] = []
 
     init(id: String? = nil, class classes: String? = nil) {
         if let id { set("id", id) }
@@ -21,6 +21,18 @@ public struct _AttributeBag {
     }
 
     mutating func addHandler(_ event: EventName, _ action: @escaping () -> Void) {
+        handlers.append((event, { _ in action() }))
+    }
+    mutating func addHandler<P>(_ event: EventName, payload: P.Type, _ action: @escaping (P) -> Void) {
+        handlers.append((event, { any in
+            guard let p = any as? P else {
+                assertionFailure("payload type mismatch for \(event.rawValue): expected \(P.self), got \(String(describing: any))")
+                return                                            // release: drop (spec §11)
+            }
+            action(p)
+        }))
+    }
+    mutating func addRawHandler(_ event: EventName, _ action: @escaping (Any?) -> Void) {
         handlers.append((event, action))
     }
 
