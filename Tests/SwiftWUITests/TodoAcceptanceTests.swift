@@ -124,6 +124,7 @@ private struct TodoApp: Tag {
             rt.dispatch(input.events["keydown"]!, payload: KeyEvent(key: "Enter", repeated: false)); sched.pump()
         }
         let liCountBefore = findAll(backend.container, tag: "li").count
+        #expect(liCountBefore == 3)   // precondition: seed + "a" + "b" all mounted
         let before = counters.byLabel
         let checkbox = findAll(backend.container, tag: "input").first { $0.attrs["type"] == "checkbox" }!
         let toggledLi = checkbox.parent!
@@ -141,9 +142,10 @@ private struct TodoApp: Tag {
         #expect(toggledLi.attrs["class"] == "done")                            // only the toggled row flips
         let otherLis = findAll(backend.container, tag: "li").filter { $0 !== toggledLi }
         #expect(otherLis.allSatisfy { $0.attrs["class"] == "todo" })
-        // …and the count label updated (Observation: RemainingLabel read store.todos)
+        // …and the count label updated to the EXACT post-toggle count
+        // (Observation: RemainingLabel read store.todos; 3 todos, 1 done → 2 remaining)
         let counts = findAll(backend.container, tag: "p")
-        #expect(counts.contains { ($0.children.first?.text ?? "").contains("items left") })
+        #expect(counts.contains { ($0.children.first?.text ?? "") == "2 items left" })
     }
 
     @Test func filterSwitchesVisibleRows() async {
