@@ -97,3 +97,318 @@ public struct Input: _HTMLVoidTag {
         if disabled { _attributes.set("disabled", "") }
     }
 }
+
+// MARK: - H2–H6 (Headings)
+
+public struct H2<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "h2" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+extension H2 where Content == Text {
+    public init(_ text: String, id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { Text(text) }
+    }
+}
+
+public struct H3<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "h3" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+extension H3 where Content == Text {
+    public init(_ text: String, id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { Text(text) }
+    }
+}
+
+public struct H4<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "h4" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+extension H4 where Content == Text {
+    public init(_ text: String, id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { Text(text) }
+    }
+}
+
+public struct H5<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "h5" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+extension H5 where Content == Text {
+    public init(_ text: String, id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { Text(text) }
+    }
+}
+
+public struct H6<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "h6" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+extension H6 where Content == Text {
+    public init(_ text: String, id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { Text(text) }
+    }
+}
+
+// MARK: - Semantic Containers
+
+public struct Main<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "main" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Header<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "header" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Footer<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "footer" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Nav<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "nav" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Section<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "section" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Article<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "article" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+// MARK: - List Containers
+
+public struct Ul<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "ul" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Ol<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "ol" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Li<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "li" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+// MARK: - Form Containers
+
+public struct Form<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "form" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Label<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "label" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+// MARK: - Text Formatting
+
+public struct Strong<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "strong" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Em<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "em" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Code<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "code" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+public struct Pre<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "pre" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+// MARK: - Textarea
+
+public struct Textarea<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "textarea" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        self.content = content()
+    }
+}
+
+// MARK: - Link Target
+
+public enum LinkTarget: String {
+    case blank = "_blank", current = "_self", parent = "_parent", top = "_top"
+}
+
+// MARK: - Anchor & Image
+
+public struct A<Content: Tag>: _HTMLContainerTag {
+    public static var tagName: String { "a" }
+    public var _attributes: _AttributeBag
+    public var content: Content
+    public init(href: String, target: LinkTarget? = nil,
+                id: String? = nil, class classes: String? = nil,
+                @TagBuilder content: () -> Content) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        _attributes.set("href", HTMLEscaping.sanitizeURL(href))
+        if let target { _attributes.set("target", target.rawValue) }
+        self.content = content()
+    }
+}
+
+public struct Img: _HTMLVoidTag {
+    public static var tagName: String { "img" }
+    public var _attributes: _AttributeBag
+    public init(src: String, alt: String,
+                id: String? = nil, class classes: String? = nil) {
+        _attributes = _AttributeBag(id: id, class: classes)
+        _attributes.set("src", HTMLEscaping.sanitizeURL(src))
+        _attributes.set("alt", alt)
+    }
+}
+
+// MARK: - Void Elements
+
+public struct Br: _HTMLVoidTag {
+    public static var tagName: String { "br" }
+    public var _attributes: _AttributeBag
+    public init() { _attributes = _AttributeBag() }
+}
+
+public struct Hr: _HTMLVoidTag {
+    public static var tagName: String { "hr" }
+    public var _attributes: _AttributeBag
+    public init() { _attributes = _AttributeBag() }
+}
