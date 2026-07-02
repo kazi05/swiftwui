@@ -1,16 +1,16 @@
-public struct NodeKey: Hashable, @unchecked Sendable {
+public struct NodeKey: Hashable {
     public let base: AnyHashable
     public init(_ base: some Hashable) { self.base = AnyHashable(base) }
 }
 
-public enum IdentitySegment: Hashable, Sendable {
+public enum IdentitySegment: Hashable {
     case child(Int)
     case branch(Bool)
     case keyed(NodeKey)
     case type(ObjectIdentifier)
 }
 
-public struct NodeIdentity: Hashable, Sendable {
+public struct NodeIdentity: Hashable {
     public private(set) var segments: [IdentitySegment]
     init(segments: [IdentitySegment]) { self.segments = segments }
     public static let root = NodeIdentity(segments: [])

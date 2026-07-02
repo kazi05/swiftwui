@@ -1,10 +1,10 @@
-public struct ListenerID: Hashable, Sendable {
+public struct ListenerID: Hashable {
     public let owner: NodeIdentity
     public let event: String
     public init(owner: NodeIdentity, event: String) { self.owner = owner; self.event = event }
 }
 
-public struct ElementNode: Equatable, Sendable {
+public struct ElementNode: Equatable {
     public var identity: NodeIdentity
     public var tag: String
     public var attributes: [String: String]
@@ -13,14 +13,14 @@ public struct ElementNode: Equatable, Sendable {
     public var key: NodeKey?
 }
 
-public struct ComponentNode: Equatable, Sendable {
+public struct ComponentNode: Equatable {
     public let identity: NodeIdentity
     public let typeName: String
     public var key: NodeKey?
     public var children: [Node]
 }
 
-public enum Node: Equatable, Sendable {
+public enum Node: Equatable {
     case text(String)
     case element(ElementNode)
     case component(ComponentNode)
