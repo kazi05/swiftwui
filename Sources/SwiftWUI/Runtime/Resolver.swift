@@ -1,3 +1,12 @@
+import Observation
+
+// Sendable adapter for the @Sendable onChange closure. Safe: every state write
+// in the pipeline is @MainActor (module default isolation), so onChange always
+// fires on the main actor in practice (spec D4).
+private struct _InvalidateBox: @unchecked Sendable {
+    let fire: () -> Void
+}
+
 public struct ResolveContext {
     let store: StateStore
     let listeners: ListenerRegistry
@@ -21,7 +30,13 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     ctx.store.retain(AnyTag(tag), at: id, environment: ctx.environment)
     let inv = ctx.invalidate
     ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body
-    let children = resolve(tag.body, path: id.appending(.child(0)), ctx: &ctx)
+    let box = _InvalidateBox(fire: { inv(id) })
+    let body = withObservationTracking {
+        tag.body
+    } onChange: {
+        MainActor.assumeIsolated { box.fire() }
+    }
+    let children = resolve(body, path: id.appending(.child(0)), ctx: &ctx)
     return [.component(ComponentNode(identity: id,
                                      typeName: String(describing: T.self),
                                      key: nil,
