@@ -2,6 +2,7 @@ import SwiftWUI
 
 #if arch(wasm32)
 import JavaScriptKit
+import JavaScriptEventLoop
 
 /// Startup canary (spec §6, decision 13): if reflection metadata was stripped,
 /// Mirror finds nothing and every @State would silently reset each render.
@@ -16,7 +17,7 @@ import JavaScriptKit
 }
 
 @MainActor private final class DispatchBox {
-    var fn: (ListenerID) -> Void = { _ in }
+    var fn: (ListenerID, Any?) -> Void = { _, _ in }
 }
 
 @MainActor private func jsMicrotask(_ f: @escaping () -> Void) {
@@ -31,16 +32,17 @@ public enum DOMRuntime {
     private static var retained: [AnyObject] = []      // runtime lives for the page lifetime
 
     public static func mount(_ root: some Tag, selector: String = "body") {
+        JavaScriptEventLoop.installGlobalExecutor()
         assertReflectionAlive()
         let document = JSObject.global.document
         let container: JSObject = selector == "body"
             ? document.body.object!
             : document.querySelector(selector).object!
         let box = DispatchBox()
-        let backend = DOMBackend(dispatch: { box.fn($0) })
+        let backend = DOMBackend(dispatch: { box.fn($0, $1) })
         let runtime = Runtime(backend: backend, container: container,
                               root: root, scheduleMicrotask: jsMicrotask)
-        box.fn = { [weak runtime] in runtime?.dispatch($0) }
+        box.fn = { [weak runtime] in runtime?.dispatch($0, payload: $1) }
         retained.append(runtime)
         retained.append(backend)
         runtime.mount()

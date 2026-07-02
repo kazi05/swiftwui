@@ -16,6 +16,7 @@ let package = Package(
         .target(name: "SwiftWUIDOM", dependencies: [
             "SwiftWUI",
             .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+            .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
         ]),
         .testTarget(name: "SwiftWUITests", dependencies: ["SwiftWUI"], swiftSettings: [.defaultIsolation(MainActor.self)]),
     ]
