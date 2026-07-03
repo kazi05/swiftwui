@@ -21,6 +21,23 @@ private struct SearchForm: Tag, Styled {
 private struct ChildPlain: Tag {
     var body: some Tag { Div(class: "field") { Text("child") } }
 }
+// D12 fixtures: a Styled parent passes builder content into a child
+// component ("slot"). The slotted content resolves in the CHILD's body
+// pass, not the parent's — it must NOT carry the parent's scope marker.
+private struct SlotChild<Content: Tag>: Tag {
+    let content: Content
+    var body: some Tag { Div(class: "slot-wrap") { content } }
+}
+private struct SlotParent: Tag, Styled {
+    @RulesBuilder var styles: [Rule] {
+        Rule(class: "own") { $0.padding(.px(4)) }
+    }
+    var body: some Tag {
+        Div(class: "own") {
+            SlotChild(content: Span(class: "slotted") { Text("x") })
+        }
+    }
+}
 private struct DynamicRules: Tag, Styled {
     @State var wide = false
     @RulesBuilder var styles: [Rule] {
@@ -51,6 +68,13 @@ private struct DynamicRules: Tag, Styled {
         let childTagStart = html[..<childStart.lowerBound].lastIndex(of: "<")!
         let childOpenTag = html[childTagStart..<childStart.lowerBound]
         #expect(!childOpenTag.contains(marker))
+    }
+    @Test func slotContentInChildComponentIsUnmarked() {
+        let slotMarker = scopeMarker(forTypeName: String(reflecting: SlotParent.self))
+        let (html, _) = HTMLRenderer.renderWithStylesheet(SlotParent())
+        #expect(html.contains(#"class="own \#(slotMarker)""#))
+        #expect(html.contains(#"class="slot-wrap""#))   // unmarked: child component's own root
+        #expect(html.contains(#"class="slotted""#))     // unmarked: slot content resolves in child's pass
     }
     @Test func nInstancesOneRegistryEntry() {
         let (_, css) = HTMLRenderer.renderWithStylesheet(Div { SearchForm(); SearchForm() })

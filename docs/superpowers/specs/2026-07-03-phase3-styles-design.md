@@ -217,9 +217,11 @@ struct SearchForm: Tag, Styled {
   component type name — stable across instances and passes). Selectors compile
   with the marker attached: `.field.swui-s3f2 { … }`, `#submit.swui-s3f2 { … }`,
   `input.swui-s3f2 { … }`. Rules do not leak into child components (their
-  bodies resolve in their own pass, unmarked) or outward. Builder-closure
-  children passed in by a parent resolve in the parent's pass → they carry the
-  parent's marker (or none). Matches where the code is written.
+  bodies resolve in their own pass, unmarked) or outward. The marker applies
+  to elements resolved within the Styled component's OWN body resolution;
+  content re-emitted by a child component (slot content) resolves in the
+  child's pass and is unmarked — style slot content via the child, inline
+  modifiers, or global rules.
 - **Global rules live on the `App`:** `@RulesBuilder static var globalStyles:
   [Rule]` (default empty via extension), registered once at mount, unscoped,
   emitted as written. The home for resets (`Rule(element: "body") { … }`).
@@ -237,7 +239,7 @@ extension ColorToken {
     static let surface = ColorToken("surface")
 }
 
-let light = ThemeDefinition(default: true) { t in
+let light = ThemeDefinition { t in
     t.set(.accent,  .hex("#e94560"))
     t.set(.surface, .hex("#ffffff"))
 }
@@ -382,3 +384,24 @@ Gates:
 | D9 | Registry lifecycle | Monotonic, content-hash dedup; sweeping deferred until profiling demands |
 | D10 | Rule declaration | `Styled` protocol field (`@RulesBuilder var styles: [Rule]`) for scoped + `App.globalStyles` for global; `Stylesheet`-as-Tag rejected (phantom node, post-pass marking, in-body `.global()` footgun) |
 | D11 | Pipeline architecture | Early collapse into existing primitives: inline → `style` attribute at resolve, rules → classes + side-table registry. First-class styles in `Node`/patch ops (per-property diff, ref-counted rules) rejected as pay-ahead; additive upgrade path kept. Atomic-CSS-only rejected (rule explosion on dynamic values) |
+| D12 | §8 slot-content marker (post-review) | §8's original "builder-closure children carry the parent's marker" claim was false — implementation (correctly, per D7 Vue-scoped semantics) resets `scopeClass` at every component boundary, so slot content re-emitted inside a child component's body resolves unmarked. Amended §8 rather than implementing propagation: style slot content via the child, inline modifiers, or global rules |
+
+## 17. Post-review addenda (2026-07-03, final whole-branch review)
+
+- **`_StyledTag` retained-row stash mechanism:** a wrapper's transform is
+  accumulated on `RetainedComponent.styleWrappers`, keyed by the SAME
+  `NodeIdentity` the row is retained under. The accumulator resets on the
+  first write of each resolution (`ResolveContext.pass` / `Runtime.passCounter`)
+  and appends on subsequent writes within that same pass — a wrapper chain
+  nests, so within one resolution it runs bottom-up (inner first), leaving the
+  list inner→outer, matching full-pass application order (outer wins on
+  replay). The apply walk stashes at EVERY `.component` identity it descends
+  through, not just the wrapper's own top-level root — a pass-through
+  component (body == another component, one level deeper than the wrapper's
+  own resolve) needs its own stash entry too, so a later scoped pass of that
+  inner row alone still finds its wrapper on replay (CRITICAL 1 fix).
+- **Empty-rule note:** an anonymous rule with no declarations (e.g.
+  `.hover { _ in }`) or a `Styled`/bundle rule whose proxy collected nothing
+  registers no stylesheet entry — `StyleRegistry.registerAnonymous` and the
+  `StyleProxy` pseudo/media block collectors early-return rather than emit a
+  useless `.swui-<hash> { }` block.
