@@ -48,7 +48,7 @@ private struct PropRoot: Tag {
 
 @MainActor @Suite struct ScopedEquivalenceTests {
     /// Spec §2.4: a scoped pass must be byte-identical to a full pass.
-    @Test(arguments: 0..<20) func scopedEqualsFull(seed: Int) {
+    @Test(arguments: 0..<20) func scopedEqualsFull(seed: Int) throws {
         let schedA = TestScheduler(), schedB = TestScheduler()
         let backA = MockBackend(), backB = MockBackend()
         let scoped = Runtime(backend: backA, container: backA.container,
@@ -63,7 +63,7 @@ private struct PropRoot: Tag {
             // identical random event sequence against both runtimes
             let buttonsA = findAll(backA.container, tag: "button")
             let buttonsB = findAll(backB.container, tag: "button")
-            #expect(buttonsA.count == buttonsB.count)
+            try #require(buttonsA.count == buttonsB.count)
             guard !buttonsA.isEmpty else { break }
             let pick = Int(rng.next() % UInt64(buttonsA.count))
             // occasionally batch two dispatches into one flush (coalescing path)

@@ -102,12 +102,14 @@ extension Input {
     /// Controlled text input: DOM `value` property tracks the binding; every
     /// input event writes it back (spec §7).
     public init(type: InputType = .text, value: Binding<String>,
+                name: String? = nil,
                 placeholder: String? = nil, disabled: Bool = false,
                 id: String? = nil, class classes: String? = nil,
                 onInput: ((InputEvent) -> Void)? = nil,
                 onKeyDown: ((KeyEvent) -> Void)? = nil) {
         _attributes = _AttributeBag(id: id, class: classes)
         _attributes.set("type", type.rawValue)
+        _attributes.set("name", name)
         _attributes.set("placeholder", placeholder)
         if disabled { _attributes.set("disabled", "") }
         _attributes.setProperty("value", .string(value.wrappedValue))

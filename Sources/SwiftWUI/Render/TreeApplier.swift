@@ -78,7 +78,8 @@ final class TreeApplier<Backend: RendererBackend> {
         removeHosts(m)
     }
     private func unregister(_ m: MountedNode<Backend.HostNode>) {
-        if let id = m.componentIdentity { componentIndex[id] = nil }
+        // mount-before-unmount replace(): only clear the index if it still points at US
+        if let id = m.componentIdentity, componentIndex[id] === m { componentIndex[id] = nil }
         for c in m.children { unregister(c) }
     }
     private func tearDownListeners(_ m: MountedNode<Backend.HostNode>) {

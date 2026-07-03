@@ -23,6 +23,10 @@ final class EffectStore {
     private var appeared: Set<NodeIdentity> = []
     private var disappearActions: [NodeIdentity: () -> Void] = [:]
 
+    /// ORDER DEPENDENCY (_AppearEffect): a disappear request marks presence in
+    /// `appeared` (line ~62) so the SAME pass's appear request is not treated
+    /// as first appearance. Processing appear before disappear within one
+    /// reconcile would break this — keep request handling in emission order.
     /// Returns callbacks to run post-commit. Order (normative, spec D6):
     /// disappear/cancel first, then appear/task/onChange in document order.
     func reconcile(_ requests: [EffectRequest], under passRoot: NodeIdentity) -> [() -> Void] {

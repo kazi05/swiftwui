@@ -26,7 +26,13 @@ public enum HTMLRenderer {
                     ? " " + name                              // boolean attribute
                     : " " + name + "=\"" + HTMLEscaping.text(value) + "\""
             }
+            var textareaValue: String? = nil
             for name in el.properties.keys.sorted() {
+                if el.tag == "textarea", name == "value",
+                   case .string(let s) = el.properties[name]! {
+                    textareaValue = s                      // real HTML: child text, not attr
+                    continue
+                }
                 switch el.properties[name]! {
                 case .string(let s): out += " " + name + "=\"" + HTMLEscaping.text(s) + "\""
                 case .bool(true):    out += " " + name
@@ -38,7 +44,8 @@ public enum HTMLRenderer {
                 assert(el.children.isEmpty, "void element <\(el.tag)> cannot have children")
                 return out
             }
-            return out + render(el.children) + "</" + el.tag + ">"
+            return out + (textareaValue.map { HTMLEscaping.text($0) } ?? "")
+                + render(el.children) + "</" + el.tag + ">"
         }
     }
 

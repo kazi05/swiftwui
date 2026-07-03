@@ -165,4 +165,27 @@ private struct TodoApp: Tag {
         sched.pump()
         #expect(findAll(backend.container, tag: "li").isEmpty)
     }
+
+    @Test func filterCountsWithMixedTodos() async {
+        let (rt, backend, sched, _) = makeApp()
+        await waitUntil(sched) { !findAll(backend.container, tag: "li").isEmpty }
+        let input = findFirst(backend.container, tag: "input")!
+        for title in ["a", "b"] {   // seed + a + b = 3 todos
+            rt.dispatch(input.events["input"]!, payload: InputEvent(value: title)); sched.pump()
+            rt.dispatch(input.events["keydown"]!, payload: KeyEvent(key: "Enter", repeated: false)); sched.pump()
+        }
+        // mark exactly one done → mixed state: 2 active, 1 completed
+        let checkbox = findAll(backend.container, tag: "input").first { $0.attrs["type"] == "checkbox" }!
+        rt.dispatch(checkbox.events["change"]!, payload: ChangeEvent(value: "", checked: true))
+        sched.pump()
+        func tap(_ label: String) {
+            let btn = findAll(backend.container, tag: "button").first { $0.children.first?.text == label }!
+            rt.dispatch(btn.events["click"]!); sched.pump()
+        }
+        tap("completed"); #expect(findAll(backend.container, tag: "li").count == 1)
+        tap("active");    #expect(findAll(backend.container, tag: "li").count == 2)
+        tap("all");       #expect(findAll(backend.container, tag: "li").count == 3)
+        let counts = findAll(backend.container, tag: "p")
+        #expect(counts.contains { ($0.children.first?.text ?? "") == "2 items left" })
+    }
 }

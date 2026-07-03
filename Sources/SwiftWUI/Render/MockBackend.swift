@@ -69,7 +69,13 @@ public final class MockBackend: RendererBackend {
             let value = n.attrs[name]!
             out += value.isEmpty ? " " + name : " \(name)=\"\(HTMLEscaping.text(value))\""
         }
+        var textareaValue: String? = nil
         for name in n.props.keys.sorted() {
+            if tag == "textarea", name == "value",
+               case .string(let s) = n.props[name]! {
+                textareaValue = s                          // real HTML: child text, not attr
+                continue
+            }
             switch n.props[name]! {
             case .string(let s): out += " \(name)=\"\(HTMLEscaping.text(s))\""
             case .bool(true):    out += " " + name
@@ -78,6 +84,7 @@ public final class MockBackend: RendererBackend {
         }
         out += ">"
         if HTMLRenderer.voidElements.contains(tag) { return out }
-        return out + n.children.map { serializeHTML($0) }.joined() + "</" + tag + ">"
+        return out + (textareaValue.map { HTMLEscaping.text($0) } ?? "")
+            + n.children.map { serializeHTML($0) }.joined() + "</" + tag + ">"
     }
 }

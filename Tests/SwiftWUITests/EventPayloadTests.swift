@@ -1,8 +1,7 @@
 import Testing
 @testable import SwiftWUI
 
-private final class Capture { var inputs: [String] = []; var keys: [String] = []
-                              var generic: [GenericEvent] = []; var voids = 0 }
+private final class Capture { var generic: [GenericEvent] = []; var voids = 0 }
 
 private struct PayloadFixture: Tag {
     let cap: Capture

@@ -50,7 +50,7 @@ private struct CheckFixture: Tag {
 
     @Test func textareaControlled() {
         let html = HTMLRenderer.render(Textarea(text: .constant("hi")))
-        #expect(html == #"<textarea value="hi"></textarea>"#)
+        #expect(html == #"<textarea>hi</textarea>"#)
     }
 
     @Test func formOnSubmit() {
