@@ -20,12 +20,13 @@ struct _OnChangeEffect<V: Equatable, Content: Tag>: Tag, _PrimitiveTag {
 struct _TaskEffect<Content: Tag>: Tag, _PrimitiveTag {
     typealias Body = Never
     let taskID: AnyHashable?
+    let policy: TaskPolicy
     let action: () async -> Void
     let content: Content
     @MainActor func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
         _TypeNameRegistry.register(Self.self)   // canonical snapshot keys need the name (spec D7)
         let id = path.appending(.type(ObjectIdentifier(Self.self)))
-        ctx.effects.append(.task(id: id, taskID: taskID, action: action))
+        ctx.effects.append(.task(id: id, taskID: taskID, policy: policy, action: action))
         return resolve(content, path: id, ctx: &ctx)
     }
 }
@@ -52,11 +53,19 @@ extension Tag {
     /// The action runs on the main actor's executor; writes to @Observable
     /// models from detached/background tasks trap in Observation's onChange
     /// (all state writes must be main-actor).
-    public func task(_ action: @escaping () async -> Void) -> some Tag {
-        _TaskEffect(taskID: nil, action: action, content: self)
+    public func task(policy: TaskPolicy = .client, _ action: @escaping () async -> Void) -> some Tag {
+        _TaskEffect(taskID: nil, policy: policy, action: action, content: self)
     }
-    public func task<ID: Hashable>(id: ID, _ action: @escaping () async -> Void) -> some Tag {
-        _TaskEffect(taskID: AnyHashable(id), action: action, content: self)
+    public func task<ID: Hashable>(id: ID, policy: TaskPolicy = .client,
+                                   _ action: @escaping () async -> Void) -> some Tag {
+        _TaskEffect(taskID: AnyHashable(id), policy: policy, action: action, content: self)
+    }
+    /// Build-time loader (spec §6, D5): runs during SSG and is awaited before the
+    /// HTML is taken; its @State writes ship in the snapshot. On a hydrated client
+    /// it is skipped (the snapshot's "tasks" list covers it); on a cold client it
+    /// runs like a normal task.
+    public func staticTask(_ action: @escaping () async -> Void) -> some Tag {
+        _TaskEffect(taskID: nil, policy: .build, action: action, content: self)
     }
     public func onAppear(_ action: @escaping () -> Void) -> some Tag {
         _AppearEffect(onAppear: action, onDisappear: nil, content: self)

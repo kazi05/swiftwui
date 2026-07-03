@@ -27,6 +27,7 @@ public final class Runtime<Backend: RendererBackend> {
     var _listenerCount: Int { listeners.count }
     var _current: Node? { current }
     var _registryText: String { styleRegistry.text }        // test hook
+    public var _effects: EffectStore { effects }            // SPI: SSG driver (Task 11) / hydration boot (Task 13)
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
                 initialPath: String = "/",

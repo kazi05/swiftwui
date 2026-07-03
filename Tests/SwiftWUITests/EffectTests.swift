@@ -161,4 +161,53 @@ private struct AppearFixture: Tag {
         sched.pump()
         #expect(log.entries == ["1"])                         // DOM committed BEFORE effect ran
     }
+
+    @Test func buildModeCollectsBuildTasksAndSkipsClientTasks() async {
+        let backend = MockBackend()
+        let sched = TestScheduler()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: BuildTaskFixture(), scheduleMicrotask: sched.schedule)
+        runtime._effects._buildMode = true
+        runtime.mount()
+        let drained = runtime._effects._drainBuildTasks()
+        #expect(drained.count == 1)
+        await drained[0].action()
+        runtime._effects._recordBuildCompleted(drained[0].id)
+        sched.pump()
+        #expect(backend.serializeHTML().contains("from-loader"))
+        #expect(!backend.serializeHTML().contains("client-task-ran"))
+        #expect(runtime._effects._completedBuildKeys.count == 1)
+    }
+
+    @Test func skipSetConsumesBuildTaskOnce() async throws {
+        // Boot with the loader's canonical key in the skip set: the .build task
+        // must not run; a normal .client task on the same tree still runs.
+        let backend = MockBackend()
+        let sched = TestScheduler()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: BuildTaskFixture(), scheduleMicrotask: sched.schedule)
+        // Key discovery: run a probe first to learn the loader's canonical id.
+        let probeBackend = MockBackend()
+        let probe = Runtime(backend: probeBackend, container: probeBackend.container,
+                            root: BuildTaskFixture(), scheduleMicrotask: { _ in })
+        probe._effects._buildMode = true
+        probe.mount()
+        let key = probe._effects._drainBuildTasks()[0].id._canonicalString!
+        runtime._effects._skipBuildTaskKeys = [key]
+        runtime.mount()
+        try await Task.sleep(nanoseconds: 50_000_000)     // let the .client Task land
+        sched.pump()
+        let html = backend.serializeHTML()
+        #expect(html.contains("client-task-ran"))          // .client ran
+        #expect(runtime._effects._skipBuildTaskKeys.isEmpty)   // skip entry consumed
+    }
+}
+
+private struct BuildTaskFixture: Tag {
+    @State var loaded = "initial"
+    var body: some Tag {
+        Div { Text(loaded) }
+            .staticTask { loaded = "from-loader" }
+            .task { loaded = "client-task-ran" }        // .client — must NOT run in build mode
+    }
 }
