@@ -78,7 +78,7 @@ public final class Runtime<Backend: RendererBackend> {
     public func navigate(to url: String, replace: Bool = false) {
         let (rawPath, query, search) = RouteURL.split(url)
         let path = RouteURL.normalizePath(rawPath)
-        guard path != currentPath || query != currentQuery else { return }
+        guard path != currentPath || query != currentQuery else { redirectHops = 0; return }  // arriving at the current location ends any redirect chain
         currentPath = path; currentQuery = query
         let full = search.isEmpty ? path : path + "?" + search
         if replace { applier.backend.replaceState(path: full) }
