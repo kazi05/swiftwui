@@ -95,22 +95,32 @@ private struct RApp: Tag {
     }
     @Test func collectRoutesReportsAllPatterns() {
         struct CollectApp: Tag {
+            @State var n = 0
             var body: some Tag {
-                Router {
-                    Route("/") { Text("home") }
-                    Route("/about") { Text("about") }
-                    Route("/todo/:id") { _ in Text("todo") }
+                Div {
+                    P { "n:\(n)" }
+                    Button("inc") { n += 1 }
+                    Router {
+                        Route("/") { Text("home") }
+                        Route("/about") { Text("about") }
+                        Route("/todo/:id") { _ in Text("todo") }
+                    }
                 }
             }
         }
         let backend = MockBackend()
+        let sched = TestScheduler()
         let rt = Runtime(backend: backend, container: backend.container,
-                         root: CollectApp(), scheduleMicrotask: { _ in })
+                         root: CollectApp(), scheduleMicrotask: sched.schedule)
         rt.mount()
         let patterns = rt._collectRoutes()
         #expect(patterns.map(\.raw) == ["/", "/about", "/todo/:id"])
         #expect(patterns.map(\.isStatic) == [true, true, false])
-        // Collection must not disturb live state:
-        #expect(rt._currentTree != nil)
+        // Collection must not disturb live state (C1): a root @State write
+        // after _collectRoutes() still schedules a flush and updates the DOM
+        // (regression — link() used to rebind the live box's invalidate to
+        // the collect pass's no-op closure, silently freezing the UI).
+        clickFirst(backend, rt, tag: "button", sched: sched)
+        #expect(backend.serializeHTML().contains("n:1"))
     }
 }

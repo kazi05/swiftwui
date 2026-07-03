@@ -52,7 +52,9 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     ctx.reachable.insert(id)
     ctx.store.retain(AnyTag(tag), at: id, environment: ctx.environment)
     let inv = ctx.invalidate
-    ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body
+    if ctx.collectedRoutes == nil {                    // collect passes never link (C1: shared Slots would rebind live boxes)
+        ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body
+    }
     let box = _InvalidateBox(fire: { inv(id) })
     let savedOwner = ctx.owner
     let savedScope = ctx.scopeClass

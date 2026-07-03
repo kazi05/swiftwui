@@ -36,8 +36,10 @@ public final class Runtime<Backend: RendererBackend> {
     public var _locationPath: String { currentPath }
 
     /// One throwaway resolve with route collection on. Uses a FRESH store and
-    /// listener registry — never disturbs live state. Guards DO run (they run
-    /// on any resolve); redirects/pageHead of this pass are discarded.
+    /// listener registry. Collect passes skip StateStore.link (shared Slots
+    /// would rebind live boxes — C1), so bodies resolve with struct-initial
+    /// values and @Environment defaults. Guards DO run (they run on any
+    /// resolve); redirects/pageHead of this pass are discarded.
     public func _collectRoutes() -> [RoutePattern] {
         var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(),
                                  invalidate: { _ in })

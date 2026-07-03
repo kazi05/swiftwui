@@ -83,6 +83,8 @@ public enum RouteURL {
 }
 
 /// Parsed route pattern (spec §4): literal | :param | * (catch-all, last only).
+/// Malformed patterns (mid-pattern '*', empty ':' name) trap in debug and
+/// degrade in release ('*' swallows the tail; empty param captures under "").
 public struct RoutePattern: Equatable {
     enum Segment: Equatable {
         case literal(String)
