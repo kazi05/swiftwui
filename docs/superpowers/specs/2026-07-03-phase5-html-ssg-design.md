@@ -188,17 +188,29 @@ Emitted only in hydrate mode, after quiescence:
 </script>
 ```
 
-- **Key:** canonical string form of `NodeIdentity` (typed segments joined;
-  the exact grammar is pinned by a golden test — it becomes a compatibility
-  surface between builder and client of the same binary, nothing more; `v`
-  guards cross-version drift).
+- **Key:** canonical string form of `NodeIdentity`. `.type` segments carry
+  `ObjectIdentifier` (process-local, NOT serializable) — a `@MainActor`
+  type-name registry (`ObjectIdentifier → String(reflecting: T.self)`),
+  populated by `resolve<T>` for every component boundary, supplies stable
+  fully-qualified names; `.keyed` segments serialize via
+  `String(describing: base)` (stable for Int/String/UUID keys — hashValue is
+  seed-randomized and must never be used). Grammar
+  (`c<n>` / `b0|b1` / `k<desc>` / `t<qualified-name>`, joined with `/`) is
+  pinned by a golden test. Same-source builder and client produce identical
+  names; an unknown key at link time degrades to initial values (safe).
 - **Encode:** for each StateStore row, each slot whose boxed value is
   `Encodable` → `JSONEncoder` fragment. A non-Encodable slot drops the whole
   row (partial rows would desync Mirror order); debug build additionally
   warns when a dropped row's identity had a `.build` task ("loader result
   not serializable").
-- **Decode (client):** `DOMRuntime` reads the script tag before mount and
-  seeds `StateStore.pendingSnapshot: [NodeIdentity: [String]]`. Inside
+- **Decode (client):** the core stays Foundation-free (standing constraint) —
+  `StateStore` holds only raw JSON strings plus an injected decoder hook
+  (`(json: String, as: any Decodable.Type) -> (any Decodable)?`);
+  `SwiftWUIDOM` injects a `JSONDecoder`-backed implementation
+  (FoundationEssentials, present in the wasm SDK), `SwiftWUIStatic` the
+  encoder side. `DOMRuntime` reads the script tag before mount and
+  seeds `StateStore.pendingSnapshot: [String: [String]]` (canonical-path
+  keyed). Inside
   `link()`, when a row is first created and a pending entry exists, each
   slot decodes as the concrete `Value.self`; count mismatch or decode error
   → entire pending row discarded, initial values used, debug warning.
