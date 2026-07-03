@@ -22,8 +22,16 @@ extension CSSLength {
 
 public struct ThemeAssignments {
     var pairs: [(name: String, value: String)] = []
+    /// §12 sink: the value reaches `registerRaw`'s pre-serialized text unescaped,
+    /// so it's validated here the same way declaration values are validated in
+    /// `StyleRegistry.body` — debug `assertionFailure`, dropped in release.
     public mutating func set<V: CSSValueConvertible>(_ token: StyleToken<V>, _ value: V) {
-        pairs.append(("--" + token.name, value.css))
+        let css = value.css
+        guard CSSSanitize.isSafeValue(css) else {
+            assertionFailure("unsafe theme value dropped: --\(token.name): \(css)")
+            return
+        }
+        pairs.append(("--" + token.name, css))
     }
 }
 

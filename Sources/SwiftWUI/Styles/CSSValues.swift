@@ -22,7 +22,12 @@ public enum CSSLength: Equatable, CSSValueConvertible {
         case .vh(let v): return cssNumber(v) + "vh"
         case .auto: return "auto"
         case .zero: return "0"
-        case .variable(let name): return "var(--\(name))"
+        case .variable(let name):
+            guard CSSSanitize.isValidIdent(name) else {
+                assertionFailure("invalid CSS variable name: \(name)")
+                return "var(--invalid)"
+            }
+            return "var(--\(name))"
         }
     }
 }
@@ -47,7 +52,12 @@ public enum CSSColor: Equatable, CSSValueConvertible {
         case .black: return "#000"
         case .transparent: return "transparent"
         case .current: return "currentColor"
-        case .variable(let name): return "var(--\(name))"
+        case .variable(let name):
+            guard CSSSanitize.isValidIdent(name) else {
+                assertionFailure("invalid CSS variable name: \(name)")
+                return "var(--invalid)"
+            }
+            return "var(--\(name))"
         }
     }
     static func isValidHex(_ s: String) -> Bool {

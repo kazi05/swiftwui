@@ -21,6 +21,20 @@ extension LengthToken { fileprivate static let pad = LengthToken("pad") }
         }
         #expect(dark.ruleText == #"[data-theme="dark"] { --accent: #16213e }"#)
     }
+    // IMPORTANT 2: `ThemeAssignments.set` and `CSSColor`/`CSSLength .variable`
+    // now guard their payload with `CSSSanitize` before it reaches the
+    // mounted stylesheet (§12 sink). The guarded (unsafe) branch calls
+    // `assertionFailure`, which traps in a debug test build — it can't be
+    // exercised here without crashing the run. Pin the SAFE side of the same
+    // guard instead; the drop-in-release branch is verified by code reading.
+    @Test func safeThemeAndVariableValuesPassGuardUnchanged() {
+        let theme = ThemeDefinition { t in
+            t.set(ColorToken.accent, .hex("#e94560"))
+        }
+        #expect(theme.ruleText == ":root { --accent: #e94560 }")
+        #expect(CSSColor.variable("valid-name").css == "var(--valid-name)")
+        #expect(CSSLength.variable("valid-name").css == "var(--valid-name)")
+    }
     @Test func runtimeEmitsThemesAndSwitches() {
         struct Root: Tag {
             @Environment(\.setTheme) var setTheme
