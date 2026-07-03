@@ -21,7 +21,10 @@ private struct StoreKey: EnvironmentKey { static let defaultValue = TodoStore() 
 extension EnvironmentValues {
     fileprivate var todoStore: TodoStore { get { self[StoreKey.self] } set { self[StoreKey.self] = newValue } }
 }
-private enum Filter: String, CaseIterable { case all, active, completed }
+private enum Filter: String, CaseIterable {
+    case all, active, completed
+    var path: String { self == .all ? "/" : "/\(rawValue)" }
+}
 
 extension ColorToken {
     fileprivate static let accent  = ColorToken("accent")
@@ -45,22 +48,22 @@ private struct TodoRow: Tag, Styled {
     }
     var body: some Tag {
         counters.bump("row-\(todo.id)")
-        return Li(class: todo.done ? "done" : "todo") {
-            Input(checked: Binding(get: { todo.done }, set: { _ in store.toggle(todo.id) }))
-            Span { todo.title }
-        }
+        return TupleTag(Input(checked: Binding(get: { todo.done }, set: { _ in store.toggle(todo.id) })),
+                         Span(class: todo.done ? "done" : "todo") { todo.title })
     }
 }
 private struct RemainingLabel: Tag {
     @Environment(\.todoStore) var store
     var body: some Tag { P { "\(store.remaining) items left" } }
 }
-private struct TodoApp: Tag, Styled {
+
+private struct TodoPage: Tag, Page, Styled {
+    let filter: Filter
     let counters: Counters
-    @State var store = TodoStore()
-    @State var filter: Filter = .all
-    @State var dark = false
+    @Environment(\.todoStore) var store
     @Environment(\.setTheme) var setTheme
+    @State var dark = false
+    var title: String { "todos — \(filter.rawValue)" }
     @RulesBuilder var styles: [Rule] {
         Rule(class: "filters", media: .maxWidth(.px(600))) { $0.flexDirection(.column) }
         Rule(element: "button") { s in
@@ -83,13 +86,18 @@ private struct TodoApp: Tag, Styled {
                 .padding(.px(8))
                 .width(.percent(100))
             Ul {
-                ForEach(visible) { TodoRow(todo: $0, counters: counters) }
+                ForEach(visible) { todo in
+                    Li {
+                        TodoRow(todo: todo, counters: counters)
+                        Link("/todo/\(todo.id)") { Span { "→" } }
+                    }
+                }
             }
             .listStyle("none")
             RemainingLabel()
             Div(class: "filters") {
                 ForEach(Filter.allCases, id: \.rawValue) { f in
-                    Button(f.rawValue) { filter = f }
+                    Link(f.path) { Span { f.rawValue } }
                 }
                 Button("theme") { dark.toggle(); setTheme(dark ? "dark" : nil) }
             }
@@ -97,6 +105,38 @@ private struct TodoApp: Tag, Styled {
             .gap(.px(8))
         }
         .background(.token(.surface))
+    }
+}
+
+private struct TodoDetail: Tag, Page {
+    let id: Int?
+    @Environment(\.todoStore) var store
+    var todo: TodoStore.Todo? { store.todos.first { $0.id == id } }
+    var title: String { "todo #\(id.map(String.init) ?? "?")" }
+    var body: some Tag {
+        Main {
+            if let todo {
+                H1(todo.title)
+                P { todo.done ? "done" : "active" }
+                Button(todo.done ? "reopen" : "complete") { store.toggle(todo.id) }
+            } else {
+                H1("todo not found")
+            }
+            Link("/") { Span { "← back" } }
+        }
+    }
+}
+
+private struct TodoApp: Tag {
+    let counters: Counters
+    @State var store = TodoStore()
+    var body: some Tag {
+        Router(notFound: { Main { H1("404"); Link("/") { Span { "home" } } } }) {
+            Route("/") { TodoPage(filter: .all, counters: counters) }
+            Route("/active") { TodoPage(filter: .active, counters: counters) }
+            Route("/completed") { TodoPage(filter: .completed, counters: counters) }
+            Route("/todo/:id") { params in TodoDetail(id: params["id"].flatMap(Int.init)) }
+        }
         .environment(\.todoStore, store)
         .task { store.todos = [.init(id: 1000, title: "seeded", done: false)] }
     }
@@ -120,6 +160,11 @@ private struct TodoApp: Tag, Styled {
     private func waitUntil(_ sched: TestScheduler, _ condition: () -> Bool) async {
         var spins = 0
         while !condition() && spins < 100 { await Task.yield(); sched.pump(); spins += 1 }
+    }
+
+    /// Finds the footer filter `<a>` whose label span reads `label`.
+    private func filterLink(_ backend: MockBackend, _ label: String) -> MockNode {
+        findAll(backend.container, tag: "a").first { $0.children.contains { $0.children.first?.text == label } }!
     }
 
     @Test func addTodoViaControlledInputAndEnter() async {
@@ -146,7 +191,7 @@ private struct TodoApp: Tag, Styled {
     // The honest, still-meaningful assertions are: (a) pin the real behavior
     // (all rows re-evaluate) instead of asserting a false invariant, and
     // (b) assert what actually matters to users — DOM stability: the `li`
-    // count is unchanged and exactly one `li` flips to the "done" class.
+    // count is unchanged and exactly one row's class flips to "done".
     @Test func toggleReevaluatesAllRowsButKeepsDOMStable() async {
         let (rt, backend, sched, counters) = makeApp()
         await waitUntil(sched) { !findAll(backend.container, tag: "li").isEmpty }
@@ -160,7 +205,9 @@ private struct TodoApp: Tag, Styled {
         let before = counters.byLabel
         let checkbox = findAll(backend.container, tag: "input").first { $0.attrs["type"] == "checkbox" }!
         let toggledLi = checkbox.parent!
-        #expect(toggledLi.attrs["class"]?.hasPrefix("todo") == true)
+        // done/todo class now lives on TodoRow's inner Span (Li itself hosts row + detail Link).
+        func rowSpanClass(_ li: MockNode) -> String? { li.children.first { $0.tag == "span" }?.attrs["class"] }
+        #expect(rowSpanClass(toggledLi)?.hasPrefix("todo") == true)
 
         rt.dispatch(checkbox.events["change"]!, payload: ChangeEvent(value: "", checked: true))
         sched.pump()
@@ -171,9 +218,9 @@ private struct TodoApp: Tag, Styled {
         #expect(changedRows.count == allRowLabels.count)   // real finding: parent pass reruns EVERY row
 
         #expect(findAll(backend.container, tag: "li").count == liCountBefore)   // DOM stable: no li added/removed
-        #expect(toggledLi.attrs["class"]?.hasPrefix("done") == true)           // only the toggled row flips
+        #expect(rowSpanClass(toggledLi)?.hasPrefix("done") == true)           // only the toggled row flips
         let otherLis = findAll(backend.container, tag: "li").filter { $0 !== toggledLi }
-        #expect(otherLis.allSatisfy { ($0.attrs["class"] ?? "").hasPrefix("todo") })
+        #expect(otherLis.allSatisfy { (rowSpanClass($0) ?? "").hasPrefix("todo") })
         // …and the count label updated to the EXACT post-toggle count
         // (Observation: RemainingLabel read store.todos; 3 todos, 1 done → 2 remaining)
         let counts = findAll(backend.container, tag: "p")
@@ -188,12 +235,10 @@ private struct TodoApp: Tag, Styled {
         let checkbox = findAll(backend.container, tag: "input").first { $0.attrs["type"] == "checkbox" }!
         rt.dispatch(checkbox.events["change"]!, payload: ChangeEvent(value: "", checked: true))
         sched.pump()
-        let completedBtn = findAll(backend.container, tag: "button").first { $0.children.first?.text == "completed" }!
-        rt.dispatch(completedBtn.events["click"]!)
+        rt.dispatch(filterLink(backend, "completed").events["click"]!, payload: ClickEvent())
         sched.pump()
         #expect(findAll(backend.container, tag: "li").count == 1)
-        let activeBtn = findAll(backend.container, tag: "button").first { $0.children.first?.text == "active" }!
-        rt.dispatch(activeBtn.events["click"]!)
+        rt.dispatch(filterLink(backend, "active").events["click"]!, payload: ClickEvent())
         sched.pump()
         #expect(findAll(backend.container, tag: "li").isEmpty)
     }
@@ -211,8 +256,7 @@ private struct TodoApp: Tag, Styled {
         rt.dispatch(checkbox.events["change"]!, payload: ChangeEvent(value: "", checked: true))
         sched.pump()
         func tap(_ label: String) {
-            let btn = findAll(backend.container, tag: "button").first { $0.children.first?.text == label }!
-            rt.dispatch(btn.events["click"]!); sched.pump()
+            rt.dispatch(filterLink(backend, label).events["click"]!, payload: ClickEvent()); sched.pump()
         }
         tap("completed"); #expect(findAll(backend.container, tag: "li").count == 1)
         tap("active");    #expect(findAll(backend.container, tag: "li").count == 2)
@@ -236,7 +280,7 @@ private struct TodoApp: Tag, Styled {
         #expect(css.contains(".done."))                       // scoped marker attached
         #expect(css.contains("button.") && css.contains(":hover"))
         #expect(css.contains("@media (max-width: 600px)"))
-        // scope marker present on elements of TodoApp's body
+        // scope marker present on elements of TodoPage's body
         #expect((findFirst(backend.container, tag: "main")!.attrs["class"] ?? "").contains("swui-s"))
     }
     @Test func themeToggleSetsAttribute() async {
@@ -248,5 +292,42 @@ private struct TodoApp: Tag, Styled {
         #expect(backend.container.attrs["data-theme"] == "dark")
         rt.dispatch(themeBtn.events["click"]!); sched.pump()
         #expect(backend.container.attrs["data-theme"] == nil)
+    }
+
+    @Test func filterRoutesFilterTheList() async {
+        let (rt, backend, sched, _) = makeApp()
+        await waitUntil(sched) { !findAll(backend.container, tag: "li").isEmpty }
+        // seeded: 1 active (not done)
+        rt.dispatch(filterLink(backend, "active").events["click"]!, payload: ClickEvent())
+        sched.pump()
+        #expect(backend.title == "todos — active")
+        #expect(backend.historyStack.last == "/active")
+    }
+    @Test func detailRouteShowsTodoAndPreservesStoreOnReturn() async {
+        let (rt, backend, sched, _) = makeApp()
+        await waitUntil(sched) { !findAll(backend.container, tag: "li").isEmpty }
+        rt.navigate(to: "/todo/1000")                       // seeded id
+        sched.pump()
+        #expect(backend.title == "todo #1000")
+        #expect(backend.serializeHTML().contains("seeded"))
+        rt.navigate(to: "/")
+        sched.pump()
+        #expect(backend.serializeHTML().contains("seeded"), "store above Router survives")
+    }
+    @Test func unknownRouteRenders404() {
+        let (rt, backend, sched, _) = makeApp()
+        rt.navigate(to: "/nope")
+        sched.pump()
+        #expect(backend.serializeHTML().contains("404"))
+    }
+    @Test func mountAtDeepPathWorks() async {
+        // Same fixture but initialPath "/completed" — direct URL entry.
+        let backend = MockBackend(); let sched = TestScheduler(); let counters = Counters()
+        let rt = Runtime(backend: backend, container: backend.container,
+                         root: TodoApp(counters: counters), initialPath: "/completed",
+                         scheduleMicrotask: sched.schedule)
+        rt.mount()
+        _ = rt
+        #expect(backend.title == "todos — completed")
     }
 }
