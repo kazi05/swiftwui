@@ -38,6 +38,10 @@ import Testing
                     ForEach(0..<n) { i in Li { "item \(i)" } }
                     if n % 2 == 0 { P { "even" } }
                     Br()
+                    Table { Thead { Tr { Th(scope: "col") { Text("N") } } }
+                            Tbody { Tr { Td { Text("1") } } } }
+                    Details(open: true) { Summary { Text("more") }; P { Text("detail") } }
+                    Video(src: "/v.mp4", controls: true) { Source(src: "/v.webm", type: "video/webm") }
                 }
             }
         }

@@ -91,4 +91,21 @@ private struct Card: Tag {
         #expect(html == "<select name=\"pet\"><option selected value=\"cat\">Cat</option>"
                       + "<option value=\"dog\">Dog</option></select>")
     }
+    @Test func voidSetCoversAllVoidTagStructs() {
+        // Every _HTMLVoidTag's tagName must be in HTMLRenderer.voidElements —
+        // a miss means serialized output grows a bogus closing tag (T8 break).
+        let voidTagNames = [Input.tagName, Img.tagName, Br.tagName, Hr.tagName,
+                            Wbr.tagName, Col.tagName, Source.tagName, Track.tagName,
+                            Embed.tagName, Param.tagName, Area.tagName]
+        for name in voidTagNames { #expect(HTMLRenderer.voidElements.contains(name)) }
+    }
+    @Test func mediaAndInteractiveTagsRender() {
+        #expect(HTMLRenderer.render(Details(open: true) { Summary { Text("t") }; P { Text("b") } })
+                == "<details open><summary>t</summary><p>b</p></details>")
+        #expect(HTMLRenderer.render(Video(src: "/v.mp4", controls: true) { Source(src: "/v.webm", type: "video/webm") })
+                == "<video controls src=\"/v.mp4\"><source src=\"/v.webm\" type=\"video/webm\"></video>")
+        #expect(HTMLRenderer.render(Noscript("Enable JS")) == "<noscript>Enable JS</noscript>")
+        #expect(HTMLRenderer.render(Iframe(src: "https://x.dev", title: "demo"))
+                == "<iframe src=\"https://x.dev\" title=\"demo\"></iframe>")
+    }
 }
