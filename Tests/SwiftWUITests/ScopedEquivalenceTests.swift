@@ -65,6 +65,15 @@ private struct PropObserved: Tag {
 // wrappers stack (`_StyledTag<_StyledTag<PropObserved>>`) instead of collapsing.
 private func propCard<T: Tag>(_ t: T) -> some Tag { t.padding(.px(2)) }
 
+// Pass-through component: PropMiddle's body IS its child, one level deeper
+// than the wrapper's own resolve — regression fixture for the CRITICAL 1
+// descent-stash bug (wrapper styles dropped on a scoped pass of PropLeaf
+// alone, since the stash previously lived only at PropMiddle's identity).
+private struct PropMiddle: Tag {
+    var body: some Tag { PropLeaf() }
+}
+private func propCard2<T: Tag>(_ t: T) -> some Tag { t.padding(.px(7)) }
+
 private struct PropList: Tag {
     @State var items = [1, 2, 3]
     var body: some Tag {
@@ -83,6 +92,7 @@ private struct PropRoot: Tag {
             PropLeaf()
             PropStyled()
             propCard(PropObserved(model: model)).margin(.px(1)).hover { $0.opacity(0.9) }  // nested wrappers + rule classes
+            propCard2(PropMiddle())                             // pass-through component + wrapper (CRITICAL 1)
             if showList { PropList() }
             Button("toggle") { showList.toggle() }
         }

@@ -110,7 +110,13 @@ public final class Runtime<Backend: RendererBackend> {
         // The wrappers do NOT re-run during this subtree pass, so the list is
         // whatever the last pass that resolved them left — replay inner→outer.
         for wrapper in row.styleWrappers {
-            applyStyleWrapper(declarations: wrapper.declarations, classes: wrapper.classes, to: &new)
+            // Re-stash at every descended identity too (not just this row's own),
+            // same as the wrapper's own `_resolve` — a pass-through component one
+            // level deeper still needs a fresh stash for pass `ctx.pass` (CRITICAL 1).
+            applyStyleWrapper(declarations: wrapper.declarations, classes: wrapper.classes, to: &new) { [store] compId in
+                store.setStyleWrapper(at: compId, pass: ctx.pass,
+                                      declarations: wrapper.declarations, classes: wrapper.classes)
+            }
         }
 
         store.sweep(under: id, reachable: ctx.reachable)

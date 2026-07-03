@@ -39,6 +39,10 @@ public final class StateStore {
     /// The first write of each `pass` resets the list; subsequent writes in the
     /// same pass append. A wrapper chain nests, so within one resolution it runs
     /// atomically bottom-up (inner first) → the list ends up inner→outer.
+    /// `pass` must be unique per resolution against this shared store — every
+    /// caller threads the SAME `ResolveContext.pass`/`Runtime.passCounter`
+    /// value for one renderPass/subtreePass, never a stale or reused one
+    /// (a reused `pass` value would silently fail to reset the accumulator).
     func setStyleWrapper(at id: NodeIdentity, pass: Int,
                          declarations: [StyleDeclaration], classes: [String]) {
         assert(retained[id] != nil, "setStyleWrapper before retain for \(id)")

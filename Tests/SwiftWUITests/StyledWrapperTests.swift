@@ -14,6 +14,12 @@ private struct StatefulCard: Tag {
     @State var n = 0
     var body: some Tag { Div { Button("+") { n += 1 }; Text("\(n)") } }
 }
+private struct Labeled: Tag {
+    var body: some Tag {
+        Text("label: ")
+        Span { Text("value") }
+    }
+}
 
 @Suite struct StyledWrapperTests {
     @Test func componentGetsWrapperStyles() {
@@ -36,6 +42,14 @@ private struct StatefulCard: Tag {
         let html = HTMLRenderer.render(Inner().margin(.px(9)))
         // both appear; CSS last-wins → 9px is effective. Pin the order:
         #expect(html.contains("margin: 1px; margin: 9px"))
+    }
+    @Test func mixedTextAndElementRootsNoCrash() {
+        // IMPORTANT 3: a component whose body descends through a text root
+        // sibling (not just a top-level text root) must not trip the debug
+        // assert — only the element sibling gets the style, text is unchanged.
+        let html = HTMLRenderer.render(Labeled().color(.hex("#111")))
+        #expect(html.contains("label: "))
+        #expect(html.contains(#"<span style="color: #111">value</span>"#))
     }
     @Test func multiRootAppliesToEveryElementRoot() {
         let html = HTMLRenderer.render(TwoRoots().color(.hex("#111")))

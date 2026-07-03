@@ -18,22 +18,31 @@ public struct _StyledTag<Content: Tag>: Tag, _PrimitiveTag {
                                                               declarations: r.declarations))
         }
         var nodes = resolve(content, path: id, ctx: &ctx)
+        let store = ctx.store
+        let pass = ctx.pass
         for i in nodes.indices {
             // A component root won't see this wrapper again on a scoped subtree
             // pass (that re-resolves the row's tag directly, skipping back up
             // through `_resolve` here) — stash the transform for replay there.
-            if case .component(let c) = nodes[i] {
-                ctx.store.setStyleWrapper(at: c.identity, pass: ctx.pass,
-                                          declarations: declarations, classes: ruleClasses)
+            // The apply walk may descend through MULTIPLE component identities
+            // (a pass-through component whose body is exactly another
+            // component, e.g. `Middle().padding(…)` where `Middle.body ==
+            // Inner()`) — stash at every one of them, not just the top-level
+            // root, so a later scoped pass of the inner row alone still finds
+            // its wrapper on replay (CRITICAL 1).
+            applyStyleWrapper(declarations: declarations, classes: ruleClasses, to: &nodes[i]) { compId in
+                store.setStyleWrapper(at: compId, pass: pass, declarations: declarations, classes: ruleClasses)
             }
-            applyStyleWrapper(declarations: declarations, classes: ruleClasses, to: &nodes[i])
         }
         return nodes
     }
 }
 
 /// Element roots get the styles; component roots are transparent (descend);
-/// text roots are a documented no-op (debug assert to surface it).
+/// text roots are a documented no-op (debug assert to surface it — only for a
+/// TOP-LEVEL text root, i.e. the wrapped content's own root is text; a text
+/// SIBLING found while descending through a component root, e.g. a component
+/// whose body is `Text(…); Span { … }`, is silently skipped — IMPORTANT 3).
 /// `mergeStyleText` is last-wins across `base + new`, so a wrapper declaration
 /// overrides the element's own same-property declaration (spec's "outer wins").
 /// The base is a pre-joined string, so a duplicate property appears twice in
@@ -42,7 +51,15 @@ public struct _StyledTag<Content: Tag>: Tag, _PrimitiveTag {
 /// Free function (not a `_StyledTag<Content>` static member) so both the
 /// wrapper's own `_resolve` and `Runtime.subtreePass`'s replay path (which has
 /// no `Content` type in hand) can call it.
-func applyStyleWrapper(declarations: [StyleDeclaration], classes: [String], to node: inout Node) {
+///
+/// `stash` fires for every `.component` identity the walk descends through
+/// (not just the top-level root) — a pass-through component (whose body is
+/// exactly another component) needs its own stash entry too, so a later
+/// scoped pass of THAT inner row alone can still replay the wrapper
+/// (CRITICAL 1). `isTopLevel` gates the `.text` assert: only the top-level
+/// call sites (the wrapper's own root nodes) should trip it.
+func applyStyleWrapper(declarations: [StyleDeclaration], classes: [String], to node: inout Node,
+                       stash: ((NodeIdentity) -> Void)? = nil, isTopLevel: Bool = true) {
     switch node {
     case .element(var e):
         if !declarations.isEmpty {
@@ -55,11 +72,15 @@ func applyStyleWrapper(declarations: [StyleDeclaration], classes: [String], to n
         }
         node = .element(e)
     case .component(var c):
+        stash?(c.identity)
         for i in c.children.indices {
-            applyStyleWrapper(declarations: declarations, classes: classes, to: &c.children[i])
+            applyStyleWrapper(declarations: declarations, classes: classes, to: &c.children[i],
+                              stash: stash, isTopLevel: false)
         }
         node = .component(c)
     case .text:
-        assertionFailure("style modifier applied to a text root is a no-op")
+        if isTopLevel {
+            assertionFailure("style modifier applied to a text root is a no-op")
+        }
     }
 }
