@@ -66,4 +66,9 @@ private struct LProbe: Tag {
         }
         #expect(anchors[2].attrs["target"] == "_blank")
     }
+    @Test func anchorLinkIsNotIntercepted() {
+        let html = HTMLRenderer.render(Link("#features") { Text("Features") })
+        #expect(html.contains("href=\"#features\""))
+        #expect(!html.contains("data-swui-link"))
+    }
 }

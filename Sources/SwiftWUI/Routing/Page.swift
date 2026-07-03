@@ -40,6 +40,9 @@ public struct MetaTag: Equatable {
 /// (wrappers like `.padding()` around it hide the conformance — documented).
 public protocol Page: Tag {
     /// Browser-tab title, applied on navigation.
+    /// NOTE: head application is navigation-driven — a @State-driven change to
+    /// `title` between navigations is NOT re-applied until the next route pass
+    /// (phase-4 decision; revisit if live titles are ever needed).
     var title: String { get }
     /// Managed `<meta>` set (replaces only tags marked data-swiftwui).
     var meta: [MetaTag] { get }

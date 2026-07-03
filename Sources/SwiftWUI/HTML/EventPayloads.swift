@@ -24,6 +24,7 @@ public struct GenericEvent {
         case let e as InputEvent:   self.init(type: type, targetValue: e.value, key: nil, checked: nil)
         case let e as ChangeEvent:  self.init(type: type, targetValue: e.value, key: nil, checked: e.checked)
         case let e as KeyEvent:     self.init(type: type, targetValue: nil, key: e.key, checked: nil)
+        case let e as ClickEvent:   self.init(type: type, targetValue: e.targetValue, key: nil, checked: e.checked)
         case let e as GenericEvent: self.init(type: type, targetValue: e.targetValue, key: e.key, checked: e.checked)
         default:                    self.init(type: type, targetValue: nil, key: nil, checked: nil)
         }
@@ -38,10 +39,17 @@ public struct ClickEvent {
     public let ctrlKey: Bool
     public let shiftKey: Bool
     public let altKey: Bool
+    /// target.value / target.checked at fire time (nil for non-form targets).
+    /// Filled by DOMBackend's decoder so `.on(.click)` GenericEvent adapters
+    /// stop dropping them (phase-4 carry).
+    public let targetValue: String?
+    public let checked: Bool?
     public init(button: Int = 0, metaKey: Bool = false, ctrlKey: Bool = false,
-                shiftKey: Bool = false, altKey: Bool = false) {
+                shiftKey: Bool = false, altKey: Bool = false,
+                targetValue: String? = nil, checked: Bool? = nil) {
         self.button = button; self.metaKey = metaKey; self.ctrlKey = ctrlKey
         self.shiftKey = shiftKey; self.altKey = altKey
+        self.targetValue = targetValue; self.checked = checked
     }
     /// True → new-tab/context intent; SPA must not intercept.
     public var isModified: Bool { button != 0 || metaKey || ctrlKey || shiftKey || altKey }

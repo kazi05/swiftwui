@@ -53,4 +53,12 @@ private struct PayloadFixture: Tag {
         #expect(cap.generic[0].type == "input")
         #expect(cap.generic[0].targetValue == "abc")
     }
+
+    @Test func genericAdapterMapsClickEventFields() {
+        let g = GenericEvent(type: "click",
+                             payload: ClickEvent(targetValue: "on", checked: true))
+        #expect(g.targetValue == "on")
+        #expect(g.checked == true)
+        #expect(g.key == nil)
+    }
 }

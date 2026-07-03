@@ -16,21 +16,16 @@ public struct Link<Content: Tag>: Tag {
     }
 
     /// "https://…", "mailto:…", "//host/…" — anything that leaves the app.
-    static func isExternal(_ url: String) -> Bool {
-        if url.hasPrefix("//") { return true }
-        for ch in url {
-            if ch == ":" { return true }
-            if ch == "/" || ch == "?" || ch == "#" { return false }
-        }
-        return false
-    }
+    static func isExternal(_ url: String) -> Bool { RouteURL.isExternal(url) }
 
     public var body: some Tag {
         let dest = destination
         let nav = navigate
-        if Self.isExternal(dest) || target != nil {
-            A(href: dest, target: target) { content }
+        if Self.isExternal(dest) || target != nil || dest.hasPrefix("#") {
+            A(href: dest, target: target) { content }          // browser handles: external, targeted, or #anchor
         } else {
+            let _ = assert(dest.hasPrefix("/"),
+                           "Link destination must be root-relative ('/docs/intro'), got '\(dest)' — relative paths resolve against the SSG file location, not the route")
             A(href: dest) { content }
                 .attribute("data-swui-link", "")
                 .onClickEvent { e in

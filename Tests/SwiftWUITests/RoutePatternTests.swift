@@ -41,4 +41,22 @@ import Testing
         #expect(RouteURL.percentDecode("%E2%9C%93") == "✓")
         #expect(RouteURL.percentDecode("trunc%2") == "trunc%2")          // invalid: whole input unchanged
     }
+    @Test func normalizePathStripsManyTrailingSlashes() {
+        #expect(RouteURL.normalizePath("/a" + String(repeating: "/", count: 1000)) == "/a")
+        #expect(RouteURL.normalizePath(String(repeating: "/", count: 1000)) == "/")
+    }
+    @Test func isExternalClassifiesDestinations() {
+        #expect(RouteURL.isExternal("https://x.dev"))
+        #expect(RouteURL.isExternal("mailto:a@b.c"))
+        #expect(RouteURL.isExternal("//cdn.x.dev/lib.js"))
+        #expect(!RouteURL.isExternal("/docs/intro"))
+        #expect(!RouteURL.isExternal("/search?q=a:b"))     // ':' after '?' is not a scheme
+        #expect(!RouteURL.isExternal("#section"))
+    }
+    #if !DEBUG
+    @Test func catchAllMidPatternDegradesToPrefixMatch() {   // release-only: debug asserts in init
+        let p = RoutePattern("/files/*/edit")
+        #expect(p.match("/files/a/b") == ["*": "a/b"])
+    }
+    #endif
 }

@@ -3,8 +3,19 @@ enum RouteURL {
     /// Guarantees a leading "/", strips trailing "/" (root untouched): "/x/" → "/x".
     static func normalizePath(_ path: String) -> String {
         var p = path.hasPrefix("/") ? path : "/" + path
-        while p.count > 1 && p.hasSuffix("/") { p.removeLast() }
+        var n = p.count                                   // computed once — O(n) total
+        while n > 1 && p.hasSuffix("/") { p.removeLast(); n -= 1 }
         return p
+    }
+
+    /// "https://…", "mailto:…", "//host/…" — anything that leaves the app.
+    static func isExternal(_ url: String) -> Bool {
+        if url.hasPrefix("//") { return true }
+        for ch in url {
+            if ch == ":" { return true }
+            if ch == "/" || ch == "?" || ch == "#" { return false }
+        }
+        return false
     }
 
     /// Path split on "/", empty segments dropped ("//" tolerated).
@@ -92,6 +103,9 @@ struct RoutePattern: Equatable {
             } else {
                 segs.append(.literal(part))
             }
+        }
+        if let i = segs.firstIndex(of: .catchAll), i < segs.count - 1 {
+            segs = Array(segs[...i])          // release degrade: '*' swallows the tail (documented)
         }
         self.segments = segs
     }

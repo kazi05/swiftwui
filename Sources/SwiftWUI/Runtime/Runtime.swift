@@ -76,6 +76,8 @@ public final class Runtime<Backend: RendererBackend> {
     /// SPA navigation (spec §7): update location → pushState/replaceState →
     /// full pass. Same path+query → no-op (prevents self-redirect loops).
     public func navigate(to url: String, replace: Bool = false) {
+        assert(!RouteURL.isExternal(url),
+               "navigate() expects an app-internal path, got '\(url)' — use a plain A/Link for external URLs")
         let (rawPath, query, search) = RouteURL.split(url)
         let path = RouteURL.normalizePath(rawPath)
         guard path != currentPath || query != currentQuery else { redirectHops = 0; return }  // arriving at the current location ends any redirect chain
