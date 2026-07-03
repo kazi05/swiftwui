@@ -16,4 +16,15 @@ public protocol RendererBackend: AnyObject {
     /// Replace the full text of the document's single managed stylesheet.
     /// Called at most once per flush, only when the rule registry grew.
     func setStylesheet(_ text: String)
+
+    // MARK: Routing (phase 4, spec §3)
+    /// History API. Backends without history (Mock) just record.
+    func pushState(path: String)
+    func replaceState(path: String)
+    func historyBack()
+    /// document.title.
+    func setTitle(_ title: String)
+    /// Replaces the document's MANAGED meta set (marked data-swiftwui);
+    /// hand-written <meta> in the host HTML is never touched.
+    func setMetaTags(_ tags: [MetaTag])
 }

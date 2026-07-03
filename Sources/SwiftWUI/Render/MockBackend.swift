@@ -59,6 +59,17 @@ public final class MockBackend: RendererBackend {
     public private(set) var stylesheetText: String?
     public func setStylesheet(_ text: String) { bump("setStylesheet"); stylesheetText = text }
 
+    public private(set) var historyStack: [String] = []
+    public private(set) var replacedStates: [String] = []
+    public private(set) var backCount = 0
+    public private(set) var title: String?
+    public private(set) var metaTags: [MetaTag] = []
+    public func pushState(path: String) { bump("pushState"); historyStack.append(path) }
+    public func replaceState(path: String) { bump("replaceState"); replacedStates.append(path) }
+    public func historyBack() { bump("historyBack"); backCount += 1 }
+    public func setTitle(_ title: String) { bump("setTitle"); self.title = title }
+    public func setMetaTags(_ tags: [MetaTag]) { bump("setMetaTags"); metaTags = tags }
+
     /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
     public func serializeHTML(_ node: MockNode? = nil) -> String {
         let n = node ?? container
