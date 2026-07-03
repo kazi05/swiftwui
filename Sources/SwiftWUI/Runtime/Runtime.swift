@@ -14,6 +14,7 @@ public final class Runtime<Backend: RendererBackend> {
     private var isRendering = false
     private let styleRegistry = StyleRegistry()
     private var flushedStyleVersion = 0
+    private let globalStyles: [Rule]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
     var _store: StateStore { store }            // test hooks
     var _listenerCount: Int { listeners.count }
@@ -21,10 +22,12 @@ public final class Runtime<Backend: RendererBackend> {
     var _registryText: String { styleRegistry.text }        // test hook
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
-                scheduleMicrotask: @escaping (@escaping () -> Void) -> Void) {
+                scheduleMicrotask: @escaping (@escaping () -> Void) -> Void,
+                globalStyles: [Rule] = []) {
         applier = TreeApplier(backend: backend, container: container)
         rootTag = AnyTag(root)
         self.scheduleMicrotask = scheduleMicrotask
+        self.globalStyles = globalStyles
     }
 
     /// Event entry point: backends' listeners call this with the fired ID;
@@ -42,7 +45,10 @@ public final class Runtime<Backend: RendererBackend> {
         }
     }
 
-    public func mount() { renderPass() }
+    public func mount() {
+        for rule in globalStyles { rule.register(into: styleRegistry, scope: nil) }
+        renderPass()
+    }
 
     public func flush() {
         scheduled = false

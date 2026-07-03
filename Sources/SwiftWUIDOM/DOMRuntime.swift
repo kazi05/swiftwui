@@ -31,7 +31,8 @@ import JavaScriptEventLoop
 public enum DOMRuntime {
     private static var retained: [AnyObject] = []      // runtime lives for the page lifetime
 
-    public static func mount(_ root: some Tag, selector: String = "body") {
+    public static func mount(_ root: some Tag, selector: String = "body",
+                             globalStyles: [Rule] = []) {
         JavaScriptEventLoop.installGlobalExecutor()
         assertReflectionAlive()
         let document = JSObject.global.document
@@ -41,7 +42,8 @@ public enum DOMRuntime {
         let box = DispatchBox()
         let backend = DOMBackend(dispatch: { box.fn($0, $1) })
         let runtime = Runtime(backend: backend, container: container,
-                              root: root, scheduleMicrotask: jsMicrotask)
+                              root: root, scheduleMicrotask: jsMicrotask,
+                              globalStyles: globalStyles)
         box.fn = { [weak runtime] in runtime?.dispatch($0, payload: $1) }
         retained.append(runtime)
         retained.append(backend)
@@ -52,7 +54,7 @@ public enum DOMRuntime {
 
 extension App {
     @MainActor public static func main() {
-        DOMRuntime.mount(Self().body)
+        DOMRuntime.mount(Self().body, globalStyles: Self.globalStyles)
     }
 }
 #else

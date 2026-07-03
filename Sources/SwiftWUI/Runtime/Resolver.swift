@@ -18,6 +18,9 @@ public struct ResolveContext {
     /// outside the component's tracking window (ForEach) bind their own
     /// tracking to this id so model reads still invalidate the right owner.
     var owner: NodeIdentity = .root
+    /// Scope marker of the innermost Styled component; appended to every
+    /// element resolved in its body. Reset at EVERY component boundary.
+    var scopeClass: String? = nil
     var effects: [EffectRequest] = []
     var registry = StyleRegistry()
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
@@ -38,14 +41,23 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body
     let box = _InvalidateBox(fire: { inv(id) })
     let savedOwner = ctx.owner
+    let savedScope = ctx.scopeClass
     ctx.owner = id
-    defer { ctx.owner = savedOwner }
+    ctx.scopeClass = nil                       // child components never inherit a parent scope
+    defer { ctx.owner = savedOwner; ctx.scopeClass = savedScope }
     // Tracking covers body evaluation; ForEach additionally re-binds tracking
     // for its per-item content closures to ctx.owner (see ForEach._resolve).
+    var styledRules: [Rule] = []
     let body = withObservationTracking {
-        tag.body
+        if let styled = tag as? any Styled { styledRules = styled.styles }
+        return tag.body
     } onChange: {
         MainActor.assumeIsolated { box.fire() }
+    }
+    if !styledRules.isEmpty {
+        let marker = scopeMarker(forTypeName: String(reflecting: T.self))
+        ctx.scopeClass = marker
+        for rule in styledRules { rule.register(into: ctx.registry, scope: marker) }
     }
     let children = resolve(body, path: id.appending(.child(0)), ctx: &ctx)
     return [.component(ComponentNode(identity: id,
@@ -97,6 +109,9 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
         let cls = ctx.registry.registerAnonymous(pseudo: rule.pseudo, media: rule.media,
                                                  declarations: rule.declarations)
         effectiveBag.appendClasses([cls])
+    }
+    if let scope = ctx.scopeClass {
+        effectiveBag.appendClasses([scope])
     }
     let children = coalesceText(resolve(content, path: path.appending(.child(0)), ctx: &ctx))
     return [.element(ElementNode(identity: path, tag: tagName, attributes: effectiveBag.flattened(),
