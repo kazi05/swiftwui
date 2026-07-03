@@ -71,6 +71,19 @@ public final class DOMBackend: RendererBackend {
             return SubmitEvent()
         case "focus", "blur":
             return FocusEvent()
+        case "click":
+            let click = ClickEvent(button: Int(e.button.number ?? 0),
+                                   metaKey: e.metaKey.boolean ?? false,
+                                   ctrlKey: e.ctrlKey.boolean ?? false,
+                                   shiftKey: e.shiftKey.boolean ?? false,
+                                   altKey: e.altKey.boolean ?? false)
+            // SPA interception (spec §8): unmodified click on a managed link →
+            // suppress full-page navigation; Link's Swift handler navigates.
+            if !click.isModified,
+               e.currentTarget.object?.hasAttribute?("data-swui-link").boolean == true {
+                _ = e.preventDefault?()
+            }
+            return click
         default:
             return GenericEvent(type: event,
                                 targetValue: target?.value.string,
@@ -107,6 +120,40 @@ public final class DOMBackend: RendererBackend {
             styleElement = el.object
         }
         styleElement!.textContent = .string(text)
+    }
+
+    // History/head idioms below are the v1-audited patterns (master
+    // DOMBridge.swift:387-416) — do not "modernize" them.
+    public func pushState(path: String) {
+        _ = JSObject.global.history.object!.pushState!(JSValue.null, "", path)
+    }
+    public func replaceState(path: String) {
+        _ = JSObject.global.history.object!.replaceState!(JSValue.null, "", path)
+    }
+    public func historyBack() {
+        _ = JSObject.global.history.object!.back!()
+    }
+    public func setTitle(_ title: String) {
+        document.title = .string(title)
+    }
+    public func setMetaTags(_ tags: [MetaTag]) {
+        // Replace ONLY the managed set (spec §9): marked data-swiftwui.
+        let old = document.querySelectorAll("meta[data-swiftwui]").object
+        let n = Int(old?.length.number ?? 0)
+        for i in (0..<n).reversed() {
+            if let el = old?[i].object {
+                _ = el.parentNode.object?.removeChild?(el)
+            }
+        }
+        guard let head = document.head.object else { return }
+        for tag in tags {
+            let el = document.createElement("meta").object!
+            for name in tag.attributes.keys.sorted() {
+                _ = el.setAttribute?(name, tag.attributes[name]!)
+            }
+            _ = el.setAttribute?("data-swiftwui", "")
+            _ = head.appendChild?(el)
+        }
     }
 }
 #endif

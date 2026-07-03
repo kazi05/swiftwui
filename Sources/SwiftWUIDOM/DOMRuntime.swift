@@ -41,13 +41,23 @@ public enum DOMRuntime {
             : document.querySelector(selector).object!
         let box = DispatchBox()
         let backend = DOMBackend(dispatch: { box.fn($0, $1) })
+        let location = JSObject.global.location
+        let initialPath = (location.pathname.string ?? "/") + (location.search.string ?? "")
         let runtime = Runtime(backend: backend, container: container,
-                              root: root, scheduleMicrotask: jsMicrotask,
+                              root: root, initialPath: initialPath,
+                              scheduleMicrotask: jsMicrotask,
                               globalStyles: globalStyles, themes: themes)
         box.fn = { [weak runtime] in runtime?.dispatch($0, payload: $1) }
         retained.append(runtime)
         retained.append(backend)
         runtime.mount()
+        let popstate = JSClosure { [weak runtime] _ in
+            let loc = JSObject.global.location
+            runtime?.handlePopState(url: (loc.pathname.string ?? "/") + (loc.search.string ?? ""))
+            return .undefined
+        }
+        _ = JSObject.global.window.object?.addEventListener?("popstate", popstate)
+        retained.append(popstate)                 // JSClosure must outlive the page (v1 lesson)
         _ = container.setAttribute?("data-swui-mounted", "true")   // test-sync hook (v1 lesson)
     }
 }
