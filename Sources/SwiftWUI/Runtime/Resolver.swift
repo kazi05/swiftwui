@@ -33,6 +33,9 @@ public struct ResolveContext {
     var pageHead: PageHead? = nil
     /// Routers resolved this pass — asserted ≤ 1 (spec D9).
     var routerCount = 0
+    /// Non-nil during a `Runtime._collectRoutes()` pass: every Router appends
+    /// its patterns here (spec §5, SSG route enumeration).
+    var collectedRoutes: [RoutePattern]? = nil
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }

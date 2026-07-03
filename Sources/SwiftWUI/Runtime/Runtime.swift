@@ -26,8 +26,27 @@ public final class Runtime<Backend: RendererBackend> {
     var _store: StateStore { store }            // test hooks
     var _listenerCount: Int { listeners.count }
     var _current: Node? { current }
-    var _registryText: String { styleRegistry.text }        // test hook
+    public var _registryText: String { styleRegistry.text }        // test hook + SPI (spec §5)
     public var _effects: EffectStore { effects }            // SPI: SSG driver (Task 11) / hydration boot (Task 13)
+
+    // SSG/hydration SPI (spec §5): stable underscore-public surface for
+    // SwiftWUIStatic and SwiftWUIDOM. Not API.
+    public var _currentTree: Node? { current }
+    public var _pageHead: PageHead? { lastPageHead }
+    public var _locationPath: String { currentPath }
+
+    /// One throwaway resolve with route collection on. Uses a FRESH store and
+    /// listener registry — never disturbs live state. Guards DO run (they run
+    /// on any resolve); redirects/pageHead of this pass are discarded.
+    public func _collectRoutes() -> [RoutePattern] {
+        var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(),
+                                 invalidate: { _ in })
+        ctx.collectedRoutes = []
+        ctx.environment.routeInfo = RouteInfo(path: currentPath, query: currentQuery)
+        passCounter += 1; ctx.pass = passCounter
+        _ = resolve(rootTag, path: .root, ctx: &ctx)
+        return ctx.collectedRoutes ?? []
+    }
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
                 initialPath: String = "/",

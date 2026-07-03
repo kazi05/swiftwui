@@ -93,4 +93,24 @@ private struct RApp: Tag {
         #expect(!backend.serializeHTML().contains("x"))
         _ = rt
     }
+    @Test func collectRoutesReportsAllPatterns() {
+        struct CollectApp: Tag {
+            var body: some Tag {
+                Router {
+                    Route("/") { Text("home") }
+                    Route("/about") { Text("about") }
+                    Route("/todo/:id") { _ in Text("todo") }
+                }
+            }
+        }
+        let backend = MockBackend()
+        let rt = Runtime(backend: backend, container: backend.container,
+                         root: CollectApp(), scheduleMicrotask: { _ in })
+        rt.mount()
+        let patterns = rt._collectRoutes()
+        #expect(patterns.map(\.raw) == ["/", "/about", "/todo/:id"])
+        #expect(patterns.map(\.isStatic) == [true, true, false])
+        // Collection must not disturb live state:
+        #expect(rt._currentTree != nil)
+    }
 }

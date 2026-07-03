@@ -21,6 +21,7 @@ public struct Router: Tag, _PrimitiveTag {
     @MainActor public func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
         ctx.routerCount += 1
         assert(ctx.routerCount == 1, "SwiftWUI supports one Router per app (spec D9)")  // release: both Routers resolve (documented degrade); debug traps
+        ctx.collectedRoutes?.append(contentsOf: routes.map(\.pattern))
         let info = ctx.environment.routeInfo
         for route in routes {
             guard let params = route.pattern.match(info.path) else { continue }

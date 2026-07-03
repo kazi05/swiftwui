@@ -1,5 +1,9 @@
 /// URL helpers (spec §4). No Foundation — percent-decoding is hand-rolled.
-enum RouteURL {
+public enum RouteURL {
+    /// SPI (spec §5): SwiftWUIStatic (output dirs, redirect compare) and
+    /// SwiftWUIDOM (snapshot path compare vs `location.pathname`). Not API.
+    public static func _normalize(_ path: String) -> String { normalizePath(path) }
+
     /// Guarantees a leading "/", strips trailing "/" (root untouched): "/x/" → "/x".
     static func normalizePath(_ path: String) -> String {
         var p = path.hasPrefix("/") ? path : "/" + path
@@ -79,16 +83,21 @@ enum RouteURL {
 }
 
 /// Parsed route pattern (spec §4): literal | :param | * (catch-all, last only).
-struct RoutePattern: Equatable {
+public struct RoutePattern: Equatable {
     enum Segment: Equatable {
         case literal(String)
         case param(String)
         case catchAll
     }
-    let raw: String
+    public let raw: String
     let segments: [Segment]
 
-    init(_ raw: String) {
+    /// No :param / catch-all — auto-enumerable by SSG (spec D3).
+    public var isStatic: Bool {
+        segments.allSatisfy { if case .literal = $0 { return true } else { return false } }
+    }
+
+    public init(_ raw: String) {
         self.raw = raw
         let parts = RouteURL.pathSegments(RouteURL.normalizePath(raw))
         var segs: [Segment] = []
@@ -112,7 +121,7 @@ struct RoutePattern: Equatable {
 
     /// Captured params (percent-decoded), or nil when the path doesn't match.
     /// A catch-all's tail lands under key "*". Matching is case-sensitive.
-    func match(_ path: String) -> [String: String]? {
+    public func match(_ path: String) -> [String: String]? {
         let parts = RouteURL.pathSegments(RouteURL.normalizePath(path))
             .map(RouteURL.percentDecode)
         var params: [String: String] = [:]
