@@ -54,4 +54,23 @@ private struct Card: Tag {
         backend.insert(n, into: backend.container, before: nil)
         #expect(backend.serializeHTML() == "<textarea>a &amp; &lt;b&gt;</textarea>")
     }
+    @Test func textLevelTagsRender() {
+        #expect(HTMLRenderer.render(Aside { Text("x") }) == "<aside>x</aside>")
+        #expect(HTMLRenderer.render(Blockquote(cite: "https://a.dev") { Text("q") })
+                == "<blockquote cite=\"https://a.dev\">q</blockquote>")
+        #expect(HTMLRenderer.render(Q(cite: "https://a.dev") { Text("q") })
+                == "<q cite=\"https://a.dev\">q</q>")
+        #expect(HTMLRenderer.render(Time(datetime: "2026-07-03") { Text("today") })
+                == "<time datetime=\"2026-07-03\">today</time>")
+        #expect(HTMLRenderer.render(Abbr(title: "HyperText") { Text("HT") })
+                == "<abbr title=\"HyperText\">HT</abbr>")
+        #expect(HTMLRenderer.render(Del(datetime: "2026-01-01") { Text("old") })
+                == "<del datetime=\"2026-01-01\">old</del>")
+        #expect(HTMLRenderer.render(Ins { Text("new") }) == "<ins>new</ins>")
+        #expect(HTMLRenderer.render(Data(value: "42") { Text("answer") })
+                == "<data value=\"42\">answer</data>")
+        #expect(HTMLRenderer.render(Div { Wbr() }) == "<div><wbr></div>")
+        #expect(HTMLRenderer.render(Blockquote(cite: "javascript:alert(1)") { Text("q") })
+                == "<blockquote cite=\"#\">q</blockquote>")  // sanitizeURL neuters rejected scheme to "#"
+    }
 }
