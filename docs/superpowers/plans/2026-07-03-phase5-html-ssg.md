@@ -1467,8 +1467,11 @@ where Base.HostNode: AnyObject {
 
     public init(base: Base, container: HostNode) {
         self.base = base
-        containerID = ObjectIdentifier(container)
         buildStream(of: container)
+        // PLAN AMENDMENT (Task-8 review I1): an empty container is a cold
+        // mount, not a mismatch — deactivate instead of arming a false fail
+        // (Task 13's fallback re-wraps a cleared container and must not trap).
+        active = !stream.isEmpty
     }
     private func buildStream(of node: HostNode) {
         for i in 0..<base.childCount(of: node) {
@@ -1517,9 +1520,14 @@ where Base.HostNode: AnyObject {
         return base.createElement(tag)
     }
     public func createTextNode(_ text: String) -> HostNode {
-        // No byte comparison of text (browser entity/whitespace view); the
-        // mount pass's setText below overwrites with the canonical value.
-        if active, let n = nextAdopted(expectTag: nil) { return n }
+        // No byte comparison of text (browser entity/whitespace view) — but
+        // TreeApplier.mount never calls setText on fresh text nodes, so the
+        // adopted node self-heals here (idempotent under T8, corrective
+        // otherwise). PLAN AMENDMENT (Task-8 review I2).
+        if active, let n = nextAdopted(expectTag: nil) {
+            base.setText(n, text)
+            return n
+        }
         return base.createTextNode(text)
     }
     public func insert(_ child: HostNode, into parent: HostNode, before anchor: HostNode?) {
