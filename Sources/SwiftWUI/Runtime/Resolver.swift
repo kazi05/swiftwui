@@ -3,7 +3,7 @@ import Observation
 // Sendable adapter for the @Sendable onChange closure. Safe: every state write
 // in the pipeline is @MainActor (module default isolation), so onChange always
 // fires on the main actor in practice (spec D4).
-private struct _InvalidateBox: @unchecked Sendable {
+struct _InvalidateBox: @unchecked Sendable {
     let fire: () -> Void
 }
 
@@ -14,6 +14,10 @@ public struct ResolveContext {
     var reachable: Set<NodeIdentity> = []
     var liveListeners: Set<ListenerID> = []
     var environment = EnvironmentValues()
+    /// Nearest enclosing component — primitives that run content closures
+    /// outside the component's tracking window (ForEach) bind their own
+    /// tracking to this id so model reads still invalidate the right owner.
+    var owner: NodeIdentity = .root
     var effects: [EffectRequest] = []
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
@@ -32,8 +36,11 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     let inv = ctx.invalidate
     ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body
     let box = _InvalidateBox(fire: { inv(id) })
-    // Tracking covers body evaluation only; reads inside primitive content
-    // closures (ForEach) are not tracked — see ForEach's `content` doc.
+    let savedOwner = ctx.owner
+    ctx.owner = id
+    defer { ctx.owner = savedOwner }
+    // Tracking covers body evaluation; ForEach additionally re-binds tracking
+    // for its per-item content closures to ctx.owner (see ForEach._resolve).
     let body = withObservationTracking {
         tag.body
     } onChange: {

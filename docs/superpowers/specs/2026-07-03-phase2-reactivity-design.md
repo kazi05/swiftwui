@@ -422,7 +422,8 @@ Native-first via MockBackend + Runtime (phase-1 pattern); browser run is accepta
   closures are not tracked (they execute outside the component body's tracking
   window). Constraint: reads belong in a component's `body`; ForEach rows that
   read models must be components. Phase 3 threads tracking through primitive
-  content resolution.
+  content resolution. RESOLVED in phase 3 (see 2026-07-03-phase3-styles-design.md
+  Task 2): ForEach binds per-item tracking to the enclosing component.
 - **Constraint:** @Observable model writes must occur on the main actor;
   off-main writes trap in the invalidation path by design (all-@MainActor
   pipeline).

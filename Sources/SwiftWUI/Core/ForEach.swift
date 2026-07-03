@@ -1,14 +1,15 @@
+import Observation
+
 struct CompositeKey: Hashable { let base: AnyHashable; let index: Int }
 
 public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Tag>: Tag, _PrimitiveTag {
     public typealias Body = Never
     let data: Data
     let id: KeyPath<Data.Element, ID>
-    /// KNOWN LIMITATION (phase 2): `content` runs during ForEach's own _resolve,
-    /// OUTSIDE the parent component's withObservationTracking window. @Observable
-    /// properties read directly inside this closure are NOT tracked — mutations
-    /// will not invalidate. Wrap rows in a component (reads inside its `body` are
-    /// tracked) until phase 3 threads tracking through primitive resolution.
+    /// Per-item content closures run inside their own tracking window bound to
+    /// the nearest enclosing component (phase 3): @Observable reads here DO
+    /// invalidate. Reads inside nested escaping closures that run later
+    /// (e.g. Button actions) are writes-side and intentionally untracked.
     let content: (Data.Element) -> Content
 
     public init(_ data: Data, id: KeyPath<Data.Element, ID>,
@@ -19,10 +20,18 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Tag>:
     @MainActor public func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
         var out: [Node] = []
         var seen = Set<NodeKey>()
+        let ownerID = ctx.owner
+        let inv = ctx.invalidate
+        let box = _InvalidateBox(fire: { inv(ownerID) })
         for item in data {
             let key = NodeKey(item[keyPath: id])
             assert(seen.insert(key).inserted, "ForEach: duplicate id \(item[keyPath: id])")
-            var nodes = resolve(content(item), path: path.appending(.keyed(key)), ctx: &ctx)
+            let built = withObservationTracking {
+                content(item)
+            } onChange: {
+                MainActor.assumeIsolated { box.fire() }
+            }
+            var nodes = resolve(built, path: path.appending(.keyed(key)), ctx: &ctx)
             for i in nodes.indices {
                 nodes[i].key = nodes.count == 1
                     ? key

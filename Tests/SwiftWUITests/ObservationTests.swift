@@ -38,7 +38,35 @@ private struct ObsHost: Tag {
     }
 }
 
+@Observable private final class RowModel {
+    var label = "one"
+}
+private struct DirectForEachRead: Tag {
+    let model: RowModel
+    var body: some Tag {
+        Ul {
+            ForEach([1], id: \.self) { _ in
+                Li { model.label }        // read INSIDE ForEach closure, no row component
+            }
+        }
+    }
+}
+
 @MainActor @Suite struct ObservationTests {
+    @Test func forEachClosureReadTracksModel() {
+        let backend = MockBackend(); let sched = TestScheduler()
+        let model = RowModel()
+        let rt = Runtime(backend: backend, container: backend.container,
+                         root: DirectForEachRead(model: model),
+                         scheduleMicrotask: sched.schedule)
+        rt.mount()
+        #expect(backend.serializeHTML().contains("one"))
+        model.label = "two"                // must invalidate DirectForEachRead
+        sched.pump()
+        #expect(backend.serializeHTML().contains("two"))
+        #expect(!backend.serializeHTML().contains("one"))
+    }
+
     @Test func modelWriteDirtiesOnlyReaders() {
         let backend = MockBackend(); let sched = TestScheduler()
         let counters = Counters()
