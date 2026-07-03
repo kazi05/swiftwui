@@ -56,11 +56,12 @@ private struct HydroFixture: Tag {
         // Cold-rebuild path (what DOMRuntime does on failure, spec D6):
         for c in base.container.children { base.remove(c, from: base.container) }
         let freshAdopting = AdoptingBackend(base: base, container: base.container)
-        freshAdopting._assertOnMismatch = false   // empty stream trips fail() on the first create — trivial, not a real mismatch
+        // Empty container → empty stream → cold mount (I1), not a mismatch:
+        // finishAdoption() is trivially true and creates are real.
+        #expect(freshAdopting.finishAdoption())
         runtime = Runtime(backend: freshAdopting,
                           container: base.container, root: HydroFixture(),
                           scheduleMicrotask: sched.schedule)
-        // Empty container → empty stream → adoption trivially finishes; creates are real.
         runtime.mount()
         #expect(base.serializeHTML() ==
             "<div class=\"box\"><h1>Count: 0</h1><button type=\"button\">+</button></div>")

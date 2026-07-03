@@ -26,15 +26,16 @@ where Base.HostNode: AnyObject {
     /// Safe even for JSObject: we only ever key the wrapper instances WE
     /// handed out (stream entries + container) — never re-read wrappers.
     private var parentOf: [ObjectIdentifier: ObjectIdentifier] = [:]
-    private let containerID: ObjectIdentifier
     /// D6 wants debug-loud mismatches, but the fallback path itself must be
     /// testable in debug — tests that exercise deliberate mismatches set false.
     public var _assertOnMismatch = true
 
     public init(base: Base, container: HostNode) {
         self.base = base
-        containerID = ObjectIdentifier(container)
         buildStream(of: container)
+        // An empty container is a cold mount, not a mismatch — Task 13's
+        // fallback re-wraps a cleared container and must not trap.
+        active = !stream.isEmpty
     }
     private func buildStream(of node: HostNode) {
         for i in 0..<base.childCount(of: node) {
@@ -43,7 +44,7 @@ where Base.HostNode: AnyObject {
             parentOf[ObjectIdentifier(c)] = ObjectIdentifier(node)
             // textarea's serialized value is child TEXT in HTML but a `value`
             // PROPERTY in the VDOM — skip its subtree (spec §8 / textarea rule).
-            if base.tagName(of: c) == "textarea" { continue }
+            if base.tagName(of: c)?.lowercased() == "textarea" { continue }
             buildStream(of: c)
         }
     }
@@ -84,8 +85,13 @@ where Base.HostNode: AnyObject {
     }
     public func createTextNode(_ text: String) -> HostNode {
         // No byte comparison of text (browser entity/whitespace view); the
-        // mount pass's setText below overwrites with the canonical value.
-        if active, let n = nextAdopted(expectTag: nil) { return n }
+        // adopted node's text is not trusted verbatim — self-heal below.
+        if active, let n = nextAdopted(expectTag: nil) {
+            // TreeApplier.mount never setTexts fresh text nodes — self-heal
+            // here (idempotent under T8, corrective otherwise).
+            base.setText(n, text)
+            return n
+        }
         return base.createTextNode(text)
     }
     public func insert(_ child: HostNode, into parent: HostNode, before anchor: HostNode?) {
