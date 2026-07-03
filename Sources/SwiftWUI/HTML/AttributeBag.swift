@@ -1,8 +1,18 @@
+/// A rule captured on an element before the registry is reachable; resolved
+/// to a swui-<hash> class in resolveElement.
+public struct PendingStyleRule {
+    let pseudo: String?
+    let media: String?
+    let declarations: [StyleDeclaration]
+}
+
 public struct _AttributeBag {
     private(set) var pairs: [(name: String, value: String)] = []
     private(set) var properties: [(name: String, value: PropertyValue)] = []
     private(set) var handlers: [(event: EventName, action: (Any?) -> Void)] = []
     private(set) var styles: [StyleDeclaration] = []
+    private(set) var pendingRules: [PendingStyleRule] = []
+    mutating func addPendingRule(_ r: PendingStyleRule) { pendingRules.append(r) }
 
     init(id: String? = nil, class classes: String? = nil) {
         if let id { set("id", id) }

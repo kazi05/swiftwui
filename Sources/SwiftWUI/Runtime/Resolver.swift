@@ -92,8 +92,14 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
         ctx.liveListeners.insert(lid)
         listeners[event] = lid
     }
+    var effectiveBag = bag
+    for rule in bag.pendingRules {
+        let cls = ctx.registry.registerAnonymous(pseudo: rule.pseudo, media: rule.media,
+                                                 declarations: rule.declarations)
+        effectiveBag.appendClasses([cls])
+    }
     let children = coalesceText(resolve(content, path: path.appending(.child(0)), ctx: &ctx))
-    return [.element(ElementNode(identity: path, tag: tagName, attributes: bag.flattened(),
-                                 properties: bag.flattenedProperties(),
+    return [.element(ElementNode(identity: path, tag: tagName, attributes: effectiveBag.flattened(),
+                                 properties: effectiveBag.flattenedProperties(),
                                  listeners: listeners, children: children, key: nil))]
 }
