@@ -1729,8 +1729,16 @@ ctx.collectedRoutes?.append(contentsOf: routes.map(\.pattern))
     public var _styleRegistryText: String { styleRegistry.text }
 
     /// One throwaway resolve with route collection on. Uses a FRESH store and
-    /// listener registry — never disturbs live state. Guards DO run (they run
-    /// on any resolve); redirects/pageHead of this pass are discarded.
+    /// listener registry. Guards DO run (they run on any resolve);
+    /// redirects/pageHead of this pass are discarded.
+    /// PLAN AMENDMENT (Task-9 review C1): resolve() must SKIP StateStore.link
+    /// during a collect pass (`if ctx.collectedRoutes == nil { ctx.store.link(…) }`)
+    /// — component struct copies share Slot objects with the live tree, so
+    /// linking against the throwaway store rebinds live boxes' invalidate to
+    /// the no-op and injects the throwaway environment into live slots
+    /// (frozen root UI). Collect passes resolve bodies with struct-initial
+    /// values; @Environment-conditional trees see defaults — acceptable for
+    /// pattern enumeration.
     public func _collectRoutes() -> [RoutePattern] {
         var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(),
                                  invalidate: { _ in })
