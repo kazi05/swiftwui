@@ -2,6 +2,7 @@ public struct _AttributeBag {
     private(set) var pairs: [(name: String, value: String)] = []
     private(set) var properties: [(name: String, value: PropertyValue)] = []
     private(set) var handlers: [(event: EventName, action: (Any?) -> Void)] = []
+    private(set) var styles: [StyleDeclaration] = []
 
     init(id: String? = nil, class classes: String? = nil) {
         if let id { set("id", id) }
@@ -44,6 +45,8 @@ public struct _AttributeBag {
         handlers.append((event, action))
     }
 
+    mutating func addStyle(_ d: StyleDeclaration) { styles.append(d) }
+
     /// Last-wins per name, except `class` accumulates space-joined (spec decision 5).
     func flattened() -> [String: String] {
         var out: [String: String] = [:]
@@ -54,7 +57,23 @@ public struct _AttributeBag {
                 out[name] = value
             }
         }
+        if !styles.isEmpty {
+            out["style"] = Self.mergeStyleText(base: out["style"], styles)
+        }
         return out
+    }
+
+    /// "prop: value; …" — call order, last-wins per property, base text first.
+    static func mergeStyleText(base: String?, _ styles: [StyleDeclaration]) -> String {
+        var order: [String] = []
+        var valueFor: [String: String] = [:]
+        for d in styles {
+            if valueFor[d.property] == nil { order.append(d.property) }
+            valueFor[d.property] = d.value
+        }
+        let text = order.map { "\($0): \(valueFor[$0]!)" }.joined(separator: "; ")
+        if let base, !base.isEmpty { return base + "; " + text }
+        return text
     }
 
     /// [a-zA-Z_:][a-zA-Z0-9_.:-]* — spec §11 point 3. Foundation-free.
