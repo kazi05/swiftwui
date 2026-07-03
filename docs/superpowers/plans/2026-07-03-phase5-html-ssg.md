@@ -966,11 +966,13 @@ extension NodeIdentity {
 }
 ```
 
-- [ ] **Step 2: register at the component boundary** — in `Resolver.swift`'s `resolve<T>`, directly after `let id = path.appending(.type(ObjectIdentifier(T.self)))` add:
+- [ ] **Step 2: register at every `.type`-minting site** — in `Resolver.swift`'s `resolve<T>`, directly after `let id = path.appending(.type(ObjectIdentifier(T.self)))` add:
 
 ```swift
 _TypeNameRegistry.register(T.self)     // snapshot keys need the stable name (spec D7)
 ```
+
+PLAN AMENDMENT (Task-5 review C1): `resolve<T>` is NOT the only `.type` minter — five primitive wrappers append `.type(ObjectIdentifier(Self.self))` in their `_resolve` and must register the same way (one line each, next to their `path.appending(.type(...))`): `_EnvironmentWriter` (Environment/Environment.swift:43), `_OnChangeEffect`/`_TaskEffect`/`_AppearEffect` (Effects/EffectModifiers.swift:8,25,37), `_StyledTag` (Styles/StyledTag.swift:14). Without these, `_canonicalString` is nil for any subtree under `.environment`/`.task`/`.onAppear`/`.onChange`/wrapper styles — silent state loss at hydration. HTML primitives (Div etc.) never mint `.type` and stay out of the registry.
 
 - [ ] **Step 3: tests** — append to `IdentityTests.swift`:
 
