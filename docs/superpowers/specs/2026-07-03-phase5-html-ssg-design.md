@@ -218,10 +218,14 @@ Emitted only in hydrate mode, after quiescence:
   reuse after route changes).
 - Version mismatch → whole snapshot ignored (cold client behavior).
 - Escaping: `<script>` content is raw text — HTML entities are NOT decoded
-  there, so `HTMLEscaping.text` must NOT be applied. Breakout is prevented
-  at the JSON level: the encoder escapes `/` as `\/` inside strings
-  (JSON-legal), so `</script` can never appear in the payload. Pinned by
-  test with a string state value containing `</script>`.
+  there, so `HTMLEscaping.text` must NOT be applied. Breakout defense is
+  two-layer (ADDENDUM, task-10 review): the JSON encoder escapes `/` as
+  `\/`, AND the serializer routes the final payload through
+  `HTMLEscaping.scriptJSON` (audited v1 helper), which escapes `<`/`>`/
+  U+2028/U+2029 as `\uXXXX` — `\/` alone cannot stop `<!--<script`, which
+  flips the HTML tokenizer into script-data-double-escaped state and
+  swallows the rest of the document. Pinned by tests with `</script>` and
+  `<!--<script` state values.
 
 ## 8. Hydration — adopting walk
 

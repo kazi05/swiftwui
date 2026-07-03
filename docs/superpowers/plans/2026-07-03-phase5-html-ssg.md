@@ -1939,9 +1939,11 @@ public enum DocumentSerializer {
             out += "<style data-swiftwui>\n" + css + "\n</style>\n"
         }
         if let snapshot = input.snapshotJSON {
-            assert(!snapshot.contains("</script"),
-                   "snapshot JSON must be breakout-free (\\/ escaping)")
-            out += "<script type=\"application/swiftwui-state\" data-swiftwui>" + snapshot + "</script>\n"
+            // PLAN AMENDMENT (task-10 review I1): route through the audited
+            // scriptJSON helper — "\/" alone can't stop "<!--<script" (HTML
+            // script-data-double-escaped state swallows the document).
+            out += "<script type=\"application/swiftwui-state\" data-swiftwui>"
+                + HTMLEscaping.scriptJSON(snapshot) + "</script>\n"
         }
         out += "</head>\n<body>\n" + input.bodyHTML + "\n"
         if let src = input.wasmScriptPath {
