@@ -102,6 +102,12 @@ public final class Runtime<Backend: RendererBackend> {
         assert(nodes.count == 1, "component must resolve to exactly one node")
         var new = nodes[0]
         new.key = old.key   // resolve() doesn't see ForEach's key tagging (one level up); preserve it
+        // This pass starts at the row's own tag, skipping back up through any
+        // enclosing `_StyledTag`'s `_resolve` — replay its stashed transform
+        // (spec §6, §11: scoped ≡ full must hold for wrapper-styled components).
+        if let wrapper = row.styleWrapper {
+            applyStyleWrapper(declarations: wrapper.declarations, classes: wrapper.classes, to: &new)
+        }
 
         store.sweep(under: id, reachable: ctx.reachable)
         listeners.sweep(under: id, keep: ctx.liveListeners)
