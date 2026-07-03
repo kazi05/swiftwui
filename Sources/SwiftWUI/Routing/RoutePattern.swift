@@ -40,6 +40,7 @@ enum RouteURL {
 
     /// %XX UTF-8 decode. An invalid escape leaves the WHOLE input unchanged
     /// (spec §4/§11: never trap, never half-decode).
+    /// A well-formed escape of invalid UTF-8 (e.g. "%FF") decodes to U+FFFD (browser-consistent).
     static func percentDecode(_ s: String) -> String {
         guard s.contains("%") else { return s }
         func hex(_ b: UInt8) -> UInt8? {

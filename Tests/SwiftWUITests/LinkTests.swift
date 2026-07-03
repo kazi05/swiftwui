@@ -29,6 +29,7 @@ private struct LProbe: Tag {
         #expect(!Link<Text>.isExternal("/inside"))
         #expect(!Link<Text>.isExternal("/q?x=1"))
         #expect(!Link<Text>.isExternal("relative/path"))
+        #expect(!Link<Text>.isExternal("justtext"))
     }
     @Test func internalLinkNavigatesOnPlainClick() {
         let (rt, backend, sched) = make()

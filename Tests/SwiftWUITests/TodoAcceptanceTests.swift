@@ -64,6 +64,7 @@ private struct TodoPage: Tag, Page, Styled {
     @Environment(\.setTheme) var setTheme
     @State var dark = false
     var title: String { "todos — \(filter.rawValue)" }
+    var meta: [MetaTag] { [.description("SwiftWUI TodoMVC — \(filter.rawValue) todos")] }
     @RulesBuilder var styles: [Rule] {
         Rule(class: "filters", media: .maxWidth(.px(600))) { $0.flexDirection(.column) }
         Rule(element: "button") { s in

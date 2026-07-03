@@ -261,3 +261,7 @@ Native, MockBackend:
   component"; corrected against the actual identity mechanics, approved
   semantics unchanged.
 - **D9** One Router per app, debug-asserted; nested routers backlog.
+- **D10** (post-review addendum) A recorded guard redirect is performed
+  post-pass even when a later route matched and rendered transiently —
+  redirect wins over the transient frame. Pinned by the
+  two-redirecting-routes test in GuardAndPageTests.

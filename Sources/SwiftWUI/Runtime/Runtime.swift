@@ -126,6 +126,8 @@ public final class Runtime<Backend: RendererBackend> {
                                  invalidate: { [weak self] in self?.markDirty($0) })
         ctx.registry = styleRegistry
         passCounter += 1; ctx.pass = passCounter
+        // Snapshot is never stale for routeInfo: navigation always marks .root (full pass),
+        // which re-retains every row's environment.
         ctx.environment = row.environment
         isRendering = true
         let parentPath = NodeIdentity(segments: Array(id.segments.dropLast()))

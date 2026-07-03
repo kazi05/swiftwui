@@ -8,6 +8,10 @@ import Testing
                 == ["name": "robots", "content": "noindex"])
         #expect(MetaTag.property("og:title", content: "T").attributes
                 == ["property": "og:title", "content": "T"])
+        #expect(MetaTag.viewport("width=device-width").attributes
+                == ["name": "viewport", "content": "width=device-width"])
+        #expect(MetaTag.description("d").attributes
+                == ["name": "description", "content": "d"])
     }
     @Test func pageMetaDefaultsEmpty() {
         struct P: Page { var title: String { "t" }

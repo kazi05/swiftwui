@@ -39,6 +39,18 @@ private struct GApp: Tag {
     }
 }
 
+private struct DoubleRedirectApp: Tag {
+    var body: some Tag {
+        Router {
+            Route("/dr", guard: { .redirect("/first") }) { P { "blocked1" } }
+            Route("/dr", guard: { .redirect("/second") }) { P { "blocked2" } }
+            Route("/first") { P { "arrived-first" } }
+            Route("/second") { P { "arrived-second" } }
+            Route("/*") { P { "fallthrough" } }
+        }
+    }
+}
+
 private struct SelfRedirectApp: Tag {
     @State var n = 0
     var body: some Tag {
@@ -128,5 +140,22 @@ private struct SelfRedirectApp: Tag {
         }
         #expect(!backend.serializeHTML().contains("never"))
         #expect(backend.serializeHTML().contains("n:12"))
+    }
+
+    /// D10 (post-review addendum): with two routes matching "/dr" that both
+    /// redirect, the FIRST recorded redirect wins even though a later
+    /// catch-all route matches and renders transiently in the same pass.
+    @Test func firstRedirectWinsOverTransientCatchAllRender() {
+        let backend = MockBackend(); let sched = TestScheduler()
+        let rt = Runtime(backend: backend, container: backend.container,
+                         root: DoubleRedirectApp(), initialPath: "/dr",
+                         scheduleMicrotask: sched.schedule)
+        rt.mount()
+        _ = rt   // keep the runtime alive across the scheduled redirect microtask
+        sched.pump()
+        #expect(backend.serializeHTML().contains("arrived-first"))
+        #expect(!backend.serializeHTML().contains("arrived-second"))
+        #expect(!backend.serializeHTML().contains("blocked"))
+        #expect(backend.replacedStates == ["/first"])
     }
 }

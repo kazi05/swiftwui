@@ -86,7 +86,7 @@ private struct PropList: Tag {
 }
 private struct PropRoot: Tag {
     @State var showList = true
-    @State var model = PropModel()
+    @State var model = PropModel() // @State is load-bearing: a bare let would recreate PropModel on every full pass under Route (Task 10 finding)
     var body: some Tag {
         Div {
             PropLeaf()
