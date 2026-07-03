@@ -52,6 +52,24 @@ private struct DirectForEachRead: Tag {
     }
 }
 
+@Observable private final class FireModel { var labels = ["a", "b"] }
+private final class FireCounter { var rowBodies = 0 }
+private struct FireRow: Tag {
+    let text: String
+    let counter: FireCounter
+    var body: some Tag {
+        counter.rowBodies += 1
+        return Li { text }
+    }
+}
+private struct FireList: Tag {
+    let model: FireModel
+    let counter: FireCounter
+    var body: some Tag {
+        Ul { ForEach(model.labels, id: \.self) { l in FireRow(text: l, counter: counter) } }
+    }
+}
+
 @MainActor @Suite struct ObservationTests {
     @Test func forEachClosureReadTracksModel() {
         let backend = MockBackend(); let sched = TestScheduler()
@@ -116,5 +134,19 @@ private struct DirectForEachRead: Tag {
         binding.wrappedValue = 7
         #expect(model.count == 7)
         #expect(binding.wrappedValue == 7)
+    }
+
+    @Test func forEachRowMutationResolvesRowsExactlyOnce() {
+        let model = FireModel(); let counter = FireCounter()
+        let backend = MockBackend(); let sched = TestScheduler()
+        let rt = Runtime(backend: backend, container: backend.container,
+                         root: FireList(model: model, counter: counter),
+                         scheduleMicrotask: sched.schedule)
+        rt.mount()
+        let base = counter.rowBodies                       // 2 after mount
+        model.labels[0] = "z"                              // tracked by BOTH the body and the per-item closure
+        sched.pump()
+        #expect(counter.rowBodies == base + 2, "one flush → each row resolves once, not twice")
+        #expect(backend.serializeHTML().contains("z"))
     }
 }

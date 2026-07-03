@@ -47,4 +47,11 @@ private struct Card: Tag {
         #expect(HTMLRenderer.render(Cond(flag: true)) == "<div><p>yes</p></div>")
         #expect(HTMLRenderer.render(Cond(flag: false)) == "<div></div>")
     }
+    @Test func mockBackendSerializesTextareaValueAsChildText() {
+        let backend = MockBackend()
+        let n = backend.createElement("textarea")
+        backend.setProperty(n, name: "value", value: .string("a & <b>"))
+        backend.insert(n, into: backend.container, before: nil)
+        #expect(backend.serializeHTML() == "<textarea>a &amp; &lt;b&gt;</textarea>")
+    }
 }
