@@ -19,10 +19,25 @@ public protocol _StateProperty {
 protocol _SnapshotEncodableBox: AnyObject {
     func _encodeJSON(_ encode: SnapshotEncode) -> String?
 }
+
+/// `Optional<Wrapped: Encodable>` can't be reached by `value as? any Encodable`
+/// when `.none` (existential casts unwrap optionals) — dispatch through the TYPE.
+protocol _OptionalEncodableDispatch {
+    static func _encodeErased(_ value: Any, _ encode: SnapshotEncode) -> String?
+}
+extension Optional: _OptionalEncodableDispatch where Wrapped: Encodable {
+    static func _encodeErased(_ value: Any, _ encode: SnapshotEncode) -> String? {
+        encode(value as! Optional<Wrapped>)   // concrete-type cast keeps .none intact; Optional<Wrapped> IS Encodable
+    }
+}
+
 extension StateBox: _SnapshotEncodableBox {
     func _encodeJSON(_ encode: SnapshotEncode) -> String? {
-        guard let v = value as? any Encodable else { return nil }
-        return encode(v)
+        if let v = value as? any Encodable { return encode(v) }
+        if let optType = Value.self as? any _OptionalEncodableDispatch.Type {
+            return optType._encodeErased(value, encode)
+        }
+        return nil
     }
 }
 

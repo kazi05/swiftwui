@@ -130,7 +130,7 @@ public final class StateStore {
             guard let key = id._canonicalString else { continue }
             #if DEBUG
             if key.contains("(unknown context") {
-                print("SwiftWUI snapshot: state of private/local type won't survive hydration — make the component internal or public")
+                print("SwiftWUI snapshot: state of private/local type won't survive hydration — make the component internal or public (key: '\(key)')")
             }
             #endif
             var slots: [String] = []

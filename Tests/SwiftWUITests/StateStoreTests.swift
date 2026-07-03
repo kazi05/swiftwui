@@ -29,6 +29,12 @@ private struct SnapFixture: Tag {
     var body: some Tag { Div { Text("\(label):\(count)") } }
 }
 
+private struct OptionalSnapFixture: Tag {
+    @State var filter: String? = nil
+    @State var page = 0
+    var body: some Tag { Div { Text("\(filter ?? "none"):\(page)") } }
+}
+
 @Suite @MainActor struct StateStoreTests {
     let id = NodeIdentity.root.appending(.type(ObjectIdentifier(Fixture.self)))
 
@@ -120,6 +126,25 @@ private struct SnapFixture: Tag {
         r.mount()
         #expect(backend2.serializeHTML().contains("initial:0"))  // fell back
         #expect(r._store._pendingRows.isEmpty)                   // consumed even on failure
+    }
+
+    @Test func nilOptionalSlotEncodesAsNullAndRestoresSiblings() {
+        let backendP = MockBackend()
+        let probe = Runtime(backend: backendP, container: backendP.container,
+                            root: OptionalSnapFixture(), scheduleMicrotask: { _ in })
+        probe.mount()
+        let rows = probe._store._encodeSnapshotRows(jsonEncode)
+        #expect(rows.count == 1)                                 // row NOT dropped
+        let key = rows.keys.first!
+        #expect(rows[key] == ["[null]", "[0]"])                  // nil → JSON null; Mirror order
+
+        let backend2 = MockBackend()
+        let r = Runtime(backend: backend2, container: backend2.container,
+                        root: OptionalSnapFixture(), scheduleMicrotask: { _ in })
+        r._store._pendingRows = [key: ["[\"done\"]", "[7]"]]
+        r._store._decodeSlot = jsonDecode
+        r.mount()
+        #expect(backend2.serializeHTML().contains("done:7"))
     }
 
     @Test func nonEncodableSlotDropsWholeRow() {
