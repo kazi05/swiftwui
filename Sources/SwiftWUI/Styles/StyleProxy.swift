@@ -3,6 +3,7 @@
 public struct StyleProxy {
     var declarations: [StyleDeclaration] = []
     var pseudoBlocks: [(pseudo: String, declarations: [StyleDeclaration])] = []
+    var mediaBlocks: [(media: String, declarations: [StyleDeclaration])] = []
 
     mutating func _add(_ d: StyleDeclaration) { declarations.append(d) }
 
@@ -18,11 +19,25 @@ public struct StyleProxy {
         var sub = StyleProxy()
         body(&sub)
         assert(sub.pseudoBlocks.isEmpty, "nested pseudo blocks are not supported")
+        assert(sub.mediaBlocks.isEmpty, "nested media blocks are not supported")
+        guard !sub.declarations.isEmpty else { return }   // empty block → nothing to register
         pseudoBlocks.append((name, sub.declarations))
     }
     public mutating func hover(_ body: (inout StyleProxy) -> Void)  { _pseudo(":hover", body) }
     public mutating func focus(_ body: (inout StyleProxy) -> Void)  { _pseudo(":focus", body) }
     public mutating func active(_ body: (inout StyleProxy) -> Void) { _pseudo(":active", body) }
+
+    /// Media block collector for `Style` bundles (spec §10 promises media in
+    /// bundles). Same shape as `_pseudo`: a sub-proxy collects declarations,
+    /// no nested pseudo/media blocks.
+    public mutating func media(_ query: MediaQuery, _ body: (inout StyleProxy) -> Void) {
+        var sub = StyleProxy()
+        body(&sub)
+        assert(sub.pseudoBlocks.isEmpty, "pseudo blocks inside a media block are not supported")
+        assert(sub.mediaBlocks.isEmpty, "nested media blocks are not supported")
+        guard !sub.declarations.isEmpty else { return }   // empty block → nothing to register
+        mediaBlocks.append((query.condition, sub.declarations))
+    }
 
     // Layout
     public mutating func display(_ v: Display) { _add(.display(v)) }

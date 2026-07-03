@@ -49,6 +49,7 @@ public final class StyleRegistry {
         let seed = "anon|\(pseudo ?? "")|\(media ?? "")|\(body)"
         let hash = Self.fnv1a(seed)
         let cls = Self.className(hash)
+        guard !declarations.isEmpty else { return cls }   // nothing to register — no useless `{ }` rule
         let selector = "." + cls + (pseudo ?? "")
         _ = insert(media: media ?? "", text: "\(selector) { \(body) }", seed: seed)
         return cls

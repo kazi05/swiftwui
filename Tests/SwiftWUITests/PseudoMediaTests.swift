@@ -27,6 +27,24 @@ import Testing
         #expect(css.hasPrefix("@media (max-width: 600px) { .swui-"))
         #expect(css.contains("display: none"))
     }
+    @Test func emptyPseudoRuleRegistersNothing() {
+        // MINOR 8: `.hover { _ in }` collects zero declarations — registerAnonymous
+        // must not register a useless `.swui-x { }` stylesheet entry for it.
+        let (_, css) = HTMLRenderer.renderWithStylesheet(Button("+") {}.hover { _ in })
+        #expect(css.isEmpty)
+    }
+    @Test func emptyRuleBuilderPseudoBlockRegistersNothing() {
+        // Same guard, other collector: a `Rule`'s `s.hover { _ in }` sub-block
+        // (StyleProxy._pseudo) must not append an empty block either.
+        struct EmptyHoverRule: Tag, Styled {
+            @RulesBuilder var styles: [Rule] {
+                Rule(class: "field") { s in s.hover { _ in } }
+            }
+            var body: some Tag { Div(class: "field") { Text("x") } }
+        }
+        let (_, css) = HTMLRenderer.renderWithStylesheet(EmptyHoverRule())
+        #expect(css.isEmpty)
+    }
     @Test func mediaQueryConditions() {
         #expect(MediaQuery.minWidth(.rem(40)).condition == "(min-width: 40rem)")
         #expect(MediaQuery.prefersColorScheme(.dark).condition == "(prefers-color-scheme: dark)")

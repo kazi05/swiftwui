@@ -13,6 +13,10 @@ extension HTMLTag {
             copy._attributes.addPendingRule(PendingStyleRule(pseudo: block.pseudo, media: nil,
                                                              declarations: block.declarations))
         }
+        for block in proxy.mediaBlocks {
+            copy._attributes.addPendingRule(PendingStyleRule(pseudo: nil, media: block.media,
+                                                             declarations: block.declarations))
+        }
         return copy
     }
 }
@@ -23,6 +27,8 @@ extension Tag {
         return _StyledTag(content: self, declarations: proxy.declarations,
                           rules: proxy.pseudoBlocks.map {
                               PendingStyleRule(pseudo: $0.pseudo, media: nil, declarations: $0.declarations)
+                          } + proxy.mediaBlocks.map {
+                              PendingStyleRule(pseudo: nil, media: $0.media, declarations: $0.declarations)
                           })
     }
 }
@@ -34,6 +40,9 @@ extension _StyledTag {
         copy.declarations.append(contentsOf: proxy.declarations)
         copy.rules.append(contentsOf: proxy.pseudoBlocks.map {
             PendingStyleRule(pseudo: $0.pseudo, media: nil, declarations: $0.declarations)
+        })
+        copy.rules.append(contentsOf: proxy.mediaBlocks.map {
+            PendingStyleRule(pseudo: nil, media: $0.media, declarations: $0.declarations)
         })
         return copy
     }
