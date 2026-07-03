@@ -23,7 +23,7 @@ public final class Runtime<Backend: RendererBackend> {
     private var redirectHops = 0
     private let themes: [ThemeDefinition]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
-    var _store: StateStore { store }            // test hooks
+    public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
     var _listenerCount: Int { listeners.count }
     var _current: Node? { current }
     public var _registryText: String { styleRegistry.text }        // test hook + SPI (spec §5)

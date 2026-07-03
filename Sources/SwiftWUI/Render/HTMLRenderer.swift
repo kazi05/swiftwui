@@ -20,6 +20,10 @@ public enum HTMLRenderer {
         nodes.map { render($0) }.joined()
     }
 
+    /// SPI (spec §5): SwiftWUIStatic's SSG driver folds an already-resolved
+    /// tree (from a live `Runtime`) — not a fresh throwaway resolve. Not API.
+    public static func _render(_ nodes: [Node]) -> String { render(nodes) }
+
     static func render(_ node: Node) -> String {
         switch node {
         case .text(let s):
