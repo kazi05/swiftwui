@@ -52,6 +52,15 @@ import SwiftWUI
         #expect(!doc.contains("</script"))
         #expect(doc.contains("\"v\":1"))
     }
+    @Test func doubleEscapedScriptStateCannotDesyncDocument() {
+        let slot = SnapshotJSON.encodeSlot("<!--<script")!
+        let doc = DocumentSerializer.render(.init(
+            bodyHTML: "<div>after</div>",
+            snapshotJSON: SnapshotJSON.assemble(version: 1, path: "/x",
+                                                rows: ["k": [slot]], tasks: [])))
+        #expect(!doc.contains("<!--<script"))          // raw sequence never ships
+        #expect(doc.contains("<div>after</div>"))      // body survives
+    }
     @Test func assembleIsDeterministic() {
         let a = SnapshotJSON.assemble(version: 1, path: "/", rows: ["b": ["[1]"], "a": ["[2]"]], tasks: ["z", "y"])
         #expect(a == "{\"v\":1,\"path\":\"\\/\",\"rows\":{\"a\":[[2]],\"b\":[[1]]},\"tasks\":[\"y\",\"z\"]}")
