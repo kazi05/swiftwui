@@ -52,3 +52,15 @@ extension Tag {
         _EnvironmentWriter(keyPath: keyPath, value: value, content: self)
     }
 }
+
+private struct SetThemeKey: EnvironmentKey {
+    static let defaultValue: (String?) -> Void = { _ in }
+}
+extension EnvironmentValues {
+    /// Switches the active theme: `setTheme("dark")` / `setTheme(nil)` (default).
+    /// Provided by the runtime; the default value is a no-op (HTMLRenderer, tests).
+    public var setTheme: (String?) -> Void {
+        get { self[SetThemeKey.self] }
+        set { self[SetThemeKey.self] = newValue }
+    }
+}

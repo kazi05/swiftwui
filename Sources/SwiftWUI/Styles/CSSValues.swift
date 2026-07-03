@@ -11,6 +11,7 @@ func cssNumber(_ d: Double) -> String {
 public enum CSSLength: Equatable, CSSValueConvertible {
     case px(Double), rem(Double), em(Double), percent(Double), vw(Double), vh(Double)
     case auto, zero
+    case variable(String)
     public var css: String {
         switch self {
         case .px(let v): return cssNumber(v) + "px"
@@ -21,6 +22,7 @@ public enum CSSLength: Equatable, CSSValueConvertible {
         case .vh(let v): return cssNumber(v) + "vh"
         case .auto: return "auto"
         case .zero: return "0"
+        case .variable(let name): return "var(--\(name))"
         }
     }
 }

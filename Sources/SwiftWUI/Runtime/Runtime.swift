@@ -15,6 +15,7 @@ public final class Runtime<Backend: RendererBackend> {
     private let styleRegistry = StyleRegistry()
     private var flushedStyleVersion = 0
     private let globalStyles: [Rule]
+    private let themes: [ThemeDefinition]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
     var _store: StateStore { store }            // test hooks
     var _listenerCount: Int { listeners.count }
@@ -23,11 +24,12 @@ public final class Runtime<Backend: RendererBackend> {
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void,
-                globalStyles: [Rule] = []) {
+                globalStyles: [Rule] = [], themes: [ThemeDefinition] = []) {
         applier = TreeApplier(backend: backend, container: container)
         rootTag = AnyTag(root)
         self.scheduleMicrotask = scheduleMicrotask
         self.globalStyles = globalStyles
+        self.themes = themes
     }
 
     /// Event entry point: backends' listeners call this with the fired ID;
@@ -46,8 +48,19 @@ public final class Runtime<Backend: RendererBackend> {
     }
 
     public func mount() {
+        for theme in themes { styleRegistry.registerRaw(theme.ruleText) }
         for rule in globalStyles { rule.register(into: styleRegistry, scope: nil) }
         renderPass()
+    }
+
+    /// One data-theme attribute write on the mount container; zero re-render.
+    public func setTheme(_ name: String?) {
+        let container = applier.root.host!
+        if let name {
+            applier.backend.setAttribute(container, name: "data-theme", value: name)
+        } else {
+            applier.backend.removeAttribute(container, name: "data-theme")
+        }
     }
 
     public func flush() {
@@ -111,6 +124,7 @@ public final class Runtime<Backend: RendererBackend> {
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] id in self?.markDirty(id) })
         ctx.registry = styleRegistry
+        ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
         isRendering = false
