@@ -952,7 +952,7 @@ private struct RApp: Tag {
         #expect(backend.serializeHTML().contains("home:0"))
         click(1, rt, backend, sched)                       // → /todo/1
         #expect(backend.serializeHTML().contains("todo-1:0"))
-        #expect(!backend.serializeHTML().contains("home"))
+        #expect(!backend.serializeHTML().contains("home:0"))   // nav Button("home") always present — assert on page text
     }
     @Test func routeChangeResetsStateParamChangePreservesIt() {
         let (rt, backend, sched) = make(initialPath: "/todo/1")
