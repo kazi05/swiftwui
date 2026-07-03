@@ -1386,7 +1386,9 @@ public struct _StyledTag<Content: Tag>: Tag, _PrimitiveTag {
             ruleClasses.append(ctx.registry.registerAnonymous(pseudo: r.pseudo, media: r.media,
                                                               declarations: r.declarations))
         }
-        var nodes = resolve(content, path: id.appending(.child(0)), ctx: &ctx)
+        // Content resolves DIRECTLY at id — byte-parallel with the effect
+        // wrappers (no extra .child segment; spec §6 "exactly like effect wrappers").
+        var nodes = resolve(content, path: id, ctx: &ctx)
         for i in nodes.indices {
             Self.apply(declarations: declarations, classes: ruleClasses, to: &nodes[i])
         }
