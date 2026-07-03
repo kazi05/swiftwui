@@ -56,6 +56,8 @@ public final class MockBackend: RendererBackend {
         parent.children.removeAll { $0 === child }
         child.parent = nil
     }
+    public private(set) var stylesheetText: String?
+    public func setStylesheet(_ text: String) { bump("setStylesheet"); stylesheetText = text }
 
     /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
     public func serializeHTML(_ node: MockNode? = nil) -> String {

@@ -12,10 +12,13 @@ public final class Runtime<Backend: RendererBackend> {
     private var dirty: Set<NodeIdentity> = []
     private var scheduled = false
     private var isRendering = false
+    private let styleRegistry = StyleRegistry()
+    private var flushedStyleVersion = 0
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
     var _store: StateStore { store }            // test hooks
     var _listenerCount: Int { listeners.count }
     var _current: Node? { current }
+    var _registryText: String { styleRegistry.text }        // test hook
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void) {
@@ -71,6 +74,7 @@ public final class Runtime<Backend: RendererBackend> {
         }
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] in self?.markDirty($0) })
+        ctx.registry = styleRegistry
         ctx.environment = row.environment
         isRendering = true
         let parentPath = NodeIdentity(segments: Array(id.segments.dropLast()))
@@ -87,6 +91,11 @@ public final class Runtime<Backend: RendererBackend> {
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
         current = splicing(current!, at: id, with: new)
 
+        if styleRegistry.version != flushedStyleVersion {
+            flushedStyleVersion = styleRegistry.version
+            applier.backend.setStylesheet(styleRegistry.text)
+        }
+
         let callbacks = effects.reconcile(ctx.effects, under: id)
         for cb in callbacks { cb() }
     }
@@ -95,6 +104,7 @@ public final class Runtime<Backend: RendererBackend> {
         // 1. RESOLVE + LINK.
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] id in self?.markDirty(id) })
+        ctx.registry = styleRegistry
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
         isRendering = false
@@ -115,6 +125,11 @@ public final class Runtime<Backend: RendererBackend> {
         }
         // 5. COMMIT.
         current = new
+
+        if styleRegistry.version != flushedStyleVersion {
+            flushedStyleVersion = styleRegistry.version
+            applier.backend.setStylesheet(styleRegistry.text)
+        }
 
         let callbacks = effects.reconcile(ctx.effects, under: .root)
         for cb in callbacks { cb() }

@@ -13,4 +13,7 @@ public protocol RendererBackend: AnyObject {
     func removeEventListener(_ node: HostNode, event: String)
     func insert(_ child: HostNode, into parent: HostNode, before anchor: HostNode?)
     func remove(_ child: HostNode, from parent: HostNode)
+    /// Replace the full text of the document's single managed stylesheet.
+    /// Called at most once per flush, only when the rule registry grew.
+    func setStylesheet(_ text: String)
 }

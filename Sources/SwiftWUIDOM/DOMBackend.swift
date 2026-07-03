@@ -96,5 +96,17 @@ public final class DOMBackend: RendererBackend {
     private func closureKey(_ node: JSObject, _ event: String) -> String {
         "\(Int(node.__swuid.number ?? -1))#\(event)"
     }
+
+    private var styleElement: JSObject?
+    public func setStylesheet(_ text: String) {
+        if styleElement == nil {
+            let document = JSObject.global.document
+            let el = document.createElement("style")
+            _ = el.setAttribute("id", "swiftwui-styles")
+            _ = document.head.appendChild(el)
+            styleElement = el.object
+        }
+        styleElement!.textContent = .string(text)
+    }
 }
 #endif

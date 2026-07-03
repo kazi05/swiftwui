@@ -8,6 +8,14 @@ public enum HTMLRenderer {
         return render(coalesceText(resolve(tag, path: .root, ctx: &ctx)))
     }
 
+    /// Phase-5 SSG seam: same render, plus the generated stylesheet text.
+    @MainActor public static func renderWithStylesheet(_ tag: some Tag) -> (html: String, css: String) {
+        var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(),
+                                 invalidate: { _ in })
+        let html = render(coalesceText(resolve(tag, path: .root, ctx: &ctx)))
+        return (html, ctx.registry.text)
+    }
+
     static func render(_ nodes: [Node]) -> String {
         nodes.map { render($0) }.joined()
     }

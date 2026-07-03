@@ -19,6 +19,7 @@ public struct ResolveContext {
     /// tracking to this id so model reads still invalidate the right owner.
     var owner: NodeIdentity = .root
     var effects: [EffectRequest] = []
+    var registry = StyleRegistry()
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }
