@@ -1104,8 +1104,9 @@ private struct GApp: Tag {
         #expect(backend.serializeHTML().contains("gadmin"))
     }
     @Test func mountOnGuardedRouteRedirectsImmediately() {
-        let (_, backend, sched) = make(initialPath: "/admin")
+        let (rt, backend, sched) = make(initialPath: "/admin")   // bind rt: `_` would free the Runtime before pump (weak-self redirect closure)
         sched.pump()
+        _ = rt
         #expect(backend.serializeHTML().contains("ghome"))
         #expect(backend.replacedStates == ["/"])
     }
