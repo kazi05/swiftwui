@@ -19,6 +19,18 @@ private struct CheckFixture: Tag {
         }
     }
 }
+private struct SelectFixture: Tag {
+    @State var pet = "cat"
+    var body: some Tag {
+        Div {
+            Select(value: $pet) {
+                Option("Cat", value: "cat")
+                Option("Dog", value: "dog")
+            }
+            P { pet }
+        }
+    }
+}
 
 @MainActor @Suite struct ControlledInputTests {
     @Test func inputEventWritesBindingAndRerenders() {
@@ -46,6 +58,19 @@ private struct CheckFixture: Tag {
         sched.pump()
         #expect(findFirst(backend.container, tag: "p") != nil)
         #expect(input.props["checked"] == .bool(true))
+    }
+
+    @Test func selectChangeWritesBindingAndRerenders() {
+        let backend = MockBackend(); let sched = TestScheduler()
+        let rt = Runtime(backend: backend, container: backend.container,
+                         root: SelectFixture(), scheduleMicrotask: sched.schedule)
+        rt.mount()
+        let select = findFirst(backend.container, tag: "select")!
+        #expect(select.props["value"] == .string("cat"))
+        rt.dispatch(select.events["change"]!, payload: ChangeEvent(value: "dog", checked: false))
+        sched.pump()
+        #expect(findFirst(backend.container, tag: "p")!.children[0].text == "dog")
+        #expect(select.props["value"] == .string("dog"))
     }
 
     @Test func textareaControlled() {

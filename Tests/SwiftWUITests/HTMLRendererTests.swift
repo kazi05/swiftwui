@@ -73,4 +73,22 @@ private struct Card: Tag {
         #expect(HTMLRenderer.render(Blockquote(cite: "javascript:alert(1)") { Text("q") })
                 == "<blockquote cite=\"#\">q</blockquote>")  // sanitizeURL neuters rejected scheme to "#"
     }
+    @Test func tableFamilyRenders() {
+        let html = HTMLRenderer.render(
+            Table {
+                Thead { Tr { Th(scope: "col") { Text("N") } } }
+                Tbody { Tr { Td(colspan: 2) { Text("1") } } }
+            })
+        #expect(html == "<table><thead><tr><th scope=\"col\">N</th></tr></thead>"
+                      + "<tbody><tr><td colspan=\"2\">1</td></tr></tbody></table>")
+    }
+    @Test func selectOptionRender() {
+        let html = HTMLRenderer.render(
+            Select(name: "pet") {
+                Option("Cat", value: "cat", selected: true)
+                Option("Dog", value: "dog")
+            })
+        #expect(html == "<select name=\"pet\"><option selected value=\"cat\">Cat</option>"
+                      + "<option value=\"dog\">Dog</option></select>")
+    }
 }
