@@ -1,4 +1,5 @@
 import Testing
+import Observation
 @testable import SwiftWUI
 
 /// Deterministic PRNG so failures reproduce by seed.
@@ -14,7 +15,17 @@ private struct SplitMix64: RandomNumberGenerator {
 }
 
 /// Fixture exercising every structural feature: nested components, keyed
-/// ForEach, conditionals, sibling components with independent state.
+/// ForEach, conditionals, sibling components with independent state — plus
+/// styles: inline declarations, an element hover rule, a Styled component
+/// with a dynamic (@State-driven) rule, a wrapper-styled component, an
+/// environment writer/reader, an @Observable model, and an effect wrapper.
+@Observable private final class PropModel { var flag = false }
+
+private struct PropEnvKey: EnvironmentKey { static let defaultValue = "-" }
+extension EnvironmentValues {
+    fileprivate var propTag: String { get { self[PropEnvKey.self] } set { self[PropEnvKey.self] = newValue } }
+}
+
 private struct PropLeaf: Tag {
     @State var n = 0
     var body: some Tag {
@@ -23,6 +34,31 @@ private struct PropLeaf: Tag {
             Button("+") { n += 1 }
             if n % 3 == 1 { Span { "mod" } }
         }
+        .padding(.px(4))                                   // inline style in the fixture
+    }
+}
+private struct PropStyled: Tag, Styled {
+    @State var hot = false
+    @RulesBuilder var styles: [Rule] {
+        Rule(class: "row") { $0.gap(.px(2)) }
+        if hot { Rule(class: "row") { $0.gap(.px(20)) } }   // dynamic rule
+    }
+    var body: some Tag {
+        Div(class: "row") {
+            Button("heat") { hot.toggle() }
+                .hover { $0.opacity(0.7) }                  // element rule
+        }
+    }
+}
+private struct PropObserved: Tag {
+    let model: PropModel
+    @Environment(\.propTag) var tag
+    var body: some Tag {
+        Div {
+            Text(model.flag ? "on-\(tag)" : "off-\(tag)")
+            Button("flip") { model.flag.toggle() }
+        }
+        .onAppear {}                                        // effect wrapper in the mix
     }
 }
 private struct PropList: Tag {
@@ -37,12 +73,16 @@ private struct PropList: Tag {
 }
 private struct PropRoot: Tag {
     @State var showList = true
+    let model = PropModel()
     var body: some Tag {
         Div {
             PropLeaf()
+            PropStyled()
+            PropObserved(model: model).margin(.px(1))       // wrapper-styled component
             if showList { PropList() }
             Button("toggle") { showList.toggle() }
         }
+        .environment(\.propTag, "e")                        // environment writer
     }
 }
 
@@ -82,6 +122,8 @@ private struct PropRoot: Tag {
             #expect(scopedStore(scoped).rowCount == scopedStore(full).rowCount)
             #expect(scoped._current == full._current, "current trees diverged at seed \(seed)")
             #expect(scoped._listenerCount == full._listenerCount)
+            #expect(scoped._registryText == full._registryText,
+                    "stylesheet diverged at seed \(seed)")
         }
     }
 }
