@@ -24,6 +24,14 @@ extension HTMLTag {
         }
         return copy
     }
+
+    /// Internal: click with the raw ClickEvent payload. nil payload (tests
+    /// dispatching without one, non-DOM backends) = unmodified click.
+    func onClickEvent(_ action: @escaping (ClickEvent?) -> Void) -> Self {
+        var copy = self
+        copy._attributes.addRawHandler(.click) { any in action(any as? ClickEvent) }
+        return copy
+    }
 }
 
 /// Container tags: generic content, ONE shared resolution path (spec §3.3).

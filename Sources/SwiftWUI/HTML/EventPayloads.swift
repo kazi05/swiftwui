@@ -29,3 +29,20 @@ public struct GenericEvent {
         }
     }
 }
+
+/// Click payload (phase 4, spec §8). Carries what Link needs to decide
+/// whether the browser should keep default anchor behavior.
+public struct ClickEvent {
+    public let button: Int
+    public let metaKey: Bool
+    public let ctrlKey: Bool
+    public let shiftKey: Bool
+    public let altKey: Bool
+    public init(button: Int = 0, metaKey: Bool = false, ctrlKey: Bool = false,
+                shiftKey: Bool = false, altKey: Bool = false) {
+        self.button = button; self.metaKey = metaKey; self.ctrlKey = ctrlKey
+        self.shiftKey = shiftKey; self.altKey = altKey
+    }
+    /// True → new-tab/context intent; SPA must not intercept.
+    public var isModified: Bool { button != 0 || metaKey || ctrlKey || shiftKey || altKey }
+}
