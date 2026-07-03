@@ -42,9 +42,31 @@ extension EnvironmentValues {
 }
 private enum Filter: String, CaseIterable { case all, active, completed }
 
-private struct TodoRow: Tag {
+extension ColorToken {
+    static let accent  = ColorToken("accent")
+    static let surface = ColorToken("surface")
+    static let ink     = ColorToken("ink")
+}
+let lightTheme = ThemeDefinition { t in
+    t.set(ColorToken.accent,  .hex("#e94560"))
+    t.set(ColorToken.surface, .hex("#ffffff"))
+    t.set(ColorToken.ink,     .hex("#1a1a2e"))
+}
+let darkTheme = ThemeDefinition(name: "dark") { t in
+    t.set(ColorToken.surface, .hex("#16213e"))
+    t.set(ColorToken.ink,     .hex("#eaeaea"))
+}
+
+private struct TodoRow: Tag, Styled {
     let todo: TodoStore.Todo
     @Environment(\.todoStore) var store
+    @RulesBuilder var styles: [Rule] {
+        Rule(class: "done") { s in
+            s.textDecoration(.lineThrough)
+            s.opacity(0.6)
+        }
+        Rule(class: "todo") { $0.color(.token(.ink)) }
+    }
     var body: some Tag {
         Li(class: todo.done ? "done" : "todo") {
             Input(checked: Binding(get: { todo.done }, set: { _ in store.toggle(todo.id) }))
@@ -56,9 +78,18 @@ private struct RemainingLabel: Tag {
     @Environment(\.todoStore) var store
     var body: some Tag { P { "\(store.remaining) items left" } }
 }
-private struct TodoApp: Tag {
+private struct TodoApp: Tag, Styled {
     @State var store = TodoStore()
     @State var filter: Filter = .all
+    @State var dark = false
+    @Environment(\.setTheme) var setTheme
+    @RulesBuilder var styles: [Rule] {
+        Rule(class: "filters", media: .maxWidth(.px(600))) { $0.flexDirection(.column) }
+        Rule(element: "button") { s in
+            s.cursor(.pointer)
+            s.hover { $0.background(.token(.accent)) }
+        }
+    }
     var visible: [TodoStore.Todo] {
         switch filter {
         case .all: store.todos
@@ -68,19 +99,26 @@ private struct TodoApp: Tag {
     }
     var body: some Tag {
         Main {
-            H1("todos")
+            H1("todos").color(.token(.accent)).fontSize(.rem(2))
             Input(type: .text, value: Binding(get: { store.draft }, set: { store.draft = $0 }),
                   onKeyDown: { e in if e.key == "Enter" { store.add() } })
+                .padding(.px(8))
+                .width(.percent(100))
             Ul {
                 ForEach(visible) { TodoRow(todo: $0) }
             }
+            .listStyle("none")
             RemainingLabel()
             Div(class: "filters") {
                 ForEach(Filter.allCases, id: \.rawValue) { f in
                     Button(f.rawValue) { filter = f }
                 }
+                Button("theme") { dark.toggle(); setTheme(dark ? "dark" : nil) }
             }
+            .display(.flex)
+            .gap(.px(8))
         }
+        .background(.token(.surface))
         .environment(\.todoStore, store)
         .task { await store.load() }
         .onChange(of: filter) { _, new in
@@ -93,5 +131,12 @@ private struct TodoApp: Tag {
 
 @main
 struct TodoMVCApp: App {
+    @RulesBuilder static var globalStyles: [Rule] {
+        Rule(element: "body") { s in
+            s.margin(.zero)
+            s.fontFamily("system-ui, sans-serif")
+        }
+    }
+    static var themes: [ThemeDefinition] { [lightTheme, darkTheme] }
     var body: some Tag { TodoApp() }
 }

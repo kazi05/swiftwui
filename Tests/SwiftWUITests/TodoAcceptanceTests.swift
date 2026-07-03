@@ -23,13 +23,26 @@ extension EnvironmentValues {
 }
 private enum Filter: String, CaseIterable { case all, active, completed }
 
+extension ColorToken {
+    fileprivate static let accent  = ColorToken("accent")
+    fileprivate static let surface = ColorToken("surface")
+    fileprivate static let ink     = ColorToken("ink")
+}
+
 private final class Counters { var byLabel: [String: Int] = [:]
                                func bump(_ l: String) { byLabel[l, default: 0] += 1 } }
 
-private struct TodoRow: Tag {
+private struct TodoRow: Tag, Styled {
     let todo: TodoStore.Todo
     let counters: Counters
     @Environment(\.todoStore) var store
+    @RulesBuilder var styles: [Rule] {
+        Rule(class: "done") { s in
+            s.textDecoration(.lineThrough)
+            s.opacity(0.6)
+        }
+        Rule(class: "todo") { $0.color(.token(.ink)) }
+    }
     var body: some Tag {
         counters.bump("row-\(todo.id)")
         return Li(class: todo.done ? "done" : "todo") {
@@ -42,10 +55,19 @@ private struct RemainingLabel: Tag {
     @Environment(\.todoStore) var store
     var body: some Tag { P { "\(store.remaining) items left" } }
 }
-private struct TodoApp: Tag {
+private struct TodoApp: Tag, Styled {
     let counters: Counters
     @State var store = TodoStore()
     @State var filter: Filter = .all
+    @State var dark = false
+    @Environment(\.setTheme) var setTheme
+    @RulesBuilder var styles: [Rule] {
+        Rule(class: "filters", media: .maxWidth(.px(600))) { $0.flexDirection(.column) }
+        Rule(element: "button") { s in
+            s.cursor(.pointer)
+            s.hover { $0.background(.token(.accent)) }
+        }
+    }
     var visible: [TodoStore.Todo] {
         switch filter {
         case .all: store.todos
@@ -55,19 +77,26 @@ private struct TodoApp: Tag {
     }
     var body: some Tag {
         Main {
-            H1("todos")
+            H1("todos").color(.token(.accent)).fontSize(.rem(2))
             Input(type: .text, value: Binding(get: { store.draft }, set: { store.draft = $0 }),
                   onKeyDown: { e in if e.key == "Enter" { store.add() } })
+                .padding(.px(8))
+                .width(.percent(100))
             Ul {
                 ForEach(visible) { TodoRow(todo: $0, counters: counters) }
             }
+            .listStyle("none")
             RemainingLabel()
             Div(class: "filters") {
                 ForEach(Filter.allCases, id: \.rawValue) { f in
                     Button(f.rawValue) { filter = f }
                 }
+                Button("theme") { dark.toggle(); setTheme(dark ? "dark" : nil) }
             }
+            .display(.flex)
+            .gap(.px(8))
         }
+        .background(.token(.surface))
         .environment(\.todoStore, store)
         .task { store.todos = [.init(id: 1000, title: "seeded", done: false)] }
     }
@@ -77,7 +106,10 @@ private struct TodoApp: Tag {
     private func makeApp() -> (Runtime<MockBackend>, MockBackend, TestScheduler, Counters) {
         let backend = MockBackend(); let sched = TestScheduler(); let counters = Counters()
         let rt = Runtime(backend: backend, container: backend.container,
-                         root: TodoApp(counters: counters), scheduleMicrotask: sched.schedule)
+                         root: TodoApp(counters: counters), scheduleMicrotask: sched.schedule,
+                         globalStyles: [Rule(element: "body") { $0.margin(.zero) }],
+                         themes: [ThemeDefinition { $0.set(ColorToken.accent, .hex("#e94560")) },
+                                  ThemeDefinition(name: "dark") { $0.set(ColorToken.accent, .hex("#818cf8")) }])
         rt.mount()
         return (rt, backend, sched, counters)
     }
@@ -128,7 +160,7 @@ private struct TodoApp: Tag {
         let before = counters.byLabel
         let checkbox = findAll(backend.container, tag: "input").first { $0.attrs["type"] == "checkbox" }!
         let toggledLi = checkbox.parent!
-        #expect(toggledLi.attrs["class"] == "todo")
+        #expect(toggledLi.attrs["class"]?.hasPrefix("todo") == true)
 
         rt.dispatch(checkbox.events["change"]!, payload: ChangeEvent(value: "", checked: true))
         sched.pump()
@@ -139,9 +171,9 @@ private struct TodoApp: Tag {
         #expect(changedRows.count == allRowLabels.count)   // real finding: parent pass reruns EVERY row
 
         #expect(findAll(backend.container, tag: "li").count == liCountBefore)   // DOM stable: no li added/removed
-        #expect(toggledLi.attrs["class"] == "done")                            // only the toggled row flips
+        #expect(toggledLi.attrs["class"]?.hasPrefix("done") == true)           // only the toggled row flips
         let otherLis = findAll(backend.container, tag: "li").filter { $0 !== toggledLi }
-        #expect(otherLis.allSatisfy { $0.attrs["class"] == "todo" })
+        #expect(otherLis.allSatisfy { ($0.attrs["class"] ?? "").hasPrefix("todo") })
         // …and the count label updated to the EXACT post-toggle count
         // (Observation: RemainingLabel read store.todos; 3 todos, 1 done → 2 remaining)
         let counts = findAll(backend.container, tag: "p")
@@ -187,5 +219,34 @@ private struct TodoApp: Tag {
         tap("all");       #expect(findAll(backend.container, tag: "li").count == 3)
         let counts = findAll(backend.container, tag: "p")
         #expect(counts.contains { ($0.children.first?.text ?? "") == "2 items left" })
+    }
+
+    @Test func styledAcceptance() async {
+        let (rt, backend, sched, _) = makeApp()
+        await waitUntil(sched) { !findAll(backend.container, tag: "li").isEmpty }
+        _ = rt   // silence unused if needed
+        // inline style landed
+        let h1 = findFirst(backend.container, tag: "h1")!
+        #expect(h1.attrs["style"]?.contains("color: var(--accent)") == true)
+        // stylesheet: globals, themes, scoped rule, hover, media
+        let css = backend.stylesheetText ?? ""
+        #expect(css.contains("body { margin: 0 }"))
+        #expect(css.contains(":root { --accent: #e94560 }"))
+        #expect(css.contains(#"[data-theme="dark"]"#))
+        #expect(css.contains(".done."))                       // scoped marker attached
+        #expect(css.contains("button.") && css.contains(":hover"))
+        #expect(css.contains("@media (max-width: 600px)"))
+        // scope marker present on elements of TodoApp's body
+        #expect((findFirst(backend.container, tag: "main")!.attrs["class"] ?? "").contains("swui-s"))
+    }
+    @Test func themeToggleSetsAttribute() async {
+        let (rt, backend, sched, _) = makeApp()
+        await waitUntil(sched) { !findAll(backend.container, tag: "li").isEmpty }
+        _ = rt
+        let themeBtn = findAll(backend.container, tag: "button").first { $0.children.first?.text == "theme" }!
+        rt.dispatch(themeBtn.events["click"]!); sched.pump()
+        #expect(backend.container.attrs["data-theme"] == "dark")
+        rt.dispatch(themeBtn.events["click"]!); sched.pump()
+        #expect(backend.container.attrs["data-theme"] == nil)
     }
 }
