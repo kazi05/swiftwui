@@ -26,6 +26,13 @@ public struct ResolveContext {
     /// Monotonic id of the current resolution (one renderPass/subtreePass).
     /// Lets `setStyleWrapper` reset its per-identity accumulator once per pass.
     var pass: Int = 0
+    /// First guard `.redirect` seen this pass; the runtime performs it
+    /// POST-pass via navigate(replace: true) — never re-entrantly (spec §5).
+    var pendingRedirect: String? = nil
+    /// Head snapshot of the matched Page, if any (spec §9).
+    var pageHead: PageHead? = nil
+    /// Routers resolved this pass — asserted ≤ 1 (spec D9).
+    var routerCount = 0
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }

@@ -16,6 +16,11 @@ public final class Runtime<Backend: RendererBackend> {
     private let styleRegistry = StyleRegistry()
     private var flushedStyleVersion = 0
     private let globalStyles: [Rule]
+    // Routing (spec §7): the runtime owns the current location.
+    private var currentPath: String
+    private var currentQuery: [String: String]
+    private var lastPageHead: PageHead?
+    private var redirectHops = 0
     private let themes: [ThemeDefinition]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
     var _store: StateStore { store }            // test hooks
@@ -24,8 +29,12 @@ public final class Runtime<Backend: RendererBackend> {
     var _registryText: String { styleRegistry.text }        // test hook
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
+                initialPath: String = "/",
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void,
                 globalStyles: [Rule] = [], themes: [ThemeDefinition] = []) {
+        let (path, query, _) = RouteURL.split(initialPath)
+        currentPath = RouteURL.normalizePath(path)
+        currentQuery = query
         applier = TreeApplier(backend: backend, container: container)
         rootTag = AnyTag(root)
         self.scheduleMicrotask = scheduleMicrotask
@@ -62,6 +71,27 @@ public final class Runtime<Backend: RendererBackend> {
         } else {
             applier.backend.removeAttribute(container, name: "data-theme")
         }
+    }
+
+    /// SPA navigation (spec §7): update location → pushState/replaceState →
+    /// full pass. Same path+query → no-op (prevents self-redirect loops).
+    public func navigate(to url: String, replace: Bool = false) {
+        let (rawPath, query, search) = RouteURL.split(url)
+        let path = RouteURL.normalizePath(rawPath)
+        guard path != currentPath || query != currentQuery else { return }
+        currentPath = path; currentQuery = query
+        let full = search.isEmpty ? path : path + "?" + search
+        if replace { applier.backend.replaceState(path: full) }
+        else { applier.backend.pushState(path: full) }
+        markDirty(.root)
+    }
+
+    /// Browser back/forward: the location already changed — no pushState.
+    public func handlePopState(url: String) {
+        let (rawPath, query, _) = RouteURL.split(url)
+        currentPath = RouteURL.normalizePath(rawPath)
+        currentQuery = query
+        markDirty(.root)
     }
 
     public func flush() {
@@ -133,6 +163,28 @@ public final class Runtime<Backend: RendererBackend> {
 
         let callbacks = effects.reconcile(ctx.effects, under: id)
         for cb in callbacks { cb() }
+        commitRouteEffects(ctx)
+    }
+
+    /// Applies Router by-products after a pass (spec §5, §9): head writes when
+    /// the snapshot changed, then at most one redirect hop (capped at 10).
+    private func commitRouteEffects(_ ctx: ResolveContext) {
+        if let head = ctx.pageHead, head != lastPageHead {
+            lastPageHead = head
+            applier.backend.setTitle(head.title)
+            applier.backend.setMetaTags(head.meta)
+        }
+        if let target = ctx.pendingRedirect {
+            redirectHops += 1
+            guard redirectHops <= 10 else {
+                assertionFailure("Router: redirect chain exceeded 10 hops (→ \(target))")
+                redirectHops = 0
+                return
+            }
+            navigate(to: target, replace: true)
+        } else {
+            redirectHops = 0
+        }
     }
 
     private func renderPass() {
@@ -142,6 +194,11 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.registry = styleRegistry
         passCounter += 1; ctx.pass = passCounter
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
+        ctx.environment.routeInfo = RouteInfo(path: currentPath, query: currentQuery)
+        ctx.environment.navigate = NavigateAction { [weak self] path, replace in
+            self?.navigate(to: path, replace: replace)
+        }
+        ctx.environment.back = { [weak self] in self?.applier.backend.historyBack() }
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
         isRendering = false
@@ -170,5 +227,6 @@ public final class Runtime<Backend: RendererBackend> {
 
         let callbacks = effects.reconcile(ctx.effects, under: .root)
         for cb in callbacks { cb() }
+        commitRouteEffects(ctx)
     }
 }
