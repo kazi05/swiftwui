@@ -61,6 +61,10 @@ private struct PropObserved: Tag {
         .onAppear {}                                        // effect wrapper in the mix
     }
 }
+// Opaque boundary → the outer `.margin` sees `some Tag`, not `_StyledTag`, so
+// wrappers stack (`_StyledTag<_StyledTag<PropObserved>>`) instead of collapsing.
+private func propCard<T: Tag>(_ t: T) -> some Tag { t.padding(.px(2)) }
+
 private struct PropList: Tag {
     @State var items = [1, 2, 3]
     var body: some Tag {
@@ -78,7 +82,7 @@ private struct PropRoot: Tag {
         Div {
             PropLeaf()
             PropStyled()
-            PropObserved(model: model).margin(.px(1))       // wrapper-styled component
+            propCard(PropObserved(model: model)).margin(.px(1)).hover { $0.opacity(0.9) }  // nested wrappers + rule classes
             if showList { PropList() }
             Button("toggle") { showList.toggle() }
         }

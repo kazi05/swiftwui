@@ -23,7 +23,8 @@ public struct _StyledTag<Content: Tag>: Tag, _PrimitiveTag {
             // pass (that re-resolves the row's tag directly, skipping back up
             // through `_resolve` here) — stash the transform for replay there.
             if case .component(let c) = nodes[i] {
-                ctx.store.setStyleWrapper((declarations, ruleClasses), at: c.identity)
+                ctx.store.setStyleWrapper(at: c.identity, pass: ctx.pass,
+                                          declarations: declarations, classes: ruleClasses)
             }
             applyStyleWrapper(declarations: declarations, classes: ruleClasses, to: &nodes[i])
         }

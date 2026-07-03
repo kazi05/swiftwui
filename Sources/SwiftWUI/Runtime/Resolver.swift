@@ -23,6 +23,9 @@ public struct ResolveContext {
     var scopeClass: String? = nil
     var effects: [EffectRequest] = []
     var registry = StyleRegistry()
+    /// Monotonic id of the current resolution (one renderPass/subtreePass).
+    /// Lets `setStyleWrapper` reset its per-identity accumulator once per pass.
+    var pass: Int = 0
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }

@@ -1,11 +1,16 @@
 struct RetainedComponent {
     var tag: AnyTag
     var environment: EnvironmentValues
-    /// Declarations/classes applied by an enclosing `_StyledTag` wrapper (spec
-    /// §6, §11). A `subtreePass` re-resolves this row's tag directly — it
-    /// never re-runs the wrapper's own `_resolve` — so the wrapper stashes its
-    /// transform here to be replayed after every scoped re-render.
-    var styleWrapper: (declarations: [StyleDeclaration], classes: [String])?
+    /// Transforms applied by enclosing `_StyledTag` wrapper(s) (spec §6, §11).
+    /// A `subtreePass` re-resolves this row's tag directly — it never re-runs
+    /// the wrappers' own `_resolve` — so each wrapper stashes its transform
+    /// here to be replayed after every scoped re-render. Accumulated per
+    /// identity (stacked non-collapsed wrappers, e.g. `_StyledTag<_StyledTag<Foo>>`
+    /// across an opaque boundary, all stash at Foo's id), reset on the first
+    /// write of each pass via `styleWrapperPass`; order = inner→outer, matching
+    /// full-pass application order so outer-wins is preserved on replay.
+    var styleWrappers: [(declarations: [StyleDeclaration], classes: [String])] = []
+    var styleWrapperPass: Int = -1
 }
 
 @MainActor
@@ -18,18 +23,32 @@ public final class StateStore {
     /// later scoped pass can re-invoke its body (spec §2.3).
     func retain(_ tag: AnyTag, at id: NodeIdentity, environment: EnvironmentValues) {
         // Every resolve of this id re-retains (fresh tag/environment) — preserve
-        // a previously-stashed style wrapper (only `setStyleWrapper`/sweep touch
-        // it) so it survives the many re-retains a scoped-only subtree pass does.
-        let styleWrapper = retained[id]?.styleWrapper
-        retained[id] = RetainedComponent(tag: tag, environment: environment, styleWrapper: styleWrapper)
+        // previously-stashed style wrappers (only `setStyleWrapper`/sweep touch
+        // them) so they survive the many re-retains a scoped-only subtree pass
+        // does (where the enclosing wrappers don't re-run to re-stash).
+        let existing = retained[id]
+        retained[id] = RetainedComponent(tag: tag, environment: environment,
+                                         styleWrappers: existing?.styleWrappers ?? [],
+                                         styleWrapperPass: existing?.styleWrapperPass ?? -1)
     }
     func retainedRow(at id: NodeIdentity) -> RetainedComponent? { retained[id] }
 
-    /// Stashes an enclosing `_StyledTag`'s transform for replay on later
-    /// subtree passes (see `RetainedComponent.styleWrapper`). Call after
+    /// Accumulates an enclosing `_StyledTag`'s transform for replay on later
+    /// subtree passes (see `RetainedComponent.styleWrappers`). Call after
     /// `retain` has run for `id` (i.e. after `resolve(content:...)` returns).
-    func setStyleWrapper(_ w: (declarations: [StyleDeclaration], classes: [String]), at id: NodeIdentity) {
-        retained[id]?.styleWrapper = w
+    /// The first write of each `pass` resets the list; subsequent writes in the
+    /// same pass append. A wrapper chain nests, so within one resolution it runs
+    /// atomically bottom-up (inner first) → the list ends up inner→outer.
+    func setStyleWrapper(at id: NodeIdentity, pass: Int,
+                         declarations: [StyleDeclaration], classes: [String]) {
+        assert(retained[id] != nil, "setStyleWrapper before retain for \(id)")
+        guard var row = retained[id] else { return }
+        if row.styleWrapperPass != pass {
+            row.styleWrappers = []
+            row.styleWrapperPass = pass
+        }
+        row.styleWrappers.append((declarations, classes))
+        retained[id] = row
     }
 
     /// Grafts persisted boxes onto a freshly constructed component, in Mirror

@@ -12,6 +12,7 @@ public final class Runtime<Backend: RendererBackend> {
     private var dirty: Set<NodeIdentity> = []
     private var scheduled = false
     private var isRendering = false
+    private var passCounter = 0     // bumped per render/subtree pass; scopes setStyleWrapper reset
     private let styleRegistry = StyleRegistry()
     private var flushedStyleVersion = 0
     private let globalStyles: [Rule]
@@ -94,6 +95,7 @@ public final class Runtime<Backend: RendererBackend> {
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] in self?.markDirty($0) })
         ctx.registry = styleRegistry
+        passCounter += 1; ctx.pass = passCounter
         ctx.environment = row.environment
         isRendering = true
         let parentPath = NodeIdentity(segments: Array(id.segments.dropLast()))
@@ -103,9 +105,11 @@ public final class Runtime<Backend: RendererBackend> {
         var new = nodes[0]
         new.key = old.key   // resolve() doesn't see ForEach's key tagging (one level up); preserve it
         // This pass starts at the row's own tag, skipping back up through any
-        // enclosing `_StyledTag`'s `_resolve` — replay its stashed transform
+        // enclosing `_StyledTag`'s `_resolve` — replay its stashed transforms
         // (spec §6, §11: scoped ≡ full must hold for wrapper-styled components).
-        if let wrapper = row.styleWrapper {
+        // The wrappers do NOT re-run during this subtree pass, so the list is
+        // whatever the last pass that resolved them left — replay inner→outer.
+        for wrapper in row.styleWrappers {
             applyStyleWrapper(declarations: wrapper.declarations, classes: wrapper.classes, to: &new)
         }
 
@@ -130,6 +134,7 @@ public final class Runtime<Backend: RendererBackend> {
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] id in self?.markDirty(id) })
         ctx.registry = styleRegistry
+        passCounter += 1; ctx.pass = passCounter
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
