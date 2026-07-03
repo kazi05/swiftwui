@@ -9,6 +9,21 @@ public protocol _StateProperty {
     var _box: AnyObject { get }
     func _adopt(_ box: AnyObject) -> Bool
     func _bindInvalidate(_ f: @escaping () -> Void)
+    /// Builds a box seeded from a snapshot slot, or nil when Value isn't
+    /// Decodable / the JSON doesn't decode. Never traps (spec §7).
+    func _boxDecoding(json: String, decode: SnapshotDecode) -> AnyObject?
+}
+
+/// Seam for `StateStore._encodeSnapshotRows` (spec §7): lets the store encode
+/// a type-erased `StateBox<Value>` without knowing `Value`.
+protocol _SnapshotEncodableBox: AnyObject {
+    func _encodeJSON(_ encode: SnapshotEncode) -> String?
+}
+extension StateBox: _SnapshotEncodableBox {
+    func _encodeJSON(_ encode: SnapshotEncode) -> String? {
+        guard let v = value as? any Encodable else { return nil }
+        return encode(v)
+    }
 }
 
 @propertyWrapper
@@ -42,6 +57,12 @@ extension State: _StateProperty {
         return true
     }
     public func _bindInvalidate(_ f: @escaping () -> Void) { slot.box.invalidate = f }
+    public func _boxDecoding(json: String, decode: SnapshotDecode) -> AnyObject? {
+        guard let decodableType = Value.self as? any Decodable.Type,
+              let decoded = decode(json, decodableType),
+              let value = decoded as? Value else { return nil }
+        return StateBox(value)
+    }
 }
 
 @propertyWrapper

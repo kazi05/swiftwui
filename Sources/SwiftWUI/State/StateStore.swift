@@ -19,6 +19,11 @@ public final class StateStore {
     private var retained: [NodeIdentity: RetainedComponent] = [:]
     public init() {}
 
+    /// Snapshot seed (spec §7): canonical id → slot JSON fragments, consumed on
+    /// first link() of each row. Seeded by DOMRuntime before mount.
+    public var _pendingRows: [String: [String]] = [:]
+    public var _decodeSlot: SnapshotDecode? = nil
+
     /// Retains the resolved component value + its environment snapshot so a
     /// later scoped pass can re-invoke its body (spec §2.3).
     func retain(_ tag: AnyTag, at id: NodeIdentity, environment: EnvironmentValues) {
@@ -66,6 +71,30 @@ public final class StateStore {
         }
         guard !props.isEmpty else { return }
 
+        if rows[id] == nil, !_pendingRows.isEmpty, let decode = _decodeSlot,
+           let key = id._canonicalString, let slots = _pendingRows.removeValue(forKey: key) {
+            if slots.count == props.count {
+                var boxes: [AnyObject] = []
+                boxes.reserveCapacity(slots.count)
+                var ok = true
+                for (json, p) in zip(slots, props) {
+                    guard let box = p._boxDecoding(json: json, decode: decode) else { ok = false; break }
+                    boxes.append(box)
+                }
+                if ok {
+                    rows[id] = boxes       // the adopt path below grafts them like any persisted row
+                } else {
+                    #if DEBUG
+                    print("SwiftWUI snapshot: row '\(key)' failed to decode — using initial values")
+                    #endif
+                }
+            } else {
+                #if DEBUG
+                print("SwiftWUI snapshot: row '\(key)' slot count \(slots.count) != \(props.count) — using initial values")
+                #endif
+            }
+        }
+
         if let boxes = rows[id], boxes.count == props.count {
             var allAdopted = true
             for (i, p) in props.enumerated() {
@@ -91,4 +120,28 @@ public final class StateStore {
     }
 
     var rowCount: Int { rows.count }
+
+    /// SSG side (spec §7): Encodable-only rows; a single non-encodable slot drops
+    /// the WHOLE row (partial rows would desync Mirror order on restore).
+    /// Constraint (Task 5 review I1): private/function-local component types won't survive hydration — `String(reflecting:)` yields a per-binary address, not a stable name.
+    public func _encodeSnapshotRows(_ encode: SnapshotEncode) -> [String: [String]] {
+        var out: [String: [String]] = [:]
+        outer: for (id, boxes) in rows {
+            guard let key = id._canonicalString else { continue }
+            #if DEBUG
+            if key.contains("(unknown context") {
+                print("SwiftWUI snapshot: state of private/local type won't survive hydration — make the component internal or public")
+            }
+            #endif
+            var slots: [String] = []
+            slots.reserveCapacity(boxes.count)
+            for box in boxes {
+                guard let enc = box as? _SnapshotEncodableBox,
+                      let json = enc._encodeJSON(encode) else { continue outer }
+                slots.append(json)
+            }
+            out[key] = slots
+        }
+        return out
+    }
 }
