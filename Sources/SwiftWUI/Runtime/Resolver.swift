@@ -45,6 +45,7 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     }
     // Custom component boundary (spec §7).
     let id = path.appending(.type(ObjectIdentifier(T.self)))
+    _TypeNameRegistry.register(T.self)     // snapshot keys need the stable name (spec D7)
     ctx.reachable.insert(id)
     ctx.store.retain(AnyTag(tag), at: id, environment: ctx.environment)
     let inv = ctx.invalidate

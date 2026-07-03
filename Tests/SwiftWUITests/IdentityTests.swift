@@ -27,3 +27,26 @@ import Testing
         #expect(t.key == nil)
     }
 }
+
+private struct CanonFixture: Tag { var body: some Tag { Div { Text("x") } } }
+
+@Test func canonicalStringGrammar() {
+    _TypeNameRegistry.register(CanonFixture.self)
+    let id = NodeIdentity.root
+        .appending(.child(0))
+        .appending(.type(ObjectIdentifier(CanonFixture.self)))
+        .appending(.branch(true))
+        .appending(.keyed(NodeKey("a/b%c")))
+    #expect(id._canonicalString == "c0/t\(String(reflecting: CanonFixture.self))/b1/ka%2Fb%25c")
+}
+@Test func canonicalStringNilForUnregisteredType() {
+    struct NeverResolved {}
+    let id = NodeIdentity.root.appending(.type(ObjectIdentifier(NeverResolved.self)))
+    #expect(id._canonicalString == nil)
+}
+@Test func resolveRegistersComponentTypeNames() {
+    var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(), invalidate: { _ in })
+    _ = resolve(CanonFixture(), path: .root, ctx: &ctx)
+    let id = NodeIdentity.root.appending(.type(ObjectIdentifier(CanonFixture.self)))
+    #expect(id._canonicalString?.hasPrefix("t") == true)
+}
