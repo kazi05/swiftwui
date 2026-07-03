@@ -27,4 +27,12 @@ public protocol RendererBackend: AnyObject {
     /// Replaces the document's MANAGED meta set (marked data-swiftwui);
     /// hand-written <meta> in the host HTML is never touched.
     func setMetaTags(_ tags: [MetaTag])
+
+    // MARK: Hydration read API (phase 5, spec §10)
+    /// Minimal DOM reads for the adopting walk. Text nodes count as children.
+    func childCount(of node: HostNode) -> Int
+    func child(of node: HostNode, at index: Int) -> HostNode
+    /// Lowercased element tag name; nil for text nodes.
+    func tagName(of node: HostNode) -> String?
+    func textContent(of node: HostNode) -> String
 }

@@ -59,8 +59,8 @@ func findAll(_ node: MockNode, tag: String) -> [MockNode] {
     return out
 }
 @MainActor
-func clickFirst(_ backend: MockBackend, _ runtime: Runtime<MockBackend>,
-                tag: String, index: Int = 0, sched: TestScheduler) {
+func clickFirst<Backend: RendererBackend>(_ backend: MockBackend, _ runtime: Runtime<Backend>,
+                tag: String, index: Int = 0, sched: TestScheduler) where Backend.HostNode == MockNode {
     let buttons = findAll(backend.container, tag: tag)
     runtime.dispatch(buttons[index].events["click"]!)
     sched.pump()

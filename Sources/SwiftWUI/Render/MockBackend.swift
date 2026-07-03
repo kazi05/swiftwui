@@ -70,6 +70,11 @@ public final class MockBackend: RendererBackend {
     public func setTitle(_ title: String) { bump("setTitle"); self.title = title }
     public func setMetaTags(_ tags: [MetaTag]) { bump("setMetaTags"); metaTags = tags }
 
+    public func childCount(of node: MockNode) -> Int { node.children.count }
+    public func child(of node: MockNode, at index: Int) -> MockNode { node.children[index] }
+    public func tagName(of node: MockNode) -> String? { node.tag }
+    public func textContent(of node: MockNode) -> String { node.text ?? "" }
+
     /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
     public func serializeHTML(_ node: MockNode? = nil) -> String {
         let n = node ?? container
