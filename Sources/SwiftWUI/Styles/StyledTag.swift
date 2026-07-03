@@ -11,6 +11,7 @@ public struct _StyledTag<Content: Tag>: Tag, _PrimitiveTag {
     @MainActor public func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
         // Byte-parallel with the effect wrappers (_AppearEffect etc.): one `.type`
         // segment, content resolves directly at it — no extra `.child(0)`.
+        _TypeNameRegistry.register(Self.self)   // canonical snapshot keys need the name (spec D7)
         let id = path.appending(.type(ObjectIdentifier(Self.self)))
         var ruleClasses: [String] = []
         for r in rules {

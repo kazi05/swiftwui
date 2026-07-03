@@ -40,6 +40,7 @@ struct _EnvironmentWriter<V, Content: Tag>: Tag, _PrimitiveTag {
     @MainActor func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
         let saved = ctx.environment
         ctx.environment[keyPath: keyPath] = value
+        _TypeNameRegistry.register(Self.self)   // canonical snapshot keys need the name (spec D7)
         let nodes = resolve(content, path: path.appending(.type(ObjectIdentifier(Self.self))), ctx: &ctx)
         ctx.environment = saved
         return nodes

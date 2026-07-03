@@ -44,9 +44,28 @@ private struct CanonFixture: Tag { var body: some Tag { Div { Text("x") } } }
     let id = NodeIdentity.root.appending(.type(ObjectIdentifier(NeverResolved.self)))
     #expect(id._canonicalString == nil)
 }
+// Distinct from CanonFixture (never registered manually) so this test actually
+// exercises the Resolver's registration line rather than piggybacking on the
+// grammar test's manual `_TypeNameRegistry.register` call above (review M2).
+private struct ResolveOnlyFixture: Tag { var body: some Tag { Div { Text("x") } } }
+
 @Test func resolveRegistersComponentTypeNames() {
     var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(), invalidate: { _ in })
-    _ = resolve(CanonFixture(), path: .root, ctx: &ctx)
-    let id = NodeIdentity.root.appending(.type(ObjectIdentifier(CanonFixture.self)))
+    _ = resolve(ResolveOnlyFixture(), path: .root, ctx: &ctx)
+    let id = NodeIdentity.root.appending(.type(ObjectIdentifier(ResolveOnlyFixture.self)))
     #expect(id._canonicalString?.hasPrefix("t") == true)
+}
+
+// Pins review C1: every `.type`-minting primitive wrapper (not just the
+// Resolver's component boundary) must register its own type name, or a
+// component nested under one is unrepresentable in the canonical snapshot.
+private struct WrappedFixture: Tag { var body: some Tag { Div { Text("x") } } }
+
+@Test func componentUnderWrapperIsFullyRegistered() {
+    var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(), invalidate: { _ in })
+    _ = resolve(WrappedFixture().task { }, path: .root, ctx: &ctx)
+    #expect(!ctx.reachable.isEmpty)
+    for id in ctx.reachable {
+        #expect(id._canonicalString != nil)
+    }
 }

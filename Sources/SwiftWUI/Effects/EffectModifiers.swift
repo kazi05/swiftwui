@@ -5,6 +5,7 @@ struct _OnChangeEffect<V: Equatable, Content: Tag>: Tag, _PrimitiveTag {
     let action: (V, V) -> Void
     let content: Content
     @MainActor func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
+        _TypeNameRegistry.register(Self.self)   // canonical snapshot keys need the name (spec D7)
         let id = path.appending(.type(ObjectIdentifier(Self.self)))
         let act = action
         ctx.effects.append(.onChange(
@@ -22,6 +23,7 @@ struct _TaskEffect<Content: Tag>: Tag, _PrimitiveTag {
     let action: () async -> Void
     let content: Content
     @MainActor func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
+        _TypeNameRegistry.register(Self.self)   // canonical snapshot keys need the name (spec D7)
         let id = path.appending(.type(ObjectIdentifier(Self.self)))
         ctx.effects.append(.task(id: id, taskID: taskID, action: action))
         return resolve(content, path: id, ctx: &ctx)
@@ -34,6 +36,7 @@ struct _AppearEffect<Content: Tag>: Tag, _PrimitiveTag {
     let onDisappear: (() -> Void)?
     let content: Content
     @MainActor func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
+        _TypeNameRegistry.register(Self.self)   // canonical snapshot keys need the name (spec D7)
         let id = path.appending(.type(ObjectIdentifier(Self.self)))
         if let onAppear { ctx.effects.append(.appear(id: id, action: onAppear)) }
         if let onDisappear { ctx.effects.append(.disappear(id: id, action: onDisappear)) }
