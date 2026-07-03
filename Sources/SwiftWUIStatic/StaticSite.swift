@@ -50,6 +50,7 @@ public enum StaticSite {
         let probe = Runtime(backend: probeBackend, container: probeBackend.container,
                             root: A().body, scheduleMicrotask: { $0() },
                             globalStyles: A.globalStyles, themes: A.themes)
+        probe._effects._buildMode = true      // enumeration must not run "/"'s effects for real
         probe.mount()
         let patterns = probe._collectRoutes()
         var pagePaths: [String] = []
@@ -161,8 +162,11 @@ public enum StaticSite {
         }
 
         // Redirect detection: the runtime settled on a different location.
+        // _locationPath is query-stripped by Runtime; compare like-for-like or
+        // query paths misclassify as self-redirect stubs (infinite refresh).
         let settled = runtime._locationPath
-        if settled != RouteURL._normalize(path) {
+        let requestedPath = path.firstIndex(of: "?").map { String(path[..<$0]) } ?? path
+        if settled != RouteURL._normalize(requestedPath) {
             return ("", "", settled)
         }
 

@@ -58,9 +58,35 @@ private struct AboutPage: Tag, Page {
         let about = try String(contentsOfFile: out + "/about/index.html", encoding: .utf8)
         #expect(about.contains("prerendered-fact"))               // loader awaited before HTML
         #expect(about.contains("application/swiftwui-state"))
-        #expect(about.contains("prerendered-fact\\\"") || about.contains("prerendered-fact"))  // value in snapshot rows
+        // Assert the value lives INSIDE the snapshot script tag (not merely
+        // somewhere in the document, e.g. the pre-rendered body HTML) — scriptJSON
+        // escapes < > U+2028/2029 but not plain letters, so the raw string survives.
+        let marker = "application/swiftwui-state\" data-swiftwui>"
+        let afterMarker = try #require(about.range(of: marker))
+        let snapshotRegion = about[afterMarker.upperBound...]
+        let scriptEnd = try #require(snapshotRegion.range(of: "</script>"))
+        #expect(snapshotRegion[..<scriptEnd.lowerBound].contains("prerendered-fact"))
         #expect(about.contains("\"tasks\":["))                    // completed loader recorded
         #expect(about.contains("<script type=\"module\" src=\"/app.js\">"))
+    }
+
+    @Test func explicitDynamicPathWithQueryIsNotMisclassifiedAsRedirect() async throws {
+        // _locationPath is query-stripped by Runtime; the requested path must be
+        // stripped the same way before the redirect compare, or every query-bearing
+        // explicit path misfires as a self-redirect stub (infinite refresh).
+        struct TodoApp: App {
+            init() {}
+            var body: some Tag {
+                Router { Route("/todo/:id") { params in Text("todo \(params["id"] ?? "?")") } }
+            }
+        }
+        let out = tempDir()
+        let report = try await StaticSite.generate(TodoApp.self, config: .init(
+            outDir: out, mode: .staticOnly, paths: ["/todo/1?tab=all"]))
+        #expect(report.redirects.isEmpty)
+        let todo = try String(contentsOfFile: out + "/todo/1/index.html", encoding: .utf8)
+        #expect(todo.contains("todo 1"))
+        #expect(!todo.contains("http-equiv=\"refresh\""))
     }
 
     @Test func dynamicPatternWithoutPathsIsSkippedWithWarning() async throws {
