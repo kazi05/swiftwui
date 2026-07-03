@@ -86,7 +86,7 @@ private struct PropList: Tag {
 }
 private struct PropRoot: Tag {
     @State var showList = true
-    let model = PropModel()
+    @State var model = PropModel()
     var body: some Tag {
         Div {
             PropLeaf()
@@ -100,15 +100,48 @@ private struct PropRoot: Tag {
     }
 }
 
+private struct PropNav: Tag {
+    @Environment(\.navigate) var navigate
+    var body: some Tag {
+        Div(class: "nav") {
+            Button("go-home") { navigate("/") }
+            Button("go-alt") { navigate("/alt/7?q=z") }
+            Button("go-alt2") { navigate("/alt/8?q=w") }
+        }
+    }
+}
+private struct PropAlt: Tag {
+    let id: String
+    @QueryParam("q") var q: String?
+    @State var m = 0
+    var body: some Tag {
+        Div(class: "alt") {
+            P { "alt-\(id)-\(q ?? "-")-m\(m)" }
+            Button("m+") { m += 1 }
+        }
+    }
+}
+private struct PropApp: Tag {
+    var body: some Tag {
+        Div {
+            PropNav()
+            Router(notFound: { P { "nf" } }) {
+                Route("/") { PropRoot() }
+                Route("/alt/:n") { params in PropAlt(id: params["n"] ?? "?") }
+            }
+        }
+    }
+}
+
 @MainActor @Suite struct ScopedEquivalenceTests {
     /// Spec §2.4: a scoped pass must be byte-identical to a full pass.
     @Test(arguments: 0..<20) func scopedEqualsFull(seed: Int) throws {
         let schedA = TestScheduler(), schedB = TestScheduler()
         let backA = MockBackend(), backB = MockBackend()
         let scoped = Runtime(backend: backA, container: backA.container,
-                             root: PropRoot(), scheduleMicrotask: schedA.schedule)
+                             root: PropApp(), scheduleMicrotask: schedA.schedule)
         let full = Runtime(backend: backB, container: backB.container,
-                           root: PropRoot(), scheduleMicrotask: schedB.schedule)
+                           root: PropApp(), scheduleMicrotask: schedB.schedule)
         full._forceFullPasses = true
         scoped.mount(); full.mount()
 
