@@ -31,26 +31,38 @@ import JavaScriptEventLoop
 public enum DOMRuntime {
     private static var retained: [AnyObject] = []      // runtime lives for the page lifetime
 
-    public static func mount(_ root: some Tag, selector: String = "body",
-                             globalStyles: [Rule] = [], themes: [ThemeDefinition] = []) {
-        JavaScriptEventLoop.installGlobalExecutor()
-        assertReflectionAlive()
-        let document = JSObject.global.document
-        let container: JSObject = selector == "body"
-            ? document.body.object!
-            : document.querySelector(selector).object!
+    private static func makeBackend() -> (backend: DOMBackend, box: DispatchBox) {
         let box = DispatchBox()
         let backend = DOMBackend(dispatch: { box.fn($0, $1) })
-        let location = JSObject.global.location
-        let initialPath = (location.pathname.string ?? "/") + (location.search.string ?? "")
-        let runtime = Runtime(backend: backend, container: container,
-                              root: root, initialPath: initialPath,
-                              scheduleMicrotask: jsMicrotask,
-                              globalStyles: globalStyles, themes: themes)
+        return (backend, box)
+    }
+
+    private static func makeRuntime<B: RendererBackend>(
+        root: some Tag, backend: B, container: B.HostNode, initialPath: String,
+        globalStyles: [Rule], themes: [ThemeDefinition]
+    ) -> Runtime<B> {
+        Runtime(backend: backend, container: container, root: root, initialPath: initialPath,
+                scheduleMicrotask: jsMicrotask, globalStyles: globalStyles, themes: themes)
+    }
+
+    /// Seeds a freshly constructed runtime's store/effects from a parsed
+    /// snapshot payload (spec §7). Shared by the adopting attempt AND the
+    /// cold-mount fallback (carried review: a structure mismatch doesn't mean
+    /// the STATE values are invalid — re-seed rather than discard).
+    private static func seed<B: RendererBackend>(_ runtime: Runtime<B>, with payload: SnapshotBoot.Payload) {
+        runtime._store._pendingRows = payload.rows.mapValues { $0.map(\.raw) }
+        runtime._store._decodeSlot = SnapshotBoot.decodeSlot
+        runtime._effects._skipBuildTaskKeys = Set(payload.tasks)
+    }
+
+    /// Dispatch rebind, retention, popstate wiring, test-sync attributes —
+    /// shared tail of every mount path.
+    private static func finishMount<B: RendererBackend>(
+        runtime: Runtime<B>, box: DispatchBox, raw: DOMBackend, container: JSObject, hydrated: Bool
+    ) {
         box.fn = { [weak runtime] in runtime?.dispatch($0, payload: $1) }
         retained.append(runtime)
-        retained.append(backend)
-        runtime.mount()
+        retained.append(raw)
         let popstate = JSClosure { [weak runtime] _ in
             let loc = JSObject.global.location
             runtime?.handlePopState(url: (loc.pathname.string ?? "/") + (loc.search.string ?? ""))
@@ -59,6 +71,54 @@ public enum DOMRuntime {
         _ = JSObject.global.window.object?.addEventListener?("popstate", popstate)
         retained.append(popstate)                 // JSClosure must outlive the page (v1 lesson)
         _ = container.setAttribute?("data-swui-mounted", "true")   // test-sync hook (v1 lesson)
+        if hydrated {
+            _ = container.setAttribute?("data-swui-hydrated", "true")   // browser-test hook
+        }
+    }
+
+    public static func mount(_ root: some Tag, selector: String = "body",
+                             globalStyles: [Rule] = [], themes: [ThemeDefinition] = []) {
+        JavaScriptEventLoop.installGlobalExecutor()
+        assertReflectionAlive()
+        let document = JSObject.global.document
+        let container: JSObject = selector == "body"
+            ? document.body.object!
+            : document.querySelector(selector).object!
+        let location = JSObject.global.location
+        let initialPath = (location.pathname.string ?? "/") + (location.search.string ?? "")
+
+        // Snapshot present + path matches (spec §7) → attempt adoption. On
+        // success we're done; on mismatch (spec D6) we discard the DOM and
+        // fall through to the classic mount below, re-seeding it from the
+        // SAME parsed payload (never re-read the script tag).
+        var fallbackPayload: SnapshotBoot.Payload?
+        if let payload = SnapshotBoot.read(currentPath: location.pathname.string ?? "/") {
+            let (raw, box) = makeBackend()
+            let adopting = AdoptingBackend(base: raw, container: container)
+            let runtime = makeRuntime(root: root, backend: adopting, container: container,
+                                      initialPath: initialPath,
+                                      globalStyles: globalStyles, themes: themes)
+            seed(runtime, with: payload)
+            runtime.mount()
+            if adopting.finishAdoption() {
+                SnapshotBoot.removeScriptTag()
+                finishMount(runtime: runtime, box: box, raw: raw, container: container, hydrated: true)
+                return
+            }
+            // Mismatch: discard everything, cold-boot below.
+            while Int(container.childNodes.length.number ?? 0) > 0 {
+                _ = container.removeChild?(container.childNodes.item(0))
+            }
+            retained.removeAll()
+            fallbackPayload = payload
+        }
+        let (raw, box) = makeBackend()
+        let runtime = makeRuntime(root: root, backend: raw, container: container,
+                                  initialPath: initialPath,
+                                  globalStyles: globalStyles, themes: themes)
+        if let payload = fallbackPayload { seed(runtime, with: payload) }
+        runtime.mount()
+        finishMount(runtime: runtime, box: box, raw: raw, container: container, hydrated: false)
     }
 }
 

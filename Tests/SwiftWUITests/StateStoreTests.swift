@@ -145,6 +145,16 @@ private struct OptionalSnapFixture: Tag {
         r._store._decodeSlot = jsonDecode
         r.mount()
         #expect(backend2.serializeHTML().contains("done:7"))
+
+        // A `null` slot must decode to .some(.none), never fail decode outright
+        // (Task 7 carry: open-generic decoder shape must preserve nil, not bail).
+        let backend3 = MockBackend()
+        let r3 = Runtime(backend: backend3, container: backend3.container,
+                         root: OptionalSnapFixture(), scheduleMicrotask: { _ in })
+        r3._store._pendingRows = [key: ["[null]", "[7]"]]
+        r3._store._decodeSlot = jsonDecode
+        r3.mount()
+        #expect(backend3.serializeHTML().contains("none:7"))
     }
 
     @Test func nonEncodableSlotDropsWholeRow() {

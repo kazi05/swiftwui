@@ -76,7 +76,9 @@ public final class DOMBackend: RendererBackend {
                                    metaKey: e.metaKey.boolean ?? false,
                                    ctrlKey: e.ctrlKey.boolean ?? false,
                                    shiftKey: e.shiftKey.boolean ?? false,
-                                   altKey: e.altKey.boolean ?? false)
+                                   altKey: e.altKey.boolean ?? false,
+                                   targetValue: target?.value.string,
+                                   checked: target?.checked.boolean)
             // SPA interception (spec §8): unmodified click on a managed link →
             // suppress full-page navigation; Link's Swift handler navigates.
             if !click.isModified,
@@ -114,10 +116,16 @@ public final class DOMBackend: RendererBackend {
     public func setStylesheet(_ text: String) {
         if styleElement == nil {
             let document = JSObject.global.document
-            let el = document.createElement("style")
-            _ = el.setAttribute("id", "swiftwui-styles")
-            _ = document.head.appendChild(el)
-            styleElement = el.object
+            // The SSG-inlined stylesheet (spec §5) becomes the managed one —
+            // reuse it instead of appending a duplicate <style>.
+            if let existing = document.querySelector("style[data-swiftwui]").object {
+                styleElement = existing
+            } else {
+                let el = document.createElement("style")
+                _ = el.setAttribute("id", "swiftwui-styles")
+                _ = document.head.appendChild(el)
+                styleElement = el.object
+            }
         }
         styleElement!.textContent = .string(text)
     }
@@ -154,6 +162,22 @@ public final class DOMBackend: RendererBackend {
             _ = el.setAttribute?("data-swiftwui", "")
             _ = head.appendChild?(el)
         }
+    }
+
+    // MARK: Hydration read API (phase 5, spec §10)
+    public func childCount(of node: JSObject) -> Int {
+        Int(node.childNodes.length.number ?? 0)
+    }
+    public func child(of node: JSObject, at index: Int) -> JSObject {
+        node.childNodes.item(index).object!
+    }
+    public func tagName(of node: JSObject) -> String? {
+        // nodeType 1 = element; DOM tagName is uppercase — normalize.
+        guard node.nodeType.number == 1 else { return nil }
+        return node.tagName.string?.lowercased()
+    }
+    public func textContent(of node: JSObject) -> String {
+        node.textContent.string ?? ""
     }
 }
 #endif
