@@ -120,6 +120,7 @@ private struct TodoPage: Tag, Page, Styled {
                     Link(f.path) { Span { f.rawValue } }
                 }
                 Button("theme") { dark.toggle(); setTheme(dark ? "dark" : nil) }
+                Link("/about") { Span { "about" } }
             }
             .display(.flex)
             .gap(.px(8))
@@ -147,6 +148,19 @@ private struct TodoDetail: Tag, Page {
     }
 }
 
+private struct AboutPage: Tag, Page {
+    @State var buildInfo = "not prerendered"
+    var title: String { "About — TodoWUI" }
+    var body: some Tag {
+        Section(class: "about") {
+            H2("About")
+            P { Text(buildInfo) }
+            Link("/") { Text("Back") }
+        }
+        .staticTask { buildInfo = "prerendered at build time" }
+    }
+}
+
 private struct TodoApp: Tag {
     @State var store = TodoStore()
     var body: some Tag {
@@ -155,13 +169,13 @@ private struct TodoApp: Tag {
             Route("/active") { TodoPage(filter: .active) }
             Route("/completed") { TodoPage(filter: .completed) }
             Route("/todo/:id") { params in TodoDetail(id: params["id"].flatMap(Int.init)) }
+            Route("/about") { AboutPage() }
         }
         .environment(\.todoStore, store)
         .task { await store.load() }
     }
 }
 
-@main
 struct TodoMVCApp: App {
     @RulesBuilder static var globalStyles: [Rule] {
         Rule(element: "body") { s in
@@ -172,3 +186,40 @@ struct TodoMVCApp: App {
     static var themes: [ThemeDefinition] { [lightTheme, darkTheme] }
     var body: some Tag { TodoApp() }
 }
+
+#if canImport(SwiftWUIStatic)
+import SwiftWUIStatic
+
+@main enum Entry {
+    static func main() async throws {
+        var args = Array(CommandLine.arguments.dropFirst())
+        guard args.first == "ssg" else {
+            print("usage: TodoMVC ssg --out <dir> [--static] [--css-file]")
+            return
+        }
+        args.removeFirst()
+        var out = "dist"
+        var mode = StaticSiteMode.hydrate(wasmScriptPath: "/index.js")
+        var cssFile = false
+        var i = 0
+        while i < args.count {
+            switch args[i] {
+            case "--out": i += 1; out = args[i]
+            case "--static": mode = .staticOnly
+            case "--css-file": cssFile = true
+            default: print("unknown arg \(args[i])")
+            }
+            i += 1
+        }
+        let report = try await StaticSite.generate(TodoMVCApp.self, config: .init(
+            outDir: out, mode: mode,
+            paths: ["/todo/1", "/todo/2"],       // explicit dynamic paths (spec D3)
+            cssFile: cssFile))
+        print("generated \(report.pages.count) pages, \(report.redirects.count) redirects, skipped \(report.skippedPatterns)")
+    }
+}
+#else
+@main enum Entry {
+    static func main() { TodoMVCApp.main() }
+}
+#endif

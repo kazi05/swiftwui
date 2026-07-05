@@ -2,6 +2,7 @@ import Testing
 import Observation
 import Foundation
 @testable import SwiftWUI
+@testable import SwiftWUIStatic
 
 @Observable private final class TodoStore {
     struct Todo: Identifiable, Equatable { let id: Int; var title: String; var done: Bool }
@@ -330,5 +331,73 @@ private struct TodoApp: Tag {
         rt.mount()
         _ = rt
         #expect(backend.title == "todos — completed")
+    }
+}
+
+// MARK: - SSG acceptance (Task 14)
+//
+// The real Examples/TodoMVC app lives in a separate package and can't be
+// imported here — this fixture mirrors its route shape (/, /active,
+// /completed, /todo/:id, /about with a .staticTask loader) to exercise
+// StaticSite.generate end-to-end the way the example's `ssg` entry does.
+
+private struct SSGTodoPage: Tag, Page {
+    let label: String
+    var title: String { "todos — \(label)" }
+    var body: some Tag { H1("todos \(label)") }
+}
+private struct SSGTodoDetail: Tag, Page {
+    let id: String?
+    var title: String { "todo #\(id ?? "?")" }
+    var body: some Tag { H1("todo \(id ?? "?")") }
+}
+private struct SSGAboutPage: Tag, Page {
+    @State var buildInfo = "not prerendered"
+    var title: String { "About" }
+    var body: some Tag {
+        P { Text(buildInfo) }.staticTask { buildInfo = "prerendered-ssg" }
+    }
+}
+private struct SSGApp: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/") { SSGTodoPage(label: "all") }
+            Route("/active") { SSGTodoPage(label: "active") }
+            Route("/completed") { SSGTodoPage(label: "completed") }
+            Route("/todo/:id") { params in SSGTodoDetail(id: params["id"]) }
+            Route("/about") { SSGAboutPage() }
+        }
+    }
+}
+
+@MainActor @Suite struct TodoSSGAcceptanceTests {
+    private func tempDir() -> String { NSTemporaryDirectory() + "swiftwui-todomvc-ssg-\(UUID().uuidString)" }
+
+    @Test func hydrateGeneratesAllRoutesAndExplicitTodoPages() async throws {
+        let out = tempDir()
+        let report = try await StaticSite.generate(SSGApp.self, config: .init(
+            outDir: out, mode: .hydrate(wasmScriptPath: "/index.js"),
+            paths: ["/todo/1", "/todo/2"]))
+        #expect(report.pages.count == 6)
+        #expect(Set(report.pages) == ["/", "/active", "/completed", "/todo/1", "/todo/2", "/about"])
+        #expect(report.redirects.isEmpty)
+        #expect(report.skippedPatterns.isEmpty)
+
+        let home = try String(contentsOfFile: out + "/index.html", encoding: .utf8)
+        #expect(home.contains("application/swiftwui-state"))
+        #expect(home.contains("<script type=\"module\" src=\"/index.js\">"))
+
+        let about = try String(contentsOfFile: out + "/about/index.html", encoding: .utf8)
+        #expect(about.contains("prerendered-ssg"))
+    }
+
+    @Test func staticOnlyOmitsSnapshotAndModuleScript() async throws {
+        let out = tempDir()
+        _ = try await StaticSite.generate(SSGApp.self, config: .init(
+            outDir: out, mode: .staticOnly, paths: ["/todo/1", "/todo/2"]))
+        let home = try String(contentsOfFile: out + "/index.html", encoding: .utf8)
+        #expect(!home.contains("application/swiftwui-state"))
+        #expect(!home.contains("type=\"module\""))
     }
 }
