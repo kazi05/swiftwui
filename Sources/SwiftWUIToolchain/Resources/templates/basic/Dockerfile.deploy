@@ -1,0 +1,5 @@
+# Serve a locally built dist/ (run `swiftwui build && swiftwui ssg` first):
+#   docker build -f Dockerfile.deploy -t {{NAME}} . && docker run -p 8080:80 {{NAME}}
+FROM nginx:alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY dist/ /usr/share/nginx/html/

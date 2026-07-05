@@ -94,18 +94,22 @@ Subprocesses (`swift package js`, `swift run`, `swift sdk list`) go through a
 
 ### Output layout contract (dev/prod parity)
 
-Template `index.html` uses **relative** URLs that work identically in dev
-and in `build` output:
+Template `index.html` uses **root-absolute** URLs (`/app/index.js`,
+`/vendor/wasi-shim/index.js`) — relative URLs break module resolution on
+nested dev routes like `/about` (amended during implementation):
 
 ```html
 <script type="importmap">
-{"imports": {"@bjorn3/browser_wasi_shim": "./vendor/wasi-shim/index.js"}}
+{"imports": {"@bjorn3/browser_wasi_shim": "/vendor/wasi-shim/index.js"}}
 </script>
 <script type="module">
-  import { init } from "./app/index.js";
+  import { init } from "/app/index.js";
   await init();
 </script>
 ```
+
+`init` checks the shim into the project (`vendor/wasi-shim/`) so container
+builds don't need the CLI.
 
 - `build` lays out `dist/index.html`, `dist/app/` (PackageToJS output copied
   verbatim), `dist/vendor/wasi-shim/`.
@@ -184,9 +188,11 @@ Every template produces:
 
 ```
 MyApp/
-  Package.swift          # SwiftWUI via git URL + branch; --swiftwui-path → path dependency
+  Package.swift          # SwiftWUI via path dependency; --swiftwui-path is REQUIRED until
+                         # the repo has a public git remote (none exists yet — amended
+                         # during implementation)
   Sources/MyApp/         # dual entry: wasm mount / native `ssg` subcommand
-  index.html             # relative-URL contract from §4
+  index.html             # root-absolute-URL contract from §4
   Dockerfile             # build container
   Dockerfile.deploy      # nginx deploy container
   .gitignore             # .build, dist, .swiftpm
