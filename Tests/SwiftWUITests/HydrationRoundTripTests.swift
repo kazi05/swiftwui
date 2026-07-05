@@ -91,6 +91,9 @@ private struct RTPage: Tag, Page {
             P { Text(note) }
             Button("+") { n += 1 }
             Ul { ForEach([1, 2, 3], id: \.self) { i in Li { Text("item \(i)") } } }
+            Details(open: true) { Summary { Text("more") }; P { Text("hidden") } }
+            Abbr(title: "A & \"quoted\"") { Text("AB") }
+            Div { Wbr() }
         }
     }
 }
