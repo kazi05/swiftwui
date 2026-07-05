@@ -58,16 +58,19 @@ Same `Package.swift`, two new targets:
   watcher, scaffolder, template store, subprocess orchestration. All logic
   lives here so the native test suite covers it.
 - **`swiftwui`** (executableTarget, product `swiftwui`): thin
-  swift-argument-parser command definitions delegating to Toolchain.
+  swift-argument-parser command definitions delegating to Toolchain
+  (target renamed during implementation: case-insensitive FS collision with
+  SwiftWUI — sources live in `Sources/SwiftWUICLI/`, product/binary stays
+  `swiftwui`).
 
 New dependency: `swift-argument-parser` (`from: "1.3.0"`; Apple, zero
 transitive deps). No SwiftNIO — the dev server is hand-rolled on POSIX
 sockets, which is sufficient for a localhost single-developer tool.
 
-Vendored asset: `@bjorn3/browser_wasi_shim` **0.3.0** (MIT, ~3 JS files +
-LICENSE) as SwiftPM resources of the `swiftwui` target (`Bundle.module`),
-alongside the dev-client JS and templates. Pinned by copy; upgrading it is a
-deliberate vendoring commit.
+Vendored asset: `@bjorn3/browser_wasi_shim` **0.3.0** (MIT, 8 JS files +
+LICENSE-MIT + LICENSE-APACHE) as SwiftPM resources of the `SwiftWUIToolchain`
+target (`Bundle.module`), alongside the dev-client JS and templates. Pinned
+by copy; upgrading it is a deliberate vendoring commit.
 
 Subprocesses (`swift package js`, `swift run`, `swift sdk list`) go through a
 `ProcessRunner` protocol; tests inject a mock, production uses
@@ -77,7 +80,7 @@ Subprocesses (`swift package js`, `swift run`, `swift sdk list`) go through a
 
 | Command | Behavior |
 |---|---|
-| `swiftwui init <Name> [--template basic\|mvvm\|tca] [--swiftwui-path <dir>]` | scaffold a new project into `./<Name>/` (must not exist / be empty) |
+| `swiftwui init <Name> [--template basic\|mvvm\|tca] --swiftwui-path <dir>` | scaffold a new project into `./<Name>/` (must not exist / be empty); `--swiftwui-path` is REQUIRED (no public git remote exists yet, see §8) |
 | `swiftwui dev [--port 8080] [--swift-sdk <id>]` | debug wasm build → serve → watch → reload loop |
 | `swiftwui build [-c debug\|release] [--out dist] [--swift-sdk <id>]` | wasm bundle + index.html + vendored shim → `dist/` |
 | `swiftwui ssg [--out dist] [--product <name>]` | wrapper over `swift run <App> ssg --out <dir>` (dual-entry pattern) |
@@ -120,7 +123,9 @@ builds don't need the CLI.
 - `swiftwui ssg` after `build` emits pages into the same `dist/`; hydrate
   mode points `wasmScriptPath` at `/app/index.js` (the `cssFile`
   root-absolute-href carry item lands in Task 1 and keeps subdirectory
-  deploys in mind).
+  deploys in mind). Hydrate-mode SSG pages emit a `<script type="importmap">`
+  (config `importMapJSON`, default = this layout's shim mapping) before the
+  wasm module script.
 
 ## 5. Dev server
 
@@ -179,10 +184,11 @@ No new public API; both hooks ride existing snapshot encode/seed SPI.
 
 ## 8. Templates (`swiftwui init`)
 
-Stored as plain files under the `swiftwui` target's resources
-(`Templates/<name>/…`), copied with `{{NAME}}` substitution (project name,
-target name; applied to file contents and to path components). Readable and
-diffable as normal files — no string-literal embedding.
+Stored as plain files under the `SwiftWUIToolchain` target's resources
+(`Resources/templates/<name>/…`), copied with `{{NAME}}` (and
+`{{SWIFTWUI_PATH}}`) substitution; applies to file contents only — no
+path-component placeholders in practice. Readable and diffable as normal
+files — no string-literal embedding.
 
 Every template produces:
 
@@ -219,9 +225,11 @@ Acceptance gate: each template must build natively, build for wasm, and run
 Two Dockerfiles per template:
 
 - **Dockerfile** (build): multi-stage; base `swift:6.3.3`, installs the
-  matching wasm SDK, runs `swiftwui build` + `swiftwui ssg`; final stage
-  contains only `dist/`. Reproducible builds for CI and contributors without
-  local swiftly setup.
+  matching wasm SDK, runs raw `swift package --swift-sdk ... js` + `swift run
+  <App> ssg` + shell assembly of `dist/` (the `swiftwui` CLI itself is not
+  available in-container until SwiftWUI is published — amended during
+  implementation); final stage contains only `dist/`. Reproducible builds for
+  CI and contributors without local swiftly setup.
 - **Dockerfile.deploy**: `nginx:alpine`, `COPY dist/`, nginx config with
   `application/wasm` MIME and MPA-friendly fallback routing.
 
@@ -232,8 +240,9 @@ No docker-compose, no orchestration.
 - Port busy → clear message naming the port + `--port` hint. No
   auto-increment (surprise ports are worse than an error).
 - `swift` missing or no wasm SDK installed → preflight `swift sdk list`
-  before first build; error includes the exact `swift sdk install …` command
-  for the pinned version.
+  before first build; error names the pinned SDK version and points at the
+  swift.org SDK download page (not an exact install URL — amended during
+  implementation, no artifactbundle URL is hardcoded).
 - `init` target dir exists and is non-empty → refuse.
 - Compiler errors in `dev` → terminal passthrough + browser overlay (§6);
   server keeps running.
