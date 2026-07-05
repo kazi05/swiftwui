@@ -169,7 +169,14 @@ public final class DOMBackend: RendererBackend {
         Int(node.childNodes.length.number ?? 0)
     }
     public func child(of node: JSObject, at index: Int) -> JSObject {
-        node.childNodes.item(index).object!
+        let c = node.childNodes.item(index).object!
+        // Adopted nodes (hydration) never went through createElement/createTextNode,
+        // so they lack the __swuid stamp — without it every adopted node's
+        // closureKey collapses to "-1#event" (C1: listener registry collisions).
+        if c.__swuid.isUndefined || c.__swuid.isNull {
+            c.__swuid = .number(Double(nextUID)); nextUID += 1
+        }
+        return c
     }
     public func tagName(of node: JSObject) -> String? {
         // nodeType 1 = element; DOM tagName is uppercase — normalize.

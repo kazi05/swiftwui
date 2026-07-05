@@ -20,9 +20,7 @@ import SwiftWUI
         .a{color:red}
         </style>
         </head>
-        <body>
-        <h1>Hi</h1>
-        </body>
+        <body><h1>Hi</h1></body>
         </html>
 
         """)
@@ -34,6 +32,16 @@ import SwiftWUI
             wasmScriptPath: "/app.js"))
         #expect(html.contains("<script type=\"application/swiftwui-state\" data-swiftwui>{\"v\":1}</script>"))
         #expect(html.contains("<script type=\"module\" src=\"/app.js\"></script>"))
+        let headEnd = html.range(of: "</head>")!.lowerBound
+        #expect(html[..<headEnd].contains("<script type=\"module\""))   // boot script lives in head, not body
+    }
+    @Test func bodyContainsExactlyTheFragmentForAdoption() {
+        let html = DocumentSerializer.render(.init(
+            bodyHTML: "<div class=\"x\">a</div>",
+            snapshotJSON: "{\"v\":1}", wasmScriptPath: "/app.js"))
+        #expect(html.contains("<body><div class=\"x\">a</div></body>"))   // no whitespace/script inside body
+        let headEnd = html.range(of: "</head>")!.lowerBound
+        #expect(html[..<headEnd].contains("<script type=\"module\""))     // boot script lives in head
     }
     @Test func explicitViewportSuppressesDefault() {
         let html = DocumentSerializer.render(.init(

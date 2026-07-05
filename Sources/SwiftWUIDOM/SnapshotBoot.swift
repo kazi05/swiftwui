@@ -32,7 +32,7 @@ enum SnapshotBoot {
     }
     /// Minimal JSON value tree for slot re-serialization.
     indirect enum JSONValue: Decodable {
-        case null, bool(Bool), number(Double), string(String)
+        case null, bool(Bool), int(Int64), number(Double), string(String)
         case array([JSONValue]), object([String: JSONValue])
 
         private struct DynamicKey: CodingKey {
@@ -46,6 +46,9 @@ enum SnapshotBoot {
             let single = try decoder.singleValueContainer()
             if single.decodeNil() { self = .null; return }
             if let b = try? single.decode(Bool.self) { self = .bool(b); return }
+            // Int64 before Double: Double loses precision above 2^53, so a
+            // large integer (e.g. Int64.max) would silently corrupt (M1).
+            if let i = try? single.decode(Int64.self) { self = .int(i); return }
             if let n = try? single.decode(Double.self) { self = .number(n); return }
             if let s = try? single.decode(String.self) { self = .string(s); return }
             if var unkeyed = try? decoder.unkeyedContainer() {
@@ -67,6 +70,7 @@ enum SnapshotBoot {
             switch self {
             case .null: return "null"
             case .bool(let b): return b ? "true" : "false"
+            case .int(let i): return String(i)
             case .number(let n):
                 // Integral values print without a trailing ".0".
                 if n == n.rounded(), abs(n) < 1e15 { return String(Int64(n)) }

@@ -105,7 +105,11 @@ public enum DOMRuntime {
                 finishMount(runtime: runtime, box: box, raw: raw, container: container, hydrated: true)
                 return
             }
-            // Mismatch: discard everything, cold-boot below.
+            // Mismatch: discard everything, cold-boot below. The discarded
+            // runtime's client .task effects already started real Tasks (I1) —
+            // cancel them first or they outlive this runtime and duplicate
+            // side effects when the fallback re-runs the same loaders.
+            runtime._effects._cancelAll()
             while Int(container.childNodes.length.number ?? 0) > 0 {
                 _ = container.removeChild?(container.childNodes.item(0))
             }

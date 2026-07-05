@@ -35,6 +35,18 @@ public final class EffectStore {
     private var startedBuild: Set<NodeIdentity> = []
     public private(set) var _completedBuildKeys: [String] = []
 
+    /// Discards a runtime that never committed (hydration mismatch, spec §8):
+    /// client `.task` effects already started real Tasks that hold the runtime
+    /// alive and would duplicate side effects when the cold-mount fallback
+    /// re-runs them — cancel and forget everything before the fallback mounts.
+    public func _cancelAll() {
+        for (_, entry) in tasks { entry.task.cancel() }
+        tasks.removeAll()
+        previousValues.removeAll()
+        appeared.removeAll()
+        disappearActions.removeAll()
+    }
+
     public func _drainBuildTasks() -> [(id: NodeIdentity, action: () async -> Void)] {
         defer { pendingBuild = [] }
         return pendingBuild

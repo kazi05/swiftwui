@@ -54,11 +54,12 @@ public enum DocumentSerializer {
             out += "<script type=\"application/swiftwui-state\" data-swiftwui>"
                 + HTMLEscaping.scriptJSON(snapshot) + "</script>\n"
         }
-        out += "</head>\n<body>\n" + input.bodyHTML + "\n"
         if let src = input.wasmScriptPath {
+            // type="module" defers by default — head placement is behavior-identical, and
+            // keeps <body> byte-exact for adoption (a stray "\n" text node poisons the stream).
             out += "<script type=\"module\" src=\"" + HTMLEscaping.text(src) + "\"></script>\n"
         }
-        out += "</body>\n</html>\n"
+        out += "</head>\n<body>" + input.bodyHTML + "</body>\n</html>\n"
         return out
     }
 }
