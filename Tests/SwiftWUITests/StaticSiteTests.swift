@@ -74,7 +74,7 @@ private struct BrokenPage: Tag, Page {
         let snapshotRegion = about[afterMarker.upperBound...]
         let scriptEnd = try #require(snapshotRegion.range(of: "</script>"))
         #expect(snapshotRegion[..<scriptEnd.lowerBound].contains("prerendered-fact"))
-        #expect(about.contains("\"tasks\":["))                    // completed loader recorded
+        #expect(about.contains("\"tasks\":[\""))                  // completed loader recorded (non-empty list)
         #expect(about.contains("<script type=\"module\" src=\"/app.js\">"))
     }
 

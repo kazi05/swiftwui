@@ -176,7 +176,8 @@ loader and gets correct data instead of silently keeping initial values.
 **Driver loop:** mount → collect scheduled `.build` tasks → await all →
 flush → if the flush scheduled new `.build` tasks (a component appeared
 because state changed) → repeat. Cap: 10 iterations (mirrors redirect-hop
-cap); exceeding it fails the build listing the still-pending identities.
+cap); exceeding it fails the build (`buildTaskOverflow` carries page +
+iteration count — see §5 error policy).
 
 `EffectStore`'s task entries carry the policy; the SSG driver is the only
 executor of `.build` entries, `DOMRuntime` is the only executor of `.client`
