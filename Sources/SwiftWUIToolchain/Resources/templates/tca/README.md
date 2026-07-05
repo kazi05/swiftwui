@@ -1,0 +1,32 @@
+# {{NAME}}
+
+A [SwiftWUI](https://github.com/swiftwasm) project. Pure Swift → WebAssembly.
+
+This project uses the **TCA-style** template: a single `Store` holds `AppState`,
+views `store.send(_:)` actions, and a pure `appReducer` computes the next state.
+This is TCA-*style* on SwiftWUI reactivity — not pointfree swift-composable-architecture,
+which does not build on wasm.
+
+## Develop
+
+    swiftwui dev            # build, serve at http://127.0.0.1:8080, hot-reload with state preserved
+
+## Build & prerender
+
+    swiftwui build          # wasm bundle + index.html + vendored shim → dist/
+    swiftwui ssg            # prerender pages into dist/ (hydrated on load)
+    swiftwui serve dist     # preview the production output
+
+## Docker
+
+`Dockerfile` builds dist/ inside a pinned toolchain container (host and wasm SDK
+versions must match exactly). It requires the SwiftWUI dependency to be
+reachable inside the build context — with the default path dependency pointing
+outside this directory, build locally instead. `Dockerfile.deploy` serves a
+locally built dist/ via nginx.
+
+## Layout
+
+- `Sources/main.swift` — the app; dual entry (wasm mount / native `ssg` subcommand)
+- `index.html` — dev/prod entry; import map resolves the vendored WASI shim
+- `vendor/wasi-shim/` — @bjorn3/browser_wasi_shim 0.3.0 (MIT/Apache-2.0), checked in

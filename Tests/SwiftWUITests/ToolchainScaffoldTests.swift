@@ -41,4 +41,15 @@ import Foundation
             try Scaffolder.scaffold(template: "nope", name: "Ok", swiftwuiPath: repoRoot, into: scratch())
         }
     }
+
+    @Test(arguments: ["mvvm", "tca"]) func scaffoldArchitectureTemplates(template: String) throws {
+        let dir = scratch()
+        try Scaffolder.scaffold(template: template, name: "Arch", swiftwuiPath: repoRoot, into: dir)
+        let main = try String(contentsOfFile: dir + "/Sources/main.swift", encoding: .utf8)
+        #expect(!main.contains("{{"))
+        #expect(main.contains("struct ArchApp: App"))
+        #expect(main.contains(template == "mvvm" ? "CounterViewModel" : "func appReducer"))
+        let readme = try String(contentsOfFile: dir + "/README.md", encoding: .utf8)
+        #expect(readme.contains(template == "mvvm" ? "MVVM" : "TCA-style"))
+    }
 }
