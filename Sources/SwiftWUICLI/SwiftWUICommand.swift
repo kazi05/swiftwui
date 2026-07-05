@@ -6,5 +6,5 @@ struct SwiftWUICommand: ParsableCommand {
         commandName: "swiftwui",
         abstract: "SwiftWUI toolchain: scaffold, develop, build and prerender SwiftWUI sites.",
         version: "0.6.0",
-        subcommands: [Build.self])
+        subcommands: [Build.self, Dev.self])
 }
