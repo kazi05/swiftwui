@@ -178,7 +178,7 @@ private struct RTPage: Tag, Page {
         ssg.mount()
         let canonical = ssgBackend.serializeHTML()
 
-        for mutation in 0..<3 {
+        for mutation in 0..<4 {
             let dom = MockBackend()
             parseHTMLSubset(canonical, into: dom)
             switch mutation {
@@ -189,9 +189,19 @@ private struct RTPage: Tag, Page {
                 let junk = MockNode(); junk.tag = "p"
                 let div = findFirst(dom.container, tag: "div")!
                 junk.parent = div; div.children.insert(junk, at: 0)
-            default:                                                         // missing node
+            case 2:                                                          // missing node
                 let ul = findFirst(dom.container, tag: "ul")!
                 ul.children.removeLast()
+            default:                                                         // deep trailing extra
+                // Appended as a sibling after the tree's LAST node (`wbr`,
+                // itself the last leaf of RTPage's body) — trailing in the
+                // overall stream, but under a deep `div`, not the container —
+                // must still fail (D6), unlike a container-level trailing
+                // leftover (see trailingForeignNodesAreToleratedNotAMismatch).
+                let wbr = findFirst(dom.container, tag: "wbr")!
+                let deepDiv = wbr.parent!
+                let junk = MockNode(); junk.tag = "span"
+                junk.parent = deepDiv; deepDiv.children.append(junk)
             }
             let adopting = AdoptingBackend(base: dom, container: dom.container)
             adopting._assertOnMismatch = false

@@ -11,10 +11,13 @@
 ///
 /// Trailing leftover nodes at `finishAdoption` (stream fully consumed in
 /// order, but extra nodes remain after the app's) are tolerated, not a
-/// mismatch: browser extensions (DeepL, Grammarly, LastPass) append elements
-/// to `<body>`, and legacy pre-phase-6 output left whitespace reparented
-/// there too. A mid-stream divergence still fails — alignment breaks at the
-/// divergent node, long before finish.
+/// mismatch, ONLY when container-level: browser extensions (DeepL, Grammarly,
+/// LastPass) append elements to `<body>`, and legacy pre-phase-6 output left
+/// whitespace reparented there too. Leftovers deeper in the tree (e.g. a
+/// stale trailing child under a still-recognized element) are app content
+/// from a version-skewed cache, not foreign injections — they still fail
+/// (D6 cold render). A mid-stream divergence also still fails — alignment
+/// breaks at the divergent node, long before finish.
 ///
 /// Write calls (setAttribute/setProperty/setEventListener/setText) always
 /// delegate: values are byte-identical to the prerender (T8), so they're
@@ -41,12 +44,16 @@ where Base.HostNode: AnyObject {
     /// Safe even for JSObject: we only ever key the wrapper instances WE
     /// handed out (stream entries + container) — never re-read wrappers.
     private var parentOf: [ObjectIdentifier: ObjectIdentifier] = [:]
+    /// ObjectIdentifier of the container itself — trailing-leftover tolerance
+    /// (finishAdoption) is container-level only, this is the comparison target.
+    private let containerID: ObjectIdentifier
     /// D6 wants debug-loud mismatches, but the fallback path itself must be
     /// testable in debug — tests that exercise deliberate mismatches set false.
     public var _assertOnMismatch = true
 
     public init(base: Base, container: HostNode) {
         self.base = base
+        self.containerID = ObjectIdentifier(container)
         buildStream(of: container)
         // An empty container is a cold mount, not a mismatch — Task 13's
         // fallback re-wraps a cleared container and must not trap.
@@ -98,11 +105,19 @@ where Base.HostNode: AnyObject {
 
     /// True when the app tree adopted fully and nothing diverged mid-stream.
     /// Leftover TRAILING nodes (cursor < stream.count with no prior failure)
-    /// are tolerated — see class doc — and left untouched, not an error.
+    /// are tolerated ONLY when every leftover's recorded parent is the
+    /// container itself — see class doc. Leftovers deeper in the tree (e.g. a
+    /// stale prerendered `<li>` child from a version-skewed cache) are app
+    /// content, not foreign injections, and still fail → cold render (D6).
     /// Always deactivates adoption — subsequent calls create for real.
     public func finishAdoption() -> Bool {
         if !failed && cursor < stream.count {
-            print("[SwiftWUI] hydration: \(stream.count - cursor) unmanaged trailing node(s) left in container (e.g. browser-extension injections) — tolerated")
+            let allContainerLevel = stream[cursor...].allSatisfy { parentOf[ObjectIdentifier($0)] == containerID }
+            if allContainerLevel {
+                print("[SwiftWUI] hydration: \(stream.count - cursor) unmanaged trailing node(s) left in container (e.g. browser-extension injections) — tolerated")
+            } else {
+                fail(expected: "end of stream", found: "leftover nodes")
+            }
         }
         let ok = !failed
         active = false

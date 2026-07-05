@@ -271,6 +271,10 @@ finishAdoption are tolerated with a console warning — browser extensions
 inject trailing body elements, and legacy output's post-</body> whitespace
 reparents into body. Mid-stream mismatches still cold-render.
 DocumentSerializer now ends output at `</body></html>` exactly.
+Tolerance is container-level only: leftovers deeper in the tree still
+cold-render (stale version-skewed content must not survive); the residual
+ceiling — a removed trailing root-level app sibling is indistinguishable
+from an extension node — is accepted.
 
 **DOMRuntime boot order:** read snapshot script → seed store → resolve with
 restored state → adopting mount → remove the snapshot `<script>` element →
