@@ -37,7 +37,7 @@ private struct StoreKey: EnvironmentKey { static let defaultValue = TodoStore() 
 extension EnvironmentValues {
     fileprivate var todoStore: TodoStore { get { self[StoreKey.self] } set { self[StoreKey.self] = newValue } }
 }
-private enum Filter: String, CaseIterable {
+enum Filter: String, CaseIterable {
     case all, active, completed
     var path: String { self == .all ? "/" : "/\(rawValue)" }
 }
@@ -77,7 +77,7 @@ private struct RemainingLabel: Tag {
     var body: some Tag { P { "\(store.remaining) items left" } }
 }
 
-private struct TodoPage: Tag, Page, Styled {
+struct TodoPage: Tag, Page, Styled {
     let filter: Filter
     @Environment(\.todoStore) var store
     @Environment(\.setTheme) var setTheme
@@ -148,7 +148,7 @@ private struct TodoDetail: Tag, Page {
     }
 }
 
-private struct AboutPage: Tag, Page {
+struct AboutPage: Tag, Page {
     @State var buildInfo = "not prerendered"
     var title: String { "About — TodoWUI" }
     var body: some Tag {
@@ -161,7 +161,7 @@ private struct AboutPage: Tag, Page {
     }
 }
 
-private struct TodoApp: Tag {
+struct TodoApp: Tag {
     @State var store = TodoStore()
     var body: some Tag {
         Router(notFound: { Main { H1("404"); Link("/") { Span { "home" } } } }) {
@@ -204,7 +204,12 @@ import SwiftWUIStatic
         var i = 0
         while i < args.count {
             switch args[i] {
-            case "--out": i += 1; out = args[i]
+            case "--out":
+                guard i + 1 < args.count else {
+                    print("usage: TodoMVC ssg --out <dir> [--static] [--css-file]")
+                    return
+                }
+                i += 1; out = args[i]
             case "--static": mode = .staticOnly
             case "--css-file": cssFile = true
             default: print("unknown arg \(args[i])")
