@@ -49,7 +49,7 @@ public enum DistLayout {
     public static func assemble(projectDir: String, bundleDir: String, outDir: String) throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: projectDir + "/index.html") else {
-            throw ToolchainError.notAProject(projectDir)
+            throw ToolchainError.io("'\(projectDir)' has no index.html — swiftwui build needs the project's index.html to assemble dist/")
         }
         try? fm.removeItem(atPath: outDir + "/app")
         try fm.createDirectory(atPath: outDir, withIntermediateDirectories: true)

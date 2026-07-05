@@ -20,8 +20,11 @@ public enum Scaffolder {
             throw ToolchainError.notAProject(swiftwuiAbs)
         }
         try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let junk: Set<String> = [".swiftpm", "dist", "node_modules"]
         let e = fm.enumerator(atPath: templateRoot.path)!
         for case let rel as String in e {
+            let components = rel.split(separator: "/").map(String.init)
+            if components.contains(where: { junk.contains($0) || $0.hasPrefix(".build") }) { continue }
             let src = templateRoot.appendingPathComponent(rel)
             var isDir: ObjCBool = false
             fm.fileExists(atPath: src.path, isDirectory: &isDir)

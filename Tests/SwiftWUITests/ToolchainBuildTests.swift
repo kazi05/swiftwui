@@ -36,6 +36,17 @@ struct MockRunner: ProcessRunner {
         } catch { Issue.record("wrong error") }
     }
 
+    @Test func buildIsolatesScratchPathFromNativeBuild() throws {
+        var recordedArgs: [String] = []
+        let runner = MockRunner(results: [:], recorded: { recordedArgs = $0 })
+        let builder = WasmBuilder(runner: runner, projectDir: "/tmp/x", sdk: WasmSDK.pinned)
+        let bundle = try builder.build(configuration: "debug")
+        #expect(recordedArgs.contains("--scratch-path"))
+        let idx = try #require(recordedArgs.firstIndex(of: "--scratch-path"))
+        #expect(recordedArgs[idx + 1] == "/tmp/x/.build-wasm")
+        #expect(bundle.contains(".build-wasm"))
+    }
+
     @Test func distLayoutAssembles() throws {
         let fm = FileManager.default
         let proj = NSTemporaryDirectory() + "swiftwui-dist-\(UUID().uuidString)"

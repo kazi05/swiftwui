@@ -15,7 +15,8 @@ import Foundation
         #expect(entry.contains("./wasi.js"))        // relative sibling imports = must ship whole dist
     }
 
-    @Test func concurrentDrainSurvivesLargeStderr() throws {
+    @Test(.timeLimit(.minutes(1)))
+    func concurrentDrainSurvivesLargeStderr() throws {
         // 200KB to BOTH pipes — deadlocks under a sequential drain (stderr pipe fills
         // while the parent blocks on stdout EOF).
         let runner = FoundationProcessRunner()

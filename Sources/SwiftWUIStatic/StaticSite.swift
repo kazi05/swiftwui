@@ -11,11 +11,16 @@ public struct StaticSiteConfig {
     public var mode: StaticSiteMode
     public var paths: [String]
     public var cssFile: Bool
-    public init(outDir: String, mode: StaticSiteMode, paths: [String] = [], cssFile: Bool = false) {
+    /// JSON for a <script type="importmap"> emitted before the wasm module script
+    /// (hydrate mode only). Default matches the swiftwui CLI dist layout; nil = no map.
+    public var importMapJSON: String? = #"{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}"#
+    public init(outDir: String, mode: StaticSiteMode, paths: [String] = [], cssFile: Bool = false,
+                importMapJSON: String? = #"{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}"#) {
         self.outDir = outDir
         self.mode = mode
         self.paths = paths
         self.cssFile = cssFile
+        self.importMapJSON = importMapJSON
     }
 }
 
@@ -208,6 +213,7 @@ public enum StaticSite {
         }
         var wasmPath: String? = nil
         if case .hydrate(let p) = config.mode { wasmPath = p }
+        let importMap: String? = wasmPath != nil ? config.importMapJSON : nil
         // Same relative path the write loop derives its output file from
         // (requestedPath is already query-stripped, see above).
         let relFile = requestedPath == "/" ? "index.html" : String(requestedPath.dropFirst()) + "/index.html"
@@ -217,6 +223,7 @@ public enum StaticSite {
             cssHref: config.cssFile ? cssHref(forPageFile: relFile) : nil,
             head: runtime._pageHead,
             snapshotJSON: snapshot,
+            importMapJSON: importMap,
             wasmScriptPath: wasmPath))
         return (doc, css, nil)
     }

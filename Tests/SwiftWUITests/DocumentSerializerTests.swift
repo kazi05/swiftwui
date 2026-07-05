@@ -24,16 +24,22 @@ import SwiftWUI
         </html>
 
         """)
+        #expect(!html.contains("importmap"))   // static mode: no wasm bundle, no import map
     }
     @Test func hydrateModeIncludesSnapshotAndBootScript() {
         let html = DocumentSerializer.render(.init(
             bodyHTML: "<div></div>",
             snapshotJSON: "{\"v\":1}",
+            importMapJSON: #"{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}"#,
             wasmScriptPath: "/app.js"))
         #expect(html.contains("<script type=\"application/swiftwui-state\" data-swiftwui>{\"v\":1}</script>"))
+        #expect(html.contains(#"<script type="importmap">{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}</script>"#))
         #expect(html.contains("<script type=\"module\" src=\"/app.js\"></script>"))
         let headEnd = html.range(of: "</head>")!.lowerBound
         #expect(html[..<headEnd].contains("<script type=\"module\""))   // boot script lives in head, not body
+        let mapRange = html.range(of: "<script type=\"importmap\">")!
+        let moduleRange = html.range(of: "<script type=\"module\"")!
+        #expect(mapRange.lowerBound < moduleRange.lowerBound)   // import map must precede the module script
     }
     @Test func bodyContainsExactlyTheFragmentForAdoption() {
         let html = DocumentSerializer.render(.init(

@@ -11,13 +11,15 @@ public enum DocumentSerializer {
         public var cssHref: String?          // <link rel="stylesheet"> instead
         public var head: PageHead?
         public var snapshotJSON: String?     // hydrate mode only
+        public var importMapJSON: String?    // hydrate mode only
         public var wasmScriptPath: String?   // hydrate mode only
         public var lang: String
         public init(bodyHTML: String, css: String? = nil, cssHref: String? = nil,
-                    head: PageHead? = nil, snapshotJSON: String? = nil,
+                    head: PageHead? = nil, snapshotJSON: String? = nil, importMapJSON: String? = nil,
                     wasmScriptPath: String? = nil, lang: String = "en") {
             self.bodyHTML = bodyHTML; self.css = css; self.cssHref = cssHref
             self.head = head; self.snapshotJSON = snapshotJSON
+            self.importMapJSON = importMapJSON
             self.wasmScriptPath = wasmScriptPath; self.lang = lang
         }
     }
@@ -54,6 +56,12 @@ public enum DocumentSerializer {
             // which escapes < > U+2028 U+2029 as \uXXXX, JSON-preservingly.
             out += "<script type=\"application/swiftwui-state\" data-swiftwui>"
                 + HTMLEscaping.scriptJSON(snapshot) + "</script>\n"
+        }
+        if let map = input.importMapJSON {
+            // Same raw-text sink as the snapshot script above — the wasm bundle's bare
+            // "@bjorn3/browser_wasi_shim" import cannot resolve without this map, and it
+            // must precede the module script that triggers that import.
+            out += "<script type=\"importmap\">" + HTMLEscaping.scriptJSON(map) + "</script>\n"
         }
         if let src = input.wasmScriptPath {
             // type="module" defers by default — head placement is behavior-identical, and

@@ -7,6 +7,8 @@ views `store.send(_:)` actions, and a pure `appReducer` computes the next state.
 This is TCA-*style* on SwiftWUI reactivity — not pointfree swift-composable-architecture,
 which does not build on wasm.
 
+Note: dev hot reload preserves `@State` holding `Codable` values; the view-model/store object itself is not `Codable`, so its state resets on reload.
+
 ## Develop
 
     swiftwui dev            # build, serve at http://127.0.0.1:8080, hot-reload with state preserved
