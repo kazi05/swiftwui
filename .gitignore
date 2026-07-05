@@ -126,3 +126,7 @@ Sources/SwiftWUICLI/Templates/showcase/Tests/test-results/
 Sources/SwiftWUICLI/Templates/showcase/Tests/playwright-report/
 Sources/SwiftWUICLI/Templates/showcase/Tests/blob-report/
 Sources/SwiftWUICLI/Templates/showcase/static-dump/
+
+# Vendored wasi-shim resource (tracked despite blanket vendor/ rule above)
+!Sources/SwiftWUIToolchain/Resources/vendor/
+!Sources/SwiftWUIToolchain/Resources/vendor/**
