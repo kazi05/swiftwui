@@ -10,11 +10,11 @@ WORKDIR /src
 COPY . .
 RUN swift sdk install "$WASM_SDK_URL"
 RUN swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c release
-RUN swift run {{NAME}} ssg --out dist \
- && mkdir -p dist/app dist/vendor \
+RUN mkdir -p dist/app dist/vendor \
  && cp -r .build/plugins/PackageToJS/outputs/Package/. dist/app/ \
  && cp -r vendor/. dist/vendor/ \
  && cp index.html dist/index.html
+RUN swift run {{NAME}} ssg --out dist
 
 FROM scratch AS export
 COPY --from=build /src/dist /
