@@ -43,6 +43,9 @@ public protocol Page: Tag {
     /// NOTE: head application is navigation-driven — a @State-driven change to
     /// `title` between navigations is NOT re-applied until the next route pass
     /// (phase-4 decision; revisit if live titles are ever needed).
+    /// STATIC-SITE NOTE: `title` is captured when the route resolves — before
+    /// `.staticTask` loaders run — so a title computed from loader-filled @State
+    /// renders its initial value in SSG output (ledgered phase-6 ticket).
     var title: String { get }
     /// Managed `<meta>` set (replaces only tags marked data-swiftwui).
     var meta: [MetaTag] { get }

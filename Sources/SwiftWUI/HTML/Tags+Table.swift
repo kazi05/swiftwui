@@ -10,6 +10,11 @@ public struct Table<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Table where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Caption<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "caption" }
@@ -19,6 +24,11 @@ public struct Caption<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Caption where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -32,6 +42,11 @@ public struct Thead<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Thead where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Tbody<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "tbody" }
@@ -41,6 +56,11 @@ public struct Tbody<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Tbody where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -54,6 +74,11 @@ public struct Tfoot<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Tfoot where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Tr<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "tr" }
@@ -63,6 +88,11 @@ public struct Tr<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Tr where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -80,6 +110,11 @@ public struct Th<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Th where Content == EmptyTag {
+    public init(colspan: Int? = nil, rowspan: Int? = nil, scope: String? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(colspan: colspan, rowspan: rowspan, scope: scope, id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Td<Content: Tag>: _HTMLContainerTag {      // same minus scope
     public static var tagName: String { "td" }
@@ -94,6 +129,11 @@ public struct Td<Content: Tag>: _HTMLContainerTag {      // same minus scope
         self.content = content()
     }
 }
+extension Td where Content == EmptyTag {
+    public init(colspan: Int? = nil, rowspan: Int? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(colspan: colspan, rowspan: rowspan, id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Colgroup<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "colgroup" }
@@ -104,6 +144,11 @@ public struct Colgroup<Content: Tag>: _HTMLContainerTag {
         _attributes = _AttributeBag(id: id, class: classes)
         if let span { _attributes.set("span", String(span)) }
         self.content = content()
+    }
+}
+extension Colgroup where Content == EmptyTag {
+    public init(span: Int? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(span: span, id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -153,6 +198,11 @@ public struct Optgroup<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Optgroup where Content == EmptyTag {
+    public init(label: String, disabled: Bool = false, id: String? = nil, class classes: String? = nil) {
+        self.init(label: label, disabled: disabled, id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Select<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "select" }
@@ -168,6 +218,10 @@ public struct Select<Content: Tag>: _HTMLContainerTag {
     }
     /// Controlled select (Input(value:) pattern): DOM `value` property tracks
     /// the binding; every change event writes it back.
+    ///
+    /// PRERENDER NOTE: in SSG output the selection lives in the DOM `value`
+    /// property, which serializes to nothing — a prerendered page shows the
+    /// browser-default option until hydration seeds the binding.
     public init(value: Binding<String>, name: String? = nil, disabled: Bool = false,
                 id: String? = nil, class classes: String? = nil,
                 onChange: ((ChangeEvent) -> Void)? = nil,
@@ -181,6 +235,11 @@ public struct Select<Content: Tag>: _HTMLContainerTag {
             onChange?(e)
         }
         self.content = content()
+    }
+}
+extension Select where Content == EmptyTag {
+    public init(name: String? = nil, disabled: Bool = false, id: String? = nil, class classes: String? = nil) {
+        self.init(name: name, disabled: disabled, id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -197,6 +256,11 @@ public struct Fieldset<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Fieldset where Content == EmptyTag {
+    public init(disabled: Bool = false, id: String? = nil, class classes: String? = nil) {
+        self.init(disabled: disabled, id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Legend<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "legend" }
@@ -208,6 +272,11 @@ public struct Legend<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Legend where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Datalist<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "datalist" }
@@ -217,6 +286,11 @@ public struct Datalist<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Datalist where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -233,6 +307,11 @@ public struct Output<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Output where Content == EmptyTag {
+    public init(for htmlFor: String? = nil, name: String? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(for: htmlFor, name: name, id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Progress<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "progress" }
@@ -245,6 +324,11 @@ public struct Progress<Content: Tag>: _HTMLContainerTag {
         if let value { _attributes.set("value", String(value)) }
         if let max { _attributes.set("max", String(max)) }
         self.content = content()
+    }
+}
+extension Progress where Content == EmptyTag {
+    public init(value: Double? = nil, max: Double? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(value: value, max: max, id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -264,5 +348,10 @@ public struct Meter<Content: Tag>: _HTMLContainerTag {
         if let high { _attributes.set("high", String(high)) }
         if let optimum { _attributes.set("optimum", String(optimum)) }
         self.content = content()
+    }
+}
+extension Meter where Content == EmptyTag {
+    public init(value: Double, min: Double? = nil, max: Double? = nil, low: Double? = nil, high: Double? = nil, optimum: Double? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(value: value, min: min, max: max, low: low, high: high, optimum: optimum, id: id, class: classes) { EmptyTag() }
     }
 }

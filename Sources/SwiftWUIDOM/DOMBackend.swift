@@ -183,8 +183,5 @@ public final class DOMBackend: RendererBackend {
         guard node.nodeType.number == 1 else { return nil }
         return node.tagName.string?.lowercased()
     }
-    public func textContent(of node: JSObject) -> String {
-        node.textContent.string ?? ""
-    }
 }
 #endif

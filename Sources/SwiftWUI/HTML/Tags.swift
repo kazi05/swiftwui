@@ -24,6 +24,11 @@ public struct Span<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Span where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct P<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "p" }
@@ -33,6 +38,11 @@ public struct P<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension P where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -232,6 +242,11 @@ public struct Main<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Main where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Header<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "header" }
@@ -241,6 +256,11 @@ public struct Header<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Header where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -254,6 +274,11 @@ public struct Footer<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Footer where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Nav<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "nav" }
@@ -263,6 +288,11 @@ public struct Nav<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Nav where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -276,6 +306,11 @@ public struct Section<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Section where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Article<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "article" }
@@ -285,6 +320,11 @@ public struct Article<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Article where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -300,6 +340,11 @@ public struct Ul<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Ul where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Ol<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "ol" }
@@ -309,6 +354,11 @@ public struct Ol<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Ol where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -322,6 +372,11 @@ public struct Li<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Li where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 // MARK: - Form Containers
 
@@ -333,6 +388,11 @@ public struct Form<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Form where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -358,6 +418,11 @@ public struct Label<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Label where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 // MARK: - Text Formatting
 
@@ -371,6 +436,11 @@ public struct Strong<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Strong where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Em<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "em" }
@@ -380,6 +450,11 @@ public struct Em<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Em where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -393,6 +468,11 @@ public struct Code<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Code where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Pre<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "pre" }
@@ -402,6 +482,11 @@ public struct Pre<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Pre where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -447,6 +532,11 @@ public struct A<Content: Tag>: _HTMLContainerTag {
         _attributes.set("href", HTMLEscaping.sanitizeURL(href))
         if let target { _attributes.set("target", target.rawValue) }
         self.content = content()
+    }
+}
+extension A where Content == EmptyTag {
+    public init(href: String, target: LinkTarget? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(href: href, target: target, id: id, class: classes) { EmptyTag() }
     }
 }
 

@@ -169,10 +169,8 @@ private struct AppearFixture: Tag {
                               root: BuildTaskFixture(), scheduleMicrotask: sched.schedule)
         runtime._effects._buildMode = true
         runtime.mount()
-        let drained = runtime._effects._drainBuildTasks()
-        #expect(drained.count == 1)
-        await drained[0].action()
-        runtime._effects._recordBuildCompleted(drained[0].id)
+        let hadPending = await runtime._effects._drainBuildTasks(store: runtime._store)
+        #expect(hadPending)
         sched.pump()
         #expect(backend.serializeHTML().contains("from-loader"))
         #expect(!backend.serializeHTML().contains("client-task-ran"))
@@ -192,7 +190,8 @@ private struct AppearFixture: Tag {
                             root: BuildTaskFixture(), scheduleMicrotask: { _ in })
         probe._effects._buildMode = true
         probe.mount()
-        let key = probe._effects._drainBuildTasks()[0].id._canonicalString!
+        _ = await probe._effects._drainBuildTasks(store: probe._store)
+        let key = probe._effects._completedBuildKeys[0]
         runtime._effects._skipBuildTaskKeys = [key]
         runtime.mount()
         try await Task.sleep(nanoseconds: 50_000_000)     // let the .client Task land

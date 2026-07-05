@@ -85,6 +85,9 @@ public enum RouteURL {
 /// Parsed route pattern (spec §4): literal | :param | * (catch-all, last only).
 /// Malformed patterns (mid-pattern '*', empty ':' name) trap in debug and
 /// degrade in release ('*' swallows the tail; empty param captures under "").
+///
+/// Public API by decision (phase-6): part of the SSG/backend integration surface,
+/// not an underscored SPI. Members prefixed `_` remain SPI.
 public struct RoutePattern: Equatable {
     enum Segment: Equatable {
         case literal(String)

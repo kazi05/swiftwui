@@ -23,6 +23,8 @@ public final class StateStore {
     /// first link() of each row. Seeded by DOMRuntime before mount.
     public var _pendingRows: [String: [String]] = [:]
     public var _decodeSlot: SnapshotDecode? = nil
+    /// SSG build-task write attribution (phase-6 I3): set during _drainBuildTasks only.
+    public var _writeObserver: ((NodeIdentity) -> Void)? = nil
 
     /// Retains the resolved component value + its environment snapshot so a
     /// later scoped pass can re-invoke its body (spec §2.3).
@@ -105,7 +107,13 @@ public final class StateStore {
         } else {
             rows[id] = props.map { $0._box }                       // first mount or count change
         }
-        for p in props { p._bindInvalidate(invalidate) }
+        // Tap writes for SSG build-task attribution (phase-6 I3) — nil observer
+        // outside a build-task drain, so this costs nothing at runtime.
+        let tracked: () -> Void = { [weak self] in
+            if let self { self._writeObserver?(id) }
+            invalidate()
+        }
+        for p in props { p._bindInvalidate(tracked) }
     }
 
     func sweep(under root: NodeIdentity, reachable: Set<NodeIdentity>) {

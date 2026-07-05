@@ -34,5 +34,4 @@ public protocol RendererBackend: AnyObject {
     func child(of node: HostNode, at index: Int) -> HostNode
     /// Lowercased element tag name; nil for text nodes.
     func tagName(of node: HostNode) -> String?
-    func textContent(of node: HostNode) -> String
 }

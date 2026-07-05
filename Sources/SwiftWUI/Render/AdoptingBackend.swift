@@ -12,6 +12,14 @@
 /// Write calls (setAttribute/setProperty/setEventListener/setText) always
 /// delegate: values are byte-identical to the prerender (T8), so they're
 /// idempotent, and listener attachment is precisely what hydration must do.
+///
+/// Common mismatch causes (browser parser normalization, phase-6): `<table>`
+/// without an explicit `Tbody` (the parser auto-inserts one); text nodes split
+/// across component boundaries; children inside `Iframe` (the parser drops
+/// them).
+///
+/// Public API by decision (phase-6): part of the SSG/backend integration surface,
+/// not an underscored SPI. Members prefixed `_` remain SPI.
 @MainActor
 public final class AdoptingBackend<Base: RendererBackend>: RendererBackend
 where Base.HostNode: AnyObject {
@@ -49,22 +57,34 @@ where Base.HostNode: AnyObject {
         }
     }
 
-    private func fail() {
-        if !failed {
-            failed = true
-            if _assertOnMismatch {
-                assertionFailure("SwiftWUI hydration mismatch at stream index \(cursor)/\(stream.count)")
-            }
-        }
+    /// Non-trapping diagnostic (always printed) plus a debug-only assert
+    /// (`_assertOnMismatch`) — the fallback path itself must stay testable in
+    /// debug builds, so the trap is opt-out, not unconditional.
+    private func fail(expected: String = "?", found: String = "?") {
+        guard !failed else { return }
+        failed = true
+        let msg = """
+        SwiftWUI hydration mismatch at stream index \(cursor)/\(stream.count): \
+        expected <\(expected)>, found <\(found)>. Common causes (browser parser \
+        normalization): <table> without explicit Tbody (parser auto-inserts tbody); \
+        text nodes split across component boundaries; children inside Iframe \
+        (parser drops them). Falling back to a cold render.
+        """
+        print("[SwiftWUI] " + msg)                        // non-trapping diagnostic, all builds
+        if _assertOnMismatch { assertionFailure(msg) }    // debug trap preserved
         active = false
     }
     private func nextAdopted(expectTag: String?) -> HostNode? {
-        guard cursor < stream.count else { fail(); return nil }
+        let expectedDesc = expectTag ?? "text node"
+        guard cursor < stream.count else { fail(expected: expectedDesc, found: "end of stream"); return nil }
         let candidate = stream[cursor]
         let actual = base.tagName(of: candidate)
         // Tag names compare lowercased: DOM tagName is uppercase, our
         // serializer emits lowercase; MockBackend stores lowercase.
-        guard actual?.lowercased() == expectTag?.lowercased() else { fail(); return nil }
+        guard actual?.lowercased() == expectTag?.lowercased() else {
+            fail(expected: expectedDesc, found: actual ?? "text node")
+            return nil
+        }
         cursor += 1
         return candidate
     }
@@ -73,7 +93,7 @@ where Base.HostNode: AnyObject {
     /// Always deactivates adoption — subsequent calls create for real.
     public func finishAdoption() -> Bool {
         let ok = !failed && cursor == stream.count
-        if !ok && !failed { fail() }     // leftover nodes = mismatch (spec §8)
+        if !ok && !failed { fail(expected: "end of stream", found: "leftover nodes") }
         active = false
         return ok
     }
@@ -99,7 +119,7 @@ where Base.HostNode: AnyObject {
             // Adopted child must already sit under this parent; adopted parent
             // wrappers and the container are the only legal parents mid-adoption.
             if parentOf[ObjectIdentifier(child)] == ObjectIdentifier(parent) { return }  // no-op: already in place
-            fail()
+            fail(expected: "adopted parent", found: "wrong-parent insert")
             // fall through: base.insert makes the (doomed) tree structurally sound
         }
         base.insert(child, into: parent, before: anchor)
@@ -122,5 +142,4 @@ where Base.HostNode: AnyObject {
     public func childCount(of node: HostNode) -> Int { base.childCount(of: node) }
     public func child(of node: HostNode, at index: Int) -> HostNode { base.child(of: node, at: index) }
     public func tagName(of node: HostNode) -> String? { base.tagName(of: node) }
-    public func textContent(of node: HostNode) -> String { base.textContent(of: node) }
 }

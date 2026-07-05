@@ -34,6 +34,36 @@ private struct BrokenPage: Tag, Page {
     }
 }
 
+private struct StaticVsDynamicApp: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/todo/1") { Text("literal") }
+            Route("/todo/:id") { params in Text("todo \(params["id"] ?? "?")") }
+        }
+    }
+}
+
+private final class NotCodableBlob2 { var v = 2 }
+private struct InnerLoader: Tag {
+    @State var blob = NotCodableBlob2()
+    var body: some Tag {
+        P { Text("inner") }.staticTask { blob = NotCodableBlob2() }
+    }
+}
+/// OuterPage's own row (`count`, never mutated) is encodable and, by tree
+/// nesting, its identity path is a PREFIX of InnerLoader's nested task path —
+/// exactly the shape the old path-prefix heuristic (I3) falsely matched on.
+private struct OuterPage: Tag, Page {
+    @State var count = 0
+    var title: String { "Outer" }
+    var body: some Tag { Div { InnerLoader() } }
+}
+private struct BuildAttributionApp: App {
+    init() {}
+    var body: some Tag { Router { Route("/") { OuterPage() } } }
+}
+
 @Suite @MainActor struct StaticSiteTests {
     func tempDir() -> String {
         let dir = NSTemporaryDirectory() + "swiftwui-ssg-\(UUID().uuidString)"
@@ -150,8 +180,52 @@ private struct BrokenPage: Tag, Page {
         _ = try await StaticSite.generate(SiteApp.self, config: .init(
             outDir: out, mode: .staticOnly, cssFile: true))
         let home = try String(contentsOfFile: out + "/index.html", encoding: .utf8)
-        #expect(home.contains("<link rel=\"stylesheet\" href=\"/styles.css\">"))
+        // Root-relative, not root-absolute (item 2: subdirectory deploys) — depth
+        // 0 from the root page is just "styles.css".
+        #expect(home.contains("<link rel=\"stylesheet\" href=\"styles.css\">"))
         #expect(!home.contains("<style data-swiftwui>"))
         #expect(FileManager.default.fileExists(atPath: out + "/styles.css"))
+    }
+
+    @Test func cssFileModeUsesRelativeHrefInSubdirectories() async throws {
+        let out = tempDir()
+        _ = try await StaticSite.generate(SiteApp.self, config: .init(
+            outDir: out, mode: .staticOnly, paths: ["/todo/1"], cssFile: true))
+        let home = try String(contentsOfFile: out + "/index.html", encoding: .utf8)
+        #expect(home.contains("<link rel=\"stylesheet\" href=\"styles.css\">"))
+        let todo = try String(contentsOfFile: out + "/todo/1/index.html", encoding: .utf8)
+        #expect(todo.contains("<link rel=\"stylesheet\" href=\"../../styles.css\">"))
+    }
+
+    @Test func unmatchedConfigPathSurfacesInReport() async throws {
+        let out = tempDir()
+        let report = try await StaticSite.generate(SiteApp.self, config: .init(
+            outDir: out, mode: .staticOnly, paths: ["/todo/1", "/does-not-exist"]))
+        #expect(report.unmatchedPaths == ["/does-not-exist"])
+    }
+
+    @Test func staticPatternClaimsItsPathSoRedundantConfigPathDoesntDoubleRender() async throws {
+        let out = tempDir()
+        let report = try await StaticSite.generate(StaticVsDynamicApp.self, config: .init(
+            outDir: out, mode: .staticOnly, paths: ["/todo/1"]))
+        #expect(report.pages == ["/todo/1"])                  // not rendered twice
+        #expect(report.skippedPatterns == ["/todo/:id"])       // path already claimed by the literal route
+        #expect(report.unmatchedPaths.isEmpty)
+    }
+
+    @Test func writeAttributionExcludesUnrelatedNestedNonEncodableTask() async throws {
+        let out = tempDir()
+        _ = try await StaticSite.generate(BuildAttributionApp.self, config: .init(
+            outDir: out, mode: .hydrate(wasmScriptPath: "/app.js")))
+        let html = try String(contentsOfFile: out + "/index.html", encoding: .utf8)
+        let marker = "application/swiftwui-state\" data-swiftwui>"
+        let afterMarker = try #require(html.range(of: marker))
+        let snapshotRegion = html[afterMarker.upperBound...]
+        let scriptEnd = try #require(snapshotRegion.range(of: "</script>"))
+        // InnerLoader's task wrote to its own (non-encodable) row. The old
+        // path-prefix heuristic would have falsely matched it against the
+        // unrelated ancestor OuterPage row — real write attribution (phase-6
+        // I3) must exclude it regardless.
+        #expect(snapshotRegion[..<scriptEnd.lowerBound].contains("\"tasks\":[]"))
     }
 }

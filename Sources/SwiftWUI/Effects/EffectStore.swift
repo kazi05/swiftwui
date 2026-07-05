@@ -19,6 +19,9 @@ enum EffectRequest {
 
 /// Effect lifecycle (spec §5.3–5.4): keyed by wrapper identity; sweep
 /// set-difference under the pass root = onDisappear / task cancellation.
+///
+/// Public API by decision (phase-6): part of the SSG/backend integration surface,
+/// not an underscored SPI. Members prefixed `_` remain SPI.
 @MainActor
 public final class EffectStore {
     private var previousValues: [NodeIdentity: Any] = [:]
@@ -34,6 +37,9 @@ public final class EffectStore {
     private var pendingBuild: [(id: NodeIdentity, action: () async -> Void)] = []
     private var startedBuild: Set<NodeIdentity> = []
     public private(set) var _completedBuildKeys: [String] = []
+    /// SSG build-task write attribution (phase-6 I3): task key → canonical
+    /// identity strings written to `StateStore` while that task's action ran.
+    public private(set) var _buildWrites: [String: Set<String>] = [:]
 
     /// Discards a runtime that never committed (hydration mismatch, spec §8):
     /// client `.task` effects already started real Tasks that hold the runtime
@@ -47,9 +53,26 @@ public final class EffectStore {
         disappearActions.removeAll()
     }
 
-    public func _drainBuildTasks() -> [(id: NodeIdentity, action: () async -> Void)] {
-        defer { pendingBuild = [] }
-        return pendingBuild
+    /// Awaits every pending `.build` task in turn, tracking which identities
+    /// each one wrote to `store` (phase-6 I3 — replaces the old path-prefix
+    /// heuristic with real write attribution). Returns false when nothing was
+    /// pending; the caller's build-task loop treats that as quiescence.
+    @discardableResult
+    public func _drainBuildTasks(store: StateStore) async -> Bool {
+        let pending = pendingBuild
+        pendingBuild = []
+        guard !pending.isEmpty else { return false }
+        for task in pending {
+            var written = Set<String>()
+            store._writeObserver = { id in if let k = id._canonicalString { written.insert(k) } }
+            await task.action()               // awaited sequentially, MainActor
+            store._writeObserver = nil
+            if let key = task.id._canonicalString {
+                _buildWrites[key, default: []].formUnion(written)
+            }
+            _recordBuildCompleted(task.id)
+        }
+        return true
     }
     public func _recordBuildCompleted(_ id: NodeIdentity) {
         if let key = id._canonicalString { _completedBuildKeys.append(key) }

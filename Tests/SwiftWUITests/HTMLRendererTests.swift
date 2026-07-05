@@ -99,6 +99,14 @@ private struct Card: Tag {
                             Embed.tagName, Param.tagName, Area.tagName]
         for name in voidTagNames { #expect(HTMLRenderer.voidElements.contains(name)) }
     }
+    /// No production change (Tags+Table.swift already emits via `String(Double)`) —
+    /// pins the format so a future refactor can't silently drop the ".0" (phase-6 item 5).
+    @Test func progressAndMeterDoubleAttributes() {
+        #expect(HTMLRenderer.render(Progress(value: 0.5, max: 2))
+                == #"<progress max="2.0" value="0.5"></progress>"#)
+        #expect(HTMLRenderer.render(Meter(value: 0.7, min: 0, max: 1))
+                == #"<meter max="1.0" min="0.0" value="0.7"></meter>"#)
+    }
     @Test func mediaAndInteractiveTagsRender() {
         #expect(HTMLRenderer.render(Details(open: true) { Summary { Text("t") }; P { Text("b") } })
                 == "<details open><summary>t</summary><p>b</p></details>")

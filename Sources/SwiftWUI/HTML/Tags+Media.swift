@@ -11,6 +11,11 @@ public struct Details<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Details where Content == EmptyTag {
+    public init(open: Bool = false, id: String? = nil, class classes: String? = nil) {
+        self.init(open: open, id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Dialog<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "dialog" }
@@ -21,6 +26,11 @@ public struct Dialog<Content: Tag>: _HTMLContainerTag {
         _attributes = _AttributeBag(id: id, class: classes)
         if open { _attributes.set("open", "") }
         self.content = content()
+    }
+}
+extension Dialog where Content == EmptyTag {
+    public init(open: Bool = false, id: String? = nil, class classes: String? = nil) {
+        self.init(open: open, id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -51,6 +61,11 @@ public struct Video<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Video where Content == EmptyTag {
+    public init(src: String? = nil, poster: String? = nil, controls: Bool = false, autoplay: Bool = false, loop: Bool = false, muted: Bool = false, playsinline: Bool = false, width: Int? = nil, height: Int? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(src: src, poster: poster, controls: controls, autoplay: autoplay, loop: loop, muted: muted, playsinline: playsinline, width: width, height: height, id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Audio<Content: Tag>: _HTMLContainerTag {   // Video minus visual params
     public static var tagName: String { "audio" }
@@ -67,6 +82,11 @@ public struct Audio<Content: Tag>: _HTMLContainerTag {   // Video minus visual p
         if loop { _attributes.set("loop", "") }
         if muted { _attributes.set("muted", "") }
         self.content = content()
+    }
+}
+extension Audio where Content == EmptyTag {
+    public init(src: String? = nil, controls: Bool = false, autoplay: Bool = false, loop: Bool = false, muted: Bool = false, id: String? = nil, class classes: String? = nil) {
+        self.init(src: src, controls: controls, autoplay: autoplay, loop: loop, muted: muted, id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -106,6 +126,11 @@ public struct Picture<Content: Tag>: _HTMLContainerTag {
                 @TagBuilder content: () -> Content) {
         _attributes = _AttributeBag(id: id, class: classes)
         self.content = content()
+    }
+}
+extension Picture where Content == EmptyTag {
+    public init(id: String? = nil, class classes: String? = nil) {
+        self.init(id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -155,6 +180,11 @@ public struct Canvas<Content: Tag>: _HTMLContainerTag {
         self.content = content()
     }
 }
+extension Canvas where Content == EmptyTag {
+    public init(width: Int? = nil, height: Int? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(width: width, height: height, id: id, class: classes) { EmptyTag() }
+    }
+}
 
 public struct Object<Content: Tag>: _HTMLContainerTag {
     public static var tagName: String { "object" }
@@ -170,6 +200,11 @@ public struct Object<Content: Tag>: _HTMLContainerTag {
         if let width { _attributes.set("width", String(width)) }
         if let height { _attributes.set("height", String(height)) }
         self.content = content()
+    }
+}
+extension Object where Content == EmptyTag {
+    public init(data: String? = nil, type: String? = nil, width: Int? = nil, height: Int? = nil, id: String? = nil, class classes: String? = nil) {
+        self.init(data: data, type: type, width: width, height: height, id: id, class: classes) { EmptyTag() }
     }
 }
 
@@ -206,6 +241,11 @@ public struct Map<Content: Tag>: _HTMLContainerTag {
         _attributes = _AttributeBag(id: id, class: classes)
         _attributes.set("name", name)
         self.content = content()
+    }
+}
+extension Map where Content == EmptyTag {
+    public init(name: String, id: String? = nil, class classes: String? = nil) {
+        self.init(name: name, id: id, class: classes) { EmptyTag() }
     }
 }
 

@@ -36,6 +36,8 @@ public struct StaticSiteReport {
     public var pages: [String]                    // generated page paths
     public var redirects: [String: String]        // page → target (stub emitted)
     public var skippedPatterns: [String]          // dynamic patterns with no explicit path
+    /// config.paths entries no pattern claimed — typos or dead config (final-review M2).
+    public var unmatchedPaths: [String] = []
 }
 
 public enum StaticSite {
@@ -59,19 +61,23 @@ public enum StaticSite {
         for pattern in patterns {
             if pattern.isStatic {
                 pagePaths.append(pattern.raw)
+                claimed.insert(RouteURL._normalize(pattern.raw))   // M3: static pattern claims its exact path
             } else {
-                let matching = config.paths.filter { pattern.match($0) != nil && !claimed.contains($0) }
-                if matching.isEmpty {
-                    skipped.append(pattern.raw)
-                } else {
+                let matching = config.paths.filter {
+                    pattern.match($0) != nil && !claimed.contains(RouteURL._normalize($0))
+                }
+                if matching.isEmpty { skipped.append(pattern.raw) }
+                else {
                     pagePaths.append(contentsOf: matching)
-                    claimed.formUnion(matching)          // first-match-wins, like the Router
+                    claimed.formUnion(matching.map(RouteURL._normalize))   // first-match-wins, like the Router
                 }
             }
         }
+        let unmatched = config.paths.filter { !claimed.contains(RouteURL._normalize($0)) }   // M2
 
         // --- render each page ---
-        var report = StaticSiteReport(pages: [], redirects: [:], skippedPatterns: skipped)
+        var report = StaticSiteReport(pages: [], redirects: [:], skippedPatterns: skipped,
+                                      unmatchedPaths: unmatched)
         // cssFile mode: union at PAGE-TEXT granularity — registry text is not
         // guaranteed line-per-rule (media blocks), so we dedup whole page
         // registries in first-seen order. Overlap duplicates rules, which is
@@ -123,6 +129,13 @@ public enum StaticSite {
             + HTMLEscaping.text(target) + "\">\n"
     }
 
+    /// "styles.css" for the root page, "../../styles.css" for /todo/1/index.html, etc.
+    /// (root-absolute "/styles.css" breaks subdirectory deploys — final-review carry item.)
+    static func cssHref(forPageFile relPath: String) -> String {
+        let dirDepth = relPath.split(separator: "/").dropLast().count
+        return String(repeating: "../", count: dirDepth) + "styles.css"
+    }
+
     @MainActor
     private static func renderPage<A: App>(_ app: A.Type, path: String,
                                            config: StaticSiteConfig) async throws
@@ -148,15 +161,11 @@ public enum StaticSite {
         // Build-task loop (spec §6, D5): cap mirrors the redirect-hop cap.
         var iterations = 0
         while true {
-            let pending = runtime._effects._drainBuildTasks()
-            if pending.isEmpty { break }
+            let hadPending = await runtime._effects._drainBuildTasks(store: runtime._store)
+            if !hadPending { break }
             iterations += 1
             guard iterations <= 10 else {
                 throw StaticSiteError.buildTaskOverflow(page: path, iterations: iterations)
-            }
-            for task in pending {
-                await task.action()               // awaited sequentially, MainActor
-                runtime._effects._recordBuildCompleted(task.id)
             }
             pump()                                 // state writes → re-render → possibly new tasks
         }
@@ -182,19 +191,12 @@ public enum StaticSite {
             // (non-Encodable value → whole-row drop, or an unkeyable identity)
             // must not be listed in "tasks" — the hydrated client would then
             // skip the loader and silently keep the initial value (spec §7).
-            // Keep a task key only if some row sits on the same identity path
-            // (either "/"-joined path is a prefix of the other — the loader
-            // wrapper can sit above or below the stateful component).
-            let rowPaths = rows.keys.map { $0.split(separator: "/").map(String.init) }
-            func hasMatchingRow(_ taskPath: [String]) -> Bool {
-                rowPaths.contains { row in
-                    row.count <= taskPath.count
-                        ? Array(taskPath.prefix(row.count)) == row
-                        : Array(row.prefix(taskPath.count)) == taskPath
-                }
-            }
+            // Real write attribution (phase-6 I3): a task's key is kept only if
+            // every identity it wrote during the drain survived encoding.
+            let encoded = Set(rows.keys)   // canonical strings of rows that made the snapshot
             let tasks = runtime._effects._completedBuildKeys.filter { key in
-                let ok = hasMatchingRow(key.split(separator: "/").map(String.init))
+                let writes = runtime._effects._buildWrites[key] ?? []
+                let ok = writes.isSubset(of: encoded)   // every written row survived encoding
                 #if DEBUG
                 if !ok {
                     print("SwiftWUI SSG: loader result at '\(key)' not serializable — client will re-run it (make the @State type Codable to ship it in the snapshot)")
@@ -206,10 +208,13 @@ public enum StaticSite {
         }
         var wasmPath: String? = nil
         if case .hydrate(let p) = config.mode { wasmPath = p }
+        // Same relative path the write loop derives its output file from
+        // (requestedPath is already query-stripped, see above).
+        let relFile = requestedPath == "/" ? "index.html" : String(requestedPath.dropFirst()) + "/index.html"
         let doc = DocumentSerializer.render(.init(
             bodyHTML: body,
             css: config.cssFile ? nil : css,
-            cssHref: config.cssFile ? "/styles.css" : nil,
+            cssHref: config.cssFile ? cssHref(forPageFile: relFile) : nil,
             head: runtime._pageHead,
             snapshotJSON: snapshot,
             wasmScriptPath: wasmPath))
