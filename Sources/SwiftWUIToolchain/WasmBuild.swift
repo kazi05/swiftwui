@@ -23,12 +23,22 @@ public struct WasmBuilder {
         self.runner = runner; self.projectDir = projectDir; self.sdk = sdk
     }
 
+    // ponytail: dedicated scratch dir, not the shared `.build`. Mixing a native `swift
+    // build`/`swift run` with a wasm `swift package --swift-sdk ... js` under the same
+    // `.build` corrupts SwiftPM's `.build/debug` triple symlink (repro: native build,
+    // then wasm build, then native `swift run` → "No target named ...-debug.exe").
+    public static func bundleDir(projectDir: String) -> String {
+        projectDir + "/.build-wasm/plugins/PackageToJS/outputs/Package"
+    }
+
     /// Runs the JavaScriptKit PackageToJS plugin; returns the bundle directory.
     public func build(configuration: String) throws -> String {
-        let r = try runner.run("swift", ["package", "--swift-sdk", sdk, "js", "-c", configuration],
-                               cwd: projectDir, streamOutput: true)
+        let scratchPath = projectDir + "/.build-wasm"
+        let r = try runner.run("swift",
+            ["package", "--swift-sdk", sdk, "--scratch-path", scratchPath, "js", "-c", configuration],
+            cwd: projectDir, streamOutput: true)
         guard r.exitCode == 0 else { throw ToolchainError.buildFailed(output: r.stdout + r.stderr) }
-        return projectDir + "/.build/plugins/PackageToJS/outputs/Package"
+        return Self.bundleDir(projectDir: projectDir)
     }
 }
 

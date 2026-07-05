@@ -22,7 +22,7 @@ struct Dev: ParsableCommand {
 
         print("building (\(sdk))…")
         session.rebuildAndNotify()   // first build; on failure the overlay shows it on connect
-        let bundleDir = cwd + "/.build/plugins/PackageToJS/outputs/Package"
+        let bundleDir = WasmBuilder.bundleDir(projectDir: cwd)
 
         let server = HTTPServer(handlers: session.handlers(projectDir: cwd, bundleDir: bundleDir))
         try server.start(port: port)
