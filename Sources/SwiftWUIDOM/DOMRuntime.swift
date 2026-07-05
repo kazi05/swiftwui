@@ -70,6 +70,17 @@ public enum DOMRuntime {
         }
         _ = JSObject.global.window.object?.addEventListener?("popstate", popstate)
         retained.append(popstate)                 // JSClosure must outlive the page (v1 lesson)
+        if DevReload.isDevPage {
+            let devSave = JSClosure { [weak runtime] _ in
+                if let runtime {
+                    DevReload.save(store: runtime._store,
+                                   skipTasks: Array(runtime._effects._skipBuildTaskKeys))
+                }
+                return .undefined
+            }
+            _ = JSObject.global.window.object?.addEventListener?("swiftwui:dev-snapshot-request", devSave)
+            retained.append(devSave)   // JSClosure must outlive the page (v1 lesson)
+        }
         _ = container.setAttribute?("data-swui-mounted", "true")   // test-sync hook (v1 lesson)
         if hydrated {
             _ = container.setAttribute?("data-swui-hydrated", "true")   // browser-test hook
@@ -121,6 +132,11 @@ public enum DOMRuntime {
                 _ = container.removeChild?(container.childNodes.item(0))
             }
             SnapshotBoot.removeScriptTag()
+        }
+        // Dev reload (phase-6 §7): no embedded snapshot on dev pages — sessionStorage
+        // may carry the pre-reload state. Consume-once; nil on any mismatch.
+        if fallbackPayload == nil {
+            fallbackPayload = DevReload.takeStoredPayload(currentPath: location.pathname.string ?? "/")
         }
         let (raw, box) = makeBackend()
         let runtime = makeRuntime(root: root, backend: raw, container: container,

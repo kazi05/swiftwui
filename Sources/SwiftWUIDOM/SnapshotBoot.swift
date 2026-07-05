@@ -95,7 +95,8 @@ enum SnapshotBoot {
     /// `SnapshotJSON.jsonString` (copied in: SwiftWUIDOM doesn't depend on SwiftWUIStatic).
     /// `nonisolated`: called from `JSONValue.serialized`, a nested type that
     /// does NOT inherit SnapshotBoot's @MainActor (only direct members do).
-    nonisolated private static func jsonString(_ s: String) -> String {
+    /// internal (not private): DevReload reuses it for its own assembly.
+    nonisolated static func jsonString(_ s: String) -> String {
         var out = "\""
         for ch in s.unicodeScalars {
             switch ch {
@@ -121,19 +122,24 @@ enum SnapshotBoot {
         return _openExistential(type, do: open)
     }
 
-    /// nil when the page has no snapshot / version mismatch / current location
-    /// differs from the snapshot's path (spec §7 — cold boot in those cases).
-    static func read(currentPath: String) -> Payload? {
-        let document = JSObject.global.document
-        let el = document.querySelector("script[type=\"application/swiftwui-state\"]")
-        guard let obj = el.object, let text = obj.textContent.string,
-              let payload = try? JSONDecoder().decode(Payload.self, from: Data(text.utf8)),
+    /// Pure parse, shared by the DOM read below and DevReload's sessionStorage
+    /// read. nil on decode failure / version mismatch / path mismatch (spec
+    /// §7 — cold boot in those cases). Static servers serve "/about/" with a
+    /// trailing slash; the snapshot stores the normalized form — compare normalized.
+    static func parse(_ text: String, currentPath: String) -> Payload? {
+        guard let payload = try? JSONDecoder().decode(Payload.self, from: Data(text.utf8)),
               payload.v == 1,
-              // Static servers serve "/about/" with a trailing slash; the
-              // snapshot stores the normalized form — compare normalized.
               RouteURL._normalize(payload.path) == RouteURL._normalize(currentPath)
         else { return nil }
         return payload
+    }
+
+    /// nil when the page has no snapshot script tag or `parse` rejects its contents.
+    static func read(currentPath: String) -> Payload? {
+        let document = JSObject.global.document
+        let el = document.querySelector("script[type=\"application/swiftwui-state\"]")
+        guard let obj = el.object, let text = obj.textContent.string else { return nil }
+        return parse(text, currentPath: currentPath)
     }
     static func removeScriptTag() {
         let el = JSObject.global.document.querySelector("script[type=\"application/swiftwui-state\"]")
