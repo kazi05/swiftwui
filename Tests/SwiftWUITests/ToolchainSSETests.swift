@@ -49,4 +49,29 @@ import Darwin
         close(fd)
         #expect(received.contains("event: reload\ndata: {}\n\n"))
     }
+
+    @Test func broadcastPrunesClosedClients() async throws {
+        let hub = SSEHub()
+        let server = HTTPServer(handlers: [hub.handler()])
+        try server.start(port: 0); defer { server.stop() }
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = server.boundPort.bigEndian
+        addr.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+        _ = withUnsafePointer(to: &addr) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { connect(fd, $0, socklen_t(MemoryLayout<sockaddr_in>.size)) }
+        }
+        writeAll(fd, Array("GET /__swiftwui/events HTTP/1.1\r\nHost: x\r\n\r\n".utf8))
+        for _ in 0..<100 where hub.clientCount == 0 { try await Task.sleep(nanoseconds: 10_000_000) }
+        #expect(hub.clientCount == 1)
+        close(fd)                                   // client goes away
+        var pruned = false
+        for _ in 0..<100 {                          // first broadcast after close prunes
+            hub.broadcast(event: "reload", data: "{}")
+            if hub.clientCount == 0 { pruned = true; break }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        #expect(pruned)
+    }
 }

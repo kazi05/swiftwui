@@ -42,7 +42,9 @@ public final class SSEHub: @unchecked Sendable {   // guarded by `lock`
             writeAll(fd, frame)
             var one = [UInt8](repeating: 0, count: 1)
             let n = recv(fd, &one, 1, Int32(MSG_PEEK | MSG_DONTWAIT))
-            if n == 0 { dead.append(fd) }              // orderly close by the browser
+            if n == 0 || (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
+                dead.append(fd)   // FIN, RST, or any hard socket error — drop the client
+            }
         }
         if !dead.isEmpty {
             lock.lock()
