@@ -129,6 +129,45 @@ private struct RTPage: Tag, Page {
         #expect(dom.serializeHTML().contains("n = 1"))
     }
 
+    /// Trailing foreign nodes (browser-extension injections, legacy
+    /// post-</body> whitespace) after the app's own nodes must NOT cold-fallback —
+    /// only mid-stream divergence is a real mismatch.
+    @Test func trailingForeignNodesAreToleratedNotAMismatch() {
+        let ssgBackend = MockBackend()
+        let ssg = Runtime(backend: ssgBackend, container: ssgBackend.container,
+                          root: RoundTripApp().body, initialPath: "/",
+                          scheduleMicrotask: { $0() })
+        ssg.mount()
+        let bodyHTML = ssgBackend.serializeHTML()
+
+        let dom = MockBackend()
+        parseHTMLSubset(bodyHTML, into: dom)
+
+        // Simulate: post-</body> whitespace reparented into body, plus a
+        // browser-extension element (e.g. DeepL's <deepl-input-controller>).
+        let whitespace = MockNode(); whitespace.text = "\n\n"
+        whitespace.parent = dom.container
+        dom.container.children.append(whitespace)
+        let extNode = MockNode(); extNode.tag = "deepl-input-controller"
+        extNode.parent = dom.container
+        dom.container.children.append(extNode)
+
+        let adopting = AdoptingBackend(base: dom, container: dom.container)
+        let sched = TestScheduler()
+        let client = Runtime(backend: adopting, container: dom.container,
+                             root: RoundTripApp().body, initialPath: "/",
+                             scheduleMicrotask: sched.schedule)
+        client.mount()
+        #expect(adopting.finishAdoption())          // tolerated, no cold fallback
+        #expect(dom.counts["createElement"] == nil)
+        #expect(dom.counts["createTextNode"] == nil)
+        #expect(dom.counts["remove"] == nil)
+
+        // Foreign nodes left exactly where they were.
+        #expect(dom.container.children.last === extNode)
+        #expect(dom.container.children[dom.container.children.count - 2] === whitespace)
+    }
+
     /// Every single-node mutation of the prerendered DOM must fail adoption —
     /// and the fallback cold mount must reproduce the canonical HTML.
     @Test func mutationSweepAlwaysFallsBackCleanly() {
@@ -145,9 +184,11 @@ private struct RTPage: Tag, Page {
             switch mutation {
             case 0: findFirst(dom.container, tag: "h1")!.tag = "h3"          // tag swap
             case 1:                                                          // extra node
+                // Inserted at the FRONT (not appended trailing) — a genuine
+                // mid-stream mismatch, distinct from tolerated trailing leftovers.
                 let junk = MockNode(); junk.tag = "p"
                 let div = findFirst(dom.container, tag: "div")!
-                junk.parent = div; div.children.append(junk)
+                junk.parent = div; div.children.insert(junk, at: 0)
             default:                                                         // missing node
                 let ul = findFirst(dom.container, tag: "ul")!
                 ul.children.removeLast()

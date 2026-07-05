@@ -9,6 +9,13 @@
 /// mount completes structurally; the CALLER must then discard everything and
 /// cold-mount (clear container + fresh Runtime) — never repair in place.
 ///
+/// Trailing leftover nodes at `finishAdoption` (stream fully consumed in
+/// order, but extra nodes remain after the app's) are tolerated, not a
+/// mismatch: browser extensions (DeepL, Grammarly, LastPass) append elements
+/// to `<body>`, and legacy pre-phase-6 output left whitespace reparented
+/// there too. A mid-stream divergence still fails — alignment breaks at the
+/// divergent node, long before finish.
+///
 /// Write calls (setAttribute/setProperty/setEventListener/setText) always
 /// delegate: values are byte-identical to the prerender (T8), so they're
 /// idempotent, and listener attachment is precisely what hydration must do.
@@ -89,11 +96,15 @@ where Base.HostNode: AnyObject {
         return candidate
     }
 
-    /// True when every prerendered node was claimed and nothing diverged.
+    /// True when the app tree adopted fully and nothing diverged mid-stream.
+    /// Leftover TRAILING nodes (cursor < stream.count with no prior failure)
+    /// are tolerated — see class doc — and left untouched, not an error.
     /// Always deactivates adoption — subsequent calls create for real.
     public func finishAdoption() -> Bool {
-        let ok = !failed && cursor == stream.count
-        if !ok && !failed { fail(expected: "end of stream", found: "leftover nodes") }
+        if !failed && cursor < stream.count {
+            print("[SwiftWUI] hydration: \(stream.count - cursor) unmanaged trailing node(s) left in container (e.g. browser-extension injections) — tolerated")
+        }
+        let ok = !failed
         active = false
         return ok
     }

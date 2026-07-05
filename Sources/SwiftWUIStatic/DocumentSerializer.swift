@@ -68,7 +68,10 @@ public enum DocumentSerializer {
             // keeps <body> byte-exact for adoption (a stray "\n" text node poisons the stream).
             out += "<script type=\"module\" src=\"" + HTMLEscaping.text(src) + "\"></script>\n"
         }
-        out += "</head>\n<body>" + input.bodyHTML + "</body>\n</html>\n"
+        // No trailing newline (or anything) after </body>: per the HTML spec,
+        // character tokens after </body> are reparented INTO body, which
+        // poisons the adoption stream with a stray text node.
+        out += "</head>\n<body>" + input.bodyHTML + "</body></html>"
         return out
     }
 }

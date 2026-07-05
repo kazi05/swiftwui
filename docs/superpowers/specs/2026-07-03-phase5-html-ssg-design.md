@@ -266,6 +266,12 @@ Listener attachment is precisely what hydration must do.
 actual tag. Release: silent rebuild. Hydration is an optimization, never a
 correctness dependency.
 
+Amended 2026-07-05 (phase-6 browser acceptance): trailing leftover nodes at
+finishAdoption are tolerated with a console warning — browser extensions
+inject trailing body elements, and legacy output's post-</body> whitespace
+reparents into body. Mid-stream mismatches still cold-render.
+DocumentSerializer now ends output at `</body></html>` exactly.
+
 **DOMRuntime boot order:** read snapshot script → seed store → resolve with
 restored state → adopting mount → remove the snapshot `<script>` element →
 normal life. `coalesceText` already merges adjacent text nodes, matching the

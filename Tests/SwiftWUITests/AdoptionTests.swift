@@ -67,7 +67,10 @@ private struct HydroFixture: Tag {
             "<div class=\"box\"><h1>Count: 0</h1><button type=\"button\">+</button></div>")
     }
 
-    @Test func leftoverNodesFailAdoption() {
+    /// A trailing sibling of the app root (e.g. a browser-extension element
+    /// appended to <body>) is tolerated, not a mismatch — only mid-stream
+    /// divergence is (see tagMismatchFailsAndFallbackRebuildIsCorrect).
+    @Test func trailingLeftoverNodeToleratesAdoption() {
         let base = MockBackend()
         prerenderedTree(into: base)
         let extra = MockNode(); extra.tag = "p"
@@ -78,7 +81,9 @@ private struct HydroFixture: Tag {
         let runtime = Runtime(backend: adopting, container: base.container,
                               root: HydroFixture(), scheduleMicrotask: sched.schedule)
         runtime.mount()
-        #expect(!adopting.finishAdoption())
+        #expect(adopting.finishAdoption())
+        #expect(base.counts["createElement"] == nil)
+        #expect(base.container.children.last === extra)   // untouched
     }
 
     @Test func textareaSubtreeIsSkipped() {

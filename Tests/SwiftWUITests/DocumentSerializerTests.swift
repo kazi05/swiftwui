@@ -20,9 +20,7 @@ import SwiftWUI
         .a{color:red}
         </style>
         </head>
-        <body><h1>Hi</h1></body>
-        </html>
-
+        <body><h1>Hi</h1></body></html>
         """)
         #expect(!html.contains("importmap"))   // static mode: no wasm bundle, no import map
     }
