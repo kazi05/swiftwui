@@ -199,7 +199,7 @@ public enum StaticFiles {
             let rel = String(request.path.dropFirst(urlPrefix.count))
             func fileResponse(_ fsPath: String) -> HTTPResponse? {
                 let resolved = URL(fileURLWithPath: fsPath).standardizedFileURL.path
-                guard resolved.hasPrefix(rootResolved) else { return nil }   // traversal guard
+                guard resolved == rootResolved || resolved.hasPrefix(rootResolved + "/") else { return nil }   // traversal guard (incl. sibling-prefix)
                 var isDir: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: resolved, isDirectory: &isDir) else { return nil }
                 if isDir.boolValue { return fileResponse(resolved + "/index.html") }

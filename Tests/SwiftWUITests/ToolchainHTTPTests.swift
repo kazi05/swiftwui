@@ -49,6 +49,17 @@ import Foundation
         #expect(s == 404)   // ../index.html escapes root → guarded
     }
 
+    @Test func traversalSiblingPrefixIsBlocked() async throws {
+        let dir = try tempSite()
+        // Sibling dir whose name shares the root as a string prefix: "/sub-evil"
+        try FileManager.default.createDirectory(atPath: dir + "/sub-evil", withIntermediateDirectories: true)
+        try "secret".write(toFile: dir + "/sub-evil/secret.txt", atomically: true, encoding: .utf8)
+        let server = HTTPServer(handlers: [StaticFiles.handler(urlPrefix: "/", root: dir + "/sub")])
+        try server.start(port: 0); defer { server.stop() }
+        let (s, _, _) = try await get(server.boundPort, "/%2e%2e/sub-evil/secret.txt")
+        #expect(s == 404)   // "/x/sub-evil" must NOT pass a "/x/sub" prefix check
+    }
+
     @Test func portInUseThrows() throws {
         let a = HTTPServer(handlers: []); try a.start(port: 0); defer { a.stop() }
         let b = HTTPServer(handlers: [])
