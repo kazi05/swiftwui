@@ -26,10 +26,17 @@ public struct FoundationProcessRunner: ProcessRunner {
         let outPipe = Pipe(), errPipe = Pipe()
         p.standardOutput = outPipe; p.standardError = errPipe
         try p.run()
-        // ponytail: capture-then-print, no live streaming — dev rebuilds are seconds long
+        // Drain both pipes concurrently — sequential reads deadlock when the
+        // child fills one pipe (~64KB) while we're blocked on the other.
+        let errBox = DataBox()
+        let group = DispatchGroup()
+        DispatchQueue.global().async(group: group) {
+            errBox.set(errPipe.fileHandleForReading.readDataToEndOfFile())
+        }
         let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+        group.wait()
         p.waitUntilExit()
+        let errData = errBox.get()
         let out = String(decoding: outData, as: UTF8.self)
         let err = String(decoding: errData, as: UTF8.self)
         if streamOutput {
@@ -38,6 +45,14 @@ public struct FoundationProcessRunner: ProcessRunner {
         }
         return ProcessResult(exitCode: p.terminationStatus, stdout: out, stderr: err)
     }
+}
+
+/// Cross-thread Data handoff for the concurrent pipe drain. @unchecked Sendable: all access guarded by `lock`.
+private final class DataBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+    func set(_ d: Data) { lock.lock(); data = d; lock.unlock() }
+    func get() -> Data { lock.lock(); defer { lock.unlock() }; return data }
 }
 
 public enum ToolchainError: Error, CustomStringConvertible {
