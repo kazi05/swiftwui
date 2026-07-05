@@ -1945,11 +1945,16 @@ public enum DocumentSerializer {
             out += "<script type=\"application/swiftwui-state\" data-swiftwui>"
                 + HTMLEscaping.scriptJSON(snapshot) + "</script>\n"
         }
-        out += "</head>\n<body>\n" + input.bodyHTML + "\n"
+        // PLAN AMENDMENT (task-13 review C2): the <body> must contain EXACTLY
+        // the prerendered fragment — no stray whitespace text nodes, no module
+        // script. The adoption stream walks body children 1:1 against the
+        // VDOM; a "\n" text node or trailing <script> poisons it (debug wasm
+        // traps, release always falls back cold). type="module" is deferred by
+        // default, so the boot script lives in <head> — behavior-identical.
         if let src = input.wasmScriptPath {
             out += "<script type=\"module\" src=\"" + HTMLEscaping.text(src) + "\"></script>\n"
         }
-        out += "</body>\n</html>\n"
+        out += "</head>\n<body>" + input.bodyHTML + "</body>\n</html>\n"
         return out
     }
 }
