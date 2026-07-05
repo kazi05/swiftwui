@@ -66,7 +66,13 @@ public enum DocumentSerializer {
         if let src = input.wasmScriptPath {
             // type="module" defers by default — head placement is behavior-identical, and
             // keeps <body> byte-exact for adoption (a stray "\n" text node poisons the stream).
-            out += "<script type=\"module\" src=\"" + HTMLEscaping.text(src) + "\"></script>\n"
+            //
+            // Inline import, not src=: the PackageToJS bundle's index.js only EXPORTS
+            // `init` — it has no side effects, so a bare `src=` script loads but never
+            // boots. Same raw-text sink as snapshot/importmap above.
+            out += "<script type=\"module\">import { init } from "
+                + HTMLEscaping.scriptJSON(SnapshotJSON.jsonString(src))
+                + "; await init();</script>\n"
         }
         // No trailing newline (or anything) after </body>: per the HTML spec,
         // character tokens after </body> are reparented INTO body, which

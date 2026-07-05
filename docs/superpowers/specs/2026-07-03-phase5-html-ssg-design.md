@@ -308,6 +308,10 @@ Assembles the full page (SwiftWUIStatic module per D11, pure string building thr
 - The wasm script path comes from `Mode.hydrate(wasmScriptPath:)` — the
   framework does not build wasm; the user's existing
   `swift package … js` output is referenced.
+- Amended 2026-07-05 (phase-6 browser acceptance): the boot script is an
+  inline module `import { init } from <wasmScriptPath>; await init();` —
+  the PackageToJS bundle exports `init` without side effects, so a bare
+  `src=` script never boots.
 
 ## 10. Backend surface changes
 

@@ -386,7 +386,7 @@ private struct SSGApp: App {
 
         let home = try String(contentsOfFile: out + "/index.html", encoding: .utf8)
         #expect(home.contains("application/swiftwui-state"))
-        #expect(home.contains("<script type=\"module\" src=\"/index.js\">"))
+        #expect(home.contains(#"<script type="module">import { init } from "\/index.js"; await init();</script>"#))
 
         let about = try String(contentsOfFile: out + "/about/index.html", encoding: .utf8)
         #expect(about.contains("prerendered-ssg"))

@@ -105,10 +105,10 @@ private struct BuildAttributionApp: App {
         let scriptEnd = try #require(snapshotRegion.range(of: "</script>"))
         #expect(snapshotRegion[..<scriptEnd.lowerBound].contains("prerendered-fact"))
         #expect(about.contains("\"tasks\":[\""))                  // completed loader recorded (non-empty list)
-        #expect(about.contains("<script type=\"module\" src=\"/app.js\">"))
+        #expect(about.contains(#"<script type="module">import { init } from "\/app.js"; await init();</script>"#))
         #expect(about.contains("<script type=\"importmap\">"))    // dist bundle's bare wasi-shim import needs this
         let mapRange = try #require(about.range(of: "<script type=\"importmap\">"))
-        let moduleRange = try #require(about.range(of: "<script type=\"module\" src=\"/app.js\">"))
+        let moduleRange = try #require(about.range(of: "<script type=\"module\">import"))
         #expect(mapRange.lowerBound < moduleRange.lowerBound)
     }
 

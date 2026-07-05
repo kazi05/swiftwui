@@ -32,11 +32,11 @@ import SwiftWUI
             wasmScriptPath: "/app.js"))
         #expect(html.contains("<script type=\"application/swiftwui-state\" data-swiftwui>{\"v\":1}</script>"))
         #expect(html.contains(#"<script type="importmap">{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}</script>"#))
-        #expect(html.contains("<script type=\"module\" src=\"/app.js\"></script>"))
+        #expect(html.contains(#"<script type="module">import { init } from "\/app.js"; await init();</script>"#))
         let headEnd = html.range(of: "</head>")!.lowerBound
         #expect(html[..<headEnd].contains("<script type=\"module\""))   // boot script lives in head, not body
         let mapRange = html.range(of: "<script type=\"importmap\">")!
-        let moduleRange = html.range(of: "<script type=\"module\"")!
+        let moduleRange = html.range(of: "<script type=\"module\">import")!
         #expect(mapRange.lowerBound < moduleRange.lowerBound)   // import map must precede the module script
     }
     @Test func bodyContainsExactlyTheFragmentForAdoption() {
