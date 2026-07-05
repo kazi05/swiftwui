@@ -177,6 +177,7 @@ public final class HTTPServer: @unchecked Sendable {   // guarded by `lock`
         var headers = r.headers
         if let contentLength { headers["Content-Length"] = String(contentLength) }
         headers["Connection"] = headers["Connection"] ?? (contentLength == nil ? "keep-alive" : "close")
+        headers["Cache-Control"] = headers["Cache-Control"] ?? "no-cache"
         for (k, v) in headers { head += "\(k): \(v)\r\n" }
         head += "\r\n"
         writeAll(fd, Array(head.utf8))

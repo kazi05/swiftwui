@@ -25,8 +25,10 @@ import Foundation
         let (s1, b1, h1) = try await get(server.boundPort, "/index.html")
         #expect(s1 == 200 && String(decoding: b1, as: UTF8.self) == "<h1>home</h1>")
         #expect((h1["Content-Type"] as? String)?.hasPrefix("text/html") == true)
+        #expect(h1["Cache-Control"] as? String == "no-cache")
         let (_, _, h2) = try await get(server.boundPort, "/sub/app.wasm")
         #expect(h2["Content-Type"] as? String == "application/wasm")
+        #expect(h2["Cache-Control"] as? String == "no-cache")
         let (s3, _, _) = try await get(server.boundPort, "/nope.js")
         #expect(s3 == 404)
     }
