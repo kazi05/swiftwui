@@ -48,7 +48,7 @@ enum SnapshotJSON {
                          rows: [String: [String]], tasks: [String]) -> String {
         var out = "{\"v\":\(version),\"path\":\(jsonString(path)),\"rows\":{"
         out += rows.keys.sorted().map { key in
-            jsonString(key) + ":[" + rows[key]!.map { $0 }.joined(separator: ",") + "]"
+            jsonString(key) + ":[" + rows[key]!.joined(separator: ",") + "]"
         }.joined(separator: ",")
         out += "},\"tasks\":["
         out += tasks.sorted().map(jsonString).joined(separator: ",")

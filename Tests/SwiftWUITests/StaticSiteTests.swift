@@ -25,6 +25,14 @@ private struct AboutPage: Tag, Page {
         P { Text(fact) }.staticTask { fact = "prerendered-fact" }
     }
 }
+private final class NotCodableBlob { var v = 1 }
+private struct BrokenPage: Tag, Page {
+    @State var blob = NotCodableBlob()
+    var title: String { "Broken" }
+    var body: some Tag {
+        P { Text("x") }.staticTask { blob = NotCodableBlob() }
+    }
+}
 
 @Suite @MainActor struct StaticSiteTests {
     func tempDir() -> String {
@@ -119,6 +127,22 @@ private struct AboutPage: Tag, Page {
             _ = try await StaticSite.generate(LoopApp.self, config: .init(
                 outDir: out, mode: .staticOnly))
         }
+    }
+
+    @Test func unserializableLoaderStateIsNotListedAsCompletedTask() async throws {
+        struct BrokenApp: App {
+            init() {}
+            var body: some Tag { Router { Route("/") { BrokenPage() } } }
+        }
+        let out = tempDir()
+        _ = try await StaticSite.generate(BrokenApp.self, config: .init(
+            outDir: out, mode: .hydrate(wasmScriptPath: "/app.js")))
+        let html = try String(contentsOfFile: out + "/index.html", encoding: .utf8)
+        let marker = "application/swiftwui-state\" data-swiftwui>"
+        let afterMarker = try #require(html.range(of: marker))
+        let snapshotRegion = html[afterMarker.upperBound...]
+        let scriptEnd = try #require(snapshotRegion.range(of: "</script>"))
+        #expect(snapshotRegion[..<scriptEnd.lowerBound].contains("\"tasks\":[]"))
     }
 
     @Test func cssFileModeWritesUnion() async throws {

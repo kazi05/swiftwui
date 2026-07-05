@@ -178,8 +178,31 @@ public enum StaticSite {
         var snapshot: String? = nil
         if case .hydrate = config.mode {
             let rows = runtime._store._encodeSnapshotRows(SnapshotJSON.encodeSlot)
-            snapshot = SnapshotJSON.assemble(version: 1, path: settled, rows: rows,
-                                             tasks: runtime._effects._completedBuildKeys)
+            // A completed .build task whose state row didn't make the snapshot
+            // (non-Encodable value → whole-row drop, or an unkeyable identity)
+            // must not be listed in "tasks" — the hydrated client would then
+            // skip the loader and silently keep the initial value (spec §7).
+            // Keep a task key only if some row sits on the same identity path
+            // (either "/"-joined path is a prefix of the other — the loader
+            // wrapper can sit above or below the stateful component).
+            let rowPaths = rows.keys.map { $0.split(separator: "/").map(String.init) }
+            func hasMatchingRow(_ taskPath: [String]) -> Bool {
+                rowPaths.contains { row in
+                    row.count <= taskPath.count
+                        ? Array(taskPath.prefix(row.count)) == row
+                        : Array(row.prefix(taskPath.count)) == taskPath
+                }
+            }
+            let tasks = runtime._effects._completedBuildKeys.filter { key in
+                let ok = hasMatchingRow(key.split(separator: "/").map(String.init))
+                #if DEBUG
+                if !ok {
+                    print("SwiftWUI SSG: loader result at '\(key)' not serializable — client will re-run it (make the @State type Codable to ship it in the snapshot)")
+                }
+                #endif
+                return ok
+            }
+            snapshot = SnapshotJSON.assemble(version: 1, path: settled, rows: rows, tasks: tasks)
         }
         var wasmPath: String? = nil
         if case .hydrate(let p) = config.mode { wasmPath = p }

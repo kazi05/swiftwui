@@ -13,7 +13,7 @@ import SwiftWUI
         <html lang="en">
         <head>
         <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1" data-swiftwui>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>T &amp; Co</title>
         <meta content="d" name="description" data-swiftwui>
         <style data-swiftwui>

@@ -135,5 +135,12 @@ enum SnapshotBoot {
         let el = JSObject.global.document.querySelector("script[type=\"application/swiftwui-state\"]")
         _ = el.object?.remove?()
     }
+    /// True if the page shipped a snapshot script tag at all — even one `read()`
+    /// rejected (version skew / path mismatch / parse failure). Distinguishes a
+    /// genuinely cold page (nothing to clear) from a prerendered one whose
+    /// snapshot is merely unusable.
+    static func hasScriptTag() -> Bool {
+        JSObject.global.document.querySelector("script[type=\"application/swiftwui-state\"]").object != nil
+    }
 }
 #endif

@@ -115,6 +115,12 @@ public enum DOMRuntime {
             }
             retained.removeAll()
             fallbackPayload = payload
+        } else if SnapshotBoot.hasScriptTag() {
+            // prerendered page but unusable snapshot (version skew, path mismatch): clear before cold mount or content doubles
+            while Int(container.childNodes.length.number ?? 0) > 0 {
+                _ = container.removeChild?(container.childNodes.item(0))
+            }
+            SnapshotBoot.removeScriptTag()
         }
         let (raw, box) = makeBackend()
         let runtime = makeRuntime(root: root, backend: raw, container: container,

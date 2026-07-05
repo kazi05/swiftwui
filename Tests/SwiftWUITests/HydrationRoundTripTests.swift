@@ -1,6 +1,5 @@
 import Testing
 @testable import SwiftWUI
-@testable import SwiftWUIStatic
 
 /// Parses OUR compact serializer output back into MockNodes. Test helper only.
 @MainActor

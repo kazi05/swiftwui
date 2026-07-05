@@ -28,7 +28,8 @@ public enum DocumentSerializer {
         let metas = input.head?.meta ?? []
         let hasViewport = metas.contains { $0.attributes["name"] == "viewport" }
         if !hasViewport {
-            out += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" data-swiftwui>\n"
+            // unmanaged, like hand-written meta — setMetaTags must never strip the mobile viewport at boot
+            out += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         }
         out += "<title>" + HTMLEscaping.text(input.head?.title ?? "") + "</title>\n"
         for meta in metas {
