@@ -113,3 +113,12 @@ public struct Chapter: Sendable {
     /// Route path: overview is "/", everything else "/tutorials/<slug>".
     public var path: String { kind == .overview ? "/" : "/tutorials/\(slug)" }
 }
+
+public extension Section {
+    /// Panel to show when `step` is active: the step's override or the
+    /// section default. Out-of-range (pre-mount) falls back to the default.
+    func activePanel(step: Int) -> Panel {
+        guard steps.indices.contains(step) else { return panel }
+        return steps[step].panel ?? panel
+    }
+}
