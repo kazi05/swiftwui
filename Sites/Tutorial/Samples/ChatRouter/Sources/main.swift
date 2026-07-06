@@ -68,6 +68,75 @@ struct ChatApp: App {
 }
 // tutorial:end chat-routes
 
+extension ChatApp {
+    @RulesBuilder static var globalStyles: [Rule] {
+        Rule(element: "body") { p in
+            p.margin(.zero)
+            p.background(.hex("#faf9f7"))
+            p.color(.hex("#1c1917"))
+            p.fontFamily("system-ui, -apple-system, 'Segoe UI', sans-serif")
+        }
+        // flex-wrap + width:100% on nav/h1/.log forces each onto its own line;
+        // Input/Button (not full-width) share the trailing line as a row.
+        Rule(element: "main") { p in
+            p.display(.flex)
+            p.flexWrap(.wrap)
+            p.justifyContent(.center)
+            p.alignItems(.center)
+            p.gap(.px(16))
+            p.maxWidth(.px(480))
+            p.margin(vertical: .zero, horizontal: .auto)
+            p.padding(.px(24))
+            p.boxSizing(.borderBox)
+        }
+        Rule(element: "nav") { p in
+            p.display(.flex)
+            p.gap(.px(20))
+            p.style("width", "100%")
+            p.justifyContent(.center)
+        }
+        Rule(element: "a") { p in
+            p.fontSize(.px(14))
+            p.fontWeight(.custom(500))
+            p.color(.hex("#57534e"))
+            p.textDecoration(.none)
+        }
+        Rule(element: "h1") { p in
+            p.fontSize(.px(24))
+            p.fontWeight(.bold)
+            p.style("width", "100%")
+            p.textAlign(.center)
+        }
+        Rule(class: "log") { p in
+            p.style("list-style", "none")
+            p.style("padding-left", "0")
+            p.style("width", "100%")
+        }
+        Rule(element: "li") { p in
+            p.background(.white)
+            p.padding(.px(12))
+            p.borderRadius(.px(10))
+            p.border(.px(1), .solid, .hex("#e7e5e0"))
+            p.fontSize(.px(14))
+            p.margin(.bottom, .px(8))
+        }
+        Rule(element: "input") { p in
+            p.flexGrow(1)
+            p.borderRadius(.px(8))
+            p.border(.px(1), .solid, .hex("#e7e5e0"))
+            p.padding(.px(10))
+        }
+        Rule(element: "button") { p in
+            p.background(.hex("#d9552f"))
+            p.color(.hex("#fffaf5"))
+            p.borderRadius(.px(8))
+            p.padding(vertical: .px(10), horizontal: .px(16))
+            p.border(.zero, .none, .transparent)
+            p.cursor(.pointer)
+        }
+    }
+}
+
 #if canImport(SwiftWUIStatic)
 import SwiftWUIStatic
 

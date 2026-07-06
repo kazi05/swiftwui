@@ -46,6 +46,64 @@ struct RootApp: Tag {
 
 struct ShipCounterApp: App {
     var body: some Tag { RootApp() }
+
+    @RulesBuilder static var globalStyles: [Rule] {
+        Rule(element: "body") { p in
+            p.margin(.zero)
+            p.background(.hex("#ffffff"))
+            p.color(.hex("#1c1917"))
+            p.fontFamily("system-ui, -apple-system, 'Segoe UI', sans-serif")
+        }
+        Rule(element: "main") { p in
+            p.display(.flex)
+            p.flexDirection(.column)
+            p.alignItems(.center)
+            p.padding(.top, .px(56))
+        }
+        // `.counter` is the pre-existing class on Counter's wrapping Div — referenced
+        // here, not added (Counter is byte-pinned to Ch04.counterCode).
+        Rule(class: "counter") { p in
+            p.display(.flex)
+            p.flexWrap(.wrap)
+            p.justifyContent(.center)
+            p.alignItems(.center)
+            p.style("gap", "20px 12px")
+        }
+        // width:100% forces h1 onto its own line in the wrap container above,
+        // leaving the two buttons to share the next line as a row.
+        Rule(element: "h1") { p in
+            p.fontSize(.px(32))
+            p.fontWeight(.bold)
+            p.letterSpacing(.px(-0.5))
+            p.style("width", "100%")
+            p.textAlign(.center)
+        }
+        // ponytail: Counter's two Button calls are byte-pinned with no class hook,
+        // so +/- can't be styled differently from pure CSS — both get one look.
+        Rule(element: "button") { p in
+            p.width(.px(44))
+            p.height(.px(44))
+            p.borderRadius(.px(10))
+            p.fontSize(.px(18))
+            p.fontWeight(.custom(500))
+            p.background(.hex("#d9552f"))
+            p.color(.hex("#fffaf5"))
+            p.border(.zero, .none, .transparent)
+            p.cursor(.pointer)
+        }
+        Rule(element: "h2") { p in
+            p.fontSize(.px(22))
+            p.fontWeight(.bold)
+        }
+        Rule(element: "a") { p in
+            p.color(.hex("#57534e"))
+            p.textDecoration(.none)
+        }
+        Rule(element: "p") { p in
+            p.fontSize(.px(15))
+            p.color(.hex("#57534e"))
+        }
+    }
 }
 
 #if canImport(SwiftWUIStatic)
