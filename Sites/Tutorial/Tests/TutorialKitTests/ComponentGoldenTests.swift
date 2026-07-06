@@ -58,3 +58,45 @@ import SwiftWUI
         #expect(!overviewHTML.contains("tut-cta-card"))   // overview has no CTA
     }
 }
+
+@Suite @MainActor struct PanelViewTests {
+    @Test func codePanelHighlights() {
+        let card = CodePanel(file: "Counter.swift",
+                             code: "struct Counter: Tag {\n    @State var count = 0\n}",
+                             origin: .fragment(path: "Examples/Counter/Sources/main.swift"))
+        let html = HTMLRenderer.render(PanelView(panel: .code(card)))
+        #expect(html.contains("Counter.swift"))
+        #expect(html.contains("tok-kw"))     // struct
+        #expect(html.contains("tok-wrap"))   // @State
+        #expect(html.contains("tut-card-dark"))
+    }
+
+    @Test func terminalPanelStylesLineKinds() {
+        let html = HTMLRenderer.render(PanelView(panel: .terminal(title: "zsh — counter", lines: [
+            TermLine(.command, "swiftwui init counter"),
+            TermLine(.output, "  created counter/Package.swift"),
+            TermLine(.note, "> dev server on http://localhost:8080"),
+        ])))
+        #expect(html.contains("zsh — counter"))
+        #expect(html.contains("tut-term-prompt"))
+        #expect(html.contains("tut-term-out"))
+        #expect(html.contains("tut-term-note"))
+    }
+
+    @Test func browserPanelRendersShot() {
+        let html = HTMLRenderer.render(PanelView(panel: .browser(url: "localhost:8080",
+                                                                 screenshot: "screens/counter-3.png")))
+        #expect(html.contains("/assets/screens/counter-3.png"))
+        #expect(html.contains("localhost:8080"))
+        #expect(html.contains("tut-browser-chrome"))
+    }
+
+    @Test func ssgAndSecondRenderAreIdentical() {
+        // determinism proxy for hydration adoption (spec D8)
+        let card = CodePanel(file: "A.swift", code: "let a = \"x\" // c",
+                             origin: .fragment(path: "Examples/Counter/Sources/main.swift"))
+        let a = HTMLRenderer.render(PanelView(panel: .code(card)))
+        let b = HTMLRenderer.render(PanelView(panel: .code(card)))
+        #expect(a == b)
+    }
+}
