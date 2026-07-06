@@ -66,6 +66,10 @@ public enum TutorialStyles {
             p.background(.token(.pageBg))
             p.style("border-bottom", "1px solid var(--border-light)")
         }
+        Rule(class: "tut-nav-inner") { p in
+            p.display(.flex); p.alignItems(.center)
+            p.height(.px(64)); p.gap(.px(32))
+        }
         Rule(class: "tut-brand") { p in
             p.display(.flex); p.gap(.px(8))
             p.fontSize(.px(17)); p.fontWeight(.custom(600))
@@ -74,11 +78,16 @@ public enum TutorialStyles {
             p.display(.flex); p.gap(.px(28))
             p.fontSize(.px(14)); p.fontWeight(.custom(500))
             p.color(.token(.muted))
+            p.style("margin-left", "auto")
         }
         Rule(class: "tut-footer") { p in
             p.style("border-top", "1px solid var(--border-light)")
             p.padding(vertical: .px(28), horizontal: .zero)
             p.fontSize(.px(13)); p.color(.token(.muted))
+        }
+        Rule(class: "tut-footer-inner") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
+            p.display(.flex); p.alignItems(.center)
+            p.style("justify-content", "space-between")
         }
         Rule(class: "tut-footer-links") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.display(.flex); p.gap(.px(28))
@@ -165,6 +174,9 @@ public enum TutorialStyles {
         Rule(class: "tut-hero-title") { p in
             p.fontSize(.px(54)); p.fontWeight(.bold)
             p.letterSpacing(.px(-1.5)); p.margin(.zero)
+        }
+        Rule(class: "tut-hero-title-simple") { p in
+            p.fontSize(.px(44)); p.letterSpacing(.px(-1))
         }
         Rule(class: "tut-hero-tagline") { p in
             p.fontSize(.px(21)); p.fontWeight(.custom(500)); p.color(.token(.darkMuted))
