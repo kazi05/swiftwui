@@ -1,7 +1,7 @@
 import SwiftWUI
 
 public enum SiteLinks {
-    public static let repo = "https://github.com/kazimgadzhiev/SwiftWUI"
+    public static let repo = "https://github.com/kazi05/swiftwui"
     public static let docs = repo + "/tree/main/docs"
     public static let examples = repo + "/tree/main/Examples"
 }

@@ -50,6 +50,7 @@ swift sdk list         # → swift-6.3.3-RELEASE_wasm
 
 # 3. The `swiftwui` CLI — via Homebrew
 brew tap kazi05/swiftwui
+brew trust kazi05/swiftwui
 brew install swiftwui
 ```
 
@@ -136,5 +137,5 @@ a getting-started guide.
 swift test
 ```
 
-~290 native tests (Swift Testing) — the renderer and reconciler are
+294 native tests (Swift Testing) — the renderer and reconciler are
 exercised through a mock backend, so no browser or WASM toolchain is needed.

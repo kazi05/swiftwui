@@ -22,6 +22,7 @@ swift sdk list        # → swift-6.3.3-RELEASE_wasm
 
 ```sh
 brew tap kazi05/swiftwui
+brew trust kazi05/swiftwui
 brew install swiftwui
 ```
 

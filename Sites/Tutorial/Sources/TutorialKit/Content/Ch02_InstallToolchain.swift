@@ -36,10 +36,10 @@ public enum Ch02 {
                         TermLine(.note, "> swift-6.3.3-RELEASE_wasm"),
                     ])),
             Section(anchor: "cli", kicker: "03 · CLI",
-                    title: "Build the swiftwui CLI",
+                    title: "Install the swiftwui CLI",
                     intro: "The CLI carries a project from first file to production build.",
                     steps: [
-                        Step("brew tap kazi05/swiftwui && brew install swiftwui installs the CLI.",
+                        Step("brew tap, brew trust, brew install swiftwui — three commands install the CLI.",
                              detail: "Homebrew builds it from the tagged source release."),
                         Step("Building from a checkout works too: swift build -c release --product swiftwui.",
                              detail: "Or run it in place: swift run swiftwui <command>."),
@@ -47,6 +47,7 @@ public enum Ch02 {
                     ],
                     panel: .terminal(title: "zsh", lines: [
                         TermLine(.command, "brew tap kazi05/swiftwui"),
+                        TermLine(.command, "brew trust kazi05/swiftwui"),
                         TermLine(.command, "brew install swiftwui"),
                         TermLine(.command, "swiftwui --version"),
                         TermLine(.note, "> 0.1.0"),
