@@ -26,6 +26,7 @@ public struct ChapterBar: Tag {
                     Div(class: menuOpen ? "tut-menu tut-menu-open" : "tut-menu") {
                         ChapterMenu(currentSlug: chapter.slug)
                     }
+                    .display(menuOpen ? .block : .none)
                 }
                 Div(class: "tut-spacer") {}
                 if !chapter.sections.isEmpty {
@@ -38,6 +39,7 @@ public struct ChapterBar: Tag {
                                 A(href: "#\(s.anchor)", class: "tut-menu-item") { Text(s.title) }
                             }
                         }
+                        .display(sectionsOpen ? .block : .none)
                     }
                 }
             }

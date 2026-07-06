@@ -1,0 +1,12 @@
+{
+  "name": "tutorial-screenshots",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "shots": "node shots.mjs",
+    "smoke": "bash run-smoke.sh"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0"
+  }
+}

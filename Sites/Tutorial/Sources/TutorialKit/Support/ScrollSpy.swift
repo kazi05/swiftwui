@@ -2,53 +2,74 @@
 import JavaScriptKit
 
 /// Site-local scrollspy (spec D9 — deliberately NOT a framework feature).
+/// v2: rect-based, no IntersectionObserver. The IO rootMargin band proved
+/// unreliable under smoke's synthetic scroll (scrollIntoView + wheel nudge
+/// never crossed the band deterministically). A plain scroll/resize listener
+/// that checks each step's `getBoundingClientRect().top` against a line at
+/// 35% of the viewport height is simpler and deterministic.
 /// JSClosure is retained for the component's lifetime (v1 lesson: a JSClosure
 /// must outlive its attachment).
 @MainActor
 public final class ScrollSpy {
-    private var observer: JSObject?
-    private var callback: JSClosure?
+    private var scrollHandler: JSClosure?
+    private var resizeHandler: JSClosure?
+    private var lastActive: Int?
+    private var anchor = ""
+    private var stepCount = 0
+    private var onActive: ((Int) -> Void)?
 
     public init() {}
 
-    /// Observes `#\(anchor)-step-\(i)` for i in 0..<stepCount.
-    /// `onActive` receives the smallest intersecting step index.
+    /// Active step = the LAST step (0-based) whose top has crossed the line,
+    /// defaulting to 0. `onActive` fires only when the computed step changes
+    /// (avoids a re-render on every scroll frame).
     public func attach(anchor: String, stepCount: Int, onActive: @escaping (Int) -> Void) {
         detach()
+        self.anchor = anchor
+        self.stepCount = stepCount
+        self.onActive = onActive
+
+        let scrollCb = JSClosure { [weak self] _ in self?.fire(); return .undefined }
+        let resizeCb = JSClosure { [weak self] _ in self?.fire(); return .undefined }
+        _ = JSObject.global.window.object?.addEventListener?("scroll", scrollCb)
+        _ = JSObject.global.window.object?.addEventListener?("resize", resizeCb)
+        scrollHandler = scrollCb
+        resizeHandler = resizeCb
+        fire()   // initial position
+    }
+
+    private func fire() {
+        let active = computeActive()
+        guard active != lastActive else { return }
+        lastActive = active
+        onActive?(active)
+    }
+
+    private func computeActive() -> Int {
         let document = JSObject.global.document
-        let cb = JSClosure { args in
-            guard let entries = args.first?.object else { return .undefined }
-            let n = Int(entries.length.number ?? 0)
-            var best: Int? = nil
-            for i in 0..<n {
-                guard let entry = entries[i].object,
-                      entry.isIntersecting.boolean == true,
-                      let id = entry.target.id.string,
-                      let idx = Int(id.split(separator: "-").last.map(String.init) ?? "")
-                else { continue }
-                best = best.map { min($0, idx) } ?? idx
-            }
-            if let best { onActive(best) }
-            return .undefined
-        }
-        let options = JSObject.global.Object.function!.new()
-        // active band: a step becomes active when its box crosses the
-        // 25%–45% viewport band (tuned in smoke, spec §13)
-        options.rootMargin = .string("-25% 0px -55% 0px")
-        let obs = JSObject.global.IntersectionObserver.function!.new(cb, options)
+        let line = (JSObject.global.window.innerHeight.number ?? 0) * 0.35
+        var active = 0
         for i in 0..<stepCount {
             let el = document.getElementById("\(anchor)-step-\(i)")
-            if el.isNull || el.isUndefined { continue }
-            _ = obs.observe!(el)
+            guard !el.isNull, !el.isUndefined,
+                  let top = el.getBoundingClientRect().top.number
+            else { continue }
+            if top <= line { active = i }
         }
-        observer = obs
-        callback = cb
+        return active
     }
 
     public func detach() {
-        if let observer { _ = observer.disconnect?() }
-        observer = nil
-        callback = nil
+        if let scrollHandler {
+            _ = JSObject.global.window.object?.removeEventListener?("scroll", scrollHandler)
+        }
+        if let resizeHandler {
+            _ = JSObject.global.window.object?.removeEventListener?("resize", resizeHandler)
+        }
+        scrollHandler = nil
+        resizeHandler = nil
+        lastActive = nil
+        onActive = nil
     }
 }
 #else

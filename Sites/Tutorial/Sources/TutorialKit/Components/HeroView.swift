@@ -20,6 +20,7 @@ public struct HeroView<PanelContent: Tag>: Tag {
                             Span(class: "tut-kicker tut-kicker-dark") {
                                 "\(chapter.kicker) · \(chapter.minutes) MIN"
                             }
+                            .color(.token(.accentSoft))
                             H1(chapter.title, class: "tut-hero-title")
                             P(class: "tut-hero-tagline") { Text(chapter.tagline) }
                             if let heroBody = chapter.body {
@@ -37,7 +38,8 @@ public struct HeroView<PanelContent: Tag>: Tag {
                 } else {
                     Div(class: "tut-hero-simple") {
                         Span(class: "tut-kicker tut-kicker-dark") { Text(chapter.kicker) }
-                        H1(chapter.title, class: "tut-hero-title tut-hero-title-simple")
+                            .color(.token(.accentSoft))
+                        H1(chapter.title, class: "tut-hero-title-simple")
                         P(class: "tut-hero-tagline") { Text(chapter.tagline) }
                     }
                 }

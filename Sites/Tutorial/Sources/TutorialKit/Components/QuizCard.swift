@@ -19,6 +19,25 @@ public struct QuizCard: Tag {
         return i == selected ? "tut-option tut-option-selected" : "tut-option"
     }
 
+    // ponytail: StyleRegistry emits hash-ordered rules — the state classes
+    // above (still the smoke/test-facing markers) can lose a same-specificity
+    // override lottery. These inline declarations always win the cascade.
+    private func withOptionState<T: HTMLTag>(_ tag: T, _ i: Int, question: Question) -> T {
+        if checked {
+            if i == question.correctIndex {
+                return tag.style("border", "1.5px solid #5a8c3c").style("background", "rgba(90,140,60,0.08)")
+            }
+            if i == selected {
+                return tag.style("border", "1.5px solid var(--accent)").style("background", "rgba(217,85,47,0.06)")
+            }
+            return tag
+        }
+        if i == selected {
+            return tag.style("border", "1.5px solid var(--accent)").style("background", "rgba(217,85,47,0.06)")
+        }
+        return tag
+    }
+
     public var body: some Tag {
         let question = quiz.questions[index]
         Div(class: "tut-quiz") {
@@ -30,10 +49,13 @@ public struct QuizCard: Tag {
                 Div(class: "tut-quiz-card") {
                     P(class: "tut-quiz-prompt") { Text(question.prompt) }
                     ForEach(Array(question.options.enumerated()), id: \.offset) { item in
-                        Div(class: optionClass(item.offset, question: question)) {
-                            Span(class: "tut-radio")
-                            Span(class: "tut-option-label") { Text(item.element) }
-                        }
+                        withOptionState(
+                            Div(class: optionClass(item.offset, question: question)) {
+                                Span(class: "tut-radio")
+                                Span(class: "tut-option-label") { Text(item.element) }
+                            },
+                            item.offset, question: question
+                        )
                         .on(.click) { _ in
                             guard !checked else { return }
                             selected = item.offset
@@ -44,6 +66,7 @@ public struct QuizCard: Tag {
                           ? "tut-explain tut-explain-ok" : "tut-explain tut-explain-no") {
                             Text(question.explanation)
                         }
+                        .color(selected == question.correctIndex ? .hex("#5a8c3c") : .token(.accent))
                         if index + 1 < quiz.questions.count {
                             Button("Next question", class: "tut-quiz-submit", onClick: {
                                 index += 1; selected = nil; checked = false

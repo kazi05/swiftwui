@@ -181,7 +181,11 @@ public enum TutorialStyles {
             p.letterSpacing(.px(-1.5)); p.margin(.zero)
         }
         Rule(class: "tut-hero-title-simple") { p in
-            p.fontSize(.px(44)); p.letterSpacing(.px(-1))
+            // ponytail: standalone (not paired with tut-hero-title anymore) —
+            // StyleRegistry emits hash-ordered rules, so a same-specificity
+            // override pair is a coin flip; this carries the full declaration set.
+            p.fontSize(.px(44)); p.fontWeight(.bold)
+            p.letterSpacing(.px(-1)); p.margin(.zero)
         }
         Rule(class: "tut-hero-tagline") { p in
             p.fontSize(.px(21)); p.fontWeight(.custom(500)); p.color(.token(.darkMuted))

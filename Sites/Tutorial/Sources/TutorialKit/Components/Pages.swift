@@ -15,7 +15,8 @@ public struct OverviewPage: Tag, Page {
         Header(class: "tut-hero") {
             Div(class: "tut-content tut-overview-hero") {
                 Span(class: "tut-kicker tut-kicker-dark") { Text(Curriculum.overview.kicker) }
-                H1(Curriculum.overview.title, class: "tut-hero-title tut-hero-title-simple")
+                    .color(.token(.accentSoft))
+                H1(Curriculum.overview.title, class: "tut-hero-title-simple")
                 P(class: "tut-hero-tagline") { Text(Curriculum.overview.tagline) }
             }
         }

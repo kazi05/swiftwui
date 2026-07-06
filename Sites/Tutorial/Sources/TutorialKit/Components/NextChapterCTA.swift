@@ -15,6 +15,7 @@ public struct NextChapterCTA: Tag {
                             Span(class: "tut-kicker tut-kicker-dark") {
                                 next.kind == .overview ? "EXPLORE MORE" : "NEXT CHAPTER"
                             }
+                            .color(.token(.accentSoft))
                             H2(next.kind == .overview ? "Explore more tutorials" : next.title,
                                class: "tut-cta-title")
                             P(class: "tut-cta-tagline") { Text(next.tagline) }
