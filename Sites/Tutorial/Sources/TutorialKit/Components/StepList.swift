@@ -10,6 +10,11 @@ public struct StepList: Tag {
     let section: Section
     let activeStep: Int
 
+    public init(section: Section, activeStep: Int) {
+        self.section = section
+        self.activeStep = activeStep
+    }
+
     public var body: some Tag {
         Div(class: "tut-steps") {
             ForEach(Array(section.steps.enumerated()), id: \.offset) { item in

@@ -8,6 +8,10 @@ public struct SectionView: Tag {
     let section: Section
     let index: Int
     @State private var activeStep = 0
+    // ponytail: ScrollSpy isn't Encodable — the SSG state snapshot silently drops
+    // this component's whole row (StateStore._encodeSnapshotRows skips the identity).
+    // Harmless while activeStep's initial value (0) matches SSG output; any future
+    // @State here that must round-trip through hydration will also be dropped.
     @State private var spy = ScrollSpy()
 
     public init(section: Section, index: Int) {
