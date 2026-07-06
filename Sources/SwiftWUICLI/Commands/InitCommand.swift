@@ -8,8 +8,8 @@ struct Init: ParsableCommand {
 
     @Argument(help: "Project name ([A-Za-z][A-Za-z0-9_]*).") var name: String
     @Option(name: .long, help: "Template: basic, mvvm, or tca.") var template: String = "basic"
-    @Option(name: .long, help: "Path to a SwiftWUI checkout (required until SwiftWUI is published).")
-    var swiftwuiPath: String
+    @Option(name: .long, help: "Path to a local SwiftWUI checkout (default: fetch from GitHub).")
+    var swiftwuiPath: String?
 
     func run() throws {
         let dir = FileManager.default.currentDirectoryPath + "/" + name

@@ -3,7 +3,7 @@ import Foundation
 public enum Scaffolder {
     public static let templates = ["basic", "mvvm", "tca"]
 
-    public static func scaffold(template: String, name: String, swiftwuiPath: String, into dir: String) throws {
+    public static func scaffold(template: String, name: String, swiftwuiPath: String?, into dir: String) throws {
         let fm = FileManager.default
         guard name.range(of: "^[A-Za-z][A-Za-z0-9_]*$", options: .regularExpression) != nil else {
             throw ToolchainError.invalidName(name)
@@ -15,9 +15,15 @@ public enum Scaffolder {
         guard fm.fileExists(atPath: templateRoot.path) else {
             throw ToolchainError.io("unknown template '\(template)' (available: \(templates.joined(separator: ", ")))")
         }
-        let swiftwuiAbs = URL(fileURLWithPath: swiftwuiPath).standardizedFileURL.path
-        guard fm.fileExists(atPath: swiftwuiAbs + "/Package.swift") else {
-            throw ToolchainError.notAProject(swiftwuiAbs)
+        let swiftwuiDependency: String
+        if let swiftwuiPath {
+            let swiftwuiAbs = URL(fileURLWithPath: swiftwuiPath).standardizedFileURL.path
+            guard fm.fileExists(atPath: swiftwuiAbs + "/Package.swift") else {
+                throw ToolchainError.notAProject(swiftwuiAbs)
+            }
+            swiftwuiDependency = ".package(path: \"\(swiftwuiAbs)\")"
+        } else {
+            swiftwuiDependency = ".package(url: \"https://github.com/kazi05/swiftwui.git\", from: \"\(SwiftWUIVersion.current)\")"
         }
         try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let junk: Set<String> = [".swiftpm", "dist", "node_modules"]
@@ -35,7 +41,7 @@ public enum Scaffolder {
                 if let text = String(data: raw, encoding: .utf8) {
                     let substituted = text
                         .replacingOccurrences(of: "{{NAME}}", with: name)
-                        .replacingOccurrences(of: "{{SWIFTWUI_PATH}}", with: swiftwuiAbs)
+                        .replacingOccurrences(of: "{{SWIFTWUI_DEPENDENCY}}", with: swiftwuiDependency)
                     try substituted.write(toFile: dst, atomically: true, encoding: .utf8)
                 } else {
                     try raw.write(to: URL(fileURLWithPath: dst))   // binary passthrough

@@ -57,4 +57,22 @@ import Foundation
         #expect(SwiftWUIVersion.current.range(
             of: #"^\d+\.\d+\.\d+$"#, options: .regularExpression) != nil)
     }
+
+    @Test func scaffoldWithoutPathUsesGitHubDependency() throws {
+        let dir = scratch()
+        try Scaffolder.scaffold(template: "basic", name: "Remote", swiftwuiPath: nil, into: dir)
+        let pkg = try String(contentsOfFile: dir + "/Package.swift", encoding: .utf8)
+        #expect(pkg.contains(
+            ".package(url: \"https://github.com/kazi05/swiftwui.git\", from: \"\(SwiftWUIVersion.current)\")"))
+        #expect(!pkg.contains("{{"))
+    }
+
+    @Test func scaffoldWithPathKeepsLocalDependency() throws {
+        let dir = scratch()
+        try Scaffolder.scaffold(template: "basic", name: "Local", swiftwuiPath: repoRoot, into: dir)
+        let pkg = try String(contentsOfFile: dir + "/Package.swift", encoding: .utf8)
+        #expect(pkg.contains(".package(path: \""))
+        #expect(!pkg.contains("github.com/kazi05/swiftwui"))
+        #expect(!pkg.contains("{{"))
+    }
 }

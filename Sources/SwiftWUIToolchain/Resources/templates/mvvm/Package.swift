@@ -5,7 +5,7 @@ let package = Package(
     name: "{{NAME}}",
     platforms: [.macOS(.v14)],
     dependencies: [
-        .package(path: "{{SWIFTWUI_PATH}}"),
+        {{SWIFTWUI_DEPENDENCY}},
         .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.22.0"),
     ],
     targets: [
