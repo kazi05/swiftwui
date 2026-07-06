@@ -2,18 +2,9 @@
 /// full `ChXX.chapter` definitions; slugs/order/kinds are FINAL here.
 public enum Curriculum {
     public static let chapters: [Chapter] = [
-        Chapter(slug: "welcome", track: .welcome, kicker: "SWIFTWUI TUTORIALS",
-                title: "Welcome to SwiftWUI Tutorials",
-                tagline: "Learn to build the web in pure Swift — one chapter at a time.",
-                minutes: 2, kind: .overview),
-        Chapter(slug: "install-the-toolchain", track: .welcome, kicker: "CHAPTER · WELCOME",
-                title: "Install the toolchain",
-                tagline: "Swift 6.3.3, the matching WASM SDK, and the swiftwui CLI.",
-                minutes: 10, kind: .chapter),
-        Chapter(slug: "create-your-first-project", track: .welcome, kicker: "CHAPTER · WELCOME",
-                title: "Create your first project",
-                tagline: "Scaffold with swiftwui init and iterate with hot reload.",
-                minutes: 10, kind: .chapter),
+        Ch01.chapter,
+        Ch02.chapter,
+        Ch03.chapter,
         Ch04.chapter,
         Chapter(slug: "wrap-up-explore", track: .explore, kicker: "WRAP-UP · EXPLORE SWIFTWUI",
                 title: "Wrap-up: Explore SwiftWUI",
