@@ -80,7 +80,7 @@ public enum TutorialStyles {
             p.padding(vertical: .px(28), horizontal: .zero)
             p.fontSize(.px(13)); p.color(.token(.muted))
         }
-        Rule(class: "tut-footer-links") { p in
+        Rule(class: "tut-footer-links") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.display(.flex); p.gap(.px(28))
         }
         // — chapter bar (dark) —
@@ -121,7 +121,7 @@ public enum TutorialStyles {
             p.boxShadow("0px 20px 50px -10px rgba(0,0,0,0.35)")
         }
         Rule(class: "tut-menu-open") { p in p.display(.block) }
-        Rule(class: "tut-menu-group") { p in
+        Rule(class: "tut-menu-group") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.style("margin-bottom", "20px")
         }
         Rule(class: "tut-menu-label") { p in
@@ -241,7 +241,7 @@ public enum TutorialStyles {
             p.fontFamily(Fonts.mono); p.fontSize(.px(13))
             p.style("line-height", "22px"); p.style("white-space", "pre")
         }
-        Rule(class: "tut-term-cmd")    { p in p.color(.token(.darkText)); p.fontWeight(.custom(500)) }
+        Rule(class: "tut-term-cmd")    { p in p.color(.token(.darkText)); p.fontWeight(.custom(500)) } // ponytail: derived — no Figma spec, matched to sibling pattern
         Rule(class: "tut-term-prompt") { p in p.color(.token(.accentSoft)) }
         Rule(class: "tut-term-out")    { p in p.color(.token(.darkMuted)) }
         Rule(class: "tut-term-note")   { p in p.color(.token(.codeString)) }
@@ -313,7 +313,7 @@ public enum TutorialStyles {
             p.fontFamily(Fonts.mono); p.fontSize(.px(12)); p.color(.token(.muted))
             p.padding(vertical: .px(5), horizontal: .px(12))
         }
-        Rule(class: "tut-viewport") { p in
+        Rule(class: "tut-viewport") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.overflow(.hidden); p.width(.percent(100))
         }
         Rule(class: "tut-shot") { p in p.display(.block); p.width(.percent(100)) }
@@ -322,11 +322,11 @@ public enum TutorialStyles {
             p.background(.token(.bandBg))
             p.padding(vertical: .px(72), horizontal: .zero)
         }
-        Rule(class: "tut-quiz-header") { p in
+        Rule(class: "tut-quiz-header") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.style("margin-bottom", "24px")
         }
         Rule(class: "tut-question") { p in
-            p.fontSize(.px(26)); p.fontWeight(.bold); p.letterSpacing(.px(-0.4))
+            p.fontSize(.px(26)); p.fontWeight(.bold); p.letterSpacing(.px(-0.4))  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.margin(.zero); p.style("margin-top", "8px")
         }
         Rule(class: "tut-quiz-card") { p in
@@ -359,7 +359,7 @@ public enum TutorialStyles {
             p.style("border", "1.5px solid var(--border-light)")
             p.boxSizing(.borderBox)
         }
-        Rule(class: "tut-option-label") { p in
+        Rule(class: "tut-option-label") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.flexGrow(1)
         }
         Rule(class: "tut-quiz-submit") { p in
@@ -386,20 +386,20 @@ public enum TutorialStyles {
         }
         Rule(class: "tut-cta-text") { p in p.flexGrow(1) }
         Rule(class: "tut-cta-title") { p in
-            p.fontSize(.px(28)); p.fontWeight(.bold); p.letterSpacing(.px(-0.5))
+            p.fontSize(.px(28)); p.fontWeight(.bold); p.letterSpacing(.px(-0.5))  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.margin(.zero); p.style("margin-top", "8px")
         }
-        Rule(class: "tut-cta-tagline") { p in
+        Rule(class: "tut-cta-tagline") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.fontSize(.px(16)); p.style("line-height", "24px"); p.color(.token(.darkMuted))
         }
         Rule(class: "tut-overview-hero") { p in
             // ponytail: same as tut-hero-simple — no unique visuals, marker only.
             p.style("--noop", "0")
         }
-        Rule(class: "tut-track") { p in
+        Rule(class: "tut-track") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.padding(vertical: .px(32), horizontal: .zero)
         }
-        Rule(class: "tut-track-label") { p in
+        Rule(class: "tut-track-label") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.style("margin-bottom", "20px")
         }
         Rule(class: "tut-cards") { p in
@@ -412,30 +412,30 @@ public enum TutorialStyles {
             p.borderRadius(.px(14)); p.padding(.px(24))
             p.hover { h in h.style("border-color", "var(--accent)") }
         }
-        Rule(class: "tut-card-kicker") { p in
+        Rule(class: "tut-card-kicker") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.fontFamily(Fonts.mono); p.fontSize(.px(12)); p.fontWeight(.custom(500))
             p.letterSpacing(.px(1.5)); p.color(.token(.accent))
             p.style("text-transform", "uppercase")
         }
-        Rule(class: "tut-card-title") { p in
+        Rule(class: "tut-card-title") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.display(.block)
             p.fontSize(.px(17)); p.fontWeight(.custom(600)); p.color(.token(.ink))
             p.style("margin-top", "8px")
         }
-        Rule(class: "tut-card-tagline") { p in
+        Rule(class: "tut-card-tagline") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.display(.block)
             p.fontSize(.px(14)); p.style("line-height", "20px"); p.color(.token(.muted))
             p.style("margin-top", "4px")
         }
-        Rule(class: "tut-card-minutes") { p in
+        Rule(class: "tut-card-minutes") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.display(.block)
             p.fontFamily(Fonts.mono); p.fontSize(.px(12)); p.color(.token(.faint))
             p.style("margin-top", "12px")
         }
-        Rule(class: "tut-recap") { p in
+        Rule(class: "tut-recap") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.listStyle("none"); p.margin(.zero); p.padding(.zero)
         }
-        Rule(class: "tut-recap-item") { p in
+        Rule(class: "tut-recap-item") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
             p.padding(vertical: .px(16), horizontal: .zero)
             p.style("border-top", "1px solid var(--border-light)")
             p.fontSize(.px(15)); p.style("line-height", "24px"); p.color(.token(.ink))
