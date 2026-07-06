@@ -52,4 +52,9 @@ import Foundation
         let readme = try String(contentsOfFile: dir + "/README.md", encoding: .utf8)
         #expect(readme.contains(template == "mvvm" ? "MVVM" : "TCA-style"))
     }
+
+    @Test func versionIsSemver() {
+        #expect(SwiftWUIVersion.current.range(
+            of: #"^\d+\.\d+\.\d+$"#, options: .regularExpression) != nil)
+    }
 }
