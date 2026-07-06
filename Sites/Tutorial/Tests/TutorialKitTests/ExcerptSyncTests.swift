@@ -69,7 +69,7 @@ extension Chapter {
 
     @Test func allExpectedMarkersResolve() throws {
         let expectations: [(String, String)] = [
-            ("Examples/Counter/Sources/main.swift", "counter"),
+            ("Examples/Counter/Sources/CounterApp.swift", "counter"),
             ("Examples/Counter/Sources/Hello.swift", "hello"),
             ("Sites/Tutorial/Samples/StyleBubble/Sources/main.swift", "bubble"),
             ("Sites/Tutorial/Samples/StyleBubble/Sources/main.swift", "bubble-rules"),

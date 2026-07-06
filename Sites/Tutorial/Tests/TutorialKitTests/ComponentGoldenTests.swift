@@ -63,7 +63,7 @@ import SwiftWUI
     @Test func codePanelHighlights() {
         let card = CodePanel(file: "Counter.swift",
                              code: "struct Counter: Tag {\n    @State var count = 0\n}",
-                             origin: .fragment(path: "Examples/Counter/Sources/main.swift"))
+                             origin: .fragment(path: "Examples/Counter/Sources/CounterApp.swift"))
         let html = HTMLRenderer.render(PanelView(panel: .code(card)))
         #expect(html.contains("Counter.swift"))
         #expect(html.contains("tok-kw"))     // struct
@@ -94,7 +94,7 @@ import SwiftWUI
     @Test func ssgAndSecondRenderAreIdentical() {
         // determinism proxy for hydration adoption (spec D8)
         let card = CodePanel(file: "A.swift", code: "let a = \"x\" // c",
-                             origin: .fragment(path: "Examples/Counter/Sources/main.swift"))
+                             origin: .fragment(path: "Examples/Counter/Sources/CounterApp.swift"))
         let a = HTMLRenderer.render(PanelView(panel: .code(card)))
         let b = HTMLRenderer.render(PanelView(panel: .code(card)))
         #expect(a == b)

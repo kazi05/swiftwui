@@ -34,7 +34,7 @@ struct Hello: Tag {
         body: "You’ll build Counter — an interactive page written entirely in Swift, compiled to WebAssembly, and rendered through a SwiftUI-style declarative API. No JavaScript required.",
         minutes: 25, kind: .chapter,
         heroPanel: .code(CodePanel(file: "Counter.swift", code: counterCode,
-                                   origin: .sample(path: "Examples/Counter/Sources/main.swift",
+                                   origin: .sample(path: "Examples/Counter/Sources/CounterApp.swift",
                                                    marker: "counter"))),
         sections: [
             Section(anchor: "toolchain", kicker: "01 · TOOLCHAIN",
@@ -74,7 +74,7 @@ struct Hello: Tag {
                     steps: [
                         Step("Declare @State var count = 0 inside your Tag.",
                              panel: .code(CodePanel(file: "Counter.swift", code: counterCode,
-                                                    origin: .sample(path: "Examples/Counter/Sources/main.swift",
+                                                    origin: .sample(path: "Examples/Counter/Sources/CounterApp.swift",
                                                                     marker: "counter")))),
                         Step("Mutate it from an event closure: Button(\"+\") { count += 1 }."),
                         Step("Writes coalesce — many mutations, one DOM flush per microtask."),

@@ -58,7 +58,7 @@ import SwiftWUI
             steps: [
                 Step("Declare @State", panel: .code(CodePanel(
                     file: "Counter.swift", code: "@State var count = 0",
-                    origin: .fragment(path: "Examples/Counter/Sources/main.swift")))),
+                    origin: .fragment(path: "Examples/Counter/Sources/CounterApp.swift")))),
                 Step("Mutate it"),
                 Step("Writes coalesce"),
             ],
@@ -68,7 +68,7 @@ import SwiftWUI
     @Test func panelSelection() {
         #expect(fixture.activePanel(step: 0) == .code(CodePanel(
             file: "Counter.swift", code: "@State var count = 0",
-            origin: .fragment(path: "Examples/Counter/Sources/main.swift"))))
+            origin: .fragment(path: "Examples/Counter/Sources/CounterApp.swift"))))
         #expect(fixture.activePanel(step: 1) == fixture.panel)   // no override → default
         #expect(fixture.activePanel(step: 99) == fixture.panel)  // out of range → default
     }
