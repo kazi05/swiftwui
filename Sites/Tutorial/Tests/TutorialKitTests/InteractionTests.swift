@@ -142,4 +142,35 @@ import SwiftWUI
         sched.pump()
         #expect(findFirst(backend.container, class: "tut-explain") == nil)
     }
+
+    @Test func lastQuestionHidesNextButton() {
+        let (rt, backend, sched) = makeRuntime(QuizCard(quiz: quiz))
+        rt.mount()
+        // answer Q1 (correct = index 1) and advance
+        rt.dispatch(findAll(backend.container, class: "tut-option")[1].events["click"]!); sched.pump()
+        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Check
+        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Next → Q2
+        // answer Q2 (correct = index 0) and advance
+        rt.dispatch(findAll(backend.container, class: "tut-option")[0].events["click"]!); sched.pump()
+        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Check
+        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Next → Q3
+        #expect(textContent(backend.container).contains("Question 3 of 3"))
+        // answer Q3 (correct = index 1) and check — NO Next button may remain
+        rt.dispatch(findAll(backend.container, class: "tut-option")[1].events["click"]!); sched.pump()
+        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Check
+        #expect(findAll(backend.container, tag: "button").isEmpty)
+        #expect(findFirst(backend.container, class: "tut-explain-ok") != nil)
+    }
+
+    @Test func postCheckClicksDoNotChangeSelection() {
+        let (rt, backend, sched) = makeRuntime(QuizCard(quiz: quiz))
+        rt.mount()
+        rt.dispatch(findAll(backend.container, class: "tut-option")[1].events["click"]!); sched.pump()
+        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Check
+        let before = findAll(backend.container, class: "tut-option-correct").count
+        // click a different option after checking — must be inert
+        rt.dispatch(findAll(backend.container, class: "tut-option")[0].events["click"]!); sched.pump()
+        #expect(findAll(backend.container, class: "tut-option-correct").count == before)
+        #expect(findFirst(backend.container, class: "tut-option-wrong") == nil)
+    }
 }
