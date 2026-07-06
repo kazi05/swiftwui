@@ -1,0 +1,74 @@
+/// Ordered curriculum (spec §3). Content tasks replace stub entries with the
+/// full `ChXX.chapter` definitions; slugs/order/kinds are FINAL here.
+public enum Curriculum {
+    public static let chapters: [Chapter] = [
+        Chapter(slug: "welcome", track: .welcome, kicker: "SWIFTWUI TUTORIALS",
+                title: "Welcome to SwiftWUI Tutorials",
+                tagline: "Learn to build the web in pure Swift — one chapter at a time.",
+                minutes: 2, kind: .overview),
+        Chapter(slug: "install-the-toolchain", track: .welcome, kicker: "CHAPTER · WELCOME",
+                title: "Install the toolchain",
+                tagline: "Swift 6.3.3, the matching WASM SDK, and the swiftwui CLI.",
+                minutes: 10, kind: .chapter),
+        Chapter(slug: "create-your-first-project", track: .welcome, kicker: "CHAPTER · WELCOME",
+                title: "Create your first project",
+                tagline: "Scaffold with swiftwui init and iterate with hot reload.",
+                minutes: 10, kind: .chapter),
+        Chapter(slug: "hello-swiftwui", track: .explore, kicker: "GETTING STARTED",
+                title: "Hello, SwiftWUI",
+                tagline: "Build the web in pure Swift.",
+                body: "You’ll build Counter — an interactive page written entirely in Swift, compiled to WebAssembly, and rendered through a SwiftUI-style declarative API. No JavaScript required.",
+                minutes: 25, kind: .chapter),
+        Chapter(slug: "wrap-up-explore", track: .explore, kicker: "WRAP-UP · EXPLORE SWIFTWUI",
+                title: "Wrap-up: Explore SwiftWUI",
+                tagline: "What you learned building your first SwiftWUI page.",
+                minutes: 5, kind: .wrapUp),
+        Chapter(slug: "style-in-swift", track: .styles, kicker: "CHAPTER · STYLES",
+                title: "Style in Swift",
+                tagline: "Type-safe CSS modifiers cover the common cases; a raw string escape hatch covers the rest.",
+                minutes: 20, kind: .chapter),
+        Chapter(slug: "wrap-up-styles", track: .styles, kicker: "WRAP-UP · STYLES",
+                title: "Wrap-up: Styles",
+                tagline: "Modifiers, rules, and themes — recapped.",
+                minutes: 5, kind: .wrapUp),
+        Chapter(slug: "route-between-pages", track: .routing, kicker: "CHAPTER · ROUTING",
+                title: "Route between pages",
+                tagline: "Declare routes as data, render a Tag per path, and let the framework drive browser history.",
+                minutes: 20, kind: .chapter),
+        Chapter(slug: "wrap-up-routing", track: .routing, kicker: "WRAP-UP · ROUTING",
+                title: "Wrap-up: Routing",
+                tagline: "Routes, links, and identity — recapped.",
+                minutes: 5, kind: .wrapUp),
+        Chapter(slug: "prerender-and-hydrate", track: .ship, kicker: "CHAPTER · SHIP",
+                title: "Prerender and hydrate",
+                tagline: "Static HTML at build time for instant first paint; the WASM runtime hydrates it into a live app.",
+                minutes: 20, kind: .chapter),
+        Chapter(slug: "deploy-with-docker", track: .ship, kicker: "CHAPTER · SHIP",
+                title: "Deploy with Docker",
+                tagline: "One reproducible image: build the wasm bundle, prerender, export static files.",
+                minutes: 15, kind: .chapter),
+        Chapter(slug: "wrap-up-ship", track: .ship, kicker: "WRAP-UP · SHIP",
+                title: "Wrap-up: Ship",
+                tagline: "SSG, hydration, and deployment — recapped.",
+                minutes: 5, kind: .wrapUp),
+    ]
+
+    public static func chapter(slug: String) -> Chapter? {
+        chapters.first { $0.slug == slug && $0.kind != .overview }
+    }
+
+    public static var overview: Chapter { chapters[0] }
+
+    /// Next chapter in curriculum order; the LAST page wraps to the overview
+    /// ("Explore more tutorials", spec §3). The overview itself has no next.
+    public static func next(after chapter: Chapter) -> Chapter? {
+        guard chapter.kind != .overview,
+              let i = chapters.firstIndex(where: { $0.slug == chapter.slug }) else { return nil }
+        return i + 1 < chapters.count ? chapters[i + 1] : overview
+    }
+
+    /// The 11 dynamic ssg paths (overview excluded — it is the static "/" route, spec §11).
+    public static var ssgPaths: [String] {
+        chapters.filter { $0.kind != .overview }.map(\.path)
+    }
+}
