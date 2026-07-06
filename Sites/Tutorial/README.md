@@ -48,7 +48,7 @@ Regenerates the chapter screenshots under `Assets/screens` via Playwright.
 ## Smoke
 
 ```
-npm run smoke
+cd tools/screenshots && npm run smoke
 ```
 
 Runs against `swiftwui serve dist` — checks hydration marker on all 12

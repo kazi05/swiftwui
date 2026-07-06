@@ -33,6 +33,23 @@ import SwiftWUI
         #expect(!html.contains("Sections ▾"))
     }
 
+    @Test func menuClosesAcrossParamOnlyNavigation() {
+        // ChapterPage routes all share the /tutorials/:slug pattern, so
+        // @State (menuOpen) would otherwise survive chapter → chapter nav.
+        let (rt, backend, sched) = makeRuntime(TutorialApp().body)
+        rt.mount()
+        rt.navigate(to: "/tutorials/hello-swiftwui")
+        sched.pump()
+        let bar = findFirst(backend.container, class: "tut-chapterbar")!
+        let toggle = findAll(bar, tag: "button")[0]
+        rt.dispatch(toggle.events["click"]!)
+        sched.pump()
+        #expect(findFirst(backend.container, class: "tut-menu-open") != nil)
+        rt.navigate(to: "/tutorials/style-in-swift")
+        sched.pump()
+        #expect(findFirst(backend.container, class: "tut-menu-open") == nil)
+    }
+
     @Test func sectionDropdownListsAnchorsAndReverseMutualExclusion() {
         let ch = Curriculum.chapter(slug: "hello-swiftwui")!
         let html = HTMLRenderer.render(ChapterBar(chapter: ch))

@@ -80,5 +80,8 @@ public struct QuizCard: Tag {
                 }
             }
         }
+        // wrap-up routes share the /tutorials/:slug pattern, so @State
+        // survives quiz-to-quiz navigation — reset the state machine.
+        .onChange(of: quiz) { _, _ in index = 0; selected = nil; checked = false }
     }
 }

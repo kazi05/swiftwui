@@ -262,7 +262,6 @@ public enum TutorialStyles {
             p.fontFamily(Fonts.mono); p.fontSize(.px(13))
             p.style("line-height", "22px"); p.style("white-space", "pre")
         }
-        Rule(class: "tut-term-cmd")    { p in p.color(.token(.darkText)); p.fontWeight(.custom(500)) } // ponytail: derived — no Figma spec, matched to sibling pattern
         Rule(class: "tut-term-prompt") { p in p.color(.token(.accentSoft)) }
         Rule(class: "tut-term-out")    { p in p.color(.token(.darkMuted)) }
         Rule(class: "tut-term-note")   { p in p.color(.token(.codeString)) }
@@ -333,9 +332,6 @@ public enum TutorialStyles {
             p.background(.white); p.borderRadius(.px(6)); p.flexGrow(1)
             p.fontFamily(Fonts.mono); p.fontSize(.px(12)); p.color(.token(.muted))
             p.padding(vertical: .px(5), horizontal: .px(12))
-        }
-        Rule(class: "tut-viewport") { p in  // ponytail: derived — no Figma spec, matched to sibling pattern
-            p.overflow(.hidden); p.width(.percent(100))
         }
         Rule(class: "tut-shot") { p in p.display(.block); p.width(.percent(100)) }
         // — quiz —

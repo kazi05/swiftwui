@@ -61,6 +61,11 @@ import Testing
         }
     }
 
+    @Test func sectionAnchorsGloballyUnique() {
+        let all = Curriculum.chapters.flatMap { $0.sections.map(\.anchor) }
+        #expect(Set(all).count == all.count, "anchors must be unique across ALL chapters — route identity is shared")
+    }
+
     @Test func browserPanelScreenshotsExistOnDisk() {
         for ch in Curriculum.chapters {
             for section in ch.sections {

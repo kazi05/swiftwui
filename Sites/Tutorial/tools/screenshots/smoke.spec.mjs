@@ -39,6 +39,7 @@ test('chapter menu: open overlay → navigate', async ({ page }) => {
   await page.locator('.tut-menu-open').getByText('Style in Swift').click();
   await expect(page).toHaveURL(/\/tutorials\/style-in-swift$/);
   await expect(page.locator('h1')).toContainText('Style in Swift');
+  await expect(page.locator('.tut-menu-open')).toHaveCount(0);
 });
 
 test('scrollspy: active step flips and panel swaps', async ({ page }) => {

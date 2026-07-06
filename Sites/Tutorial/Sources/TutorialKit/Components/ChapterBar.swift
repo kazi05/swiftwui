@@ -37,6 +37,7 @@ public struct ChapterBar: Tag {
                         Div(class: sectionsOpen ? "tut-menu tut-menu-open" : "tut-menu") {
                             ForEach(chapter.sections, id: \.anchor) { s in
                                 A(href: "#\(s.anchor)", class: "tut-menu-item") { Text(s.title) }
+                                    .on(.click) { _ in sectionsOpen = false }
                             }
                         }
                         .display(sectionsOpen ? .block : .none)
@@ -44,5 +45,8 @@ public struct ChapterBar: Tag {
                 }
             }
         }
+        // routes share the /tutorials/:slug pattern, so @State survives
+        // chapter-to-chapter navigation — force both dropdowns closed.
+        .onChange(of: chapter.slug) { _, _ in menuOpen = false; sectionsOpen = false }
     }
 }
