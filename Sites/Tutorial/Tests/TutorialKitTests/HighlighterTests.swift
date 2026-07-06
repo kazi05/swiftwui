@@ -43,4 +43,22 @@ import Testing
             #expect(joined == line)
         }
     }
+
+    @Test func unterminatedStringConsumesRestOfLineSafely() {
+        let t = kinds(#"let s = "unterminated"#)
+        #expect(t.last?.1 == .string)
+        #expect(SwiftHighlighter.tokenize(line: #"let s = "unterminated"#).map(\.text).joined()
+                == #"let s = "unterminated"#)
+    }
+
+    @Test func bareTrailingAtSignIsAWrapperToken() {
+        let t = kinds("something @")
+        #expect(t.last?.0 == "@")
+        #expect(t.last?.1 == .wrapper)
+    }
+
+    @Test func underscorePrefixedIdentifierStaysPlain() {
+        let t = kinds("let _private = 1")
+        #expect(t.contains { $0.0.contains("_private") && $0.1 == .plain })
+    }
 }
