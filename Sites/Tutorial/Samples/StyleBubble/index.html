@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>StyleBubble</title>
+  <script type="importmap">
+  {"imports": {"@bjorn3/browser_wasi_shim": "/vendor/wasi-shim/index.js"}}
+  </script>
+</head>
+<body>
+  <script type="module">
+    import { init } from "/app/index.js";
+    await init();
+  </script>
+</body>
+</html>

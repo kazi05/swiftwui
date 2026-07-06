@@ -58,3 +58,31 @@ extension Chapter {
         #expect(hasOverride)
     }
 }
+
+@Suite struct SampleSyncTests {
+    @Test func shipCounterRunsTheExactCh4Code() throws {
+        let text = try String(contentsOf: repoRoot.appendingPathComponent(
+            "Sites/Tutorial/Samples/ShipCounter/Sources/main.swift"), encoding: .utf8)
+        #expect(text.contains(Ch04.counterCode),
+                "ShipCounter.Counter drifted from Examples/Counter — the screenshot app must run the code the page shows")
+    }
+
+    @Test func allExpectedMarkersResolve() throws {
+        let expectations: [(String, String)] = [
+            ("Examples/Counter/Sources/main.swift", "counter"),
+            ("Examples/Counter/Sources/Hello.swift", "hello"),
+            ("Sites/Tutorial/Samples/StyleBubble/Sources/main.swift", "bubble"),
+            ("Sites/Tutorial/Samples/StyleBubble/Sources/main.swift", "bubble-rules"),
+            ("Sites/Tutorial/Samples/StyleBubble/Sources/main.swift", "bubble-theme"),
+            ("Sites/Tutorial/Samples/ChatRouter/Sources/main.swift", "chat-routes"),
+            ("Sites/Tutorial/Samples/ChatRouter/Sources/main.swift", "chat-links"),
+            ("Sites/Tutorial/Samples/ShipCounter/Sources/main.swift", "ship-ssg"),
+            ("Sites/Tutorial/Samples/ShipCounter/Sources/main.swift", "ship-static"),
+        ]
+        for (path, marker) in expectations {
+            let text = try String(contentsOf: repoRoot.appendingPathComponent(path), encoding: .utf8)
+            #expect(text.contains("// tutorial:begin \(marker)"), "\(path): missing begin \(marker)")
+            #expect(text.contains("// tutorial:end \(marker)"), "\(path): missing end \(marker)")
+        }
+    }
+}
