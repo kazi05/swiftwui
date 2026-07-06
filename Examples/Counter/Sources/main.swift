@@ -1,6 +1,7 @@
 import SwiftWUI
 import SwiftWUIDOM
 
+// tutorial:begin counter
 struct Counter: Tag {
     @State private var count = 0
     var body: some Tag {
@@ -12,6 +13,7 @@ struct Counter: Tag {
         }
     }
 }
+// tutorial:end counter
 
 @main
 struct CounterApp: App {

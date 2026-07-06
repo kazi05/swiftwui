@@ -32,6 +32,22 @@ import SwiftWUI
         let html = HTMLRenderer.render(ChapterBar(chapter: wrapUp))
         #expect(!html.contains("Sections ▾"))
     }
+
+    @Test func sectionDropdownListsAnchorsAndReverseMutualExclusion() {
+        let ch = Curriculum.chapter(slug: "hello-swiftwui")!
+        let html = HTMLRenderer.render(ChapterBar(chapter: ch))
+        #expect(html.contains("Sections ▾"))
+        for anchor in ["#toolchain", "#core-api", "#state"] { #expect(html.contains(anchor)) }
+
+        let (rt, backend, sched) = makeRuntime(ChapterBar(chapter: ch))
+        rt.mount()
+        let buttons = findAll(backend.container, tag: "button")
+        rt.dispatch(buttons[1].events["click"]!)   // open sections dropdown
+        sched.pump()
+        rt.dispatch(buttons[0].events["click"]!)   // open chapter dropdown
+        sched.pump()
+        #expect(findAll(backend.container, class: "tut-menu-open").count == 1)
+    }
 }
 
 @Suite @MainActor struct SectionViewTests {
