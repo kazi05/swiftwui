@@ -39,16 +39,17 @@ public enum Ch02 {
                     title: "Build the swiftwui CLI",
                     intro: "The CLI carries a project from first file to production build.",
                     steps: [
-                        Step("Clone the SwiftWUI repository."),
-                        Step("swift build -c release --product swiftwui builds the binary.",
+                        Step("brew tap kazi05/swiftwui && brew install swiftwui installs the CLI.",
+                             detail: "Homebrew builds it from the tagged source release."),
+                        Step("Building from a checkout works too: swift build -c release --product swiftwui.",
                              detail: "Or run it in place: swift run swiftwui <command>."),
-                        Step("No package-manager distribution yet — brew/mint packaging is on the roadmap."),
+                        Step("Verify with swiftwui --version."),
                     ],
-                    panel: .terminal(title: "zsh — SwiftWUI", lines: [
-                        TermLine(.command, "git clone https://github.com/kazimgadzhiev/SwiftWUI"),
-                        TermLine(.command, "cd SwiftWUI && swift build -c release --product swiftwui"),
-                        TermLine(.command, ".build/release/swiftwui --help"),
-                        TermLine(.note, "> swiftwui — init, dev, build, ssg, serve"),
+                    panel: .terminal(title: "zsh", lines: [
+                        TermLine(.command, "brew tap kazi05/swiftwui"),
+                        TermLine(.command, "brew install swiftwui"),
+                        TermLine(.command, "swiftwui --version"),
+                        TermLine(.note, "> 0.1.0"),
                     ])),
         ])
 }
