@@ -98,6 +98,9 @@ public enum TutorialStyles {
             p.style("border-bottom", "1px solid rgba(255,255,255,0.10)")
             p.position(.sticky); p.top(.zero); p.zIndex(40)
         }
+        Rule(class: "tut-chapterbar-inner") { p in
+            p.display(.flex); p.height(.px(56)); p.alignItems(.center); p.gap(.px(20))
+        }
         Rule(class: "tut-series") { p in
             p.fontSize(.px(15)); p.fontWeight(.custom(600)); p.color(.token(.darkText))
         }
@@ -106,6 +109,8 @@ public enum TutorialStyles {
             p.width(.px(1)); p.height(.px(20))
             p.style("background", "rgba(255,255,255,0.15)")
         }
+        Rule(class: "tut-dropdown-wrap") { p in p.position(.relative) }
+        Rule(class: "tut-spacer") { p in p.flexGrow(1) }
         Rule(class: "tut-dropdown") { p in
             p.style("background", "rgba(255,255,255,0.06)")
             p.style("border", "1px solid rgba(255,255,255,0.14)")
