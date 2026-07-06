@@ -76,3 +76,70 @@ import SwiftWUI
         #expect(activeRange.lowerBound < step1Range.lowerBound)
     }
 }
+
+@Suite @MainActor struct QuizCardTests {
+    private var quiz: Quiz {
+        Quiz(questions: [
+            Question(prompt: "Which property wrapper drives re-rendering in SwiftWUI?",
+                     options: ["@Environment", "@State", "@Binding"], correctIndex: 1,
+                     explanation: "Assigning a new value to @State invalidates the owning component."),
+            Question(prompt: "Q2", options: ["a", "b"], correctIndex: 0, explanation: "E2"),
+            Question(prompt: "Q3", options: ["a", "b"], correctIndex: 1, explanation: "E3"),
+        ])
+    }
+
+    @Test func prerenderedStateIsQuestionOneUnchecked() {
+        let html = HTMLRenderer.render(QuizCard(quiz: quiz))
+        #expect(html.contains("Question 1 of 3"))
+        #expect(html.contains("Check answer"))
+        #expect(!html.contains("tut-option-selected"))
+        #expect(!html.contains("tut-explain"))
+        #expect(html == HTMLRenderer.render(QuizCard(quiz: quiz)))   // deterministic
+    }
+
+    @Test func selectCheckAdvanceFlow() {
+        let (rt, backend, sched) = makeRuntime(QuizCard(quiz: quiz))
+        rt.mount()
+
+        // select the correct option (index 1)
+        let options = findAll(backend.container, class: "tut-option")
+        rt.dispatch(options[1].events["click"]!)
+        sched.pump()
+        #expect(findFirst(backend.container, class: "tut-option-selected") != nil)
+
+        // check → correct highlight + explanation + Next
+        let check = findAll(backend.container, tag: "button")[0]
+        rt.dispatch(check.events["click"]!)
+        sched.pump()
+        #expect(findFirst(backend.container, class: "tut-option-correct") != nil)
+        #expect(findFirst(backend.container, class: "tut-explain-ok") != nil)
+
+        // next question resets selection
+        let next = findAll(backend.container, tag: "button")[0]
+        rt.dispatch(next.events["click"]!)
+        sched.pump()
+        #expect(textContent(backend.container).contains("Question 2 of 3"))
+        #expect(findFirst(backend.container, class: "tut-option-selected") == nil)
+    }
+
+    @Test func wrongAnswerHighlightsBothAndLastQuestionHasNoNext() {
+        let (rt, backend, sched) = makeRuntime(QuizCard(quiz: quiz))
+        rt.mount()
+        let options = findAll(backend.container, class: "tut-option")
+        rt.dispatch(options[0].events["click"]!)   // wrong (correct is 1)
+        sched.pump()
+        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!)
+        sched.pump()
+        #expect(findFirst(backend.container, class: "tut-option-wrong") != nil)
+        #expect(findFirst(backend.container, class: "tut-option-correct") != nil)
+        #expect(findFirst(backend.container, class: "tut-explain-no") != nil)
+    }
+
+    @Test func checkWithoutSelectionIsInert() {
+        let (rt, backend, sched) = makeRuntime(QuizCard(quiz: quiz))
+        rt.mount()
+        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!)
+        sched.pump()
+        #expect(findFirst(backend.container, class: "tut-explain") == nil)
+    }
+}

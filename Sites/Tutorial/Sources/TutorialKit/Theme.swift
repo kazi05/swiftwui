@@ -351,6 +351,9 @@ public enum TutorialStyles {
             p.borderRadius(.px(14)); p.padding(.px(28))
             p.maxWidth(.px(720)); p.margin(vertical: .zero, horizontal: .auto)
         }
+        Rule(class: "tut-quiz-prompt") { p in
+            p.fontSize(.px(18)); p.fontWeight(.custom(600)); p.style("line-height", "26px")
+        }
         Rule(class: "tut-option") { p in
             p.display(.flex); p.alignItems(.center); p.gap(.px(12))
             p.style("border", "1px solid var(--border-light)")
