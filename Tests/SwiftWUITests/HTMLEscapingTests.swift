@@ -77,4 +77,22 @@ struct HTMLEscapingTests {
         // ":" inside a path segment is not a scheme.
         #expect(HTMLEscaping.sanitizeURL("/a:b/c") == "/a:b/c")
     }
+
+    // MARK: sanitizeSrcset
+
+    @Test("sanitizeSrcset drops the whole list when any candidate is unsafe")
+    func srcsetBadSecondEntry() {
+        #expect(HTMLEscaping.sanitizeSrcset("/a.png 1x, javascript:evil() 2x") == "#")
+    }
+
+    @Test("sanitizeSrcset leaves an all-safe list unchanged")
+    func srcsetAllGood() {
+        let list = "/hero.webp 1x, https://cdn.example/hero@2x.webp 2x"
+        #expect(HTMLEscaping.sanitizeSrcset(list) == list)
+    }
+
+    @Test("sanitizeSrcset leaves an empty string unchanged")
+    func srcsetEmpty() {
+        #expect(HTMLEscaping.sanitizeSrcset("") == "")
+    }
 }

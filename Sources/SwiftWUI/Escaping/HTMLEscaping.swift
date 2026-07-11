@@ -96,6 +96,21 @@ public enum HTMLEscaping {
         let allowed: Set<String> = ["http", "https", "mailto", "tel", "ftp"]
         return allowed.contains(scheme) ? url : "#"
     }
+
+    /// srcset is a comma-separated candidate list ("<url> <descriptor>?, ...").
+    /// Each candidate's URL token is sanitized individually via `sanitizeURL`;
+    /// if any URL would be dropped, the WHOLE value collapses to "#" (a srcset
+    /// with one bad entry is attacker-influenced — don't try to salvage it).
+    /// Commas inside URLs must be percent-encoded per the HTML spec, so
+    /// splitting on "," is a faithful candidate parse.
+    public static func sanitizeSrcset(_ value: String) -> String {
+        for candidate in value.split(separator: ",") {
+            let url = candidate.split(whereSeparator: { $0 == " " || $0 == "\t" || $0 == "\n" || $0 == "\r" }).first.map(String.init) ?? ""
+            if url.isEmpty { continue }
+            if sanitizeURL(url) == "#" && url != "#" { return "#" }
+        }
+        return value
+    }
 }
 
 private extension String {

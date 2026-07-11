@@ -131,11 +131,23 @@ private struct Card: Tag {
     @Test func imgOmittedAttributesAbsent() {
         let html = HTMLRenderer.render(Img(src: "/a.png", alt: "a"))
         #expect(!html.contains("width="))
+        #expect(!html.contains("height="))
         #expect(!html.contains("loading="))
         #expect(!html.contains("srcset="))
+        #expect(!html.contains("sizes="))
+        #expect(!html.contains("decoding="))
     }
     @Test func imgSrcsetSanitized() {
         let html = HTMLRenderer.render(Img(src: "/a.png", alt: "a", srcset: "javascript:x 1x"))
         #expect(html.contains("srcset=\"#\""))
+
+        // A bad entry after a relative first entry must still collapse the
+        // whole list — this is the list-level bypass the review found.
+        let bypass = HTMLRenderer.render(Img(src: "/a.png", alt: "a", srcset: "/a.png 1x, javascript:evil() 2x"))
+        #expect(bypass.contains("srcset=\"#\""))
+
+        // A benign multi-entry list passes through unchanged.
+        let benign = HTMLRenderer.render(Img(src: "/a.png", alt: "a", srcset: "/hero.webp 1x, https://cdn.example/hero@2x.webp 2x"))
+        #expect(benign.contains("srcset=\"/hero.webp 1x, https://cdn.example/hero@2x.webp 2x\""))
     }
 }

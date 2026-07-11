@@ -546,8 +546,8 @@ public enum ImgDecoding: String { case async, sync, auto }
 public struct Img: _HTMLVoidTag {
     public static var tagName: String { "img" }
     public var _attributes: _AttributeBag
-    /// `srcset` is sanitized as one string: a disallowed scheme anywhere in the
-    /// list drops the whole value to "#" (coarse but safe — see sanitizeURL).
+    /// `srcset` is sanitized per candidate URL (via `sanitizeSrcset`): any
+    /// entry with a disallowed scheme drops the whole value to "#".
     public init(src: String, alt: String,
                 width: Int? = nil, height: Int? = nil,
                 srcset: String? = nil, sizes: String? = nil,
@@ -558,7 +558,7 @@ public struct Img: _HTMLVoidTag {
         _attributes.set("alt", alt)
         if let width { _attributes.set("width", String(width)) }
         if let height { _attributes.set("height", String(height)) }
-        if let srcset { _attributes.set("srcset", HTMLEscaping.sanitizeURL(srcset)) }
+        if let srcset { _attributes.set("srcset", HTMLEscaping.sanitizeSrcset(srcset)) }
         if let sizes { _attributes.set("sizes", sizes) }
         if let loading { _attributes.set("loading", loading.rawValue) }
         if let decoding { _attributes.set("decoding", decoding.rawValue) }
