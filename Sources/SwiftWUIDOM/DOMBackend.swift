@@ -13,6 +13,8 @@ public final class DOMBackend: RendererBackend {
     private var closures: [String: JSClosure] = [:]   // "\(uid)#\(event)" → retained
     private var listenerIDs: [String: ListenerID] = [:]
     private var nextUID = 0
+    private var envClosures: [JSClosure] = []      // retained for backend lifetime (v1 leak lesson)
+    private var colorSchemeQuery: JSObject?        // keep the MediaQueryList alive with its listener
     private var lastAppliedLinks: [LinkTag]? = nil   // churn guard (setLinks) — nil means "never applied"
 
     public init(dispatch: @escaping (ListenerID, Any?) -> Void) { self.dispatch = dispatch }
@@ -163,6 +165,31 @@ public final class DOMBackend: RendererBackend {
             _ = el.setAttribute?("data-swiftwui", "")
             _ = head.appendChild?(el)
         }
+    }
+    public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {
+        let window = JSObject.global.window.object
+        // prefers-color-scheme: initial read BEFORE the first render pass, then change listener.
+        if let mql = window?.matchMedia?("(prefers-color-scheme: dark)").object {
+            writer.setColorScheme(mql.matches.boolean == true ? .dark : .light)
+            let onSchemeChange = JSClosure { args in
+                let matches = args.first?.object?.matches.boolean == true
+                writer.setColorScheme(matches ? .dark : .light)
+                return .undefined
+            }
+            _ = mql.addEventListener?("change", onSchemeChange)
+            envClosures.append(onSchemeChange)
+            colorSchemeQuery = mql
+        }
+        // navigator.onLine + online/offline events.
+        if let nav = JSObject.global.navigator.object {
+            writer.setOnline(nav.onLine.boolean ?? true)
+        }
+        let onOnline = JSClosure { _ in writer.setOnline(true); return .undefined }
+        let onOffline = JSClosure { _ in writer.setOnline(false); return .undefined }
+        _ = window?.addEventListener?("online", onOnline)
+        _ = window?.addEventListener?("offline", onOffline)
+        envClosures.append(onOnline)
+        envClosures.append(onOffline)
     }
     public func setLinks(_ links: [LinkTag]) {
         // Churn guard: skip remove-all/re-add-all when the set is unchanged (e.g.
