@@ -1,13 +1,13 @@
 # Phase 8: Browser APIs & Localization — Design
 
 **Date:** 2026-07-11
-**Status:** Approved design (brainstorm complete)
+**Status:** Approved design (brainstorm complete; voltagent expert review applied — architect-reviewer, swift-expert, security-auditor, 3× approve-with-changes)
 **Decomposition:** one shared design, **three implementation cycles**, executed in order:
 
 | Cycle | Scope | Depends on |
 |-------|-------|-----------|
 | **8a** | Reactive environment source, `@AppStorage`/`@SceneStorage`, `colorScheme`, `isOnline`, `WebFetch`, file select | — |
-| **8b** | Permission model, `LocationManager`, local notifications, full Web Push, clipboard, share, navigator info | 8a (signals, capabilities seam) |
+| **8b** | Permission model, `LocationManager`, local notifications, full Web Push, clipboard, share, navigator info | 8a (signals) — the capabilities seam is introduced *in* 8b |
 | **8c** | Localization: type-safe codegen, `LocalizedText`, interactive locale switch, per-locale SSG | 8a (locale signal) |
 
 Each cycle gets its own implementation plan (writing-plans) and its own review gate. This document is the spec for all three.
@@ -31,7 +31,8 @@ Each cycle gets its own implementation plan (writing-plans) and its own review g
 
 1. **Capabilities live in core, browser code in SwiftWUIDOM** (survey decision, option b — no third module). Core types compile natively; DOM registers real implementations at mount.
 2. **Every browser-derived env value ships all three legs or doesn't merge:** a default (native/SSG), hydration correction, and MockBackend recording/scripting for tests.
-3. **Reactivity reuses Observation.** No new invalidation mechanism. Signals and stores are `@Observable`; reads during body eval are tracked by the existing `Resolver` machinery; changes invalidate exactly the reader components.
+3. **Reactivity reuses Observation — with a hard read-site constraint.** No new invalidation mechanism. Signals and stores are `@Observable`. Tracking covers **only reads made inside the user component's `body`** (the `withObservationTracking { tag.body }` window, `Resolver.swift:67-72`); reads inside primitive `_resolve`, event handlers, or `.task` closures are NOT tracked and get no automatic re-render. `colorScheme`/`isOnline`/`@AppStorage` qualify (property reads in `body`); locale resolution inside the `Text` primitive does not — locale changes go through `markDirty(.root)` instead (see 8c). Any future signal must be designed against this constraint.
+3a. **Foundation in core only via the essentials idiom.** Core gains its first Foundation surface (Locale/Data/Date/JSON). Always `#if canImport(FoundationEssentials) import FoundationEssentials #else import Foundation #endif` (the existing SwiftWUIDOM idiom) — never the bare umbrella in core or DOM. Measured wasm release sizes: none 6.8 MB, FoundationEssentials 16 MB, umbrella 57 MB (drags ICU). `Duration` is stdlib, exempt.
 4. **JSClosures are retained by their owning backend/manager and removed symmetrically** (v1 leak lesson).
 5. **Graceful degradation:** on native/SSG and in browsers lacking a feature, APIs report `unsupported` / defaults — nothing traps.
 
@@ -63,17 +64,21 @@ extension EnvironmentValues {
 ```
 
 - Retained per-component env snapshots (`StateStore.retain`) hold the *reference*, not a copy of the value — subtree passes always read fresh, no staleness.
-- Setters are internal: only the runtime/backend observation path writes signals.
+- Setters are `internal(set)` — scoped to the core module, so `DOMBackend` (SwiftWUIDOM) **cannot** assign them directly. Writes cross the module boundary via a core-provided writer of setter closures (below).
+- `renderPass` seeds `ctx.environment._signals` alongside the existing `setTheme`/`routeInfo` seeding (`Runtime.swift:226-231`). `_collectRoutes()` uses a fresh context with no signals — collect-pass bodies see defaults; output is discarded, harmless.
 
 ## Backend surface
 
 New `RendererBackend` requirement:
 
 ```swift
-func beginEnvironmentObservation(_ signals: EnvironmentSignals)
+func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer)
+// Writer: a core-built struct of setter closures (setColorScheme, setOnline, setLocale, …)
+// so signal mutation stays a core-module privilege while backends deliver events.
 ```
 
 - Called once in `mount()` **before the first render pass**.
+- All new backend methods in this phase (`beginEnvironmentObservation`, `storageRead/Write`, `beginStorageObservation`, `setDocumentLanguage`) get **no-op protocol-extension defaults** — only `DOMBackend` (real) and `MockBackend` (recording) override; `AdoptingBackend` forwards; the SSG document serializer conformer stays untouched.
 - **DOMBackend:** reads initial values synchronously (`matchMedia("(prefers-color-scheme: dark)").matches`, `navigator.onLine`), then attaches listeners (`change` on the MediaQueryList, `online`/`offline` on window). All `JSClosure`s stored in backend properties for the backend's lifetime.
 - **MockBackend:** records the call and exposes the signals reference so tests mutate values directly and assert re-renders.
 - **AdoptingBackend:** forwards to base.
@@ -85,7 +90,7 @@ Initial signal values are read before the first client pass, so the first VDOM i
 
 ## Adding a future signal (checklist, goes in docs)
 
-property on `EnvironmentSignals` → computed `EnvironmentValues` key → DOMBackend listener (retained) → Mock scripting → default documented. Five lines of recipe; this is the extension contract.
+property on `EnvironmentSignals` → setter closure in `Writer` → computed `EnvironmentValues` key → DOMBackend listener (retained) → Mock scripting → default documented → **confirm every consumer reads the value inside a component `body`** (primitive-resolve-time or handler-time reads are untracked; such consumers need an explicit `markDirty` path instead). This is the extension contract.
 
 ---
 
@@ -118,11 +123,13 @@ enum StorageKind { case local, session }
 @propertyWrapper public struct SceneStorage<Value: StorageConvertible> { ... }
 ```
 
-- Conforms to a new seam protocol `_StorageProperty { func _connect(_ store: StorageStore) }`; the Mirror pass in `StateStore.link` injects the store exactly like `_EnvironmentProperty._inject`.
+- **No new seam:** the wrapper conforms to the existing `_EnvironmentProperty`; `_inject` reads the store reference from an internal env key (`_storageStore`) and hydrates its box lazily on first `wrappedValue`. Reuses the existing Mirror branch in `StateStore.link` — zero new `link()` code.
 - `wrappedValue get`: decode `box.raw` (Observation-tracked read) or default. `set`: encode → `box.raw = new` → `backend.storageWrite`.
 - `projectedValue` → `Binding<Value>` (parity with `@State`).
 
-**Supported types (SwiftUI parity):** `Bool`, `Int`, `Double`, `String`, `URL`, `Data` (base64), `RawRepresentable where RawValue == Int | String`, plus `Optional` of each. Expressed as a `StorageConvertible` protocol with those conformances; not user-extensible in this cycle.
+**Supported types:** `Bool`, `Int`, `Double`, `String`, `URL`, `Data` (base64), plus `Optional` of each — via a `StorageConvertible` protocol. `RawRepresentable` enums (`RawValue == Int | String`) are supported through constrained default implementations, but Swift cannot conform them retroactively: each enum opts in with a one-line `extension MyEnum: StorageConvertible {}` (verified: the two constrained extensions coexist without overlap; `Optional` conditional conformance compiles). Document the opt-in; the protocol is thereby user-extensible for the raw-representable case by design.
+
+**Security note (spec-level, goes in docs):** unlike SwiftUI's `UserDefaults`, web storage is plaintext, origin-scoped, and readable by *any* script on the origin (including XSS and third-party embeds), and localStorage persists indefinitely. Never store secrets, tokens, or sensitive PII in `@AppStorage`/`@SceneStorage`; push subscriptions and geolocation fixes must not be casually persisted. The `__swiftwui.` key prefix is reserved for the framework — app keys using it get a console warning.
 
 **Backend surface:**
 
@@ -158,7 +165,6 @@ public struct WebResponse {
     public var isSuccess: Bool        // 200..<300
 }
 public final class WebSession {      // @MainActor
-    public static let shared: WebSession
     public func data(for request: WebRequest) async throws -> (Data, WebResponse)
     public func data(from url: String) async throws -> (Data, WebResponse)
     // Codable sugar:
@@ -167,8 +173,12 @@ public final class WebSession {      // @MainActor
 }
 ```
 
-- **Transport is injected** (`protocol FetchTransport`): wasm = `fetch()` via JavaScriptKit (`JSPromise` await, `Uint8Array` ↔ `Data`); native = URLSession (FoundationNetworking) so SSG build-time `.task(policy: .build)` fetches work; tests = scripted mock transport.
-- **Cancellation:** Task cancellation → `AbortController.abort()` (wasm) / `URLSessionTask.cancel()` (native) → `WebFetchError.cancelled`.
+- **No global singleton.** The session is per-runtime, delivered via `@Environment(\.webSession)` (same seam as clipboard/share in 8b). Still reachable from `.task`/event closures — the wrapper's slot captures env. Keeps parallel native tests isolated (MockBackend's multi-runtime model) and matches the codebase's no-globals stance.
+- **Transport is injected** (`protocol FetchTransport`), with explicit module placement: core ships only the protocol + value types + an unconfigured default that throws `unsupported`; **SwiftWUIDOM** registers the `fetch()` transport at mount (`JSPromise` await; `Data` ↔ typed array via JavaScriptKit's `JavaScriptFoundationCompat` product — same package, new product in Package.swift, or hand-rolled `JSTypedArray` glue); the **SSG driver** (SwiftWUIStatic/CLI) registers a URLSession transport for `.task(policy: .build)` fetches, behind `#if canImport(FoundationNetworking)` for Linux (on Darwin URLSession is in the Foundation umbrella, which those modules already import). Tests use a scripted mock transport.
+- **Credential policy (security invariant, both transports):** default `same-origin` — wasm passes `credentials: "same-origin"`; native uses an ephemeral `URLSession` with no shared cookie storage. No cross-origin credentials opt-in this cycle. Identical app code must not leak cookies cross-origin on one transport and not the other.
+- **Header validation:** `WebRequest` rejects header names/values containing CR/LF/NUL at the boundary (typed error), uniformly across transports — browsers reject these, URLSession must not be assumed to.
+- **URL schemes:** `http`/`https` only (narrower than `sanitizeURL`'s attribute allowlist). Build-time (`.task(policy: .build)`) fetches run with the builder's network position (internal hosts, cloud metadata) — docs state their URLs must be trusted/static, never derived from content or catalog data.
+- **Cancellation:** Task cancellation → `AbortController.abort()` (wasm) / `URLSessionTask.cancel()` (native) → `WebFetchError.cancelled`. Implementation note: `withTaskCancellationHandler`'s `onCancel` is nonisolated — reaching the MainActor-isolated `JSObject` needs `MainActor.assumeIsolated` (safe on single-threaded wasm).
 - **Errors:** `WebFetchError { badURL, network(String), cancelled, timeout, decoding(Error), httpStatus(Int, Data) }`. Non-2xx is **not** an error from `data(for:)`/`data(from:)` (URLSession parity). Only the Codable sugar helpers throw `httpStatus` on non-2xx (a typed body is expected there) and `decoding` on parse failure.
 - **Explicit non-goals:** no middleware/interceptors, no retry, no streaming bodies, no upload progress, no cookies API (browser handles cookies natively for fetch).
 
@@ -189,6 +199,7 @@ public struct WebFile {
 ```
 
 - `WebFile` is a core type carrying an injected reader (`_FileReading` existential): DOM reader wraps the JS `File` (retains `JSObject`, reads via `arrayBuffer()`/`text()` promises); Mock reader serves in-memory bytes for native tests.
+- **Trust annotation (spec-level, goes in docs):** `name`, `mimeType`, `size`, `lastModified` are attacker-controlled client claims. Never use `mimeType` for a security/content decision (validate bytes, not the claim); never build a filesystem path from `name`; `data()`/`text()` buffer the entire file in memory — check `size` before reading. Displayed names go through `Text` (normal serializer escaping).
 - `DOMBackend.decodePayload`: `change` event whose target is `input[type=file]` → build `FilesEvent` from `target.files`. Plain `ChangeEvent` handlers on a file input never fire (payload cast fails) — documented behavior.
 - Sugar: `.onFileSelection { files in ... }` — registers a `change` handler typed to `FilesEvent`. Works with `multiple` and `accept` attributes (already expressible on `Input`; add typed params if missing).
 
@@ -211,7 +222,9 @@ public enum PermissionStatus { case notDetermined, granted, denied, unsupported 
 
 ## B2. BrowserCapabilities seam
 
-`protocol BrowserCapabilities` in core: geolocation, notifications, push, clipboard, share primitives as small async methods. Registered by SwiftWUIDOM at mount; native default = `UnsupportedCapabilities` (every status `unsupported`, every request throws); Mock = scriptable per-call results for tests. Managers below take the capabilities handle from the runtime at graft time — components using them compile and test natively.
+`protocol BrowserCapabilities` in core: geolocation, notifications, push, clipboard, share primitives as small async methods. Registered by SwiftWUIDOM at mount; native default = `UnsupportedCapabilities` (every status `unsupported`, every request throws); Mock = scriptable per-call results for tests.
+
+**Injection seam (new — the existing graft does NOT cover this):** the Mirror pass in `StateStore.link` only touches a component's direct property wrappers; it never reaches *into* a `@State`-wrapped value, so `@State var location = LocationManager()` gets no handle today and core has no global to fall back on. 8b adds one seam: `link` inspects each `_StateProperty`'s current boxed value for a `_CapabilityConsumer` conformance and injects the runtime's capabilities handle (idempotent — first injection wins; re-links no-op). Managers created outside `@State` are unsupported this cycle. Exact wiring is an 8b-plan task and must be settled before any manager is implemented. With the seam, components using managers compile and test natively.
 
 ## B3. LocationManager
 
@@ -226,7 +239,8 @@ public enum PermissionStatus { case notDetermined, granted, denied, unsupported 
 - `startUpdating() / stopUpdating()` — `watchPosition`/`clearWatch`; `lastLocation: GeoLocation?` observable, so UI reading it re-renders on every fix
 - `GeoLocation`: `latitude`, `longitude`, `accuracy`, `altitude?`, `speed?`, `heading?`, `timestamp`
 - Errors: `LocationError { denied, unavailable, timeout, unsupported }`
-- Cleanup: `stopUpdating()` clears the watch and releases its `JSClosure`; `deinit` guards against leaks. Requires secure context.
+- Cleanup: `stopUpdating()` clears the watch and releases its `JSClosure`; **`isolated deinit`** as best-effort backstop — a plain `deinit` cannot read MainActor-isolated state under the project's `defaultIsolation(MainActor.self)` (verified: compile error on 6.3.3; `isolated deinit` compiles native and wasm). Applies to every `@MainActor @Observable` manager in 8b. Requires secure context.
+- **User-gesture requirement (all 8b permission triggers):** `requestLocation`/`requestAuthorization`/`subscribe`/clipboard `readText` must be called from a user-gesture event handler; browsers reject or ignore off-gesture prompts. Docs state this; calling from `.task`/`onAppear` is documented as a prompt-fatigue anti-pattern that will throw/deny.
 
 ## B4. Local notifications
 
@@ -240,7 +254,7 @@ public enum PermissionStatus { case notDetermined, granted, denied, unsupported 
 
 Three parts, explicit responsibility boundary:
 
-1. **Service worker (toolchain):** `swiftwui build`/`dev`/`ssg` emit a static `sw.js` at the site root (new reserved name, next to `__swiftwui`). Content is fixed in this phase: `push` event → `self.registration.showNotification(payload)`, `notificationclick` → focus existing client or `openWindow`. Payload contract: JSON `{title, body, icon?, url?}`. No user customization of `sw.js` in this cycle.
+1. **Service worker (toolchain):** `swiftwui build`/`dev`/`ssg` emit a static `sw.js` at the site root (added to the reserved-name list; app collision = build error; served with correct MIME). Content is fixed in this phase: `push` event → `self.registration.showNotification(payload)`, `notificationclick` → focus existing client or `openWindow`. Payload contract: JSON `{title, body, icon?, url?}`. No user customization this cycle. Hardening pinned in the fixed contract: `event.data.json()` wrapped in try/catch (malformed push → dropped, not a silent rejection); `url` resolved against the registration scope and restricted to **same-origin** before `openWindow` — anything else falls back to the scope root (a leaked VAPID key must not turn trusted-origin notifications into arbitrary redirects); `icon` restricted to `https:`; the SW installs **no `fetch` handler and no Cache API usage** — zero cache-poisoning surface, and future maintainers must not add a naive root-scope caching handler.
 2. **Subscription (framework):** `@MainActor @Observable final class PushManager`:
    - `subscription: PushSubscription?` (observable; restored from `pushManager.getSubscription()` at first access)
    - `subscribe(vapidPublicKey: String) async throws -> PushSubscription` — registers `sw.js`, requests notification permission, calls `pushManager.subscribe(userVisibleOnly: true, applicationServerKey:)` (base64url VAPID key decoded to `Uint8Array`)
@@ -253,8 +267,9 @@ Requires secure context; `swiftwui dev` on localhost qualifies. Native/SSG: `uns
 ## B6. Clipboard, Share, navigator info
 
 - `@Environment(\.clipboard)` → `Clipboard`: `readText() async throws -> String`, `writeText(_:) async throws`. Insecure context → `ClipboardError.secureContextRequired` (v1 crash fixed by typed error, no force-unwrap). Read may prompt (browser-dependent); denial → `denied`.
-- `@Environment(\.share)` → `ShareAction`: `callAsFunction(title:text:url:) async throws`; `var canShare: Bool` (false where `navigator.share` absent → callers render fallback UI).
+- `@Environment(\.share)` → `ShareAction`: `callAsFunction(title:text:url:) async throws`; `var canShare: Bool` (false where `navigator.share` absent → callers render fallback UI). The `url` argument passes through `sanitizeURL` before reaching `navigator.share` — same discipline as every other URL-bearing sink.
 - `@Environment(\.userAgent) -> String` — static env value seeded at mount (not a signal; it never changes).
+- **Sink note:** notification `title`/`body` and share `title`/`text` are consumed by platform APIs as plain text, never HTML-parsed — no extra escaping needed (and none should be added); this safety does not transfer to other sinks.
 
 **Tests:** all managers against scripted `MockCapabilities`: permission state machines, denial paths, watch cleanup, subscription round-trip, insecure-context errors.
 
@@ -282,8 +297,12 @@ Requires secure context; `swiftwui dev` on localhost qualifies. Native/SSG: `uns
 
 - Emits `Sources/<AppTarget>/Generated/L10n.swift` (committed; regenerated deterministically).
 - One `static func` per key on `enum L10n`; placeholder names → labeled parameters (`{name}` → `name: String`, plural variable → `count: Int`); key `welcome.title` → `welcomeTitle` (dots → camelCase; collisions = generation error).
+- **Codegen trust boundary (security-critical).** This is the first place untrusted *data* (translator/community-supplied JSON) becomes *compiled Swift source*. Two named choke points, mirrored on `HTMLEscaping`:
+  - `SwiftLiteralEscaping` — every template string, plural branch, and embedded key passes through one audited Swift-string-literal encoder escaping `\`, `"`, newlines, `\0`, `\t`, U+2028/U+2029, and `\u{}`-encoding anything else risky. No string reaches generated source any other way (a catalog value like `"hi\";import ..."` must be inert).
+  - **Identifier validation** — keys validated against `[A-Za-z0-9._-]`; placeholder names must be legal Swift identifiers after sanitization; Swift keywords backtick-escaped; post-sanitization collisions (`{user-name}` vs `{userName}`) are generation errors with key + locale, same as key collisions. Raw keys/placeholders are never emitted into source except through the encoder.
+  - All locales of a key must share an identical placeholder set — mismatch is a generation error (prevents literal `{foo}` leakage and missing-arg resolution).
 - Embeds **all locales' templates** into the generated Swift (chosen: type-safe codegen; wasm binary carries translations — accepted; lazy per-locale loading is a possible future optimization, design does not block it).
-- Emits compact CLDR cardinal-plural rule functions only for declared locales — identical behavior in wasm and native SSG (no `Intl.PluralRules` dependency, no client/prerender divergence).
+- Emits compact CLDR cardinal-plural rule functions only for declared locales — identical behavior in wasm and native SSG (no `Intl.PluralRules` dependency, no client/prerender divergence). Since the plural variable is `count: Int`, CLDR operands collapse (`n = i`, `v=w=f=t=0`) — each locale's rule is a ~6–10-line boolean (Russian one/few/many = three modulo checks). `#` in plural branches renders as bare `String(count)` — no locale digit grouping this cycle (would need ICU); documented.
 - **Strictness:** any key missing in any declared locale → generation **error**. `--allow-missing` downgrades to warning + fallback to the default locale's template. Malformed ICU syntax → error with key + locale.
 
 ## C3. LocalizedText and rendering
@@ -297,9 +316,9 @@ extension Text { public init(_ localized: LocalizedText) }
 ```
 
 - `L10n.foo(...)` returns `LocalizedText`, **not** `String` — resolution happens inside `Text` at resolve time against `ctx.environment.locale`.
-- The locale read goes through `EnvironmentSignals.locale` → Observation-tracked → locale change re-renders exactly the components that rendered localized text.
+- **Reactivity is NOT Observation-based for locale.** `Text` is a primitive; its `_resolve` runs *outside* the `withObservationTracking { tag.body }` window (`Resolver.swift:67-78`), so the locale read there is untracked. Locale is document-global context, same category as `routeInfo` — and follows the same precedent: `setLocale` ends with `markDirty(.root)` (one full pass; locale switches are user-rare, and per-locale SSG already `replaceState`s + full-passes on navigation). No "re-render exactly the readers" claim for locale.
 - Resolved strings flow through the normal serializer-only `HTMLEscaping` choke point — translations get no special trust.
-- Escape hatch for non-Text sinks (attribute values, document titles): `@Environment(\.locale)` + `localized.resolved(for:)` — explicit, still reactive because the env read is tracked.
+- Escape hatch for non-Text sinks (attribute values, document titles): `@Environment(\.locale)` + `localized.resolved(for:)` — this path happens to be tracked (env read in `body`), but with `markDirty(.root)` on switch the distinction is moot. Non-Text sinks keep their sink discipline: attribute values still route through `HTMLEscaping`, URL-bearing attributes through `sanitizeURL`.
 
 ## C4. Locale switching & detection
 
@@ -311,10 +330,13 @@ Button("RU") { setLocale(Locale(identifier: "ru")) }
 
 `setLocale` (env action, runtime-provided):
 1. validates against declared locales (unknown → no-op + console warning),
-2. writes `signals.locale` (→ reader re-render),
+2. writes `signals.locale`,
 3. persists choice to `localStorage["__swiftwui.locale"]` via `StorageStore`,
 4. updates `<html lang>` via new backend method `setDocumentLanguage(_: String)`,
-5. under per-locale SSG, `replaceState`s the URL to the same route with the new locale prefix (no reload).
+5. under per-locale SSG, `replaceState`s the URL to the same route with the new locale prefix (no reload),
+6. `markDirty(.root)` — full pass re-resolves all localized text (see C3).
+
+**Locale validation is a single choke point applied to every entry source** — URL prefix (attacker-controlled in a link), persisted localStorage value (attacker-influenceable), `navigator.language(s)`, and the `setLocale` argument all validate against the declared-locale set *before* the value touches `<html lang>`, `hreflang` values, or any URL construction; anything outside the set falls back to the configured default.
 
 **Initial locale priority (resolved before the first pass):** URL prefix → persisted choice → best match of `navigator.language(s)` against declared locales (exact tag, then primary-subtag) → configured default.
 
@@ -348,5 +370,6 @@ Drag & drop, WebSocket, IntersectionObserver `.onVisible`, downloads, `@FocusSta
 ## Risks
 
 - **Web Push is the heaviest 8b item** — SW file in three toolchain commands, secure-context constraints, browser matrix (Safari push quirks). Plan should sequence it last within 8b so the wave can ship a partial review if it stalls.
-- **Observation-over-env is load-bearing** — 8a must land a stress test (many readers, rapid signal flips, coalescing) before 8b/8c build on it.
-- **Codegen determinism** — generated file is committed; CI should verify `l10n generate` is a no-op on a clean tree.
+- **Observation-over-env is load-bearing for 8a signals and @AppStorage** — 8a must land a stress test (many readers, rapid signal flips, coalescing, cross-tab storage events) before 8b builds on it. Locale (8c) deliberately does not ride it (`markDirty(.root)`).
+- **Capability-injection seam (8b)** — new core `link()` surgery; must be designed at the top of the 8b plan, before any manager code.
+- **Codegen is a new trust boundary (8c)** — `SwiftLiteralEscaping` + identifier validation are blocking, same rigor as `HTMLEscaping`; plus determinism: generated file is committed, CI verifies `l10n generate` is a no-op on a clean tree.
