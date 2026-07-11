@@ -96,6 +96,21 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 
 - ``TaskPolicy``
 
+### Browser APIs
+
+- <doc:BrowserAPIs>
+- ``ColorScheme``
+- ``AppStorage``
+- ``SceneStorage``
+- ``StorageConvertible``
+- ``WebSession``
+- ``WebRequest``
+- ``WebResponse``
+- ``WebFetchError``
+- ``HTTPMethod``
+- ``WebFile``
+- ``FilesEvent``
+
 ### Rendering and advanced
 
 - ``HTMLRenderer``
