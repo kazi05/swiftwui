@@ -17,13 +17,14 @@ private struct Item: Codable, Equatable { let id: Int; let name: String }
 
 @MainActor private final class SSGFetchProbe {
     static let shared = SSGFetchProbe()
-    var configured: Bool? = nil
+    var observations: [Bool] = []
+    func reset() { observations = [] }
 }
 private struct FetchProbePage: Tag, Page {
     var title: String { "Probe" }
     @Environment(\.webSession) var session
     var body: some Tag {
-        SSGFetchProbe.shared.configured = (session !== WebSession.unsupported)
+        SSGFetchProbe.shared.observations.append(session !== WebSession.unsupported)
         return Text("ok")
     }
 }
@@ -147,8 +148,17 @@ private struct FetchProbeApp: App {
     }
 
     @Test func ssgRuntimeSeesConfiguredSession() async throws {
+        SSGFetchProbe.shared.reset()
         let out = NSTemporaryDirectory() + "swiftwui-ssg-fetch-\(UUID().uuidString)"
         _ = try await StaticSite.generate(FetchProbeApp.self, config: .init(outDir: out, mode: .staticOnly))
-        #expect(SSGFetchProbe.shared.configured == true)
+        // Observed sequence is [true, false, true]:
+        //   [first] = enumeration-probe runtime.mount()  → proves injection site 1 (StaticSite.swift, probe)
+        //   [mid]   = _collectRoutes() pass, which builds a fresh ResolveContext that never seeds
+        //             webSession → unsupported-by-design; NOT an injection site, so not asserted.
+        //   [last]  = per-page runtime.mount()           → proves injection site 2 (StaticSite.swift, renderPage)
+        // first && last flips false if EITHER injection is removed, so both sites are covered.
+        let obs = SSGFetchProbe.shared.observations
+        #expect(obs.count >= 2)
+        #expect(obs.first == true && obs.last == true)
     }
 }
