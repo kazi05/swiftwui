@@ -54,34 +54,37 @@ final class FetchJSTransport: FetchTransport {
                 throw WebFetchError.network("fetch did not return a promise")
             }
             let controllerBox = _AbortControllerBox(controller: controller)
-            let respValue = try await withTaskCancellationHandler {
-                // .value() (not the `.value` property) inherits the caller's
-                // isolation instead of hopping to a nonisolated executor —
-                // required so the non-Sendable JSPromise/JSValue never cross
-                // an actor boundary (JavaScriptEventLoop.swift:210).
-                try await promise.value()
+            // One handler over the WHOLE fetch+read sequence: abort() rejects
+            // both the response promise AND the in-flight arrayBuffer() body
+            // read, so cancellation mid-download unblocks too (one controller
+            // covers both). .value() (not the `.value` property) inherits this
+            // closure's isolation instead of hopping to a nonisolated executor —
+            // required so the non-Sendable JSPromise/JSValue never cross an
+            // actor boundary (JavaScriptEventLoop.swift:210).
+            return try await withTaskCancellationHandler {
+                let respValue = try await promise.value()
+                guard let resp = respValue.object else {
+                    throw WebFetchError.network("no response object")
+                }
+                let status = Int(resp.status.number ?? 0)
+                final class HeaderBox { var dict: [String: String] = [:] }
+                let box = HeaderBox()
+                let collect = JSClosure { args in
+                    if let v = args.first?.string, args.count > 1, let k = args[1].string {
+                        box.dict[k] = v
+                    }
+                    return .undefined
+                }
+                _ = resp.headers.object?.forEach?(collect)   // synchronous iteration
+                guard let bufPromise = JSPromise((resp.arrayBuffer!()).object ?? JSObject()) else {
+                    throw WebFetchError.network("arrayBuffer did not return a promise")
+                }
+                let buf = try await bufPromise.value()
+                return (_dataFromArrayBuffer(buf), WebResponse(status: status, headers: box.dict))
             } onCancel: {
                 // nonisolated @Sendable — safe on single-threaded wasm.
                 MainActor.assumeIsolated { _ = controllerBox.controller.abort?() }
             }
-            guard let resp = respValue.object else {
-                throw WebFetchError.network("no response object")
-            }
-            let status = Int(resp.status.number ?? 0)
-            final class HeaderBox { var dict: [String: String] = [:] }
-            let box = HeaderBox()
-            let collect = JSClosure { args in
-                if let v = args.first?.string, args.count > 1, let k = args[1].string {
-                    box.dict[k] = v
-                }
-                return .undefined
-            }
-            _ = resp.headers.object?.forEach?(collect)   // synchronous iteration
-            guard let bufPromise = JSPromise((resp.arrayBuffer!()).object ?? JSObject()) else {
-                throw WebFetchError.network("arrayBuffer did not return a promise")
-            }
-            let buf = try await bufPromise.value()
-            return (_dataFromArrayBuffer(buf), WebResponse(status: status, headers: box.dict))
         } catch let e as WebFetchError {
             throw e
         } catch {
