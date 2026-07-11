@@ -22,6 +22,7 @@ let package = Package(
             "SwiftWUI",
             .product(name: "JavaScriptKit", package: "JavaScriptKit"),
             .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
+            .product(name: "JavaScriptFoundationCompat", package: "JavaScriptKit"),
         ]),
         .target(name: "SwiftWUIToolchain",
                 resources: [.copy("Resources")]),

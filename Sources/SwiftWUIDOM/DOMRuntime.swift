@@ -41,9 +41,11 @@ public enum DOMRuntime {
         root: some Tag, backend: B, container: B.HostNode, initialPath: String,
         globalStyles: [Rule], themes: [ThemeDefinition], fontFaces: [FontFace]
     ) -> Runtime<B> {
-        Runtime(backend: backend, container: container, root: root, initialPath: initialPath,
-                scheduleMicrotask: jsMicrotask, globalStyles: globalStyles, themes: themes,
-                fontFaces: fontFaces)
+        let runtime = Runtime(backend: backend, container: container, root: root,
+                              initialPath: initialPath, scheduleMicrotask: jsMicrotask,
+                              globalStyles: globalStyles, themes: themes, fontFaces: fontFaces)
+        runtime._webSession = WebSession(transport: FetchJSTransport())
+        return runtime
     }
 
     /// Seeds a freshly constructed runtime's store/effects from a parsed
