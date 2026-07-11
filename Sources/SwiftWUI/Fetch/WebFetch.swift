@@ -94,6 +94,8 @@ public final class WebSession {
     /// sanitizeURL's attribute allowlist; CR/LF/NUL rejected in header names AND values.
     static func validate(_ request: WebRequest) throws {
         let url = request.url
+        guard !url.isEmpty else { throw WebFetchError.badURL(url) }
+        if url.hasPrefix("//") { throw WebFetchError.badURL(url) }   // protocol-relative = absolute cross-origin
         let beforePathOrQuery = url.prefix { $0 != "/" && $0 != "?" && $0 != "#" }
         if beforePathOrQuery.contains(":") {                       // has a scheme
             let scheme = url.prefix { $0 != ":" }.lowercased()

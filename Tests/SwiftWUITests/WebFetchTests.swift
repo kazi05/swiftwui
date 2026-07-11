@@ -24,6 +24,12 @@ private struct Item: Codable, Equatable { let id: Int; let name: String }
         await #expect(throws: WebFetchError.badURL("data:text/html,x")) {
             _ = try await session.data(from: "data:text/html,x")
         }
+        await #expect(throws: WebFetchError.badURL("//evil.com/x")) {   // protocol-relative → cross-origin
+            _ = try await session.data(from: "//evil.com/x")
+        }
+        await #expect(throws: WebFetchError.badURL("")) {
+            _ = try await session.data(from: "")
+        }
     }
 
     @Test func relativeURLsPass() async throws {
