@@ -1,6 +1,11 @@
 #if arch(wasm32)
 import JavaScriptKit
 import SwiftWUI
+#if canImport(FoundationEssentials)
+import FoundationEssentials
+#else
+import Foundation
+#endif
 
 /// JSObject glue. All bookkeeping keys use the __swuid int stamped at creation —
 /// NEVER ObjectIdentifier(JSObject) (spec §8.5 invariant 4, trap T5).
@@ -70,6 +75,21 @@ public final class DOMBackend: RendererBackend {
         case "input":
             return InputEvent(value: target?.value.string ?? "")
         case "change":
+            if let t = target, t.type.string == "file", let files = t.files.object {
+                let n = Int(files.length.number ?? 0)
+                var out: [WebFile] = []
+                out.reserveCapacity(n)
+                for i in 0..<n {
+                    guard let f = files.item?(i).object else { continue }
+                    out.append(WebFile(
+                        name: f.name.string ?? "",
+                        size: Int(f.size.number ?? 0),
+                        mimeType: f.type.string ?? "",
+                        lastModified: Date(timeIntervalSince1970: (f.lastModified.number ?? 0) / 1000),
+                        reader: DOMFileReader(file: f)))
+                }
+                return FilesEvent(files: out)
+            }
             return ChangeEvent(value: target?.value.string ?? "",
                                checked: target?.checked.boolean ?? false)
         case "keydown", "keyup":
