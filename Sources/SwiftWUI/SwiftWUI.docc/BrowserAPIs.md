@@ -7,7 +7,8 @@ property wrappers.
 ## Overview
 
 All four capabilities report safe defaults outside a live runtime (light
-scheme, online, empty storage, an "unsupported" fetch session) so the same
+scheme, online, storage wrappers falling back to their own caller-supplied
+defaults with writes dropped, an "unsupported" fetch session) so the same
 component compiles, tests, and prerenders on native/SSG without a browser.
 
 ### Color scheme and online status
@@ -53,6 +54,9 @@ struct Settings: Tag {
     }
 }
 ```
+
+Every wrapper for the same key shares one underlying value — writing through
+any instance updates every component reading that key, anywhere in the app.
 
 Web storage is plaintext and readable by any script on the origin — never
 store secrets, tokens, or sensitive data in `@AppStorage`/`@SceneStorage`.
