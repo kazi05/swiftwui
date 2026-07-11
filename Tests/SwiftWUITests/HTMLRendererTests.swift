@@ -116,4 +116,26 @@ private struct Card: Tag {
         #expect(HTMLRenderer.render(Iframe(src: "https://x.dev", title: "demo"))
                 == "<iframe src=\"https://x.dev\" title=\"demo\"></iframe>")
     }
+    @Test func imgTypedAttributes() {
+        let img = Img(src: "/hero.webp", alt: "Hero", width: 1200, height: 630,
+                      srcset: "/hero.webp 1x, /hero@2x.webp 2x", sizes: "100vw",
+                      loading: .lazy, decoding: .async)
+        let html = HTMLRenderer.render(img)
+        #expect(html.contains("width=\"1200\""))
+        #expect(html.contains("height=\"630\""))
+        #expect(html.contains("loading=\"lazy\""))
+        #expect(html.contains("decoding=\"async\""))
+        #expect(html.contains("srcset=\"/hero.webp 1x, /hero@2x.webp 2x\""))
+        #expect(html.contains("sizes=\"100vw\""))
+    }
+    @Test func imgOmittedAttributesAbsent() {
+        let html = HTMLRenderer.render(Img(src: "/a.png", alt: "a"))
+        #expect(!html.contains("width="))
+        #expect(!html.contains("loading="))
+        #expect(!html.contains("srcset="))
+    }
+    @Test func imgSrcsetSanitized() {
+        let html = HTMLRenderer.render(Img(src: "/a.png", alt: "a", srcset: "javascript:x 1x"))
+        #expect(html.contains("srcset=\"#\""))
+    }
 }
