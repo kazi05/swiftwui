@@ -43,8 +43,9 @@ MySite/
 
 The directory is optional — absent `public/`, nothing changes anywhere.
 
-**Reserved names.** The top-level entries `app`, `vendor`, `index.html`, and
-`__swiftwui` collide with the framework's own output layout. A `public/`
+**Reserved names.** The top-level entries `app`, `vendor`, `index.html`,
+`styles.css`, and `__swiftwui` collide with the framework's own output layout
+(`styles.css` is the SSG-generated stylesheet — added during final review). A `public/`
 containing any of them is a build error (`ToolchainError`) in
 `swiftwui build` / `swiftwui ssg`, and a console warning in `swiftwui dev`.
 
