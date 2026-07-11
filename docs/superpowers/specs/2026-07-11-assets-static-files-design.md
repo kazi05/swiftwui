@@ -154,11 +154,18 @@ FontFace(family: "Inter", src: "/fonts/Inter.woff2", format: .woff2,
 - Serializes to a complete `@font-face { … }` block. `family` is quoted and
   escaped; `src` goes through `HTMLEscaping.sanitizeURL`, and the serialized
   values respect the `CSSSanitize.isSafeValue` sink (StyleRegistry.swift:26-34).
-- Registered via a new `.fontFaces(_: [FontFace])` tag modifier (typically on
-  the root tag). During resolve it calls `StyleRegistry.registerRaw`
-  (StyleRegistry.swift:70-72) — the registry is monotonic and hash-deduped,
-  so per-render re-registration is free, and the block lands in both the SPA
-  stylesheet and the SSG `styles.css` with zero new machinery.
+- Declared as `static var fontFaces: [FontFace]` on the `App` protocol
+  (default `[]`), plumbed exactly like `App.themes`: `Runtime.mount`
+  registers each face via `StyleRegistry.registerRaw`
+  (Runtime.swift:83, StyleRegistry.swift:70-72), so the block lands in both
+  the SPA stylesheet and the SSG `styles.css` with zero new machinery.
+  (Amended from the earlier `.fontFaces(_:)` modifier idea: the App-level
+  static mirrors the existing `themes` plumbing one-to-one and needs no new
+  resolve-time machinery; fonts are global like themes.)
+- Escaping instead of asserting: `family` and `src` are emitted inside CSS
+  quoted strings with `\` and `"` escaped; `src` additionally passes
+  `HTMLEscaping.sanitizeURL` first. No debug-assert path — invalid input
+  degrades to a harmless string, never a CSS breakout.
 
 ## 8. `Img` typed attributes
 
