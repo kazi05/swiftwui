@@ -95,8 +95,17 @@ public final class WebSession {
     static func validate(_ request: WebRequest) throws {
         let url = request.url
         guard !url.isEmpty else { throw WebFetchError.badURL(url) }
-        if url.hasPrefix("//") { throw WebFetchError.badURL(url) }   // protocol-relative = absolute cross-origin
-        let beforePathOrQuery = url.prefix { $0 != "/" && $0 != "?" && $0 != "#" }
+        // WHATWG parsers strip leading C0/space and treat '\' as '/' in special
+        // schemes — validate against the normalized view, not raw bytes.
+        if let first = url.unicodeScalars.first, first <= " " || first == "\u{7F}" {
+            throw WebFetchError.badURL(url)
+        }
+        let head = Array(url.prefix(2))
+        if head.count == 2, (head[0] == "/" || head[0] == "\\"),
+           (head[1] == "/" || head[1] == "\\") {
+            throw WebFetchError.badURL(url)   // protocol-relative = absolute cross-origin
+        }
+        let beforePathOrQuery = url.prefix { $0 != "/" && $0 != "\\" && $0 != "?" && $0 != "#" }
         if beforePathOrQuery.contains(":") {                       // has a scheme
             let scheme = url.prefix { $0 != ":" }.lowercased()
             guard scheme == "http" || scheme == "https" else {

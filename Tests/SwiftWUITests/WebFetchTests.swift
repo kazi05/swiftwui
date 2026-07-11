@@ -30,6 +30,16 @@ private struct Item: Codable, Equatable { let id: Int; let name: String }
         await #expect(throws: WebFetchError.badURL("")) {
             _ = try await session.data(from: "")
         }
+        // WHATWG-parser bypasses: leading C0/space stripped, '\' normalized to '/'.
+        for bad in [" //evil.com/x", "\t//evil.com/x", "\\\\evil.com/x", "/\\evil.com/x"] {
+            await #expect(throws: WebFetchError.badURL(bad)) {
+                _ = try await session.data(from: bad)
+            }
+        }
+        // Genuine origin-relative paths still pass validation.
+        for ok in ["/api", "api/x"] {
+            #expect(throws: Never.self) { try WebSession.validate(WebRequest(url: ok)) }
+        }
     }
 
     @Test func relativeURLsPass() async throws {
