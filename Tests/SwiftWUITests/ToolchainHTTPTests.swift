@@ -16,6 +16,13 @@ import Foundation
         let http = resp as! HTTPURLResponse
         return (http.statusCode, Array(data), http.allHeaderFields)
     }
+    func getRange(_ port: UInt16, _ path: String, _ range: String?) async throws -> (Int, [UInt8], [AnyHashable: Any]) {
+        var req = URLRequest(url: URL(string: "http://127.0.0.1:\(port)\(path)")!)
+        if let range { req.setValue(range, forHTTPHeaderField: "Range") }
+        let (data, resp) = try await URLSession.shared.data(for: req)
+        let http = resp as! HTTPURLResponse
+        return (http.statusCode, Array(data), http.allHeaderFields)
+    }
 
     @Test func servesFilesWithCorrectMIME() async throws {
         let dir = try tempSite()
@@ -66,5 +73,52 @@ import Foundation
         let a = HTTPServer(handlers: []); try a.start(port: 0); defer { a.stop() }
         let b = HTTPServer(handlers: [])
         #expect(throws: ToolchainError.self) { try b.start(port: a.boundPort) }
+    }
+
+    @Test func mimeTableCoversAssetTypes() {
+        #expect(MIME.type(forPath: "a/f.woff2") == "font/woff2")
+        #expect(MIME.type(forPath: "f.webp") == "image/webp")
+        #expect(MIME.type(forPath: "f.mp4") == "video/mp4")
+        #expect(MIME.type(forPath: "f.webmanifest") == "application/manifest+json")
+        #expect(MIME.type(forPath: "f.unknownext") == "application/octet-stream")
+    }
+
+    @Test func rangeRequestsSliceBody() async throws {
+        let dir = try tempSite()
+        try Data(Array(0..<100 as Range<UInt8>)).write(to: URL(fileURLWithPath: dir + "/blob.bin"))
+        let server = HTTPServer(handlers: [StaticFiles.handler(urlPrefix: "/", root: dir)])
+        try server.start(port: 0); defer { server.stop() }
+        let p = server.boundPort
+
+        let (s1, b1, h1) = try await getRange(p, "/blob.bin", "bytes=0-9")
+        #expect(s1 == 206 && b1 == Array(0..<10))
+        #expect(h1["Content-Range"] as? String == "bytes 0-9/100")
+
+        let (s2, b2, _) = try await getRange(p, "/blob.bin", "bytes=90-")
+        #expect(s2 == 206 && b2 == Array(90..<100))
+
+        let (s3, b3, _) = try await getRange(p, "/blob.bin", "bytes=-10")
+        #expect(s3 == 206 && b3 == Array(90..<100))
+
+        let (s4, _, _) = try await getRange(p, "/blob.bin", "bytes=200-")
+        #expect(s4 == 416)
+
+        let (s5, b5, _) = try await getRange(p, "/blob.bin", "bytes=0-9,20-29")
+        #expect(s5 == 200 && b5.count == 100)          // multi-range ignored
+
+        let (s6, _, h6) = try await getRange(p, "/blob.bin", nil)
+        #expect(s6 == 200)
+        #expect(h6["Accept-Ranges"] as? String == "bytes")
+    }
+
+    @Test func rangedResponseEdgeCases() {
+        let full = HTTPResponse(status: 200, headers: [:], body: Array(0..<10 as Range<UInt8>))
+        #expect(HTTPServer.rangedResponse(full, rangeHeader: "bytes=3-5").body == [3, 4, 5])
+        #expect(HTTPServer.rangedResponse(full, rangeHeader: "bytes=3-999").body == Array(3..<10))
+        #expect(HTTPServer.rangedResponse(full, rangeHeader: "garbage").status == 200)
+        #expect(HTTPServer.rangedResponse(full, rangeHeader: "bytes=-0").status == 200)
+        #expect(HTTPServer.rangedResponse(full, rangeHeader: "bytes=5-3").status == 416)
+        let sse = HTTPResponse(status: 200, headers: [:], body: [1], hijack: { _ in })
+        #expect(HTTPServer.rangedResponse(sse, rangeHeader: "bytes=0-0").headers["Accept-Ranges"] == nil)
     }
 }

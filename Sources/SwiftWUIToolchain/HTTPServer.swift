@@ -41,6 +41,13 @@ public enum MIME {
         "json": "application/json", "map": "application/json",
         "svg": "image/svg+xml", "png": "image/png", "jpg": "image/jpeg",
         "jpeg": "image/jpeg", "ico": "image/x-icon", "txt": "text/plain; charset=utf-8",
+        "gif": "image/gif", "webp": "image/webp", "avif": "image/avif",
+        "woff": "font/woff", "woff2": "font/woff2",
+        "ttf": "font/ttf", "otf": "font/otf",
+        "mp4": "video/mp4", "webm": "video/webm",
+        "mp3": "audio/mpeg", "ogg": "audio/ogg", "wav": "audio/wav",
+        "xml": "application/xml", "webmanifest": "application/manifest+json",
+        "pdf": "application/pdf",
     ]
     public static func type(forPath p: String) -> String {
         let ext = (p as NSString).pathExtension.lowercased()
@@ -156,6 +163,7 @@ public final class HTTPServer: @unchecked Sendable {   // guarded by `lock`
         let request = HTTPRequest(method: method, path: path, headers: headers)
         var response: HTTPResponse = .notFound()
         for h in handlers { if let r = h(request) { response = r; break } }
+        response = rangedResponse(response, rangeHeader: headers["range"])
         if let hijack = response.hijack {
             sendHead(response, to: fd, contentLength: nil)
             hijack(fd)                 // hijacker owns the fd now (SSE)
@@ -170,6 +178,38 @@ public final class HTTPServer: @unchecked Sendable {   // guarded by `lock`
         guard raw.count >= 4 else { return nil }
         for i in 0...(raw.count - 4) where Array(raw[i..<i+4]) == sep { return i }
         return nil
+    }
+
+    /// Single-range slicing for static bodies (spec §3). Multi-range and
+    /// malformed headers are ignored (full 200); out-of-bounds → 416.
+    /// Applied only to non-hijack 200 responses with a body.
+    static func rangedResponse(_ response: HTTPResponse, rangeHeader: String?) -> HTTPResponse {
+        guard response.status == 200, response.hijack == nil, !response.body.isEmpty else { return response }
+        var r = response
+        r.headers["Accept-Ranges"] = "bytes"
+        guard let header = rangeHeader, header.hasPrefix("bytes="), !header.contains(",") else { return r }
+        let spec = header.dropFirst("bytes=".count)
+        guard let dash = spec.firstIndex(of: "-") else { return r }
+        let startStr = spec[..<dash], endStr = spec[spec.index(after: dash)...]
+        let len = r.body.count
+        var start: Int, end: Int
+        if startStr.isEmpty {                       // suffix form bytes=-n
+            guard let n = Int(endStr), n > 0 else { return r }
+            start = max(0, len - n); end = len - 1
+        } else {
+            guard let s = Int(startStr) else { return r }
+            start = s
+            if endStr.isEmpty { end = len - 1 }     // open form bytes=s-
+            else { guard let e = Int(endStr) else { return r }; end = min(e, len - 1) }
+        }
+        guard start < len, start >= 0, start <= end else {
+            return HTTPResponse(status: 416,
+                headers: ["Content-Range": "bytes */\(len)", "Accept-Ranges": "bytes"], body: [])
+        }
+        r.status = 206
+        r.headers["Content-Range"] = "bytes \(start)-\(end)/\(len)"
+        r.body = Array(r.body[start...end])
+        return r
     }
 
     private static func sendHead(_ r: HTTPResponse, to fd: Int32, contentLength: Int?) {
