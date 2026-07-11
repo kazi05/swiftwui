@@ -82,6 +82,33 @@ public final class MockBackend: RendererBackend {
         environmentWriter = writer
     }
 
+    public var localStorage: [String: String] = [:]        // pre-seedable by tests
+    public var sessionStorage: [String: String] = [:]
+    public private(set) var storageObserver: ((StorageKind, String, String?) -> Void)?
+    public func storageRead(kind: StorageKind, key: String) -> String? {
+        bump("storageRead")
+        return kind == .local ? localStorage[key] : sessionStorage[key]
+    }
+    public func storageWrite(kind: StorageKind, key: String, value: String?) {
+        bump("storageWrite")
+        switch kind {
+        case .local:   localStorage[key] = value
+        case .session: sessionStorage[key] = value
+        }
+    }
+    public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {
+        bump("beginStorageObservation")
+        storageObserver = onExternalChange
+    }
+    /// Test helper: simulate another tab's localStorage write (storage event).
+    public func simulateExternalStorageChange(kind: StorageKind, key: String, value: String?) {
+        switch kind {
+        case .local:   localStorage[key] = value
+        case .session: sessionStorage[key] = value
+        }
+        storageObserver?(kind, key, value)
+    }
+
     /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
     public func serializeHTML(_ node: MockNode? = nil) -> String {
         let n = node ?? container

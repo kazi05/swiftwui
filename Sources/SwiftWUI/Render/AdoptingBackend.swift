@@ -172,4 +172,13 @@ where Base.HostNode: AnyObject {
     public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {
         base.beginEnvironmentObservation(writer)
     }
+    public func storageRead(kind: StorageKind, key: String) -> String? {
+        base.storageRead(kind: kind, key: key)
+    }
+    public func storageWrite(kind: StorageKind, key: String, value: String?) {
+        base.storageWrite(kind: kind, key: key, value: value)
+    }
+    public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {
+        base.beginStorageObservation(onExternalChange: onExternalChange)
+    }
 }

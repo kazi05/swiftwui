@@ -43,8 +43,19 @@ public protocol RendererBackend: AnyObject {
     /// read initial values synchronously, then attach change listeners. Every
     /// listener closure must be retained by the backend for its lifetime.
     func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer)
+
+    // MARK: Web storage (phase 8a)
+    func storageRead(kind: StorageKind, key: String) -> String?
+    /// nil value = remove the key.
+    func storageWrite(kind: StorageKind, key: String, value: String?)
+    /// Cross-document `storage` events (localStorage only by platform design).
+    /// The backend retains the callback for its lifetime.
+    func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void)
 }
 
 extension RendererBackend {
     public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {}
+    public func storageRead(kind: StorageKind, key: String) -> String? { nil }
+    public func storageWrite(kind: StorageKind, key: String, value: String?) {}
+    public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {}
 }

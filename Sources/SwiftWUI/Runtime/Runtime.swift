@@ -5,6 +5,7 @@ public final class Runtime<Backend: RendererBackend> {
     private let applier: TreeApplier<Backend>
     private let store = StateStore()
     private let signals = EnvironmentSignals()
+    private let storage = StorageStore()
     private let listeners = ListenerRegistry()
     private let effects = EffectStore()
     private let rootTag: AnyTag
@@ -27,6 +28,7 @@ public final class Runtime<Backend: RendererBackend> {
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
     public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
     public var _signals: EnvironmentSignals { signals }   // SPI: backend wiring + tests
+    public var _storage: StorageStore { storage }   // SPI: backend wiring + tests
     var _listenerCount: Int { listeners.count }
     var _current: Node? { current }
     public var _registryText: String { styleRegistry.text }        // test hook + SPI (spec §5)
@@ -85,6 +87,15 @@ public final class Runtime<Backend: RendererBackend> {
 
     public func mount() {
         applier.backend.beginEnvironmentObservation(signals.writer)
+        storage.readBacking = { [weak self] kind, key in
+            self?.applier.backend.storageRead(kind: kind, key: key)
+        }
+        storage.writeBacking = { [weak self] kind, key, value in
+            self?.applier.backend.storageWrite(kind: kind, key: key, value: value)
+        }
+        applier.backend.beginStorageObservation { [weak self] kind, key, raw in
+            self?.storage.externalChange(kind: kind, key: key, raw: raw)
+        }
         for face in fontFaces { styleRegistry.registerRaw(face.ruleText) }
         for theme in themes { styleRegistry.registerRaw(theme.ruleText) }
         for rule in globalStyles { rule.register(into: styleRegistry, scope: nil) }
@@ -228,6 +239,7 @@ public final class Runtime<Backend: RendererBackend> {
         passCounter += 1; ctx.pass = passCounter
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
         ctx.environment._signals = signals
+        ctx.environment._storageStore = storage
         ctx.environment.routeInfo = RouteInfo(path: currentPath, query: currentQuery)
         ctx.environment.navigate = NavigateAction { [weak self] path, replace in
             self?.navigate(to: path, replace: replace)
