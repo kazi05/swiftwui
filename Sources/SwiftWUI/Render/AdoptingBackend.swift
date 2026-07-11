@@ -169,4 +169,7 @@ where Base.HostNode: AnyObject {
     public func childCount(of node: HostNode) -> Int { base.childCount(of: node) }
     public func child(of node: HostNode, at index: Int) -> HostNode { base.child(of: node, at: index) }
     public func tagName(of node: HostNode) -> String? { base.tagName(of: node) }
+    public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {
+        base.beginEnvironmentObservation(writer)
+    }
 }

@@ -76,6 +76,12 @@ public final class MockBackend: RendererBackend {
     public func child(of node: MockNode, at index: Int) -> MockNode { node.children[index] }
     public func tagName(of node: MockNode) -> String? { node.tag }
 
+    public private(set) var environmentWriter: EnvironmentSignals.Writer?
+    public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {
+        bump("beginEnvironmentObservation")
+        environmentWriter = writer
+    }
+
     /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
     public func serializeHTML(_ node: MockNode? = nil) -> String {
         let n = node ?? container

@@ -37,4 +37,14 @@ public protocol RendererBackend: AnyObject {
     func child(of node: HostNode, at index: Int) -> HostNode
     /// Lowercased element tag name; nil for text nodes.
     func tagName(of node: HostNode) -> String?
+
+    // MARK: Environment signals (phase 8a)
+    /// Called once by Runtime.mount() BEFORE the first render pass. Backends
+    /// read initial values synchronously, then attach change listeners. Every
+    /// listener closure must be retained by the backend for its lifetime.
+    func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer)
+}
+
+extension RendererBackend {
+    public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {}
 }
