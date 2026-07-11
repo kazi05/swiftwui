@@ -71,9 +71,9 @@ import Testing
             for section in ch.sections {
                 for panel in [section.panel] + section.steps.compactMap(\.panel) {
                     guard case .browser(_, let shot) = panel else { continue }
-                    let url = siteRoot.appendingPathComponent("Assets/\(shot)")
+                    let url = siteRoot.appendingPathComponent("public/assets/\(shot)")
                     #expect(FileManager.default.fileExists(atPath: url.path),
-                            "\(ch.slug): missing screenshot Assets/\(shot)")
+                            "\(ch.slug): missing screenshot public/assets/\(shot)")
                 }
             }
         }

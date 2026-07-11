@@ -41,7 +41,7 @@ public struct CodePanel: Equatable, Sendable {
 public enum Panel: Equatable, Sendable {
     case code(CodePanel)
     case terminal(title: String, lines: [TermLine])
-    /// `screenshot` is a path under Assets/, e.g. "screens/counter-3.png";
+    /// `screenshot` is a path under public/assets/, e.g. "screens/counter-3.png";
     /// rendered as <img src="/assets/screens/counter-3.png">.
     case browser(url: String, screenshot: String)
 }

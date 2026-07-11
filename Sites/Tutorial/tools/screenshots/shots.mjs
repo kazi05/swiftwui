@@ -1,6 +1,6 @@
 // Screenshot driver (spec §8): per frame — build the sample through the CLI
 // (isolated .build-wasm; NEVER raw `swift package js`), serve dist, run the
-// frame's actions, save a 960×544@2x PNG into Assets/screens.
+// frame's actions, save a 960×544@2x PNG into public/assets/screens.
 import { chromium } from '@playwright/test';
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { shots } from './shots.config.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SITE = resolve(HERE, '../..');            // Sites/Tutorial
 const REPO = resolve(SITE, '../..');            // SwiftWUI checkout
-const OUT = join(SITE, 'Assets/screens');
+const OUT = join(SITE, 'public/assets/screens');
 const PORT = 4173;
 
 function swiftwui(args, cwd) {

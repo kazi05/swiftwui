@@ -13,6 +13,7 @@ public enum Ch03 {
                         Step("Run swiftwui init HelloWUI and pick a template with --template: basic, mvvm, or tca.",
                              detail: "Until SwiftWUI is published, pass --swiftwui-path pointing at your checkout."),
                         Step("The scaffold ships Package.swift, index.html, a Counter component, and a Dockerfile."),
+                        Step("Add a public/ directory for static assets — fonts, images, a favicon — and swiftwui dev, build, and ssg all serve or copy it."),
                         Step("Everything builds natively too — swift build works without a browser."),
                     ],
                     panel: .terminal(title: "zsh", lines: [

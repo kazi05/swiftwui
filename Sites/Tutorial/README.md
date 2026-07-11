@@ -18,8 +18,8 @@ each chapter pairs prose with runnable samples and browser screenshots.
 ./build-site.sh
 ```
 
-Assembles the wasm bundle, copies `Assets/` into `dist/assets`, and
-prerenders all 12 pages into `dist/`.
+Assembles the wasm bundle, copies `public/` into `dist/`, and prerenders
+all 12 pages into `dist/`.
 
 ## Preview
 
@@ -43,7 +43,7 @@ npm install
 npm run shots
 ```
 
-Regenerates the chapter screenshots under `Assets/screens` via Playwright.
+Regenerates the chapter screenshots under `public/assets/screens` via Playwright.
 
 ## Smoke
 
@@ -59,14 +59,15 @@ pages, quiz, chapter menu, scrollspy, and panel swap.
 - `Sources/TutorialKit` — content model, components, theme.
 - `Sources/TutorialSite` — app entry + ssg config.
 - `Samples/` — standalone packages referenced by chapter code excerpts.
-- `Assets/screens` — chapter screenshots.
+- `public/assets/screens` — chapter screenshots, served from `/assets/screens`.
 - `tools/screenshots` — Playwright shots + smoke suite.
 - `dist/` — build output (generated, not checked in).
 
 ## Caveats
 
-1. `swiftwui dev` does not serve `/assets/*` — screenshots 404 under dev;
-   use `swiftwui serve dist` instead.
+1. Assets live in `public/` (e.g. `public/assets/screens`); `swiftwui dev`
+   serves them from `/`, and `swiftwui build`/`swiftwui ssg` copy them into
+   `dist/`.
 2. Never mix raw `swift package --swift-sdk … js` with native builds in the
    same directory — use the `swiftwui` CLI, which isolates `.build-wasm`.
 3. The hydrate boot script is inline JS — do not put the site behind a
