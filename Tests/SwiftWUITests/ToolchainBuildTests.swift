@@ -59,4 +59,46 @@ struct MockRunner: ProcessRunner {
         #expect(fm.fileExists(atPath: proj + "/dist/app/index.js"))
         #expect(fm.fileExists(atPath: proj + "/dist/vendor/wasi-shim/index.js"))   // resource fallback
     }
+
+    @Test func distLayoutCopiesPublic() throws {
+        let root = NSTemporaryDirectory() + "swiftwui-dist-\(UUID().uuidString)"
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: root + "/public/images", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: root + "/bundle", withIntermediateDirectories: true)
+        try "html".write(toFile: root + "/index.html", atomically: true, encoding: .utf8)
+        try "js".write(toFile: root + "/bundle/index.js", atomically: true, encoding: .utf8)
+        try "ico".write(toFile: root + "/public/favicon.ico", atomically: true, encoding: .utf8)
+        try "img".write(toFile: root + "/public/images/a.png", atomically: true, encoding: .utf8)
+        defer { try? fm.removeItem(atPath: root) }
+
+        try DistLayout.assemble(projectDir: root, bundleDir: root + "/bundle", outDir: root + "/dist")
+        #expect(fm.fileExists(atPath: root + "/dist/favicon.ico"))
+        #expect(fm.fileExists(atPath: root + "/dist/images/a.png"))
+        #expect(fm.fileExists(atPath: root + "/dist/app/index.js"))   // dist not wiped
+
+        // idempotent re-run after source change
+        try "img2".write(toFile: root + "/public/images/a.png", atomically: true, encoding: .utf8)
+        try DistLayout.copyPublic(projectDir: root, outDir: root + "/dist")
+        #expect(try String(contentsOfFile: root + "/dist/images/a.png", encoding: .utf8) == "img2")
+    }
+
+    @Test func distLayoutRejectsReservedPublicNames() throws {
+        let root = NSTemporaryDirectory() + "swiftwui-resv-\(UUID().uuidString)"
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: root + "/public/app", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: root + "/public/vendor", withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: root) }
+        #expect(DistLayout.reservedCollisions(projectDir: root) == ["app", "vendor"])
+        #expect(throws: ToolchainError.self) {
+            try DistLayout.copyPublic(projectDir: root, outDir: root + "/dist")
+        }
+    }
+
+    @Test func copyPublicWithoutPublicDirIsNoop() throws {
+        let root = NSTemporaryDirectory() + "swiftwui-nop-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try DistLayout.copyPublic(projectDir: root, outDir: root + "/dist")
+        #expect(!FileManager.default.fileExists(atPath: root + "/dist"))
+    }
 }

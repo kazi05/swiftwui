@@ -63,5 +63,31 @@ public enum DistLayout {
         try? fm.removeItem(atPath: outDir + "/vendor/wasi-shim")
         try fm.createDirectory(atPath: outDir + "/vendor", withIntermediateDirectories: true)
         try fm.copyItem(atPath: shimSource, toPath: outDir + "/vendor/wasi-shim")
+        try copyPublic(projectDir: projectDir, outDir: outDir)
+    }
+
+    public static let reservedNames: Set<String> = ["app", "vendor", "index.html", "__swiftwui"]
+
+    /// Top-level public/ entries that would shadow the framework's dist layout (spec §1).
+    public static func reservedCollisions(projectDir: String) -> [String] {
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: projectDir + "/public")) ?? []
+        return entries.filter { reservedNames.contains($0) }.sorted()
+    }
+
+    /// Copy every top-level child of public/ into outDir (spec §4). Replaces
+    /// each target child; never wipes outDir itself (it holds app/ + vendor/).
+    public static func copyPublic(projectDir: String, outDir: String) throws {
+        let fm = FileManager.default
+        let publicDir = projectDir + "/public"
+        guard fm.fileExists(atPath: publicDir) else { return }
+        let collisions = reservedCollisions(projectDir: projectDir)
+        guard collisions.isEmpty else {
+            throw ToolchainError.io("public/ contains reserved name(s) \(collisions.joined(separator: ", ")) — these collide with the framework's dist layout (reserved: \(reservedNames.sorted().joined(separator: ", ")))")
+        }
+        try fm.createDirectory(atPath: outDir, withIntermediateDirectories: true)
+        for entry in try fm.contentsOfDirectory(atPath: publicDir).sorted() {
+            try? fm.removeItem(atPath: outDir + "/" + entry)
+            try fm.copyItem(atPath: publicDir + "/" + entry, toPath: outDir + "/" + entry)
+        }
     }
 }

@@ -16,5 +16,6 @@ struct SSG: ParsableCommand {
         let name = try product ?? PackageInfo.executableProduct(in: cwd, runner: runner)
         let r = try runner.run("swift", ["run", name, "ssg", "--out", out], cwd: cwd, streamOutput: true)
         guard r.exitCode == 0 else { throw ExitCode(r.exitCode) }
+        try DistLayout.copyPublic(projectDir: cwd, outDir: cwd + "/" + out)
     }
 }
