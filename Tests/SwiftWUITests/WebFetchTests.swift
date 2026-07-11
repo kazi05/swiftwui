@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import SwiftWUI
+@testable import SwiftWUIStatic
 
 @MainActor
 private final class MockTransport: FetchTransport {
@@ -13,6 +14,23 @@ private final class MockTransport: FetchTransport {
 }
 
 private struct Item: Codable, Equatable { let id: Int; let name: String }
+
+@MainActor private final class SSGFetchProbe {
+    static let shared = SSGFetchProbe()
+    var configured: Bool? = nil
+}
+private struct FetchProbePage: Tag, Page {
+    var title: String { "Probe" }
+    @Environment(\.webSession) var session
+    var body: some Tag {
+        SSGFetchProbe.shared.configured = (session !== WebSession.unsupported)
+        return Text("ok")
+    }
+}
+private struct FetchProbeApp: App {
+    init() {}
+    var body: some Tag { Router { Route("/") { FetchProbePage() } } }
+}
 
 @Suite @MainActor struct WebFetchTests {
 
@@ -126,5 +144,11 @@ private struct Item: Codable, Equatable { let id: Int; let name: String }
         runtime._webSession = WebSession(transport: MockTransport())
         runtime.mount()
         #expect(probe.configured == true)
+    }
+
+    @Test func ssgRuntimeSeesConfiguredSession() async throws {
+        let out = NSTemporaryDirectory() + "swiftwui-ssg-fetch-\(UUID().uuidString)"
+        _ = try await StaticSite.generate(FetchProbeApp.self, config: .init(outDir: out, mode: .staticOnly))
+        #expect(SSGFetchProbe.shared.configured == true)
     }
 }
