@@ -19,6 +19,8 @@ Swift web UI framework: SwiftUI-inspired declarative API compiled to WebAssembly
 - **Events:** closures in a `ListenerRegistry` keyed by `ListenerID(owner: identity, event)`; DOM listeners do fire-time lookup — zero listener churn on re-render.
 - **Explicit `ResolveContext` parameter** — no TaskLocal, no globals, no Sendable in the pipeline. Everything `@MainActor`.
 - **Escaping:** single `HTMLEscaping` choke point, serializer-only. Port from v1 verbatim (audited).
+- **Reactive env signals (phase 8a):** `EnvironmentSignals` (@Observable, per-Runtime) → computed `EnvironmentValues` keys; tracked ONLY when read inside a component `body` — primitive/_resolve/handler reads get no auto re-render (locale in 8c uses `markDirty(.root)` instead). New signals follow the Writer-closure recipe in EnvironmentSignals.swift.
+- **Web storage:** `@AppStorage`/`@SceneStorage` share one observable box per key; plaintext + origin-readable — never store secrets. `__swiftwui.` key prefix reserved.
 
 ## Build & test
 
