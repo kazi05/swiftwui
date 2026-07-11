@@ -22,6 +22,7 @@ public final class Runtime<Backend: RendererBackend> {
     private var lastPageHead: PageHead?
     private var redirectHops = 0
     private let themes: [ThemeDefinition]
+    private let fontFaces: [FontFace]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
     public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
     var _listenerCount: Int { listeners.count }
@@ -53,7 +54,7 @@ public final class Runtime<Backend: RendererBackend> {
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
                 initialPath: String = "/",
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void,
-                globalStyles: [Rule] = [], themes: [ThemeDefinition] = []) {
+                globalStyles: [Rule] = [], themes: [ThemeDefinition] = [], fontFaces: [FontFace] = []) {
         let (path, query, _) = RouteURL.split(initialPath)
         currentPath = RouteURL.normalizePath(path)
         currentQuery = query
@@ -62,6 +63,7 @@ public final class Runtime<Backend: RendererBackend> {
         self.scheduleMicrotask = scheduleMicrotask
         self.globalStyles = globalStyles
         self.themes = themes
+        self.fontFaces = fontFaces
     }
 
     /// Event entry point: backends' listeners call this with the fired ID;
@@ -80,6 +82,7 @@ public final class Runtime<Backend: RendererBackend> {
     }
 
     public func mount() {
+        for face in fontFaces { styleRegistry.registerRaw(face.ruleText) }
         for theme in themes { styleRegistry.registerRaw(theme.ruleText) }
         for rule in globalStyles { rule.register(into: styleRegistry, scope: nil) }
         renderPass()

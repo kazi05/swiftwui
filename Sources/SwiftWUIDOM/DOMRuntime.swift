@@ -39,10 +39,11 @@ public enum DOMRuntime {
 
     private static func makeRuntime<B: RendererBackend>(
         root: some Tag, backend: B, container: B.HostNode, initialPath: String,
-        globalStyles: [Rule], themes: [ThemeDefinition]
+        globalStyles: [Rule], themes: [ThemeDefinition], fontFaces: [FontFace]
     ) -> Runtime<B> {
         Runtime(backend: backend, container: container, root: root, initialPath: initialPath,
-                scheduleMicrotask: jsMicrotask, globalStyles: globalStyles, themes: themes)
+                scheduleMicrotask: jsMicrotask, globalStyles: globalStyles, themes: themes,
+                fontFaces: fontFaces)
     }
 
     /// Seeds a freshly constructed runtime's store/effects from a parsed
@@ -88,7 +89,8 @@ public enum DOMRuntime {
     }
 
     public static func mount(_ root: some Tag, selector: String = "body",
-                             globalStyles: [Rule] = [], themes: [ThemeDefinition] = []) {
+                             globalStyles: [Rule] = [], themes: [ThemeDefinition] = [],
+                             fontFaces: [FontFace] = []) {
         JavaScriptEventLoop.installGlobalExecutor()
         assertReflectionAlive()
         let document = JSObject.global.document
@@ -108,7 +110,7 @@ public enum DOMRuntime {
             let adopting = AdoptingBackend(base: raw, container: container)
             let runtime = makeRuntime(root: root, backend: adopting, container: container,
                                       initialPath: initialPath,
-                                      globalStyles: globalStyles, themes: themes)
+                                      globalStyles: globalStyles, themes: themes, fontFaces: fontFaces)
             seed(runtime, with: payload)
             runtime.mount()
             if adopting.finishAdoption() {
@@ -141,7 +143,7 @@ public enum DOMRuntime {
         let (raw, box) = makeBackend()
         let runtime = makeRuntime(root: root, backend: raw, container: container,
                                   initialPath: initialPath,
-                                  globalStyles: globalStyles, themes: themes)
+                                  globalStyles: globalStyles, themes: themes, fontFaces: fontFaces)
         if let payload = fallbackPayload { seed(runtime, with: payload) }
         runtime.mount()
         finishMount(runtime: runtime, box: box, raw: raw, container: container, hydrated: false)
@@ -150,7 +152,8 @@ public enum DOMRuntime {
 
 extension App {
     @MainActor public static func main() {
-        DOMRuntime.mount(Self().body, globalStyles: Self.globalStyles, themes: Self.themes)
+        DOMRuntime.mount(Self().body, globalStyles: Self.globalStyles, themes: Self.themes,
+                        fontFaces: Self.fontFaces)
     }
 }
 #else

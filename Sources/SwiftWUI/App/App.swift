@@ -9,9 +9,12 @@ public protocol App {
     @RulesBuilder static var globalStyles: [Rule] { get }
     /// Theme definitions: first-registered default theme emits :root.
     static var themes: [ThemeDefinition] { get }
+    /// `@font-face` declarations, registered app-wide once at mount.
+    static var fontFaces: [FontFace] { get }
 }
 
 extension App {
     public static var globalStyles: [Rule] { [] }
     public static var themes: [ThemeDefinition] { [] }
+    public static var fontFaces: [FontFace] { [] }
 }

@@ -56,7 +56,7 @@ public enum StaticSite {
         let probeBackend = MockBackend()
         let probe = Runtime(backend: probeBackend, container: probeBackend.container,
                             root: A().body, scheduleMicrotask: { $0() },
-                            globalStyles: A.globalStyles, themes: A.themes)
+                            globalStyles: A.globalStyles, themes: A.themes, fontFaces: A.fontFaces)
         probe._effects._buildMode = true      // enumeration must not run "/"'s effects for real
         probe.mount()
         let patterns = probe._collectRoutes()
@@ -158,7 +158,7 @@ public enum StaticSite {
         let runtime = Runtime(backend: backend, container: backend.container,
                               root: A().body, initialPath: path,
                               scheduleMicrotask: { queue.append($0) },
-                              globalStyles: A.globalStyles, themes: A.themes)
+                              globalStyles: A.globalStyles, themes: A.themes, fontFaces: A.fontFaces)
         runtime._effects._buildMode = true
         runtime.mount()
         pump()                                     // guards/redirect hops settle here
