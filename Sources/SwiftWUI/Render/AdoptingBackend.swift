@@ -165,6 +165,7 @@ where Base.HostNode: AnyObject {
     public func historyBack() { base.historyBack() }
     public func setTitle(_ title: String) { base.setTitle(title) }
     public func setMetaTags(_ tags: [MetaTag]) { base.setMetaTags(tags) }
+    public func setLinks(_ links: [LinkTag]) { base.setLinks(links) }
     public func childCount(of node: HostNode) -> Int { base.childCount(of: node) }
     public func child(of node: HostNode, at index: Int) -> HostNode { base.child(of: node, at: index) }
     public func tagName(of node: HostNode) -> String? { base.tagName(of: node) }

@@ -41,6 +41,13 @@ public enum DocumentSerializer {
             }
             out += " data-swiftwui>\n"       // managed set marker (phase-4 semantics)
         }
+        for link in input.head?.links ?? [] {
+            out += "<link"
+            for name in link.attributes.keys.sorted() {
+                out += " \(name)=\"\(HTMLEscaping.text(link.attributes[name]!))\""
+            }
+            out += " data-swiftwui>\n"       // managed set marker (same as meta)
+        }
         if let href = input.cssHref {
             out += "<link rel=\"stylesheet\" href=\"" + HTMLEscaping.text(href) + "\">\n"
         } else if let css = input.css, !css.isEmpty {

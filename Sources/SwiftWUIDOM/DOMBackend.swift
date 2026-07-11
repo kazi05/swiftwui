@@ -163,6 +163,25 @@ public final class DOMBackend: RendererBackend {
             _ = head.appendChild?(el)
         }
     }
+    public func setLinks(_ links: [LinkTag]) {
+        // Replace ONLY the managed set (spec §9): marked data-swiftwui.
+        let old = document.querySelectorAll("link[data-swiftwui]").object
+        let n = Int(old?.length.number ?? 0)
+        for i in (0..<n).reversed() {
+            if let el = old?[i].object {
+                _ = el.parentNode.object?.removeChild?(el)
+            }
+        }
+        guard let head = document.head.object else { return }
+        for link in links {
+            let el = document.createElement("link").object!
+            for name in link.attributes.keys.sorted() {
+                _ = el.setAttribute?(name, link.attributes[name]!)
+            }
+            _ = el.setAttribute?("data-swiftwui", "")
+            _ = head.appendChild?(el)
+        }
+    }
 
     // MARK: Hydration read API (phase 5, spec §10)
     public func childCount(of node: JSObject) -> Int {

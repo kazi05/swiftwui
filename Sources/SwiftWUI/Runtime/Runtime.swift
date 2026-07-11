@@ -199,6 +199,7 @@ public final class Runtime<Backend: RendererBackend> {
             lastPageHead = head
             applier.backend.setTitle(head.title)
             applier.backend.setMetaTags(head.meta)
+            applier.backend.setLinks(head.links)
         }
         if let target = ctx.pendingRedirect {
             redirectHops += 1

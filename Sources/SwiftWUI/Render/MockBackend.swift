@@ -64,11 +64,13 @@ public final class MockBackend: RendererBackend {
     public private(set) var backCount = 0
     public private(set) var title: String?
     public private(set) var metaTags: [MetaTag] = []
+    public private(set) var links: [LinkTag] = []
     public func pushState(path: String) { bump("pushState"); historyStack.append(path) }
     public func replaceState(path: String) { bump("replaceState"); replacedStates.append(path) }
     public func historyBack() { bump("historyBack"); backCount += 1 }
     public func setTitle(_ title: String) { bump("setTitle"); self.title = title }
     public func setMetaTags(_ tags: [MetaTag]) { bump("setMetaTags"); metaTags = tags }
+    public func setLinks(_ links: [LinkTag]) { bump("setLinks"); self.links = links }
 
     public func childCount(of node: MockNode) -> Int { node.children.count }
     public func child(of node: MockNode, at index: Int) -> MockNode { node.children[index] }

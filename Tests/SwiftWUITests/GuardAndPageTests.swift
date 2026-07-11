@@ -6,6 +6,7 @@ private final class GateBox { var open = false }
 private struct GHome: Tag, Page {
     var title: String { "Home — G" }
     var meta: [MetaTag] { [.description("home page")] }
+    var links: [LinkTag] { [.icon("/favicon.svg")] }
     var body: some Tag { P { "ghome" } }
 }
 private struct GAdmin: Tag, Page {
@@ -80,12 +81,14 @@ private struct SelfRedirectApp: Tag {
         let (_, backend, _) = make()
         #expect(backend.title == "Home — G")
         #expect(backend.metaTags == [.description("home page")])
+        #expect(backend.links == [.icon("/favicon.svg")])
     }
     @Test func headSwapsOnNavigationAndNonPageLeavesTitle() {
         let (rt, backend, sched) = make(gate: { let g = GateBox(); g.open = true; return g }())
         clickFirst(backend, rt, tag: "button", index: 0, sched: sched)   // → /admin (allowed)
         #expect(backend.title == "Admin — G")
         #expect(backend.metaTags.isEmpty)                                 // default meta replaces old set
+        #expect(backend.links.isEmpty)                 // default links replace old set
         clickFirst(backend, rt, tag: "button", index: 1, sched: sched)   // → /plain (not a Page)
         #expect(backend.title == "Admin — G", "non-Page route leaves the title untouched")
     }

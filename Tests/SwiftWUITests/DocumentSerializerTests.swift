@@ -73,6 +73,21 @@ import SwiftWUI
         #expect(!doc.contains("<!--<script"))          // raw sequence never ships
         #expect(doc.contains("<div>after</div>"))      // body survives
     }
+    @Test func rendersManagedLinks() {
+        let head = PageHead(title: "T", meta: [], links: [
+            .icon("/favicon.svg", type: "image/svg+xml"),
+            .preload("/f.woff2", as: .font),
+        ])
+        let html = DocumentSerializer.render(.init(bodyHTML: "<p>x</p>", head: head))
+        #expect(html.contains("<link as=\"font\" crossorigin=\"anonymous\" href=\"/f.woff2\" rel=\"preload\" data-swiftwui>"))
+        #expect(html.contains("<link href=\"/favicon.svg\" rel=\"icon\" type=\"image/svg+xml\" data-swiftwui>"))
+    }
+    @Test func linkHrefIsSanitizedInDocument() {
+        let head = PageHead(title: "T", meta: [], links: [.icon("javascript:alert(1)")])
+        let html = DocumentSerializer.render(.init(bodyHTML: "", head: head))
+        #expect(html.contains("href=\"#\""))
+        #expect(!html.contains("javascript:"))
+    }
     @Test func assembleIsDeterministic() {
         let a = SnapshotJSON.assemble(version: 1, path: "/", rows: ["b": ["[1]"], "a": ["[2]"]], tasks: ["z", "y"])
         #expect(a == "{\"v\":1,\"path\":\"\\/\",\"rows\":{\"a\":[[2]],\"b\":[[1]]},\"tasks\":[\"y\",\"z\"]}")

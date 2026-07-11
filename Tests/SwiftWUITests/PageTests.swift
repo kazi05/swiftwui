@@ -22,11 +22,13 @@ import Testing
         let b = MockBackend()
         b.pushState(path: "/a"); b.replaceState(path: "/b"); b.historyBack()
         b.setTitle("T"); b.setMetaTags([.charset("utf-8")])
+        b.setLinks([.icon("/favicon.svg")])
         #expect(b.historyStack == ["/a"])
         #expect(b.replacedStates == ["/b"])
         #expect(b.backCount == 1)
         #expect(b.title == "T")
         #expect(b.metaTags == [.charset("utf-8")])
+        #expect(b.links == [.icon("/favicon.svg")])
     }
     @Test func linkTagStatics() {
         #expect(LinkTag.icon("/favicon.svg", type: "image/svg+xml").attributes
