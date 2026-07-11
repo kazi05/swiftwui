@@ -13,7 +13,11 @@ public final class DOMBackend: RendererBackend {
     private var closures: [String: JSClosure] = [:]   // "\(uid)#\(event)" → retained
     private var listenerIDs: [String: ListenerID] = [:]
     private var nextUID = 0
-    private var envClosures: [JSClosure] = []      // retained for backend lifetime (v1 leak lesson)
+    // Environment observation closures — named (not positional) so teardown pairs
+    // each with its exact target; retained for backend lifetime (v1 leak lesson).
+    private var schemeClosure: JSClosure?
+    private var onlineClosure: JSClosure?
+    private var offlineClosure: JSClosure?
     private var colorSchemeQuery: JSObject?        // keep the MediaQueryList alive with its listener
     private var lastAppliedLinks: [LinkTag]? = nil   // churn guard (setLinks) — nil means "never applied"
 
@@ -177,7 +181,7 @@ public final class DOMBackend: RendererBackend {
                 return .undefined
             }
             _ = mql.addEventListener?("change", onSchemeChange)
-            envClosures.append(onSchemeChange)
+            schemeClosure = onSchemeChange
             colorSchemeQuery = mql
         }
         // navigator.onLine + online/offline events.
@@ -188,8 +192,23 @@ public final class DOMBackend: RendererBackend {
         let onOffline = JSClosure { _ in writer.setOnline(false); return .undefined }
         _ = window?.addEventListener?("online", onOnline)
         _ = window?.addEventListener?("offline", onOffline)
-        envClosures.append(onOnline)
-        envClosures.append(onOffline)
+        onlineClosure = onOnline
+        offlineClosure = onOffline
+    }
+    /// Detaches every environment-observation listener and releases its
+    /// closure. Called by DOMRuntime when a mount attempt is discarded
+    /// (hydration mismatch) — symmetric with beginEnvironmentObservation.
+    public func endEnvironmentObservation() {
+        let window = JSObject.global.window.object
+        if let mql = colorSchemeQuery, let onChange = schemeClosure {
+            _ = mql.removeEventListener?("change", onChange)
+        }
+        if let onOnline = onlineClosure { _ = window?.removeEventListener?("online", onOnline) }
+        if let onOffline = offlineClosure { _ = window?.removeEventListener?("offline", onOffline) }
+        schemeClosure = nil
+        onlineClosure = nil
+        offlineClosure = nil
+        colorSchemeQuery = nil
     }
     public func setLinks(_ links: [LinkTag]) {
         // Churn guard: skip remove-all/re-add-all when the set is unchanged (e.g.

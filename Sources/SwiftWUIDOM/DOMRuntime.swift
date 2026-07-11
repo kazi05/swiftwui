@@ -123,6 +123,12 @@ public enum DOMRuntime {
             // cancel them first or they outlive this runtime and duplicate
             // side effects when the fallback re-runs the same loaders.
             runtime._effects._cancelAll()
+            // The discarded runtime already ran beginEnvironmentObservation on `raw`
+            // (via the AdoptingBackend forward). `raw` is about to become unreferenced
+            // and deallocate, so detach its window/MediaQueryList listeners now —
+            // otherwise they dangle (dead JS→Swift closures) and the fallback backend
+            // registers a duplicate set.
+            raw.endEnvironmentObservation()
             while Int(container.childNodes.length.number ?? 0) > 0 {
                 _ = container.removeChild?(container.childNodes.item(0))
             }
