@@ -95,6 +95,11 @@ public final class WebSession {
     static func validate(_ request: WebRequest) throws {
         let url = request.url
         guard !url.isEmpty else { throw WebFetchError.badURL(url) }
+        // WHATWG strips tab/LF/CR from anywhere in the input before parsing;
+        // they are never legal in a URL — reject outright.
+        if url.unicodeScalars.contains(where: { $0 == "\u{09}" || $0 == "\u{0A}" || $0 == "\u{0D}" }) {
+            throw WebFetchError.badURL(url)
+        }
         // WHATWG parsers strip leading C0/space and treat '\' as '/' in special
         // schemes — validate against the normalized view, not raw bytes.
         if let first = url.unicodeScalars.first, first <= " " || first == "\u{7F}" {

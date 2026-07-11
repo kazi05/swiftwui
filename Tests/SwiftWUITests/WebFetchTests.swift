@@ -30,8 +30,10 @@ private struct Item: Codable, Equatable { let id: Int; let name: String }
         await #expect(throws: WebFetchError.badURL("")) {
             _ = try await session.data(from: "")
         }
-        // WHATWG-parser bypasses: leading C0/space stripped, '\' normalized to '/'.
-        for bad in [" //evil.com/x", "\t//evil.com/x", "\\\\evil.com/x", "/\\evil.com/x"] {
+        // WHATWG-parser bypasses: leading C0/space stripped, '\' normalized to '/',
+        // and tab/LF/CR stripped from anywhere (so "/\t/evil.com/x" → "//evil.com/x").
+        for bad in [" //evil.com/x", "\t//evil.com/x", "\\\\evil.com/x", "/\\evil.com/x",
+                    "/\t/evil.com/x", "http\n://evil.com"] {
             await #expect(throws: WebFetchError.badURL(bad)) {
                 _ = try await session.data(from: bad)
             }
