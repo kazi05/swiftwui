@@ -18,6 +18,7 @@ public final class DOMBackend: RendererBackend {
     private var schemeClosure: JSClosure?
     private var onlineClosure: JSClosure?
     private var offlineClosure: JSClosure?
+    private var storageClosure: JSClosure?          // window "storage" event — same teardown as above
     private var colorSchemeQuery: JSObject?        // keep the MediaQueryList alive with its listener
     private var lastAppliedLinks: [LinkTag]? = nil   // churn guard (setLinks) — nil means "never applied"
 
@@ -198,6 +199,8 @@ public final class DOMBackend: RendererBackend {
     /// Detaches every environment-observation listener and releases its
     /// closure. Called by DOMRuntime when a mount attempt is discarded
     /// (hydration mismatch) — symmetric with beginEnvironmentObservation.
+    /// Also tears down the storage-event listener (beginStorageObservation)
+    /// so a discarded mount leaves no dangling window listener.
     public func endEnvironmentObservation() {
         let window = JSObject.global.window.object
         if let mql = colorSchemeQuery, let onChange = schemeClosure {
@@ -205,9 +208,11 @@ public final class DOMBackend: RendererBackend {
         }
         if let onOnline = onlineClosure { _ = window?.removeEventListener?("online", onOnline) }
         if let onOffline = offlineClosure { _ = window?.removeEventListener?("offline", onOffline) }
+        if let onStorage = storageClosure { _ = window?.removeEventListener?("storage", onStorage) }
         schemeClosure = nil
         onlineClosure = nil
         offlineClosure = nil
+        storageClosure = nil
         colorSchemeQuery = nil
     }
     public func setLinks(_ links: [LinkTag]) {
@@ -235,6 +240,41 @@ public final class DOMBackend: RendererBackend {
             _ = head.appendChild?(el)
         }
         lastAppliedLinks = links
+    }
+
+    // MARK: Web storage (phase 8a)
+    private func storageObject(_ kind: StorageKind) -> JSObject? {
+        let window = JSObject.global.window.object
+        return kind == .local ? window?.localStorage.object : window?.sessionStorage.object
+    }
+    public func storageRead(kind: StorageKind, key: String) -> String? {
+        storageObject(kind)?.getItem?(key).string
+    }
+    public func storageWrite(kind: StorageKind, key: String, value: String?) {
+        guard let s = storageObject(kind) else { return }
+        if let value {
+            // setItem can throw (QuotaExceededError, disabled storage). Use the
+            // throwing call so a full/blocked store degrades to a warning, not a trap.
+            do {
+                _ = try s.throwing.setItem?(key, value)
+            } catch {
+                print("SwiftWUI storage: write for '\(key)' failed — \(error)")
+            }
+        } else {
+            _ = s.removeItem?(key)
+        }
+    }
+    public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {
+        let closure = JSClosure { args in
+            guard let e = args.first?.object else { return .undefined }
+            // The storage event fires cross-document for localStorage. key == null
+            // means clear() — no per-key delivery; ignored (ledgered residual).
+            guard let key = e.key.string else { return .undefined }
+            onExternalChange(.local, key, e.newValue.string)
+            return .undefined
+        }
+        _ = JSObject.global.window.object?.addEventListener?("storage", closure)
+        storageClosure = closure
     }
 
     // MARK: Hydration read API (phase 5, spec §10)
