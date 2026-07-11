@@ -24,4 +24,5 @@ locally built dist/ via nginx.
 
 - `Sources/main.swift` — the app; dual entry (wasm mount / native `ssg` subcommand)
 - `index.html` — dev/prod entry; import map resolves the vendored WASI shim
+- `public/` — static assets served from the site root (favicon, images, fonts)
 - `vendor/wasi-shim/` — @bjorn3/browser_wasi_shim 0.3.0 (MIT/Apache-2.0), checked in

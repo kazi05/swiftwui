@@ -75,4 +75,16 @@ import Foundation
         #expect(!pkg.contains("github.com/kazi05/swiftwui"))
         #expect(!pkg.contains("{{"))
     }
+
+    @Test func templatesScaffoldPublicDir() throws {
+        for template in Scaffolder.templates {
+            let dir = NSTemporaryDirectory() + "swiftwui-scaffold-pub-\(UUID().uuidString)"
+            defer { try? FileManager.default.removeItem(atPath: dir) }
+            try Scaffolder.scaffold(template: template, name: "Demo", swiftwuiPath: nil, into: dir)
+            #expect(FileManager.default.fileExists(atPath: dir + "/public/favicon.svg"),
+                    "template \(template) missing public/favicon.svg")
+            let html = try String(contentsOfFile: dir + "/index.html", encoding: .utf8)
+            #expect(html.contains("rel=\"icon\""), "template \(template) index.html missing favicon link")
+        }
+    }
 }
