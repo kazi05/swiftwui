@@ -28,4 +28,23 @@ import Testing
         #expect(b.title == "T")
         #expect(b.metaTags == [.charset("utf-8")])
     }
+    @Test func linkTagStatics() {
+        #expect(LinkTag.icon("/favicon.svg", type: "image/svg+xml").attributes
+            == ["rel": "icon", "href": "/favicon.svg", "type": "image/svg+xml"])
+        #expect(LinkTag.stylesheet("/a.css").attributes == ["rel": "stylesheet", "href": "/a.css"])
+        #expect(LinkTag.preload("/f.woff2", as: .font).attributes
+            == ["rel": "preload", "href": "/f.woff2", "as": "font", "crossorigin": "anonymous"])
+        #expect(LinkTag.preload("/h.jpg", as: .image).attributes["crossorigin"] == nil)
+        #expect(LinkTag.canonical("https://x.y/p").attributes == ["rel": "canonical", "href": "https://x.y/p"])
+    }
+
+    @Test func linkTagSanitizesHref() {
+        #expect(LinkTag.icon("javascript:alert(1)").attributes["href"] == "#")
+        #expect(LinkTag(attributes: ["rel": "icon", "href": "data:text/html,x"]).attributes["href"] == "#")
+    }
+
+    @Test func pageDefaultLinksEmpty() {
+        struct P: Page { var title: String { "t" }; var body: some Tag { Div() } }
+        #expect(P().links.isEmpty)
+    }
 }
