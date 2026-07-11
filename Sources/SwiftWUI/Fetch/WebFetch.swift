@@ -23,6 +23,7 @@ public struct WebRequest {
 
 public struct WebResponse: Equatable {
     public let status: Int
+    /// Keys are lowercase-normalized by every transport (fetch() and URLSession).
     public let headers: [String: String]
     public var isSuccess: Bool { (200..<300).contains(status) }
     public init(status: Int, headers: [String: String]) {

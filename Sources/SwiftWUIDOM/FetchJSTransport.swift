@@ -70,8 +70,11 @@ final class FetchJSTransport: FetchTransport {
                 final class HeaderBox { var dict: [String: String] = [:] }
                 let box = HeaderBox()
                 let collect = JSClosure { args in
+                    // Headers.forEach already yields lowercase keys per spec; lowercase
+                    // again anyway — WebResponse.headers keys are lowercase-normalized
+                    // across transports (invariant, not a fetch() implementation detail).
                     if let v = args.first?.string, args.count > 1, let k = args[1].string {
-                        box.dict[k] = v
+                        box.dict[k.lowercased()] = v
                     }
                     return .undefined
                 }

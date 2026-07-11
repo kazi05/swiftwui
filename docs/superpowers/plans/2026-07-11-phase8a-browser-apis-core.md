@@ -6,7 +6,7 @@
 
 **Architecture:** One new mechanism: `@Observable EnvironmentSignals` owned by `Runtime`, reference seeded into the root environment; computed `EnvironmentValues` keys read it lazily during body eval, so the existing `withObservationTracking` in `Resolver.swift:67` invalidates exactly the reader components. Storage rides the same idea with `@Observable` per-key boxes in a `StorageStore`. Backends deliver browser events through closures (`EnvironmentSignals.Writer`, storage-observation callback) — signal setters never leave core. WebFetch is transport-injected (`FetchTransport`): DOM = `fetch()`, SSG = URLSession, tests = mock.
 
-**Tech Stack:** Swift 6.3.3, swift-testing (`@Suite`/`@Test`/`#expect`), Observation framework, JavaScriptKit 0.22 (+ `JavaScriptFoundationCompat` product, same package), wasm SDK `swift-6.3.3-RELEASE_wasm`.
+**Tech Stack:** Swift 6.3.3, swift-testing (`@Suite`/`@Test`/`#expect`), Observation framework, JavaScriptKit 0.56.1 (+ `JavaScriptFoundationCompat` product, same package), wasm SDK `swift-6.3.3-RELEASE_wasm`.
 
 ## Global Constraints
 
@@ -921,7 +921,7 @@ Add to `DOMBackend`:
     }
 ```
 
-Implementer note: verify the JavaScriptKit 0.22 throwing-call spelling (`JSFunction.throws` / `JSThrowingFunction`) against the pinned checkout (`grep -rn "throws" .build/checkouts/JavaScriptKit/Sources/JavaScriptKit/ | grep -i function | head`). If no throwing variant exists in 0.22, fall back to plain `_ = s.setItem?(key, value)` and record quota behavior as a browser-acceptance checklist item.
+Implementer note: JavaScriptKit is pinned at 0.56.1, which ships the throwing-call spelling used above (`JSFunction.throws` / `JSThrowingFunction`) — verified against the pinned checkout (`grep -rn "throws" .build/checkouts/JavaScriptKit/Sources/JavaScriptKit/ | grep -i function | head`).
 
 - [ ] **Step 2: Native suite + wasm gate**
 
@@ -1246,7 +1246,7 @@ Add to the SwiftWUIDOM target's dependencies:
             .product(name: "JavaScriptFoundationCompat", package: "JavaScriptKit"),
 ```
 
-Implementer note: verify the product exists in the pinned JavaScriptKit (`grep -n "JavaScriptFoundationCompat" .build/checkouts/JavaScriptKit/Package.swift`). If absent in 0.22, skip the product and rely solely on the hand-rolled helper below (it is self-sufficient).
+Implementer note: the `JavaScriptFoundationCompat` product exists in the pinned JavaScriptKit 0.56.1 (`grep -n "JavaScriptFoundationCompat" .build/checkouts/JavaScriptKit/Package.swift`) — the code already depends on it.
 
 - [ ] **Step 2: `Sources/SwiftWUIDOM/JSInterop.swift`**
 
@@ -1278,7 +1278,7 @@ func _uint8Array(from data: Data) -> JSObject {
 #endif
 ```
 
-Implementer note: `JSTypedArray` API names (`toArray()`, `init?(_ jsObject:)`, `jsObject`) must be verified against the pinned 0.22 checkout (`ls .build/checkouts/JavaScriptKit/Sources/JavaScriptKit/BasicObjects/`). If `JavaScriptFoundationCompat` shipped (Step 1), prefer its `Data.jsTypedArray` / `JSTypedArray.data` equivalents and delete the manual copies.
+Implementer note: `JSTypedArray` API names (`toArray()`, `init?(_ jsObject:)`, `jsObject`) must be verified against the pinned 0.56.1 checkout (`ls .build/checkouts/JavaScriptKit/Sources/JavaScriptKit/BasicObjects/`). If `JavaScriptFoundationCompat` shipped (Step 1), prefer its `Data.jsTypedArray` / `JSTypedArray.data` equivalents and delete the manual copies.
 
 - [ ] **Step 3: `Sources/SwiftWUIDOM/FetchJSTransport.swift`**
 

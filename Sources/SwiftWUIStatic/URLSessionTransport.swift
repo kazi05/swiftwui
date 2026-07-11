@@ -33,7 +33,9 @@ final class URLSessionTransport: FetchTransport {
             }
             var headers: [String: String] = [:]
             for (k, v) in http.allHeaderFields {
-                if let ks = k as? String, let vs = v as? String { headers[ks] = vs }
+                // HTTPURLResponse preserves server casing — lowercase to match the
+                // fetch() transport (WebResponse.headers keys are lowercase-normalized).
+                if let ks = k as? String, let vs = v as? String { headers[ks.lowercased()] = vs }
             }
             return (data, WebResponse(status: http.statusCode, headers: headers))
         } catch let e as WebFetchError { throw e }
