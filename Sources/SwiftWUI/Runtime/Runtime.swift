@@ -29,6 +29,8 @@ public final class Runtime<Backend: RendererBackend> {
     public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
     public var _signals: EnvironmentSignals { signals }   // SPI: backend wiring + tests
     public var _storage: StorageStore { storage }   // SPI: backend wiring + tests
+    /// Set by the platform layer (DOMRuntime / SSG driver) BEFORE mount().
+    public var _webSession: WebSession?
     var _listenerCount: Int { listeners.count }
     var _current: Node? { current }
     public var _registryText: String { styleRegistry.text }        // test hook + SPI (spec §5)
@@ -240,6 +242,7 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
         ctx.environment._signals = signals
         ctx.environment._storageStore = storage
+        ctx.environment._webSessionOptional = _webSession
         ctx.environment.routeInfo = RouteInfo(path: currentPath, query: currentQuery)
         ctx.environment.navigate = NavigateAction { [weak self] path, replace in
             self?.navigate(to: path, replace: replace)
