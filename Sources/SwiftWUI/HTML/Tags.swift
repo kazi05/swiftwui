@@ -98,6 +98,7 @@ public struct Input: _HTMLVoidTag {
     public var _attributes: _AttributeBag
     public init(type: InputType = .text, name: String? = nil, value: String? = nil,
                 placeholder: String? = nil, disabled: Bool = false,
+                accept: String? = nil, multiple: Bool = false,
                 id: String? = nil, class classes: String? = nil) {
         _attributes = _AttributeBag(id: id, class: classes)
         _attributes.set("type", type.rawValue)
@@ -105,6 +106,8 @@ public struct Input: _HTMLVoidTag {
         _attributes.set("value", value)
         _attributes.set("placeholder", placeholder)
         if disabled { _attributes.set("disabled", "") }
+        _attributes.set("accept", accept)
+        if multiple { _attributes.set("multiple", "") }
     }
 }
 
