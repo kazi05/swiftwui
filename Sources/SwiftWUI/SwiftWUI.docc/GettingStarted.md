@@ -45,8 +45,8 @@ vendored wasi-shim, so it builds offline and in containers.
 Files in `public/` are served from the site root: `public/favicon.svg`
 is `/favicon.svg`, `public/fonts/Inter.woff2` is `/fonts/Inter.woff2`.
 `swiftwui dev` serves them directly; `swiftwui build` and `swiftwui ssg`
-copy them into `dist/`. The names `app`, `vendor`, `index.html`, and
-`__swiftwui` are reserved at the top level of `public/`.
+copy them into `dist/`. The names `app`, `vendor`, `index.html`,
+`styles.css`, and `__swiftwui` are reserved at the top level of `public/`.
 
 Reference assets with plain URLs — `Img(src: "/images/hero.webp", alt: "…",
 width: 1200, height: 630)` — declare fonts with

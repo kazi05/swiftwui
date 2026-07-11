@@ -13,6 +13,7 @@ public final class DOMBackend: RendererBackend {
     private var closures: [String: JSClosure] = [:]   // "\(uid)#\(event)" → retained
     private var listenerIDs: [String: ListenerID] = [:]
     private var nextUID = 0
+    private var lastAppliedLinks: [LinkTag]? = nil   // churn guard (setLinks) — nil means "never applied"
 
     public init(dispatch: @escaping (ListenerID, Any?) -> Void) { self.dispatch = dispatch }
 
@@ -164,6 +165,12 @@ public final class DOMBackend: RendererBackend {
         }
     }
     public func setLinks(_ links: [LinkTag]) {
+        // Churn guard: skip remove-all/re-add-all when the set is unchanged (e.g.
+        // title-only navigations), avoiding <link rel="stylesheet"> FOUC. The
+        // first call after hydration still re-applies the SSG-emitted set once —
+        // this backend has no cheap way to verify DOM state matches lastAppliedLinks
+        // (nil) before that — a known, ledgered one-time churn.
+        guard lastAppliedLinks != links else { return }
         // Replace ONLY the managed set (spec §9): marked data-swiftwui.
         let old = document.querySelectorAll("link[data-swiftwui]").object
         let n = Int(old?.length.number ?? 0)
@@ -181,6 +188,7 @@ public final class DOMBackend: RendererBackend {
             _ = el.setAttribute?("data-swiftwui", "")
             _ = head.appendChild?(el)
         }
+        lastAppliedLinks = links
     }
 
     // MARK: Hydration read API (phase 5, spec §10)

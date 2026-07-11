@@ -66,7 +66,7 @@ public enum DistLayout {
         try copyPublic(projectDir: projectDir, outDir: outDir)
     }
 
-    public static let reservedNames: Set<String> = ["app", "vendor", "index.html", "__swiftwui"]
+    public static let reservedNames: Set<String> = ["app", "vendor", "index.html", "styles.css", "__swiftwui"]
 
     /// Top-level public/ entries that would shadow the framework's dist layout (spec §1).
     public static func reservedCollisions(projectDir: String) -> [String] {

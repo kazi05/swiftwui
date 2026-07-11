@@ -87,8 +87,9 @@ struct MockRunner: ProcessRunner {
         let fm = FileManager.default
         try fm.createDirectory(atPath: root + "/public/app", withIntermediateDirectories: true)
         try fm.createDirectory(atPath: root + "/public/vendor", withIntermediateDirectories: true)
+        fm.createFile(atPath: root + "/public/styles.css", contents: nil)
         defer { try? fm.removeItem(atPath: root) }
-        #expect(DistLayout.reservedCollisions(projectDir: root) == ["app", "vendor"])
+        #expect(DistLayout.reservedCollisions(projectDir: root) == ["app", "styles.css", "vendor"])
         #expect(throws: ToolchainError.self) {
             try DistLayout.copyPublic(projectDir: root, outDir: root + "/dist")
         }

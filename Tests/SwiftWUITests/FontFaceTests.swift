@@ -24,6 +24,26 @@ import Testing
         #expect(evil.ruleText.contains("font-family: \"x\\\") } body { background: url(\\\"p\""))
     }
 
+    @Test func controlCharsDroppedNoBreakout() {
+        let f = FontFace(family: "x\n} body { background: red } q\"", src: "/f.woff2")
+        #expect(!f.ruleText.contains("\n"))          // control char dropped — no bad-string breakout
+    }
+
+    @Test func angleBracketHexEscapedNoStyleBreakout() {
+        let f = FontFace(family: "a</style>b", src: "/f.woff2")
+        #expect(!f.ruleText.contains("</style"))
+        #expect(f.ruleText.contains("\\3c "))
+    }
+
+    @Test func registryDedupesIdenticalRule() {
+        let f = FontFace(family: "Inter", src: "/i.woff2")
+        let r = StyleRegistry()
+        r.registerRaw(f.ruleText)
+        let v1 = r.version
+        r.registerRaw(f.ruleText)
+        #expect(r.version == v1)
+    }
+
     @Test func mountRegistersFontFaces() {
         let mock = MockBackend()
         let sched = TestScheduler()

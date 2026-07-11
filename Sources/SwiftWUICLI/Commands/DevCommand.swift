@@ -17,7 +17,7 @@ struct Dev: ParsableCommand {
         }
         let collisions = DistLayout.reservedCollisions(projectDir: cwd)
         if !collisions.isEmpty {
-            print("warning: public/ contains reserved name(s) \(collisions.joined(separator: ", ")) — they will be shadowed in dev and rejected by `swiftwui build`")
+            print("warning: public/ contains reserved name(s) \(collisions.joined(separator: ", ")) — they collide with the framework's dist layout and are rejected by `swiftwui build`")
         }
         let sdk = try swiftSdk ?? WasmSDK.detect(runner: runner)
         let builder = WasmBuilder(runner: runner, projectDir: cwd, sdk: sdk)

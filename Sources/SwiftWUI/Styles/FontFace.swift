@@ -1,8 +1,11 @@
 /// A typed `@font-face` declaration (assets spec §7), registered app-wide via
 /// `App.fontFaces` — the exact plumbing `App.themes` uses. `family` and `src`
-/// are emitted inside CSS quoted strings with `\` and `"` escaped, and `src`
-/// passes `HTMLEscaping.sanitizeURL` first: invalid input degrades to a
-/// harmless string, never a CSS breakout.
+/// are emitted inside CSS quoted strings, same validated-sink discipline as
+/// `ThemeAssignments.set` in Theme.swift: `\` and `"` are escaped, control
+/// characters (< 0x20, e.g. newline) are dropped so no unescaped scalar can
+/// terminate the quoted string early, and `<` is hex-escaped as `\3c ` so the
+/// text is inert even if it lands inside the SSG inline `<style>` sink. `src`
+/// also passes `HTMLEscaping.sanitizeURL` first. No CSS or HTML breakout.
 public struct FontFace: Equatable {
     public enum FontFormat: String, Equatable { case woff2, woff, truetype, opentype }
     public enum FontFaceStyle: String, Equatable { case normal, italic }
@@ -31,9 +34,11 @@ public struct FontFace: Equatable {
     // Foundation-free: manual scalar loop instead of replacingOccurrences (core stays zero-dep).
     static func cssString(_ s: String) -> String {
         var out = "\""
-        for ch in s {
-            if ch == "\\" || ch == "\"" { out.append("\\") }
-            out.append(ch)
+        for scalar in s.unicodeScalars {
+            if scalar.value < 0x20 { continue }              // drop control chars incl. newline — no bad-string breakout
+            if scalar == "<" { out += "\\3c "; continue }     // CSS hex escape — inert inside SSG's `</style` sink
+            if scalar == "\\" || scalar == "\"" { out.append("\\") }
+            out.unicodeScalars.append(scalar)
         }
         return out + "\""
     }
