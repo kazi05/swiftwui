@@ -53,12 +53,20 @@ public final class DevSession: @unchecked Sendable {   // lastError guarded by `
             else { return nil }
             return .text(DevInjection.inject(into: html), contentType: "text/html; charset=utf-8")
         }
+        // public/ assets (spec §2): dotted paths only — extensionless paths
+        // must keep falling through to the SPA index handler below.
+        let publicFiles = StaticFiles.handler(urlPrefix: "/", root: projectDir + "/public")
+        let publicHandler: HTTPHandler = { request in
+            guard request.path.split(separator: "/").last?.contains(".") == true else { return nil }
+            return publicFiles(request)
+        }
         return [
             hub.handler(lastError: { [weak self] in self?.lastError }),
             devClient,
             StaticFiles.handler(urlPrefix: "/__swiftwui/vendor/wasi-shim/", root: shimRoot),
             StaticFiles.handler(urlPrefix: "/vendor/wasi-shim/", root: shimRoot),
             StaticFiles.handler(urlPrefix: "/app/", root: bundleDir),
+            publicHandler,
             indexHandler,
         ]
     }

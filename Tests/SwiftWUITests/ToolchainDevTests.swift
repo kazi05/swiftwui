@@ -41,4 +41,48 @@ import Foundation
         session.rebuildAndNotify()
         #expect(session.lastError?.contains("boom") == true)   // replayed to late connectors
     }
+
+    @Test func devServesPublicAssets() throws {
+        let dir = NSTemporaryDirectory() + "swiftwui-pub-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir + "/public/images", withIntermediateDirectories: true)
+        try "<html>".write(toFile: dir + "/index.html", atomically: true, encoding: .utf8)
+        try "png-bytes".write(toFile: dir + "/public/images/logo.png", atomically: true, encoding: .utf8)
+        try "sitemap".write(toFile: dir + "/public/robots.txt", atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+
+        let runner = MockRunner(results: [:])
+        let session = DevSession(
+            builder: WasmBuilder(runner: runner, projectDir: dir, sdk: "x"),
+            hub: SSEHub())
+        let handlers = session.handlers(projectDir: dir, bundleDir: dir + "/.bundle")
+        func serve(_ path: String) -> HTTPResponse? {
+            let req = HTTPRequest(method: "GET", path: path, headers: [:])
+            for h in handlers { if let r = h(req) { return r } }
+            return nil
+        }
+
+        let hit = serve("/images/logo.png")
+        #expect(hit?.status == 200)
+        #expect(hit.map { String(decoding: $0.body, as: UTF8.self) } == "png-bytes")
+        #expect(hit?.headers["Content-Type"] == "image/png")
+        #expect(serve("/robots.txt")?.status == 200)
+        #expect(serve("/missing.png") == nil)                    // falls to server-level 404
+        // extensionless path → SPA index (routes win), not public lookup
+        let spa = serve("/about")
+        #expect(spa.map { String(decoding: $0.body, as: UTF8.self).contains("<html>") } == true)
+    }
+
+    @Test func devWithoutPublicDirUnchanged() throws {
+        let dir = NSTemporaryDirectory() + "swiftwui-nopub-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        try "<html>".write(toFile: dir + "/index.html", atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let runner = MockRunner(results: [:])
+        let session = DevSession(
+            builder: WasmBuilder(runner: runner, projectDir: dir, sdk: "x"),
+            hub: SSEHub())
+        let handlers = session.handlers(projectDir: dir, bundleDir: dir + "/.bundle")
+        let req = HTTPRequest(method: "GET", path: "/anything.png", headers: [:])
+        #expect(handlers.compactMap { $0(req) }.first == nil)
+    }
 }
