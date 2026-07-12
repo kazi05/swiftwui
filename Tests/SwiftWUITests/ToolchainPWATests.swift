@@ -107,6 +107,15 @@ import Testing
         }
     }
 
+    @Test func rejectsUnsafeURLCharactersInFilename() throws {
+        let dir = try makeDist(withSW: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try "junk".write(toFile: dir + "/bad?.txt", atomically: true, encoding: .utf8)
+        #expect(throws: ToolchainError.self) {
+            try PWAAssets.generateManifest(distDir: dir)
+        }
+    }
+
     @Test func symlinkedFileIsPrecached() throws {
         let dir = try makeDist(withSW: true)
         defer { try? FileManager.default.removeItem(atPath: dir) }
@@ -190,7 +199,10 @@ import Testing
         #expect(js.contains("swiftwui-precache-"))
         #expect(js.contains("url.origin !== self.location.origin"))   // same-origin guard
         #expect(!js.contains("https://"))                              // no cross-origin fetches
-        #expect(!js.contains("skipWaiting()") || js.contains("event.data.type === 'SKIP_WAITING'"))
+        // "skipWaiting()" alone also matches the file's own comment warning against
+        // calling it unconditionally — count the actual call form instead.
+        #expect(js.components(separatedBy: "self.skipWaiting()").count - 1 == 1)   // exactly one call site
+        #expect(js.contains("event.data.type === 'SKIP_WAITING'"))
     }
 }
 

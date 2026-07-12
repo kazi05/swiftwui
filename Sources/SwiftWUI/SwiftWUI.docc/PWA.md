@@ -22,9 +22,9 @@ either again does not overwrite files that already exist.
 
 `sw-assets.js` is generated fresh on every `build`/`ssg` run — never edit it
 by hand, and never place a file named `sw-assets.js` under `public/` (the
-name is reserved and would be silently overwritten). Everything under
-`dist/` is precached by the generated manifest, so keep an eye on total
-payload size as the site grows.
+name is reserved — the build fails with a reserved-name error). Everything
+under `dist/` is precached by the generated manifest, so keep an eye on
+total payload size as the site grows.
 
 ### Update flow
 

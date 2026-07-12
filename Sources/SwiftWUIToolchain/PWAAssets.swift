@@ -50,6 +50,11 @@ public enum PWAAssets {
             }
             guard !isDir.boolValue else { continue }
             if isExcluded(relPath: rel) { continue }
+            // A filename containing these breaks the sw.js Request URL (splits at
+            // ?/#, % mis-decodes) — loud error rather than a silently broken precache.
+            if rel.contains("?") || rel.contains("#") || rel.contains("%") {
+                throw ToolchainError.io("file name '\(rel)' contains '?', '#' or '%' — not representable as a precache URL; rename the file")
+            }
             guard let data = fm.contents(atPath: full) else {
                 throw ToolchainError.io("cannot read \(full) while generating sw-assets.js")
             }

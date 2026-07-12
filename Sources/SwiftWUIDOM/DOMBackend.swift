@@ -244,18 +244,17 @@ public final class DOMBackend: RendererBackend {
             if reg.waiting.object != nil, sw.controller.object != nil {
                 writer.setAppUpdateAvailable(true)
             }
+            // Install already in flight when register() resolves (common path: the
+            // browser's on-navigation update check started installing the new SW
+            // before the wasm booted — updatefound fired before we attached).
+            if let installing = reg.installing.object {
+                self.watchInstalling(installing, sw: sw, writer: writer)
+            }
             let onUpdateFound = JSClosure { [weak self] _ in
                 guard let self, let installing = self.swRegistration?.installing.object else {
                     return .undefined
                 }
-                let onState = JSClosure { _ in
-                    if installing.state.string == "installed", sw.controller.object != nil {
-                        writer.setAppUpdateAvailable(true)
-                    }
-                    return .undefined
-                }
-                _ = installing.addEventListener?("statechange", onState)
-                self.swStateChangeClosures.append(onState)   // JSClosure must outlive the page (v1 lesson)
+                self.watchInstalling(installing, sw: sw, writer: writer)
                 return .undefined
             }
             _ = reg.addEventListener?("updatefound", onUpdateFound)
@@ -268,6 +267,21 @@ public final class DOMBackend: RendererBackend {
             return .undefined
         }
         _ = promise.object?.then?(onRegistered, onError)
+    }
+    /// Attaches the statechange listener that flips appUpdateAvailable once an
+    /// `installing` worker finishes installing (and a controller already
+    /// exists, so this is an update, not the first install). Shared by both
+    /// call sites: an install already in flight when register() resolves, and
+    /// a later updatefound event.
+    private func watchInstalling(_ installing: JSObject, sw: JSObject, writer: EnvironmentSignals.Writer) {
+        let onState = JSClosure { _ in
+            if installing.state.string == "installed", sw.controller.object != nil {
+                writer.setAppUpdateAvailable(true)
+            }
+            return .undefined
+        }
+        _ = installing.addEventListener?("statechange", onState)
+        swStateChangeClosures.append(onState)   // JSClosure must outlive the page (v1 lesson)
     }
     public func reloadForUpdate() {
         let sw = JSObject.global.navigator.object?.serviceWorker.object
@@ -299,8 +313,12 @@ public final class DOMBackend: RendererBackend {
         if let onOnline = onlineClosure { _ = window?.removeEventListener?("online", onOnline) }
         if let onOffline = offlineClosure { _ = window?.removeEventListener?("offline", onOffline) }
         if let onStorage = storageClosure { _ = window?.removeEventListener?("storage", onStorage) }
-        // statechange was attached to a transient `installing` worker; dropping the
-        // retained closure is enough — the browser discards that worker after install.
+        // swStateChangeClosures is cleared below without individually removing each
+        // listener: this teardown only runs while the backend itself is being
+        // discarded (a hydration-mismatch remount), and that discard path
+        // completes before the register() promise ever resolves — so no
+        // statechange listener has been attached yet, and the array cannot
+        // outlive the backend regardless.
         if let reg = swRegistration, let onUpdateFound = swUpdateFoundClosure {
             _ = reg.removeEventListener?("updatefound", onUpdateFound)
         }
