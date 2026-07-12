@@ -196,6 +196,7 @@ import Testing
 
 @Suite struct PWABuildIntegrationTests {
     /// Mimics BuildCommand.run(): assemble dist from a fixture bundle, then generate.
+    /// Covers the BuildCommand shape only; SSG-shaped dist tested separately.
     private func makeProject(withPWA: Bool) throws -> (proj: String, bundle: String) {
         let fm = FileManager.default
         let proj = NSTemporaryDirectory() + "swiftwui-pwa-build-\(UUID().uuidString)"
@@ -231,5 +232,28 @@ import Testing
         try DistLayout.assemble(projectDir: proj, bundleDir: bundle, outDir: out)
         #expect(try PWAAssets.generateManifest(distDir: out) == false)
         #expect(!FileManager.default.fileExists(atPath: out + "/sw-assets.js"))
+    }
+
+    /// Mimics SSGCommand.run(): SSG renderer already wrote per-route pages,
+    /// then copyPublic brings sw.js in, then the manifest is generated.
+    @Test func ssgShapedDistGetsManifestWithoutRoutePages() throws {
+        let fm = FileManager.default
+        let proj = NSTemporaryDirectory() + "swiftwui-pwa-ssg-\(UUID().uuidString)"
+        let out = proj + "/dist"
+        defer { try? fm.removeItem(atPath: proj) }
+        try fm.createDirectory(atPath: out + "/about", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: out + "/app", withIntermediateDirectories: true)
+        try "shell".write(toFile: out + "/index.html", atomically: true, encoding: .utf8)
+        try "prerendered".write(toFile: out + "/about/index.html", atomically: true, encoding: .utf8)
+        try "wasm".write(toFile: out + "/app/App.wasm", atomically: true, encoding: .utf8)
+        try fm.createDirectory(atPath: proj + "/public", withIntermediateDirectories: true)
+        try "importScripts('/sw-assets.js');"
+            .write(toFile: proj + "/public/sw.js", atomically: true, encoding: .utf8)
+        try DistLayout.copyPublic(projectDir: proj, outDir: out)
+        #expect(try PWAAssets.generateManifest(distDir: out) == true)
+        let js = try String(contentsOfFile: out + "/sw-assets.js", encoding: .utf8)
+        #expect(js.contains("\"/index.html\""))          // root shell precached
+        #expect(!js.contains("/about/index.html"))        // route prerender excluded
+        #expect(js.contains("\"/app/App.wasm\""))
     }
 }
