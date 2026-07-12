@@ -61,6 +61,11 @@ public protocol RendererBackend: AnyObject {
     /// Activate a waiting service worker and reload the page. No-op default
     /// for non-browser backends.
     func reloadForUpdate()
+
+    // MARK: Window-level events (spec 2026-07-12)
+    /// Called once, lazily, on the first onWindowScroll/onWindowResize
+    /// subscription ever (page lifetime — like environment observation).
+    func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void)
 }
 
 extension RendererBackend {
@@ -71,4 +76,5 @@ extension RendererBackend {
     public func storageWrite(kind: StorageKind, key: String, value: String?) {}
     public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {}
     public func reloadForUpdate() {}
+    public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {}
 }

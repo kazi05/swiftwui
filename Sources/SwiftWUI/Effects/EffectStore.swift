@@ -8,11 +8,13 @@ enum EffectRequest {
     case task(id: NodeIdentity, taskID: AnyHashable?, policy: TaskPolicy, action: () async -> Void)
     case appear(id: NodeIdentity, action: () -> Void)
     case disappear(id: NodeIdentity, action: () -> Void)
+    case windowEvent(id: NodeIdentity, kind: WindowEventKind, action: (Any) -> Void)
 
     var id: NodeIdentity {
         switch self {
         case .onChange(let id, _, _, _, _), .task(let id, _, _, _),
-             .appear(let id, _), .disappear(let id, _): return id
+             .appear(let id, _), .disappear(let id, _),
+             .windowEvent(let id, _, _): return id
         }
     }
 }
@@ -28,6 +30,10 @@ public final class EffectStore {
     private var tasks: [NodeIdentity: (task: Task<Void, Never>, id: AnyHashable?)] = [:]
     private var appeared: Set<NodeIdentity> = []
     private var disappearActions: [NodeIdentity: () -> Void] = [:]
+    /// Set by Runtime (internal — `WindowEventHub` is an internal type even
+    /// though `EffectStore` is public).
+    var _windowHub: WindowEventHub?
+    private var windowSubscriptions: Set<NodeIdentity> = []
 
     /// SSG driver mode (spec §6): .build tasks are collected, not started;
     /// .client tasks don't run at all.
@@ -51,6 +57,8 @@ public final class EffectStore {
         previousValues.removeAll()
         appeared.removeAll()
         disappearActions.removeAll()
+        for id in windowSubscriptions { _windowHub?.unsubscribe(id: id) }
+        windowSubscriptions.removeAll()
     }
 
     /// Awaits every pending `.build` task in turn, tracking which identities
@@ -90,11 +98,13 @@ public final class EffectStore {
 
         var known = Set(previousValues.keys)
         known.formUnion(tasks.keys); known.formUnion(appeared); known.formUnion(disappearActions.keys)
+        known.formUnion(windowSubscriptions)
         for id in known where id.isSelfOrDescendant(of: passRoot) && !requested.contains(id) {
             if let t = tasks.removeValue(forKey: id) { t.task.cancel() }
             if let d = disappearActions.removeValue(forKey: id) { queue.append(d) }
             previousValues[id] = nil
             appeared.remove(id)
+            if windowSubscriptions.remove(id) != nil { _windowHub?.unsubscribe(id: id) }
         }
 
         for request in requests {
@@ -133,6 +143,9 @@ public final class EffectStore {
             case .disappear(let id, let action):
                 if !appeared.contains(id) { appeared.insert(id) }   // presence marker
                 disappearActions[id] = action
+            case .windowEvent(let id, let kind, let action):
+                windowSubscriptions.insert(id)
+                _windowHub?.subscribe(id: id, kind: kind, action: action)
             }
         }
         return queue

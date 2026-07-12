@@ -8,6 +8,7 @@ public final class Runtime<Backend: RendererBackend> {
     private let storage = StorageStore()
     private let listeners = ListenerRegistry()
     private let effects = EffectStore()
+    private let windowEvents = WindowEventHub()
     private let rootTag: AnyTag
     private let scheduleMicrotask: (@escaping () -> Void) -> Void
     private var current: Node?
@@ -70,6 +71,13 @@ public final class Runtime<Backend: RendererBackend> {
         self.globalStyles = globalStyles
         self.themes = themes
         self.fontFaces = fontFaces
+        effects._windowHub = windowEvents
+        windowEvents.onFirstSubscriber = { [weak self] in
+            guard let self else { return }
+            self.applier.backend.beginWindowEventObservation { [weak self] kind, payload in
+                self?.windowEvents.dispatch(kind, payload: payload)
+            }
+        }
     }
 
     /// Event entry point: backends' listeners call this with the fired ID;

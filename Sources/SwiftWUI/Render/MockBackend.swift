@@ -119,6 +119,11 @@ public final class MockBackend: RendererBackend {
         storageObserver?(kind, key, value)
     }
 
+    public private(set) var windowEventSink: ((WindowEventKind, Any) -> Void)?
+    public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
+        bump("beginWindowEventObservation"); windowEventSink = sink
+    }
+
     /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
     public func serializeHTML(_ node: MockNode? = nil) -> String {
         let n = node ?? container

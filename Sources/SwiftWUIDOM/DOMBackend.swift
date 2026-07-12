@@ -28,6 +28,8 @@ public final class DOMBackend: RendererBackend {
     private var schemeClosure: JSClosure?
     private var onlineClosure: JSClosure?
     private var offlineClosure: JSClosure?
+    private var windowScrollClosure: JSClosure?
+    private var windowResizeClosure: JSClosure?
     private var storageClosure: JSClosure?          // window "storage" event — same teardown as above
     private var colorSchemeQuery: JSObject?        // keep the MediaQueryList alive with its listener
     // PWA service-worker wiring (spec 2026-07-12) — retained for backend lifetime.
@@ -364,6 +366,25 @@ public final class DOMBackend: RendererBackend {
             _ = JSObject.global.location.object?.reload?()
         }
     }
+    public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
+        guard windowScrollClosure == nil, let window = JSObject.global.window.object else { return }
+        let scroll = JSClosure { _ in
+            sink(.scroll, ScrollEvent(x: JSObject.global.window.scrollX.number ?? 0,
+                                      y: JSObject.global.window.scrollY.number ?? 0))
+            return .undefined
+        }
+        let opts = JSObject.global.Object.function!.new()
+        opts.passive = .boolean(true)
+        _ = window.addEventListener?("scroll", scroll, opts)
+        let resize = JSClosure { _ in
+            sink(.resize, SizeEvent(width: JSObject.global.window.innerWidth.number ?? 0,
+                                    height: JSObject.global.window.innerHeight.number ?? 0))
+            return .undefined
+        }
+        _ = window.addEventListener?("resize", resize)
+        windowScrollClosure = scroll
+        windowResizeClosure = resize
+    }
     /// Detaches every environment-observation listener and releases its
     /// closure. Called by DOMRuntime when a mount attempt is discarded
     /// (hydration mismatch) — symmetric with beginEnvironmentObservation.
@@ -377,6 +398,8 @@ public final class DOMBackend: RendererBackend {
         if let onOnline = onlineClosure { _ = window?.removeEventListener?("online", onOnline) }
         if let onOffline = offlineClosure { _ = window?.removeEventListener?("offline", onOffline) }
         if let onStorage = storageClosure { _ = window?.removeEventListener?("storage", onStorage) }
+        if let onScroll = windowScrollClosure { _ = window?.removeEventListener?("scroll", onScroll) }
+        if let onResize = windowResizeClosure { _ = window?.removeEventListener?("resize", onResize) }
         // swStateChangeClosures is cleared below without individually removing each
         // listener: this teardown only runs while the backend itself is being
         // discarded (a hydration-mismatch remount), and that discard path
@@ -393,6 +416,8 @@ public final class DOMBackend: RendererBackend {
         onlineClosure = nil
         offlineClosure = nil
         storageClosure = nil
+        windowScrollClosure = nil
+        windowResizeClosure = nil
         colorSchemeQuery = nil
         for observer in domObservers.values { _ = observer.disconnect?() }
         domObservers = [:]

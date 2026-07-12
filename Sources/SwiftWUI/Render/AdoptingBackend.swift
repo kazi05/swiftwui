@@ -184,4 +184,7 @@ where Base.HostNode: AnyObject {
     public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {
         base.beginStorageObservation(onExternalChange: onExternalChange)
     }
+    public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
+        base.beginWindowEventObservation(sink)
+    }
 }
