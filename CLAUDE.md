@@ -21,6 +21,7 @@ Swift web UI framework: SwiftUI-inspired declarative API compiled to WebAssembly
 - **Escaping:** single `HTMLEscaping` choke point, serializer-only. Port from v1 verbatim (audited).
 - **Reactive env signals (phase 8a):** `EnvironmentSignals` (@Observable, per-Runtime) → computed `EnvironmentValues` keys; tracked ONLY when read inside a component `body` — primitive/_resolve/handler reads get no auto re-render (locale in 8c uses `markDirty(.root)` instead). New signals follow the Writer-closure recipe in EnvironmentSignals.swift.
 - **Web storage:** `@AppStorage`/`@SceneStorage` share one observable box per key; plaintext + origin-readable — never store secrets. `__swiftwui.` key prefix reserved.
+- **PWA (opt-in):** `swiftwui init --pwa` / `swiftwui pwa init` scaffold user-owned manifest+icons+sw.js; build/ssg regenerate `dist/sw-assets.js` (SHA-256 precache manifest, `sw-assets.js` is a reserved name); update surfaced via `\.appUpdateAvailable` + `\.reloadToUpdate`; SW never registers in dev. Per-route ssg prerenders are never precached (SEO artifact only).
 
 ## Build & test
 

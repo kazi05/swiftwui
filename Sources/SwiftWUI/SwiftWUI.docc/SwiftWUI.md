@@ -111,6 +111,10 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 - ``WebFile``
 - ``FilesEvent``
 
+### PWA
+
+- <doc:PWA>
+
 ### Rendering and advanced
 
 - ``HTMLRenderer``

@@ -12,6 +12,14 @@ A [SwiftWUI](https://github.com/swiftwasm) project. Pure Swift → WebAssembly.
     swiftwui ssg            # prerender pages into dist/ (hydrated on load)
     swiftwui serve dist     # preview the production output
 
+## PWA
+
+`swiftwui pwa init` adds a web-app manifest, placeholder icons, and an editable
+service worker (`public/sw.js`). After that, every `swiftwui build` regenerates
+`/sw-assets.js` — the offline precache list. Replace the placeholder icons in
+`public/icons/` before shipping. See the SwiftWUI PWA documentation for the
+update-toast pattern.
+
 ## Docker
 
 `Dockerfile` builds dist/ inside a pinned toolchain container (host and wasm SDK
