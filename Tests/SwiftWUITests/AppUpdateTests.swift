@@ -53,4 +53,19 @@ import Testing
         #expect(backend.counts["reloadForUpdate"] == 1)
         _ = runtime
     }
+
+    @Test func reloadToUpdateForwardsThroughAdoptingBackend() {
+        let cap = Capture()
+        let base = MockBackend()
+        let adopting = AdoptingBackend(base: base, container: base.container)
+        let sched = Sched()
+        let runtime = Runtime(backend: adopting, container: base.container,
+                              root: UpdateProbe(cap: cap),
+                              scheduleMicrotask: sched.schedule)
+        runtime.mount()
+        sched.drain()
+        cap.fn!()
+        #expect(base.reloadForUpdateCount == 1)
+        _ = runtime
+    }
 }
