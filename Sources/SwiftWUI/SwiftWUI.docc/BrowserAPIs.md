@@ -95,6 +95,39 @@ struct ItemList: Tag {
 
 Cancelling the enclosing `Task` aborts the underlying request.
 
+### Networking from anywhere
+
+`@Environment(\.webSession)` is the right choice inside a component's
+`body`, but a plain class — a view model, a service object — has no
+`@Environment` to read from. ``WebSession/shared`` is the app-wide default
+for exactly that case:
+
+```swift
+@Observable
+final class ItemsViewModel {
+    var items: [String] = []
+    private let session: WebSession
+    init(session: WebSession = .shared) { self.session = session }
+
+    func load() async {
+        if let payload: Payload = try? await session.json(from: "/data.json") {
+            items = payload.items
+        }
+    }
+}
+```
+
+Injecting `session` through `init` (defaulting to `.shared`) keeps the view
+model unit-testable — pass a scripted `WebSession` in tests without touching
+the shared instance. `.shared` itself is set once by the platform entry
+point (`WebSession.bootstrap(_:)`, called by the DOM boot sequence and by
+`SwiftWUIStatic`); outside a configured runtime it's `WebSession.unsupported`
+and every request throws `WebFetchError.unsupported`. Repeated
+`bootstrap(_:)` calls overwrite the shared session silently — the last call
+wins. `WebSession.resetShared()` puts it back to `.unsupported`, for tests
+and dev tooling. `@Environment(\.webSession)` is unaffected by any of this —
+it reads the runtime's own session, not the process-wide `.shared` default.
+
 ### File selection
 
 `Input(type: .file, accept:, multiple:)` combined with `.onFileSelection`

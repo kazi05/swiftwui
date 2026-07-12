@@ -99,6 +99,7 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 ### Browser APIs
 
 - <doc:BrowserAPIs>
+- <doc:Modifiers>
 - ``ColorScheme``
 - ``AppStorage``
 - ``SceneStorage``
