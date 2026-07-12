@@ -180,6 +180,11 @@ public final class Runtime<Backend: RendererBackend> {
         // Snapshot is never stale for routeInfo: navigation always marks .root (full pass),
         // which re-retains every row's environment.
         ctx.environment = row.environment
+        // Restore the caller's Styled scope. For a plain component this is a
+        // no-op (its own boundary resets scope), but `ModifiedTag` preserves it —
+        // without re-seeding, the scope marker would drop from the modifier body
+        // and wrapped content on this pass (scoped ≡ full invariant, spec §6/§11).
+        ctx.scopeClass = row.scopeClass
         isRendering = true
         let parentPath = NodeIdentity(segments: Array(id.segments.dropLast()))
         let nodes = resolve(row.tag, path: parentPath, ctx: &ctx)   // re-appends .type → same id

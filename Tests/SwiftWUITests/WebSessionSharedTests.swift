@@ -53,6 +53,35 @@ private final class MockTransport: FetchTransport {
         _ = try await StaticSite.generate(SharedProbeApp.self, config: .init(outDir: out, mode: .staticOnly))
         #expect(WebSession.shared !== WebSession.unsupported)
     }
+
+    @Test func environmentObservedSessionIsShared() async throws {
+        WebSession.resetShared()
+        SharedEnvProbe.shared.seen = nil
+        defer { WebSession.resetShared() }
+        let out = NSTemporaryDirectory() + "swiftwui-ssg-env-\(UUID().uuidString)"
+        _ = try await StaticSite.generate(SharedEnvApp.self, config: .init(outDir: out, mode: .staticOnly))
+        let seen = SharedEnvProbe.shared.seen              // capture before further awaits
+        #expect(seen != nil)
+        #expect(seen === WebSession.shared)                // same instance seeded into @Environment
+        #expect(seen !== WebSession.unsupported)
+    }
+}
+
+@MainActor private final class SharedEnvProbe {
+    static let shared = SharedEnvProbe()
+    var seen: WebSession?
+}
+private struct SharedEnvPage: Tag, Page {
+    var title: String { "Probe" }
+    @Environment(\.webSession) var session
+    var body: some Tag {
+        SharedEnvProbe.shared.seen = session
+        return Text("ok")
+    }
+}
+private struct SharedEnvApp: App {
+    init() {}
+    var body: some Tag { Router { Route("/") { SharedEnvPage() } } }
 }
 
 // Minimal StaticSite.generate fixture (mirrors WebFetchTests.ssgRuntimeSeesConfiguredSession).

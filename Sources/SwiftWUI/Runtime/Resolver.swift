@@ -50,7 +50,7 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     let id = path.appending(.type(ObjectIdentifier(T.self)))
     _TypeNameRegistry.register(T.self)     // snapshot keys need the stable name (spec D7)
     ctx.reachable.insert(id)
-    ctx.store.retain(AnyTag(tag), at: id, environment: ctx.environment)
+    ctx.store.retain(AnyTag(tag), at: id, environment: ctx.environment, scopeClass: ctx.scopeClass)
     let inv = ctx.invalidate
     if ctx.collectedRoutes == nil {                    // collect passes never link (C1: shared Slots would rebind live boxes)
         ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body

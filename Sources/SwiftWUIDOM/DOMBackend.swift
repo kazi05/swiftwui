@@ -14,6 +14,10 @@ public final class DOMBackend: RendererBackend {
     public typealias HostNode = JSObject
 
     private let jsDocument = JSObject.global.document
+    // The bridged `document` global is a computed getter — two bridge crossings
+    // and a fresh handle per call. Cache the SWDocument once; every
+    // createElement/createTextNode reuses it.
+    private lazy var swDocument: SWDocument = try! document
     private let dispatch: (ListenerID, Any?) -> Void
     private var closures: [String: JSClosure] = [:]   // "\(uid)#\(event)" → retained
     private var listenerIDs: [String: ListenerID] = [:]
@@ -41,12 +45,12 @@ public final class DOMBackend: RendererBackend {
     public init(dispatch: @escaping (ListenerID, Any?) -> Void) { self.dispatch = dispatch }
 
     public func createElement(_ tag: String) -> JSObject {
-        let el = try! document.createElement(tag).jsObject
+        let el = try! swDocument.createElement(tag).jsObject
         el.__swuid = .number(Double(nextUID)); nextUID += 1
         return el
     }
     public func createTextNode(_ text: String) -> JSObject {
-        let n = try! document.createTextNode(text).jsObject
+        let n = try! swDocument.createTextNode(text).jsObject
         n.__swuid = .number(Double(nextUID)); nextUID += 1
         return n
     }

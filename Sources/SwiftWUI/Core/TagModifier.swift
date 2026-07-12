@@ -30,7 +30,7 @@ public struct ModifiedTag<C: Tag, M: TagModifier>: Tag, _PrimitiveTag {
         _TypeNameRegistry.register(Self.self)
         let id = path.appending(.type(ObjectIdentifier(Self.self)))
         ctx.reachable.insert(id)
-        ctx.store.retain(AnyTag(self), at: id, environment: ctx.environment)
+        ctx.store.retain(AnyTag(self), at: id, environment: ctx.environment, scopeClass: ctx.scopeClass)
         let inv = ctx.invalidate
         if ctx.collectedRoutes == nil {          // same guard as component resolve (C1)
             ctx.store.link(modifier, at: id, environment: ctx.environment,

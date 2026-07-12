@@ -23,7 +23,8 @@ extension HTMLTag {
                                    _ action: @escaping (Bool) -> Void) -> Self {
         var copy = self
         copy._attributes.addObserver(.visibility(threshold: threshold)) { any in
-            action(any as? Bool ?? false)
+            guard let v = any as? Bool else { return }
+            action(v)
         }
         return copy
     }
