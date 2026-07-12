@@ -58,7 +58,7 @@ All changes live behind the existing backend seam; no public API change.
 - `Sources/SwiftWUIDOM/Generated/` — output of `swift package plugin bridge-js`, **committed to git**. The BridgeJS *build* plugin is NOT added to Package.swift.
 - Package.swift: SwiftWUIDOM target gains `.enableExperimentalFeature("Extern")`. Nothing else changes for consumers.
 
-**Regeneration rule (goes into CLAUDE.md + contributor docs):** any edit to `bridge-js.d.ts` requires re-running the command plugin and committing `Generated/` in the same commit.
+**Regeneration rule (goes into CLAUDE.md + contributor docs):** any edit to `bridge-js.global.d.ts` requires re-running the command plugin and committing `Generated/` in the same commit.
 
 ### 1.4 Spike (first task, with exit criterion)
 

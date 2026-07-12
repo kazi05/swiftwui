@@ -2,7 +2,7 @@ struct RetainedComponent {
     var tag: AnyTag
     var environment: EnvironmentValues
     /// Caller's `Styled` scope at retain time. Almost every component resets
-    /// scope at its own boundary (so this is nil for them), but `ModifiedTag`
+    /// scope at its own boundary (unused for them), but `ModifiedTag`
     /// deliberately preserves the caller's scope — a later `subtreePass` must
     /// re-seed it or the scope marker vanishes from the modifier body until the
     /// next full pass ("scoped ≡ full" invariant, spec §6/§11).

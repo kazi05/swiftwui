@@ -57,12 +57,14 @@ private final class MockTransport: FetchTransport {
     @Test func environmentObservedSessionIsShared() async throws {
         WebSession.resetShared()
         SharedEnvProbe.shared.seen = nil
+        SharedEnvProbe.shared.matchedShared = nil
         defer { WebSession.resetShared() }
         let out = NSTemporaryDirectory() + "swiftwui-ssg-env-\(UUID().uuidString)"
         _ = try await StaticSite.generate(SharedEnvApp.self, config: .init(outDir: out, mode: .staticOnly))
         let seen = SharedEnvProbe.shared.seen              // capture before further awaits
+        let matchedShared = SharedEnvProbe.shared.matchedShared
         #expect(seen != nil)
-        #expect(seen === WebSession.shared)                // same instance seeded into @Environment
+        #expect(matchedShared == true)                     // recorded synchronously inside body — race-free
         #expect(seen !== WebSession.unsupported)
     }
 }
@@ -70,12 +72,14 @@ private final class MockTransport: FetchTransport {
 @MainActor private final class SharedEnvProbe {
     static let shared = SharedEnvProbe()
     var seen: WebSession?
+    var matchedShared: Bool?
 }
 private struct SharedEnvPage: Tag, Page {
     var title: String { "Probe" }
     @Environment(\.webSession) var session
     var body: some Tag {
         SharedEnvProbe.shared.seen = session
+        SharedEnvProbe.shared.matchedShared = (session === WebSession.shared)
         return Text("ok")
     }
 }
