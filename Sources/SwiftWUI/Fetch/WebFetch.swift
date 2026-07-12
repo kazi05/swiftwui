@@ -129,6 +129,21 @@ public final class WebSession {
     }
 }
 
+extension WebSession {
+    /// Process-wide default, set by platform entry points (DOM boot, StaticSite).
+    /// Bare Runtime construction never touches it — parallel native tests that
+    /// build their own runtimes cannot race on this global.
+    @MainActor public private(set) static var shared: WebSession = .unsupported
+    /// Called by platform entry points; repeated calls overwrite silently.
+    @MainActor public static func bootstrap(_ session: WebSession) {
+        shared = session
+    }
+    /// Back to .unsupported. For tests and dev tooling.
+    @MainActor public static func resetShared() {
+        shared = .unsupported
+    }
+}
+
 struct _WebSessionKey: EnvironmentKey {
     static let defaultValue: WebSession? = nil
 }

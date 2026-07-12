@@ -52,12 +52,15 @@ public enum StaticSite {
     @MainActor
     public static func generate<A: App>(_ app: A.Type,
                                         config: StaticSiteConfig) async throws -> StaticSiteReport {
+        let session = WebSession(transport: URLSessionTransport())
+        WebSession.bootstrap(session)
+
         // --- enumerate ---
         let probeBackend = MockBackend()
         let probe = Runtime(backend: probeBackend, container: probeBackend.container,
                             root: A().body, scheduleMicrotask: { $0() },
                             globalStyles: A.globalStyles, themes: A.themes, fontFaces: A.fontFaces)
-        probe._webSession = WebSession(transport: URLSessionTransport())
+        probe._webSession = session
         probe._effects._buildMode = true      // enumeration must not run "/"'s effects for real
         probe.mount()
         let patterns = probe._collectRoutes()
@@ -93,7 +96,7 @@ public enum StaticSite {
         var documents: [(path: String, html: String)] = []
 
         for path in pagePaths {
-            let (html, css, redirect) = try await renderPage(A.self, path: path, config: config)
+            let (html, css, redirect) = try await renderPage(A.self, path: path, config: config, session: session)
             if let redirect {
                 report.redirects[path] = redirect
                 documents.append((path, redirectStub(to: redirect)))
@@ -144,7 +147,7 @@ public enum StaticSite {
 
     @MainActor
     private static func renderPage<A: App>(_ app: A.Type, path: String,
-                                           config: StaticSiteConfig) async throws
+                                           config: StaticSiteConfig, session: WebSession) async throws
         -> (html: String, css: String, redirect: String?) {
         // Immediate-drain scheduler: microtasks run synchronously in order.
         var queue: [() -> Void] = []
@@ -160,7 +163,7 @@ public enum StaticSite {
                               root: A().body, initialPath: path,
                               scheduleMicrotask: { queue.append($0) },
                               globalStyles: A.globalStyles, themes: A.themes, fontFaces: A.fontFaces)
-        runtime._webSession = WebSession(transport: URLSessionTransport())
+        runtime._webSession = session
         runtime._effects._buildMode = true
         runtime.mount()
         pump()                                     // guards/redirect hops settle here

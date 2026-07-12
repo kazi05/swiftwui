@@ -149,7 +149,8 @@ Event modifiers are **HTMLTag-only** (bag path, return `Self`), consistent with 
 extension WebSession {
     @MainActor public private(set) static var shared: WebSession = .unsupported
     /// Called by platform entry points (DOM boot, StaticSite). Repeated calls
-    /// overwrite with a console warning (dev hot-reload recreates the runtime).
+    /// overwrite silently (SSG and test runs bootstrap per generate; a dev
+    /// reload is a fresh process).
     @MainActor public static func bootstrap(_ session: WebSession)
     /// Back to .unsupported. For tests and dev tooling.
     @MainActor public static func resetShared()
