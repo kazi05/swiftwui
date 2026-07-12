@@ -207,14 +207,17 @@ private struct ScrollFixture: Tag {
         #expect(cap.longPressFires == 1)
     }
 
+    /// pointerdown then pointerup dispatched back-to-back with no `await` between
+    /// them: the LongPressState task is created and cancelled before it ever gets
+    /// a chance to run, so this can never race the 50ms timer (unlike sleeping
+    /// partway through the threshold and hoping the cancel wins).
     @Test func onLongPressCancelledByPointerUp() async throws {
         let cap = Recorder()
         let (rt, backend, sched) = makeRuntime(LongPressFixture(cap: cap))
         let div = findFirst(backend.container, tag: "div")!
         rt.dispatch(div.events["pointerdown"]!); sched.pump()
-        try await Task.sleep(for: .milliseconds(15))
         rt.dispatch(div.events["pointerup"]!); sched.pump()
-        try await Task.sleep(for: .milliseconds(2000))
+        try await Task.sleep(for: .milliseconds(150))
         #expect(cap.longPressFires == 0)
     }
 
@@ -223,9 +226,8 @@ private struct ScrollFixture: Tag {
         let (rt, backend, sched) = makeRuntime(LongPressFixture(cap: cap))
         let div = findFirst(backend.container, tag: "div")!
         rt.dispatch(div.events["pointerdown"]!); sched.pump()
-        try await Task.sleep(for: .milliseconds(15))
         rt.dispatch(div.events["pointercancel"]!); sched.pump()
-        try await Task.sleep(for: .milliseconds(2000))
+        try await Task.sleep(for: .milliseconds(150))
         #expect(cap.longPressFires == 0)
     }
 }
