@@ -13,7 +13,7 @@ import Foundation
 public final class DOMBackend: RendererBackend {
     public typealias HostNode = JSObject
 
-    private let document = JSObject.global.document
+    private let jsDocument = JSObject.global.document
     private let dispatch: (ListenerID, Any?) -> Void
     private var closures: [String: JSClosure] = [:]   // "\(uid)#\(event)" → retained
     private var listenerIDs: [String: ListenerID] = [:]
@@ -41,21 +41,23 @@ public final class DOMBackend: RendererBackend {
     public init(dispatch: @escaping (ListenerID, Any?) -> Void) { self.dispatch = dispatch }
 
     public func createElement(_ tag: String) -> JSObject {
-        let el = document.createElement(tag).object!
+        let el = try! document.createElement(tag).jsObject
         el.__swuid = .number(Double(nextUID)); nextUID += 1
         return el
     }
     public func createTextNode(_ text: String) -> JSObject {
-        let n = document.createTextNode(text).object!
+        let n = try! document.createTextNode(text).jsObject
         n.__swuid = .number(Double(nextUID)); nextUID += 1
         return n
     }
-    public func setText(_ node: JSObject, _ text: String) { node.data = .string(text) }
+    public func setText(_ node: JSObject, _ text: String) {
+        try! SWNode(unsafelyWrapping: node).setData(text)
+    }
     public func setAttribute(_ node: JSObject, name: String, value: String) {
-        _ = node.setAttribute?(name, value)
+        try! SWNode(unsafelyWrapping: node).setAttribute(name, value)
     }
     public func removeAttribute(_ node: JSObject, name: String) {
-        _ = node.removeAttribute?(name)
+        try! SWNode(unsafelyWrapping: node).removeAttribute(name)
     }
     public func setProperty(_ node: JSObject, name: String, value: PropertyValue) {
         switch value {
@@ -199,11 +201,13 @@ public final class DOMBackend: RendererBackend {
     }
 
     public func insert(_ child: JSObject, into parent: JSObject, before anchor: JSObject?) {
-        if let anchor { _ = parent.insertBefore?(child, anchor) }
-        else { _ = parent.appendChild?(child) }
+        let p = SWNode(unsafelyWrapping: parent)
+        if let anchor { try! p.insertBefore(SWNode(unsafelyWrapping: child),
+                                            SWNode(unsafelyWrapping: anchor)) }
+        else { try! p.appendChild(SWNode(unsafelyWrapping: child)) }
     }
     public func remove(_ child: JSObject, from parent: JSObject) {
-        _ = parent.removeChild?(child)
+        try! SWNode(unsafelyWrapping: parent).removeChild(SWNode(unsafelyWrapping: child))
     }
 
     private func closureKey(_ node: JSObject, _ event: String) -> String {
@@ -240,20 +244,20 @@ public final class DOMBackend: RendererBackend {
         _ = JSObject.global.history.object!.back!()
     }
     public func setTitle(_ title: String) {
-        document.title = .string(title)
+        jsDocument.title = .string(title)
     }
     public func setMetaTags(_ tags: [MetaTag]) {
         // Replace ONLY the managed set (spec §9): marked data-swiftwui.
-        let old = document.querySelectorAll("meta[data-swiftwui]").object
+        let old = jsDocument.querySelectorAll("meta[data-swiftwui]").object
         let n = Int(old?.length.number ?? 0)
         for i in (0..<n).reversed() {
             if let el = old?[i].object {
                 _ = el.parentNode.object?.removeChild?(el)
             }
         }
-        guard let head = document.head.object else { return }
+        guard let head = jsDocument.head.object else { return }
         for tag in tags {
-            let el = document.createElement("meta").object!
+            let el = jsDocument.createElement("meta").object!
             for name in tag.attributes.keys.sorted() {
                 _ = el.setAttribute?(name, tag.attributes[name]!)
             }
@@ -432,16 +436,16 @@ public final class DOMBackend: RendererBackend {
         // (nil) before that — a known, ledgered one-time churn.
         guard lastAppliedLinks != links else { return }
         // Replace ONLY the managed set (spec §9): marked data-swiftwui.
-        let old = document.querySelectorAll("link[data-swiftwui]").object
+        let old = jsDocument.querySelectorAll("link[data-swiftwui]").object
         let n = Int(old?.length.number ?? 0)
         for i in (0..<n).reversed() {
             if let el = old?[i].object {
                 _ = el.parentNode.object?.removeChild?(el)
             }
         }
-        guard let head = document.head.object else { return }
+        guard let head = jsDocument.head.object else { return }
         for link in links {
-            let el = document.createElement("link").object!
+            let el = jsDocument.createElement("link").object!
             for name in link.attributes.keys.sorted() {
                 _ = el.setAttribute?(name, link.attributes[name]!)
             }

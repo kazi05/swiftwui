@@ -17,3 +17,11 @@ type SWDocument = {
 }
 
 export const document: SWDocument
+
+// fetch() typed entry (spec §1.2) — options/response bodies stay `any`;
+// headers iteration and AbortController stay dynamic (hybrid boundary).
+type SWResponse = {
+    readonly status: number
+    arrayBuffer(): Promise<any>
+}
+export function fetch(url: string, options: any): Promise<SWResponse>

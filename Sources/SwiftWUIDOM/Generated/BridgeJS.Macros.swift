@@ -23,3 +23,10 @@
     @JSFunction func setAttribute(_ name: String, _ value: String) throws(JSException) -> Void
     @JSFunction func removeAttribute(_ name: String) throws(JSException) -> Void
 }
+
+@JSFunction(from: .global) func fetch(_ url: String, _ options: JSValue) async throws(JSException) -> SWResponse
+
+@JSClass struct SWResponse {
+    @JSGetter var status: Double
+    @JSFunction func arrayBuffer() async throws(JSException) -> JSValue
+}

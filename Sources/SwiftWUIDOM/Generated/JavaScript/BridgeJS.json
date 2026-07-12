@@ -3,7 +3,39 @@
     "children" : [
       {
         "functions" : [
+          {
+            "accessLevel" : "internal",
+            "effects" : {
+              "isAsync" : true,
+              "isStatic" : false,
+              "isThrows" : true
+            },
+            "from" : "global",
+            "name" : "fetch",
+            "parameters" : [
+              {
+                "name" : "url",
+                "type" : {
+                  "string" : {
 
+                  }
+                }
+              },
+              {
+                "name" : "options",
+                "type" : {
+                  "jsValue" : {
+
+                  }
+                }
+              }
+            ],
+            "returnType" : {
+              "jsObject" : {
+                "_0" : "SWResponse"
+              }
+            }
+          }
         ],
         "globalGetters" : [
           {
@@ -244,6 +276,46 @@
                   }
                 }
               }
+            ],
+            "staticMethods" : [
+
+            ]
+          },
+          {
+            "accessLevel" : "internal",
+            "getters" : [
+              {
+                "accessLevel" : "internal",
+                "name" : "status",
+                "type" : {
+                  "double" : {
+
+                  }
+                }
+              }
+            ],
+            "methods" : [
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : true,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "arrayBuffer",
+                "parameters" : [
+
+                ],
+                "returnType" : {
+                  "jsValue" : {
+
+                  }
+                }
+              }
+            ],
+            "name" : "SWResponse",
+            "setters" : [
+
             ],
             "staticMethods" : [
 

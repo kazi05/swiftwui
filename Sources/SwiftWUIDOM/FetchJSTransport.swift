@@ -1,6 +1,5 @@
 #if arch(wasm32)
 import JavaScriptKit
-import JavaScriptEventLoop
 import JavaScriptFoundationCompat
 import SwiftWUI
 #if canImport(FoundationEssentials)
@@ -49,24 +48,19 @@ final class FetchJSTransport: FetchTransport {
         defer { if let t = timeoutHandle { _ = JSObject.global.clearTimeout?(t) } }
 
         do {
-            let fetched = JSObject.global.fetch!(request.url, options)
-            guard let promise = JSPromise(fetched.object ?? JSObject()) else {
-                throw WebFetchError.network("fetch did not return a promise")
-            }
             let controllerBox = _AbortControllerBox(controller: controller)
             // One handler over the WHOLE fetch+read sequence: abort() rejects
             // both the response promise AND the in-flight arrayBuffer() body
             // read, so cancellation mid-download unblocks too (one controller
-            // covers both). .value() (not the `.value` property) inherits this
-            // closure's isolation instead of hopping to a nonisolated executor —
-            // required so the non-Sendable JSPromise/JSValue never cross an
-            // actor boundary (JavaScriptEventLoop.swift:210).
+            // covers both).
             return try await withTaskCancellationHandler {
-                let respValue = try await promise.value()
-                guard let resp = respValue.object else {
-                    throw WebFetchError.network("no response object")
-                }
-                let status = Int(resp.status.number ?? 0)
+                // BridgeJS's generated `fetch` is a plain nonisolated async global
+                // function (always hops off-actor); wasm32 is single-threaded, so
+                // sharing this JSValue across that hop is safe in practice — same
+                // escape hatch as _AbortControllerBox above.
+                nonisolated(unsafe) let optionsValue: JSValue = .object(options)
+                let resp = try await fetch(request.url, optionsValue)
+                let status = Int(try resp.status)
                 final class HeaderBox { var dict: [String: String] = [:] }
                 let box = HeaderBox()
                 let collect = JSClosure { args in
@@ -78,11 +72,11 @@ final class FetchJSTransport: FetchTransport {
                     }
                     return .undefined
                 }
-                _ = resp.headers.object?.forEach?(collect)   // synchronous iteration
-                guard let bufPromise = JSPromise((resp.arrayBuffer!()).object ?? JSObject()) else {
-                    throw WebFetchError.network("arrayBuffer did not return a promise")
-                }
-                let buf = try await bufPromise.value()
+                // Headers aren't part of the bridged SWResponse surface (spec §1.2
+                // hybrid boundary) — reach the raw JSObject via .jsObject for this
+                // one dynamic call.
+                _ = resp.jsObject.headers.object?.forEach?(collect)   // synchronous iteration
+                let buf = try await resp.arrayBuffer()
                 return (_dataFromArrayBuffer(buf), WebResponse(status: status, headers: box.dict))
             } onCancel: {
                 // nonisolated @Sendable — safe on single-threaded wasm.
