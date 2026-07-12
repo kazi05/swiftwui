@@ -64,7 +64,7 @@ public final class StateStore {
 
     /// Grafts persisted boxes onto a freshly constructed component, in Mirror
     /// declaration order, BEFORE its body is evaluated (spec §6).
-    func link(_ component: some Tag, at id: NodeIdentity,
+    func link(_ component: Any, at id: NodeIdentity,
               environment: EnvironmentValues, invalidate: @escaping () -> Void) {
         var props: [_StateProperty] = []
         for child in Mirror(reflecting: component).children {
