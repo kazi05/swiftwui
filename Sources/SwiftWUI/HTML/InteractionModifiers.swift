@@ -78,7 +78,7 @@ extension HTMLTag {
         return copy
     }
 
-    /// Element scroll offset. No explicit throttle: browsers already coalesce
+    /// Element scroll offset. No explicit throttle: browsers typically coalesce
     /// scroll events to one per frame (spec §2.2's "rAF throttle" is satisfied
     /// by the platform; the DOM listener is registered passive).
     public func onScrollChange(_ action: @escaping (ScrollEvent) -> Void) -> Self {

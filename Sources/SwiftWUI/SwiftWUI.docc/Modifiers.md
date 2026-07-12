@@ -81,7 +81,9 @@ Div { Text("Click me") }
   `pointerup`/`pointercancel`/`pointerleave`. **Known limitation:** a
   re-render mid-press replaces the element's handlers and their press
   tracker — the in-flight timer from before the re-render can no longer be
-  cancelled by the new `pointerup` handler.
+  cancelled by the new `pointerup` handler. Likewise, unmounting the element
+  mid-press (without a `pointerup`/`pointercancel` first) leaves the timer
+  running, so the action may still fire after the element is gone.
 
 ### Keyboard and focus
 
@@ -127,7 +129,7 @@ Div { /* tall content */ }
 ```
 
 `onScrollChange(_:)` delivers a ``ScrollEvent`` on the element's own
-`scroll` event. No explicit throttling is applied — browsers already
+`scroll` event. No explicit throttling is applied — browsers typically
 coalesce scroll events to one per animation frame, and the DOM listener is
 registered passive.
 

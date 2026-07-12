@@ -41,20 +41,20 @@ Public API of the framework is unchanged by section 1; sections 2–3 are additi
 
 All changes live behind the existing backend seam; no public API change.
 
-**Migrates to BridgeJS typed bindings:**
-- Structural DOM ops: `createElement`, `createTextNode`, `getElementById`, `appendChild`, `insertBefore`, `removeChild`, `setAttribute`, `removeAttribute`, `textContent`.
-- `classList.add/remove/toggle`, `style.setProperty`.
+**Migrates to BridgeJS typed bindings (as shipped):**
+- Structural DOM ops: `createElement`, `createTextNode`, `appendChild`, `insertBefore`, `removeChild`, `setAttribute`, `removeAttribute`.
 - `FetchJSTransport` (fetch + Promise↔async).
-- Typed-array paths (file reading).
+
+**N/A — no call sites in the shipped backend, so nothing to migrate:** `classList.add/remove/toggle`, `style.setProperty`, and the typed-array file-reading paths (`DOMFileReader` is left untouched on dynamic `JSObject`).
 
 **Stays on dynamic `JSObject`/`JSClosure`:**
 - `addEventListener` wiring and event-object property reads (`ListenerRegistry` fire-time lookup — per maintainer guidance and our own perf design).
-- Nullable DOM getters (until upstream #475).
-- Overload-sensitive calls and dynamic `style` property assignment.
+- Nullable DOM getters, e.g. `getElementById` (until upstream #475).
+- `textContent` writes and dynamic `style`/property assignment; overload-sensitive calls.
 
 ### 1.3 Structure
 
-- `Sources/SwiftWUIDOM/bridge-js.d.ts` — declaration of the DOM subset we call (Document, Element, Node, DOMTokenList, CSSStyleDeclaration; the methods listed above).
+- `Sources/SwiftWUIDOM/bridge-js.global.d.ts` — declaration of the DOM subset we call (`SWDocument`, `SWNode`, and the `document` global; the methods listed above). `bridge-js.d.ts` ships as an **intentionally empty placeholder** (its mere presence is required — JavaScriptKit 0.56.1's command plugin only forwards `--project` to the tool when it exists), and a root `tsconfig.json` works around the same upstream plugin gap.
 - `Sources/SwiftWUIDOM/Generated/` — output of `swift package plugin bridge-js`, **committed to git**. The BridgeJS *build* plugin is NOT added to Package.swift.
 - Package.swift: SwiftWUIDOM target gains `.enableExperimentalFeature("Extern")`. Nothing else changes for consumers.
 
@@ -121,12 +121,12 @@ Event modifiers are **HTMLTag-only** (bag path, return `Self`), consistent with 
 | `onKeyDown` / `onKeyUp { KeyEvent in }`, plus filtered form `onKeyDown(.enter, modifiers: [.meta]) { }` | HTMLTag | event layer, typed payload |
 | `onFocus { }` / `onBlur { }` | HTMLTag | event layer |
 | `onSubmit { }` (calls `preventDefault` by default) | HTMLTag (forms) | event layer |
-| `onScrollChange { ScrollOffset in }` | HTMLTag | `scroll` + rAF throttle on the backend side |
+| `onScrollChange { ScrollEvent in }` | HTMLTag | `scroll` + rAF throttle on the backend side |
 | `onVisibilityChange(threshold:) { Bool in }` | HTMLTag | IntersectionObserver (new observer infra) |
-| `onSizeChange { Size in }` | HTMLTag | ResizeObserver (same infra) |
-| `onWindowScroll { ScrollOffset in }`, `onWindowResize { Size in }` | any Tag | wrapper effect; window listener owned by the runtime; rAF throttle |
+| `onSizeChange { SizeEvent in }` | HTMLTag | ResizeObserver (same infra) |
+| `onWindowScroll { ScrollEvent in }`, `onWindowResize { SizeEvent in }` | any Tag | wrapper effect; window listener owned by the runtime; rAF throttle |
 
-- Typed payloads (`KeyEvent`, `ScrollOffset`, `Size`) extend the existing `EventPayloads.swift`.
+- Typed payloads (`KeyEvent`, `ScrollEvent`, `SizeEvent`) extend the existing `EventPayloads.swift`.
 - Custom event helpers: users extend `HTMLTag` with `.on(_:perform:)` (already public); custom compositional modifiers: `TagModifier`. Both are the documented extension points.
 
 ### 2.3 Observer infrastructure (new)
@@ -171,7 +171,7 @@ extension WebSession {
 - **Native suites:**
   - TagModifier: identity stability, `@State` in modifiers survives re-render, `@Environment` reads, `_ModifierContent` substitution, double-use-of-content behavior pinned.
   - Built-in helpers: MockBackend asserts registered listeners / observe-requests / window effects; typed payload decoding.
-  - WebSession.shared: bootstrap/reset/unsupported; bootstrap-overwrite warning; environment and shared are the same instance.
+  - WebSession.shared: bootstrap/reset/unsupported; repeated bootstrap overwrites silently (§3.1); environment and shared are the same instance.
 - **WASM gate:** SwiftWUIDOM + examples build with `swift-6.3.3-RELEASE_wasm`.
 - **Browser acceptance (manual checklist in the plan):** tap/hover/keyboard/scroll/visibility/size on a live page; fetch from a ViewModel via `WebSession.shared`; BridgeJS micro-benchmark before/after.
 
