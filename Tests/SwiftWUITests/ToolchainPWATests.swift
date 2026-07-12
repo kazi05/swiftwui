@@ -127,3 +127,69 @@ import Testing
         #expect(manifest.contains("\"integrity\": \"\(expectedIntegrity)\""))
     }
 }
+
+@Suite struct ScaffoldPWATests {
+    private func scratchProject() throws -> String {
+        let dir = NSTemporaryDirectory() + "swiftwui-pwa-scaffold-\(UUID().uuidString)"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        let html = "<!doctype html>\n<html>\n<head>\n  <title>X</title>\n</head>\n<body></body>\n</html>\n"
+        try html.write(toFile: dir + "/index.html", atomically: true, encoding: .utf8)
+        return dir
+    }
+
+    @Test func createsFullArtifactSet() throws {
+        let dir = try scratchProject()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let r = try Scaffolder.scaffoldPWA(into: dir, name: "MyApp")
+        let fm = FileManager.default
+        for f in ["public/manifest.webmanifest", "public/sw.js",
+                  "public/icons/icon-192.png", "public/icons/icon-512.png",
+                  "public/icons/icon-512-maskable.png", "public/icons/apple-touch-icon.png"] {
+            #expect(fm.fileExists(atPath: dir + "/" + f), "missing \(f)")
+        }
+        #expect(r.created.count == 7)   // 6 files + index.html head links
+        let manifest = try String(contentsOfFile: dir + "/public/manifest.webmanifest", encoding: .utf8)
+        #expect(manifest.contains("\"name\": \"MyApp\""))
+        #expect(!manifest.contains("{{"))
+        let html = try String(contentsOfFile: dir + "/index.html", encoding: .utf8)
+        #expect(html.contains("swiftwui:serviceworker"))
+        #expect(html.contains("rel=\"manifest\""))
+        // inserted before </head>
+        #expect(html.range(of: "swiftwui:serviceworker")!.lowerBound
+              < html.range(of: "</head>")!.lowerBound)
+    }
+
+    @Test func idempotentSecondRun() throws {
+        let dir = try scratchProject()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        _ = try Scaffolder.scaffoldPWA(into: dir, name: "MyApp")
+        let htmlBefore = try String(contentsOfFile: dir + "/index.html", encoding: .utf8)
+        try "user-edited".write(toFile: dir + "/public/sw.js", atomically: true, encoding: .utf8)
+        let r = try Scaffolder.scaffoldPWA(into: dir, name: "MyApp")
+        #expect(r.created.isEmpty)
+        #expect(r.skipped.count == 7)
+        // user edits survive; index.html untouched
+        #expect(try String(contentsOfFile: dir + "/public/sw.js", encoding: .utf8) == "user-edited")
+        #expect(try String(contentsOfFile: dir + "/index.html", encoding: .utf8) == htmlBefore)
+    }
+
+    @Test func missingIndexHTMLThrows() {
+        let dir = NSTemporaryDirectory() + "swiftwui-pwa-empty-\(UUID().uuidString)"
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        #expect(throws: (any Error).self) {
+            try Scaffolder.scaffoldPWA(into: dir, name: "X")
+        }
+    }
+
+    // sw.js cannot execute natively — structural validation per spec §Testing.
+    @Test func swTemplateStructure() throws {
+        let js = try String(contentsOf: ToolchainResources.url("pwa/sw.js"), encoding: .utf8)
+        #expect(js.contains("importScripts('/sw-assets.js')"))
+        #expect(js.contains("SKIP_WAITING"))
+        #expect(js.contains("swiftwui-precache-"))
+        #expect(js.contains("url.origin !== self.location.origin"))   // same-origin guard
+        #expect(!js.contains("https://"))                              // no cross-origin fetches
+        #expect(!js.contains("skipWaiting()") || js.contains("event.data.type === 'SKIP_WAITING'"))
+    }
+}

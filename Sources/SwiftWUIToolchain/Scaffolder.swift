@@ -53,4 +53,60 @@ public enum Scaffolder {
         try fm.copyItem(atPath: ToolchainResources.url("vendor/wasi-shim").path,
                         toPath: dir + "/vendor/wasi-shim")
     }
+
+    /// Lines inserted into index.html <head> by scaffoldPWA. The last meta is
+    /// the marker DOMBackend checks before registering the service worker.
+    static let pwaHeadLines = """
+      <link rel="manifest" href="/manifest.webmanifest">
+      <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+      <meta name="theme-color" content="#111111">
+      <meta name="swiftwui:serviceworker" content="/sw.js">
+
+    """
+
+    /// PWA artifact set (spec 2026-07-12): copied into the project's public/
+    /// (user-owned), plus link/marker lines inserted into index.html.
+    /// Idempotent: existing files are never overwritten.
+    public static func scaffoldPWA(into dir: String, name: String) throws -> (created: [String], skipped: [String]) {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: dir + "/index.html") else {
+            throw ToolchainError.io("'\(dir)' has no index.html — run from a SwiftWUI project root")
+        }
+        var created: [String] = [], skipped: [String] = []
+        let root = ToolchainResources.url("pwa")
+        let files: [(dest: String, src: String, text: Bool)] = [
+            ("public/manifest.webmanifest", "manifest.webmanifest", true),
+            ("public/sw.js", "sw.js", true),
+            ("public/icons/icon-192.png", "icons/icon-192.png", false),
+            ("public/icons/icon-512.png", "icons/icon-512.png", false),
+            ("public/icons/icon-512-maskable.png", "icons/icon-512-maskable.png", false),
+            ("public/icons/apple-touch-icon.png", "icons/apple-touch-icon.png", false),
+        ]
+        for f in files {
+            let dest = dir + "/" + f.dest
+            if fm.fileExists(atPath: dest) { skipped.append(f.dest); continue }
+            try fm.createDirectory(atPath: (dest as NSString).deletingLastPathComponent,
+                                   withIntermediateDirectories: true)
+            let raw = try Data(contentsOf: root.appendingPathComponent(f.src))
+            if f.text, var text = String(data: raw, encoding: .utf8) {
+                text = text.replacingOccurrences(of: "{{NAME}}", with: name)
+                try text.write(toFile: dest, atomically: true, encoding: .utf8)
+            } else {
+                try raw.write(to: URL(fileURLWithPath: dest))
+            }
+            created.append(f.dest)
+        }
+        let indexPath = dir + "/index.html"
+        var html = try String(contentsOfFile: indexPath, encoding: .utf8)
+        if html.contains("swiftwui:serviceworker") {
+            skipped.append("index.html (marker present)")
+        } else if let r = html.range(of: "</head>", options: .caseInsensitive) {
+            html.insert(contentsOf: pwaHeadLines, at: r.lowerBound)
+            try html.write(toFile: indexPath, atomically: true, encoding: .utf8)
+            created.append("index.html (head links)")
+        } else {
+            throw ToolchainError.io("index.html has no </head> — add the PWA head lines manually")
+        }
+        return (created, skipped)
+    }
 }
