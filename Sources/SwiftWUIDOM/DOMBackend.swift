@@ -70,7 +70,14 @@ public final class DOMBackend: RendererBackend {
             return .undefined
         }
         closures[key] = closure                        // Swift retention = lifetime (invariant 1)
-        _ = node.addEventListener?(event, closure)
+        if event == "scroll" {
+            // Never preventDefault()s — passive avoids blocking the scroll thread.
+            let opts = JSObject.global.Object.function!.new()
+            opts.passive = .boolean(true)
+            _ = node.addEventListener?(event, closure, opts)
+        } else {
+            _ = node.addEventListener?(event, closure)
+        }
     }
 
     static func decodePayload(event: String, jsEvent e: JSObject) -> Any {
@@ -107,6 +114,9 @@ public final class DOMBackend: RendererBackend {
             return SubmitEvent()
         case "focus", "blur":
             return FocusEvent()
+        case "scroll":
+            return ScrollEvent(x: target?.scrollLeft.number ?? 0,
+                               y: target?.scrollTop.number ?? 0)
         case "click":
             let click = ClickEvent(button: Int(e.button.number ?? 0),
                                    metaKey: e.metaKey.boolean ?? false,

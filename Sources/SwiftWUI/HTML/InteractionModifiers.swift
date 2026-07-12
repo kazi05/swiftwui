@@ -1,3 +1,8 @@
+/// Tracks the in-flight press timer for `onLongPress`. Not nested inside the
+/// modifier function: Swift disallows local types in a generic (Self-bound
+/// protocol extension) function context.
+private final class LongPressState { var task: Task<Void, Never>? }
+
 /// Built-in interaction modifiers (spec 2026-07-12 §2.2). Event modifiers are
 /// HTMLTag-only by design — they ride the attribute-bag path and return Self.
 extension HTMLTag {
@@ -48,5 +53,37 @@ extension HTMLTag {
     /// The DOM backend always calls preventDefault() on submit (spec D10).
     public func onSubmit(_ action: @escaping () -> Void) -> Self {
         var copy = self; copy._attributes.addHandler(.submit, action); return copy
+    }
+    /// Fires after the pointer stays down for `minimumDuration`.
+    /// Known limitation: a re-render mid-press replaces the handlers and their
+    /// press tracker; the in-flight timer from before the re-render can no
+    /// longer be cancelled by the new pointerup handler.
+    public func onLongPress(minimumDuration: Duration = .milliseconds(500),
+                            _ action: @escaping () -> Void) -> Self {
+        let state = LongPressState()
+        var copy = self
+        copy._attributes.addRawHandler(.pointerdown) { _ in
+            state.task?.cancel()
+            state.task = Task { @MainActor in
+                try? await Task.sleep(for: minimumDuration)
+                guard !Task.isCancelled else { return }
+                state.task = nil
+                action()
+            }
+        }
+        let cancel: (Any?) -> Void = { _ in state.task?.cancel(); state.task = nil }
+        copy._attributes.addRawHandler(.pointerup, cancel)
+        copy._attributes.addRawHandler(.pointercancel, cancel)
+        copy._attributes.addRawHandler(.pointerleave, cancel)
+        return copy
+    }
+
+    /// Element scroll offset. No explicit throttle: browsers already coalesce
+    /// scroll events to one per frame (spec §2.2's "rAF throttle" is satisfied
+    /// by the platform; the DOM listener is registered passive).
+    public func onScrollChange(_ action: @escaping (ScrollEvent) -> Void) -> Self {
+        var copy = self
+        copy._attributes.addHandler(.scroll, payload: ScrollEvent.self, action)
+        return copy
     }
 }

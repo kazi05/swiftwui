@@ -13,4 +13,9 @@ public struct EventName: RawRepresentable, Hashable, ExpressibleByStringLiteral 
     public static let dblclick: EventName = "dblclick"
     public static let mouseenter: EventName = "mouseenter"
     public static let mouseleave: EventName = "mouseleave"
+    public static let pointerdown: EventName = "pointerdown"
+    public static let pointerup: EventName = "pointerup"
+    public static let pointercancel: EventName = "pointercancel"
+    public static let pointerleave: EventName = "pointerleave"
+    public static let scroll: EventName = "scroll"
 }

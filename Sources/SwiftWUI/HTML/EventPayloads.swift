@@ -56,6 +56,13 @@ public struct EventModifiers: OptionSet, Equatable {
 public struct SubmitEvent { public init() {} }   // backend always preventDefault()s submit (spec D10)
 public struct FocusEvent  { public init() {} }
 
+/// Element scroll offset (spec §2.2).
+public struct ScrollEvent: Equatable {
+    public let x: Double
+    public let y: Double
+    public init(x: Double, y: Double) { self.x = x; self.y = y }
+}
+
 /// Escape-hatch payload for `.on(_:perform:)` — common fields of any event.
 public struct GenericEvent {
     public let type: String

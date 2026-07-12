@@ -13,6 +13,8 @@ private final class Recorder {
     var blurFires = 0
     var submitFires = 0
     var order: [Int] = []
+    var longPressFires = 0
+    var scrollEvents: [ScrollEvent] = []
 }
 
 private struct TapFixture: Tag {
@@ -60,6 +62,16 @@ private struct CompositionFixture: Tag {
     var body: some Tag {
         Button("x", onClick: { cap.order.append(1) }).onTap { cap.order.append(2) }
     }
+}
+private struct LongPressFixture: Tag {
+    let cap: Recorder
+    var body: some Tag {
+        Div().onLongPress(minimumDuration: .milliseconds(50)) { cap.longPressFires += 1 }
+    }
+}
+private struct ScrollFixture: Tag {
+    let cap: Recorder
+    var body: some Tag { Div().onScrollChange { cap.scrollEvents.append($0) } }
 }
 
 @Suite @MainActor struct InteractionModifierTests {
@@ -176,5 +188,44 @@ private struct CompositionFixture: Tag {
         let button = findFirst(backend.container, tag: "button")!
         rt.dispatch(button.events["click"]!); sched.pump()
         #expect(cap.order == [1, 2])
+    }
+
+    @Test func onScrollChangeReceivesScrollEvent() {
+        let cap = Recorder()
+        let (rt, backend, sched) = makeRuntime(ScrollFixture(cap: cap))
+        let div = findFirst(backend.container, tag: "div")!
+        rt.dispatch(div.events["scroll"]!, payload: ScrollEvent(x: 0, y: 42)); sched.pump()
+        #expect(cap.scrollEvents == [ScrollEvent(x: 0, y: 42)])
+    }
+
+    @Test func onLongPressFiresAfterMinimumDuration() async throws {
+        let cap = Recorder()
+        let (rt, backend, sched) = makeRuntime(LongPressFixture(cap: cap))
+        let div = findFirst(backend.container, tag: "div")!
+        rt.dispatch(div.events["pointerdown"]!); sched.pump()
+        try await Task.sleep(for: .milliseconds(2000))
+        #expect(cap.longPressFires == 1)
+    }
+
+    @Test func onLongPressCancelledByPointerUp() async throws {
+        let cap = Recorder()
+        let (rt, backend, sched) = makeRuntime(LongPressFixture(cap: cap))
+        let div = findFirst(backend.container, tag: "div")!
+        rt.dispatch(div.events["pointerdown"]!); sched.pump()
+        try await Task.sleep(for: .milliseconds(15))
+        rt.dispatch(div.events["pointerup"]!); sched.pump()
+        try await Task.sleep(for: .milliseconds(2000))
+        #expect(cap.longPressFires == 0)
+    }
+
+    @Test func onLongPressCancelledByPointerCancel() async throws {
+        let cap = Recorder()
+        let (rt, backend, sched) = makeRuntime(LongPressFixture(cap: cap))
+        let div = findFirst(backend.container, tag: "div")!
+        rt.dispatch(div.events["pointerdown"]!); sched.pump()
+        try await Task.sleep(for: .milliseconds(15))
+        rt.dispatch(div.events["pointercancel"]!); sched.pump()
+        try await Task.sleep(for: .milliseconds(2000))
+        #expect(cap.longPressFires == 0)
     }
 }
