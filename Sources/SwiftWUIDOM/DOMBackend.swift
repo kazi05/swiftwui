@@ -25,6 +25,10 @@ public final class DOMBackend: RendererBackend {
     private var offlineClosure: JSClosure?
     private var storageClosure: JSClosure?          // window "storage" event — same teardown as above
     private var colorSchemeQuery: JSObject?        // keep the MediaQueryList alive with its listener
+    // PWA service-worker wiring (spec 2026-07-12) — retained for backend lifetime.
+    private var swUpdateFoundClosure: JSClosure?
+    private var swStateChangeClosure: JSClosure?
+    private var swRegistration: JSObject?
     private var lastAppliedLinks: [LinkTag]? = nil   // churn guard (setLinks) — nil means "never applied"
 
     public init(dispatch: @escaping (ListenerID, Any?) -> Void) { self.dispatch = dispatch }
@@ -215,6 +219,72 @@ public final class DOMBackend: RendererBackend {
         _ = window?.addEventListener?("offline", onOffline)
         onlineClosure = onOnline
         offlineClosure = onOffline
+        registerServiceWorkerIfConfigured(writer)
+    }
+    /// PWA (spec 2026-07-12): register the service worker when the scaffold
+    /// marker is present. Skipped in dev — a caching SW poisons hot reload.
+    /// Safe to run again after endEnvironmentObservation(): register() with
+    /// the same script URL returns the existing registration.
+    private func registerServiceWorkerIfConfigured(_ writer: EnvironmentSignals.Writer) {
+        guard JSObject.global.__swiftwui_dev.boolean != true else { return }
+        let document = JSObject.global.document
+        guard let meta = document.querySelector("meta[name=\"swiftwui:serviceworker\"]").object,
+              let path = meta.getAttribute?("content").string, !path.isEmpty else { return }
+        guard let sw = JSObject.global.navigator.object?.serviceWorker.object else { return }
+
+        let options = JSObject.global.Object.function!.new()
+        options.updateViaCache = "none"   // the SW script itself must never stick in HTTP cache
+        let promise = sw.register!(path, options)
+
+        let onRegistered = JSOneshotClosure { [weak self] args in
+            guard let self, let reg = args.first?.object else { return .undefined }
+            self.swRegistration = reg
+            // Update found while the tab was away: waiting worker already there.
+            // controller != nil distinguishes an update from the first install.
+            if reg.waiting.object != nil, sw.controller.object != nil {
+                writer.setAppUpdateAvailable(true)
+            }
+            let onUpdateFound = JSClosure { [weak self] _ in
+                guard let self, let installing = self.swRegistration?.installing.object else {
+                    return .undefined
+                }
+                let onState = JSClosure { _ in
+                    if installing.state.string == "installed", sw.controller.object != nil {
+                        writer.setAppUpdateAvailable(true)
+                    }
+                    return .undefined
+                }
+                _ = installing.addEventListener?("statechange", onState)
+                self.swStateChangeClosure = onState   // JSClosure must outlive the page (v1 lesson)
+                return .undefined
+            }
+            _ = reg.addEventListener?("updatefound", onUpdateFound)
+            self.swUpdateFoundClosure = onUpdateFound   // JSClosure must outlive the page (v1 lesson)
+            return .undefined
+        }
+        let onError = JSOneshotClosure { args in
+            _ = JSObject.global.console.object?.warn?(
+                "SwiftWUI: service worker registration failed", args.first ?? .undefined)
+            return .undefined
+        }
+        _ = promise.object?.then?(onRegistered, onError)
+    }
+    public func reloadForUpdate() {
+        let sw = JSObject.global.navigator.object?.serviceWorker.object
+        if let reg = swRegistration, let waiting = reg.waiting.object {
+            // Reload only after the waiting worker takes control — reloading
+            // first would race the activation and boot the OLD version.
+            let onControllerChange = JSOneshotClosure { _ in
+                _ = JSObject.global.location.object?.reload?()
+                return .undefined
+            }
+            _ = sw?.addEventListener?("controllerchange", onControllerChange)
+            let msg = JSObject.global.Object.function!.new()
+            msg.type = "SKIP_WAITING"
+            _ = waiting.postMessage?(msg)
+        } else {
+            _ = JSObject.global.location.object?.reload?()
+        }
     }
     /// Detaches every environment-observation listener and releases its
     /// closure. Called by DOMRuntime when a mount attempt is discarded
@@ -229,6 +299,14 @@ public final class DOMBackend: RendererBackend {
         if let onOnline = onlineClosure { _ = window?.removeEventListener?("online", onOnline) }
         if let onOffline = offlineClosure { _ = window?.removeEventListener?("offline", onOffline) }
         if let onStorage = storageClosure { _ = window?.removeEventListener?("storage", onStorage) }
+        // statechange was attached to a transient `installing` worker; dropping the
+        // retained closure is enough — the browser discards that worker after install.
+        if let reg = swRegistration, let onUpdateFound = swUpdateFoundClosure {
+            _ = reg.removeEventListener?("updatefound", onUpdateFound)
+        }
+        swUpdateFoundClosure = nil
+        swStateChangeClosure = nil
+        swRegistration = nil
         schemeClosure = nil
         onlineClosure = nil
         offlineClosure = nil
