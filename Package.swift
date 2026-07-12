@@ -23,6 +23,13 @@ let package = Package(
             .product(name: "JavaScriptKit", package: "JavaScriptKit"),
             .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
             .product(name: "JavaScriptFoundationCompat", package: "JavaScriptKit"),
+        ], exclude: [
+            "bridge-js.config.json",
+            "bridge-js.d.ts",
+            "bridge-js.global.d.ts",
+            "Generated/JavaScript",
+        ], swiftSettings: [
+            .enableExperimentalFeature("Extern")   // required by BridgeJS Generated/ code
         ]),
         .target(name: "SwiftWUIToolchain",
                 resources: [.copy("Resources")]),

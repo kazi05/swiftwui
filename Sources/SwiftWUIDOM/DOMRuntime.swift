@@ -95,6 +95,7 @@ public enum DOMRuntime {
                              fontFaces: [FontFace] = []) {
         JavaScriptEventLoop.installGlobalExecutor()
         assertReflectionAlive()
+        assertBridgeJSAlive()
         let document = JSObject.global.document
         let container: JSObject = selector == "body"
             ? document.body.object!

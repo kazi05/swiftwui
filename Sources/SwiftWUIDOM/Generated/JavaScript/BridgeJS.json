@@ -1,0 +1,260 @@
+{
+  "imported" : {
+    "children" : [
+      {
+        "functions" : [
+
+        ],
+        "globalGetters" : [
+          {
+            "accessLevel" : "internal",
+            "from" : "global",
+            "name" : "document",
+            "type" : {
+              "jsObject" : {
+                "_0" : "SWDocument"
+              }
+            }
+          }
+        ],
+        "types" : [
+          {
+            "accessLevel" : "internal",
+            "getters" : [
+
+            ],
+            "methods" : [
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "createElement",
+                "parameters" : [
+                  {
+                    "name" : "tag",
+                    "type" : {
+                      "string" : {
+
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "jsObject" : {
+                    "_0" : "SWNode"
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "createTextNode",
+                "parameters" : [
+                  {
+                    "name" : "data",
+                    "type" : {
+                      "string" : {
+
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "jsObject" : {
+                    "_0" : "SWNode"
+                  }
+                }
+              }
+            ],
+            "name" : "SWDocument",
+            "setters" : [
+
+            ],
+            "staticMethods" : [
+
+            ]
+          },
+          {
+            "accessLevel" : "internal",
+            "getters" : [
+              {
+                "accessLevel" : "internal",
+                "name" : "data",
+                "type" : {
+                  "string" : {
+
+                  }
+                }
+              }
+            ],
+            "methods" : [
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "appendChild",
+                "parameters" : [
+                  {
+                    "name" : "child",
+                    "type" : {
+                      "jsObject" : {
+                        "_0" : "SWNode"
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "void" : {
+
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "insertBefore",
+                "parameters" : [
+                  {
+                    "name" : "node",
+                    "type" : {
+                      "jsObject" : {
+                        "_0" : "SWNode"
+                      }
+                    }
+                  },
+                  {
+                    "name" : "anchor",
+                    "type" : {
+                      "jsObject" : {
+                        "_0" : "SWNode"
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "void" : {
+
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "removeChild",
+                "parameters" : [
+                  {
+                    "name" : "child",
+                    "type" : {
+                      "jsObject" : {
+                        "_0" : "SWNode"
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "void" : {
+
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "setAttribute",
+                "parameters" : [
+                  {
+                    "name" : "name",
+                    "type" : {
+                      "string" : {
+
+                      }
+                    }
+                  },
+                  {
+                    "name" : "value",
+                    "type" : {
+                      "string" : {
+
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "void" : {
+
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "removeAttribute",
+                "parameters" : [
+                  {
+                    "name" : "name",
+                    "type" : {
+                      "string" : {
+
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "void" : {
+
+                  }
+                }
+              }
+            ],
+            "name" : "SWNode",
+            "setters" : [
+              {
+                "accessLevel" : "internal",
+                "functionName" : "data_set",
+                "name" : "data",
+                "type" : {
+                  "string" : {
+
+                  }
+                }
+              }
+            ],
+            "staticMethods" : [
+
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "moduleName" : "SwiftWUIDOM",
+  "usedExternalModules" : [
+
+  ]
+}
