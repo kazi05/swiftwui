@@ -82,6 +82,9 @@ public final class MockBackend: RendererBackend {
         environmentWriter = writer
     }
 
+    public private(set) var reloadForUpdateCount = 0
+    public func reloadForUpdate() { bump("reloadForUpdate"); reloadForUpdateCount += 1 }
+
     public var localStorage: [String: String] = [:]        // pre-seedable by tests
     public var sessionStorage: [String: String] = [:]
     public private(set) var storageObserver: ((StorageKind, String, String?) -> Void)?

@@ -51,6 +51,11 @@ public protocol RendererBackend: AnyObject {
     /// Cross-document `storage` events (localStorage only by platform design).
     /// The backend retains the callback for its lifetime.
     func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void)
+
+    // MARK: PWA (spec 2026-07-12)
+    /// Activate a waiting service worker and reload the page. No-op default
+    /// for non-browser backends.
+    func reloadForUpdate()
 }
 
 extension RendererBackend {
@@ -58,4 +63,5 @@ extension RendererBackend {
     public func storageRead(kind: StorageKind, key: String) -> String? { nil }
     public func storageWrite(kind: StorageKind, key: String, value: String?) {}
     public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {}
+    public func reloadForUpdate() {}
 }

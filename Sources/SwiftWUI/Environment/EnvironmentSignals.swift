@@ -13,20 +13,25 @@ import Observation
 public final class EnvironmentSignals {
     public private(set) var colorScheme: ColorScheme = .light
     public private(set) var isOnline: Bool = true
+    /// A new service-worker version is installed and waiting (PWA spec 2026-07-12).
+    public private(set) var appUpdateAvailable: Bool = false
     public init() {}
 
     func _setColorScheme(_ v: ColorScheme) { colorScheme = v }
     func _setOnline(_ v: Bool) { isOnline = v }
+    func _setAppUpdateAvailable(_ v: Bool) { appUpdateAvailable = v }
 
     /// Cross-module write surface: setters stay core-private; backends receive
     /// closures via `RendererBackend.beginEnvironmentObservation`.
     public struct Writer {
         public let setColorScheme: (ColorScheme) -> Void
         public let setOnline: (Bool) -> Void
+        public let setAppUpdateAvailable: (Bool) -> Void
     }
     var writer: Writer {
         Writer(setColorScheme: { [weak self] in self?._setColorScheme($0) },
-               setOnline: { [weak self] in self?._setOnline($0) })
+               setOnline: { [weak self] in self?._setOnline($0) },
+               setAppUpdateAvailable: { [weak self] in self?._setAppUpdateAvailable($0) })
     }
 }
 
@@ -43,4 +48,7 @@ extension EnvironmentValues {
     public var colorScheme: ColorScheme { _signals?.colorScheme ?? .light }
     /// `navigator.onLine`. `true` outside a live runtime.
     public var isOnline: Bool { _signals?.isOnline ?? true }
+    /// True when a new app version is downloaded and waiting; pair with
+    /// `\.reloadToUpdate` to offer a reload. `false` outside a live runtime.
+    public var appUpdateAvailable: Bool { _signals?.appUpdateAvailable ?? false }
 }

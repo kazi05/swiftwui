@@ -248,6 +248,7 @@ public final class Runtime<Backend: RendererBackend> {
             self?.navigate(to: path, replace: replace)
         }
         ctx.environment.back = { [weak self] in self?.applier.backend.historyBack() }
+        ctx.environment.reloadToUpdate = { [weak self] in self?.applier.backend.reloadForUpdate() }
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
         isRendering = false
