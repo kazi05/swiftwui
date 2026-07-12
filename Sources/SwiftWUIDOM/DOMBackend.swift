@@ -27,7 +27,7 @@ public final class DOMBackend: RendererBackend {
     private var colorSchemeQuery: JSObject?        // keep the MediaQueryList alive with its listener
     // PWA service-worker wiring (spec 2026-07-12) — retained for backend lifetime.
     private var swUpdateFoundClosure: JSClosure?
-    private var swStateChangeClosure: JSClosure?
+    private var swStateChangeClosures: [JSClosure] = []
     private var swRegistration: JSObject?
     private var lastAppliedLinks: [LinkTag]? = nil   // churn guard (setLinks) — nil means "never applied"
 
@@ -255,7 +255,7 @@ public final class DOMBackend: RendererBackend {
                     return .undefined
                 }
                 _ = installing.addEventListener?("statechange", onState)
-                self.swStateChangeClosure = onState   // JSClosure must outlive the page (v1 lesson)
+                self.swStateChangeClosures.append(onState)   // JSClosure must outlive the page (v1 lesson)
                 return .undefined
             }
             _ = reg.addEventListener?("updatefound", onUpdateFound)
@@ -305,7 +305,7 @@ public final class DOMBackend: RendererBackend {
             _ = reg.removeEventListener?("updatefound", onUpdateFound)
         }
         swUpdateFoundClosure = nil
-        swStateChangeClosure = nil
+        swStateChangeClosures = []
         swRegistration = nil
         schemeClosure = nil
         onlineClosure = nil
