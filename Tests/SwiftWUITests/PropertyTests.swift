@@ -5,7 +5,7 @@ import Testing
     private func el(_ props: [String: PropertyValue]) -> Node {
         .element(ElementNode(identity: .root.appending(.child(0)), tag: "input",
                              attributes: ["type": "text"], properties: props,
-                             listeners: [:], children: [], key: nil))
+                             listeners: [:], observers: [:], children: [], key: nil))
     }
 
     @Test func diffEmitsSetPropertyOnChange() {

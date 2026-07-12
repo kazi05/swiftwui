@@ -4,7 +4,7 @@ import Testing
 private func el(_ tag: String, id: NodeIdentity = .root, attrs: [String: String] = [:],
                 listeners: [String: ListenerID] = [:], children: [Node] = [], key: NodeKey? = nil) -> Node {
     .element(ElementNode(identity: id, tag: tag, attributes: attrs,
-                         listeners: listeners, children: children, key: key))
+                         listeners: listeners, observers: [:], children: children, key: key))
 }
 
 @Suite struct ReconcilerTests {

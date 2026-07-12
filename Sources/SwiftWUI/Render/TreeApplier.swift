@@ -8,6 +8,7 @@ final class MountedNode<N> {
     var indexInParent: Int = 0
     var children: [MountedNode<N>] = []
     var events: Set<String> = []
+    var observerKinds: Set<ObserverKind> = []
     init(host: N?, hostParent: N, componentIdentity: NodeIdentity? = nil) {
         self.host = host; self.hostParent = hostParent; self.componentIdentity = componentIdentity
     }
@@ -48,9 +49,13 @@ final class TreeApplier<Backend: RendererBackend> {
             for event in el.listeners.keys.sorted() {
                 backend.setEventListener(h, event: event, id: el.listeners[event]!)
             }
+            for kind in el.observers.keys.sorted(by: { $0.key < $1.key }) {
+                backend.observe(h, kind: kind, id: el.observers[kind]!)
+            }
             backend.insert(h, into: hostParent, before: anchor)
             let m = MountedNode(host: h, hostParent: hostParent)
             m.events = Set(el.listeners.keys)
+            m.observerKinds = Set(el.observers.keys)
             for child in el.children {
                 let cm = mount(child, hostParent: h, before: nil)
                 cm.parent = m; cm.indexInParent = m.children.count
@@ -86,6 +91,7 @@ final class TreeApplier<Backend: RendererBackend> {
         for c in m.children { tearDownListeners(c) }
         if let h = m.host {
             for e in m.events { backend.removeEventListener(h, event: e) }
+            for k in m.observerKinds { backend.unobserve(h, kind: k) }
         }
     }
     private func removeHosts(_ m: MountedNode<Backend.HostNode>) {
@@ -135,6 +141,12 @@ final class TreeApplier<Backend: RendererBackend> {
             case .removeListener(let event):
                 backend.removeEventListener(m.host!, event: event)
                 m.events.remove(event)
+            case .setObserver(let kind, let id):
+                backend.observe(m.host!, kind: kind, id: id)
+                m.observerKinds.insert(kind)
+            case .removeObserver(let kind):
+                backend.unobserve(m.host!, kind: kind)
+                m.observerKinds.remove(kind)
             case .replaceSelf(let new):
                 replace(m, with: new, endAnchor: endAnchor)
             case .updateChildren(let plan):

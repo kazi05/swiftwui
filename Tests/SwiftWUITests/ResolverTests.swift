@@ -73,7 +73,7 @@ private struct Pair: Tag {
     }
 
     @Test func coalesceMergesAdjacentText() {
-        let merged = coalesceText([.text("a"), .text("b"), .element(ElementNode(identity: .root, tag: "br", attributes: [:], listeners: [:], children: [], key: nil)), .text("c")])
+        let merged = coalesceText([.text("a"), .text("b"), .element(ElementNode(identity: .root, tag: "br", attributes: [:], listeners: [:], observers: [:], children: [], key: nil)), .text("c")])
         #expect(merged.count == 3)
         #expect(merged[0] == .text("ab"))
     }

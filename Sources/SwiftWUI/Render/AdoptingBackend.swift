@@ -158,6 +158,8 @@ where Base.HostNode: AnyObject {
     public func setProperty(_ node: HostNode, name: String, value: PropertyValue) { base.setProperty(node, name: name, value: value) }
     public func setEventListener(_ node: HostNode, event: String, id: ListenerID) { base.setEventListener(node, event: event, id: id) }
     public func removeEventListener(_ node: HostNode, event: String) { base.removeEventListener(node, event: event) }
+    public func observe(_ node: Base.HostNode, kind: ObserverKind, id: ListenerID) { base.observe(node, kind: kind, id: id) }
+    public func unobserve(_ node: Base.HostNode, kind: ObserverKind) { base.unobserve(node, kind: kind) }
     public func remove(_ child: HostNode, from parent: HostNode) { base.remove(child, from: parent) }
     public func setStylesheet(_ text: String) { base.setStylesheet(text) }
     public func pushState(path: String) { base.pushState(path: path) }

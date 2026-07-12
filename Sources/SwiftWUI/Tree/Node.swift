@@ -15,6 +15,7 @@ public struct ElementNode: Equatable {
     public var attributes: [String: String]
     public var properties: [String: PropertyValue] = [:]
     public var listeners: [String: ListenerID]
+    public var observers: [ObserverKind: ListenerID]
     public var children: [Node]
     public var key: NodeKey?
 }

@@ -90,9 +90,9 @@ private struct HostView2: Tag {
     @Test func mismatchProducesFreshNotReplaceSelf() {
         let r = Reconciler()
         let oldE = Node.element(ElementNode(identity: .root.appending(.child(0)), tag: "div",
-                                            attributes: [:], listeners: [:], children: [], key: nil))
+                                            attributes: [:], listeners: [:], observers: [:], children: [], key: nil))
         let newE = Node.element(ElementNode(identity: .root.appending(.child(0)), tag: "span",
-                                            attributes: [:], listeners: [:], children: [], key: nil))
+                                            attributes: [:], listeners: [:], observers: [:], children: [], key: nil))
         let plan = r.diffChildren(old: [oldE], new: [newE])
         // tag change at same identity → NOT a reuse slot
         guard case .fresh = plan.slots[0] else { Issue.record("expected fresh slot"); return }
@@ -102,7 +102,7 @@ private struct HostView2: Tag {
     @Test func textToElementProducesFreshNotReplaceSelf() {
         let r = Reconciler()
         let newE = Node.element(ElementNode(identity: .root.appending(.child(0)), tag: "div",
-                                            attributes: [:], listeners: [:], children: [], key: nil))
+                                            attributes: [:], listeners: [:], observers: [:], children: [], key: nil))
         let plan = r.diffChildren(old: [.text("x")], new: [newE])
         guard case .fresh = plan.slots[0] else { Issue.record("expected fresh slot"); return }
         #expect(plan.removedOldIndices == [0])

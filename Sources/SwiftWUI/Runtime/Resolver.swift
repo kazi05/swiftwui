@@ -120,6 +120,22 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
         ctx.liveListeners.insert(lid)
         listeners[event] = lid
     }
+    var observers: [ObserverKind: ListenerID] = [:]
+    var byKind: [ObserverKind: [(Any?) -> Void]] = [:]
+    var kindOrder: [ObserverKind] = []
+    for (kind, action) in bag.observers {
+        if byKind[kind] == nil { kindOrder.append(kind) }
+        byKind[kind, default: []].append(action)
+    }
+    for kind in kindOrder {
+        let lid = ListenerID(owner: path, event: kind.key)
+        let chain = byKind[kind]!
+        ctx.listeners.set(lid, payloadHandler: { payload in
+            for handler in chain { handler(payload) }
+        })
+        ctx.liveListeners.insert(lid)
+        observers[kind] = lid
+    }
     var effectiveBag = bag
     for rule in bag.pendingRules {
         let cls = ctx.registry.registerAnonymous(pseudo: rule.pseudo, media: rule.media,
@@ -132,5 +148,5 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
     let children = coalesceText(resolve(content, path: path.appending(.child(0)), ctx: &ctx))
     return [.element(ElementNode(identity: path, tag: tagName, attributes: effectiveBag.flattened(),
                                  properties: effectiveBag.flattenedProperties(),
-                                 listeners: listeners, children: children, key: nil))]
+                                 listeners: listeners, observers: observers, children: children, key: nil))]
 }

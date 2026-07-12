@@ -4,6 +4,7 @@ public final class MockNode {
     public var attrs: [String: String] = [:]
     public var props: [String: PropertyValue] = [:]
     public var events: [String: ListenerID] = [:]
+    public var observers: [ObserverKind: ListenerID] = [:]
     public var children: [MockNode] = []
     public weak var parent: MockNode?
     public init() {}
@@ -40,6 +41,12 @@ public final class MockBackend: RendererBackend {
     }
     public func removeEventListener(_ node: MockNode, event: String) {
         bump("removeEventListener"); node.events[event] = nil
+    }
+    public func observe(_ node: MockNode, kind: ObserverKind, id: ListenerID) {
+        bump("observe"); node.observers[kind] = id
+    }
+    public func unobserve(_ node: MockNode, kind: ObserverKind) {
+        bump("unobserve"); node.observers[kind] = nil
     }
     public func insert(_ child: MockNode, into parent: MockNode, before anchor: MockNode?) {
         bump("insert")

@@ -63,6 +63,13 @@ public struct ScrollEvent: Equatable {
     public init(x: Double, y: Double) { self.x = x; self.y = y }
 }
 
+/// Element content size, delivered by `onSizeChange` (ResizeObserver).
+public struct SizeEvent: Equatable {
+    public let width: Double
+    public let height: Double
+    public init(width: Double, height: Double) { self.width = width; self.height = height }
+}
+
 /// Escape-hatch payload for `.on(_:perform:)` — common fields of any event.
 public struct GenericEvent {
     public let type: String

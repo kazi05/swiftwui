@@ -19,7 +19,7 @@ import Testing
         #expect(NodeIdentity.root.appending(.keyed(NodeKey("a"))) != NodeIdentity.root.appending(.keyed(NodeKey("b"))))
     }
     @Test func nodeKeyAccessor() {
-        var n = Node.element(ElementNode(identity: .root, tag: "div", attributes: [:], listeners: [:], children: [], key: nil))
+        var n = Node.element(ElementNode(identity: .root, tag: "div", attributes: [:], listeners: [:], observers: [:], children: [], key: nil))
         n.key = NodeKey(7)
         #expect(n.key == NodeKey(7))
         var t = Node.text("x")

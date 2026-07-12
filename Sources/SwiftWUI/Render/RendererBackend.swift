@@ -11,6 +11,11 @@ public protocol RendererBackend: AnyObject {
     func setProperty(_ node: HostNode, name: String, value: PropertyValue)
     func setEventListener(_ node: HostNode, event: String, id: ListenerID)
     func removeEventListener(_ node: HostNode, event: String)
+
+    // MARK: Element observers (spec 2026-07-12)
+    func observe(_ node: HostNode, kind: ObserverKind, id: ListenerID)
+    func unobserve(_ node: HostNode, kind: ObserverKind)
+
     func insert(_ child: HostNode, into parent: HostNode, before anchor: HostNode?)
     func remove(_ child: HostNode, from parent: HostNode)
     /// Replace the full text of the document's single managed stylesheet.
@@ -59,6 +64,8 @@ public protocol RendererBackend: AnyObject {
 }
 
 extension RendererBackend {
+    public func observe(_ node: HostNode, kind: ObserverKind, id: ListenerID) {}
+    public func unobserve(_ node: HostNode, kind: ObserverKind) {}
     public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {}
     public func storageRead(kind: StorageKind, key: String) -> String? { nil }
     public func storageWrite(kind: StorageKind, key: String, value: String?) {}

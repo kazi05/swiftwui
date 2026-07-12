@@ -10,6 +10,7 @@ public struct _AttributeBag {
     private(set) var pairs: [(name: String, value: String)] = []
     private(set) var properties: [(name: String, value: PropertyValue)] = []
     private(set) var handlers: [(event: EventName, action: (Any?) -> Void)] = []
+    private(set) var observers: [(kind: ObserverKind, action: (Any?) -> Void)] = []
     private(set) var styles: [StyleDeclaration] = []
     private(set) var pendingRules: [PendingStyleRule] = []
     mutating func addPendingRule(_ r: PendingStyleRule) { pendingRules.append(r) }
@@ -53,6 +54,10 @@ public struct _AttributeBag {
     }
     mutating func addRawHandler(_ event: EventName, _ action: @escaping (Any?) -> Void) {
         handlers.append((event, action))
+    }
+
+    mutating func addObserver(_ kind: ObserverKind, _ action: @escaping (Any?) -> Void) {
+        observers.append((kind, action))
     }
 
     mutating func addStyle(_ d: StyleDeclaration) { styles.append(d) }

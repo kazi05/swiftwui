@@ -8,7 +8,7 @@ import Testing
     }
     func elN(_ tag: String, slot: Int, children: [Node] = []) -> Node {
         .element(ElementNode(identity: NodeIdentity.root.appending(.child(slot)), tag: tag,
-                             attributes: [:], listeners: [:], children: children, key: nil))
+                             attributes: [:], listeners: [:], observers: [:], children: children, key: nil))
     }
     func comp(_ slot: Int, children: [Node]) -> Node {
         .component(ComponentNode(identity: NodeIdentity.root.appending(.child(slot)).appending(.type(ObjectIdentifier(Int.self))),

@@ -5,6 +5,8 @@ enum Patch: Equatable {
     case setProperty(name: String, value: PropertyValue)
     case setListener(event: String, id: ListenerID)
     case removeListener(event: String)
+    case setObserver(kind: ObserverKind, id: ListenerID)
+    case removeObserver(kind: ObserverKind)
     case replaceSelf(with: Node)
     case updateChildren(ChildrenPlan)
 }
@@ -64,6 +66,14 @@ struct Reconciler {
             }
             for event in o.listeners.keys.sorted() where n.listeners[event] == nil {
                 patches.append(.removeListener(event: event))
+            }
+            for kind in n.observers.keys.sorted(by: { $0.key < $1.key })
+                where o.observers[kind] != n.observers[kind] {
+                patches.append(.setObserver(kind: kind, id: n.observers[kind]!))
+            }
+            for kind in o.observers.keys.sorted(by: { $0.key < $1.key })
+                where n.observers[kind] == nil {
+                patches.append(.removeObserver(kind: kind))
             }
             if !o.children.isEmpty || !n.children.isEmpty {
                 let plan = diffChildren(old: o.children, new: n.children)

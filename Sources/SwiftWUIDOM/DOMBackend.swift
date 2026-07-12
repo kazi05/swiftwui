@@ -18,6 +18,11 @@ public final class DOMBackend: RendererBackend {
     private var closures: [String: JSClosure] = [:]   // "\(uid)#\(event)" → retained
     private var listenerIDs: [String: ListenerID] = [:]
     private var nextUID = 0
+    // Element observers (IntersectionObserver/ResizeObserver) — same retention
+    // discipline as `closures`/`listenerIDs`, keyed "\(uid)#\(kind.key)".
+    private var domObservers: [String: JSObject] = [:]
+    private var observerClosures: [String: JSClosure] = [:]
+    private var observerIDs: [String: ListenerID] = [:]
     // Environment observation closures — named (not positional) so teardown pairs
     // each with its exact target; retained for backend lifetime (v1 leak lesson).
     private var schemeClosure: JSClosure?
@@ -144,6 +149,51 @@ public final class DOMBackend: RendererBackend {
         listenerIDs[key] = nil
         guard let closure = closures.removeValue(forKey: key) else { return }
         _ = node.removeEventListener?(event, closure)  // same function object (invariant 2)
+    }
+
+    private func observerKey(_ node: JSObject, _ kind: ObserverKind) -> String {
+        "\(Int(node.__swuid.number ?? -1))#\(kind.key)"
+    }
+
+    public func observe(_ node: JSObject, kind: ObserverKind, id: ListenerID) {
+        let key = observerKey(node, kind)
+        observerIDs[key] = id
+        guard domObservers[key] == nil else { return }   // fire-time lookup, reusable
+        let closure: JSClosure
+        let observer: JSObject?
+        switch kind {
+        case .visibility(let threshold):
+            closure = JSClosure { [weak self] args in
+                guard let self, let current = self.observerIDs[key] else { return .undefined }
+                let visible = args.first?.object?[0].object?.isIntersecting.boolean ?? false
+                self.dispatch(current, visible)
+                return .undefined
+            }
+            let opts = JSObject.global.Object.function!.new()
+            opts.threshold = .number(threshold)
+            observer = JSObject.global.IntersectionObserver.function?.new(closure, opts)
+        case .size:
+            closure = JSClosure { [weak self] args in
+                guard let self, let current = self.observerIDs[key] else { return .undefined }
+                let rect = args.first?.object?[0].object?.contentRect.object
+                self.dispatch(current, SizeEvent(width: rect?.width.number ?? 0,
+                                                 height: rect?.height.number ?? 0))
+                return .undefined
+            }
+            observer = JSObject.global.ResizeObserver.function?.new(closure)
+        }
+        guard let observer else { return }               // API absent (old browser) → no-op
+        _ = observer.observe?(node)
+        domObservers[key] = observer
+        observerClosures[key] = closure                  // Swift retention = lifetime
+    }
+
+    public func unobserve(_ node: JSObject, kind: ObserverKind) {
+        let key = observerKey(node, kind)
+        observerIDs[key] = nil
+        guard let observer = domObservers.removeValue(forKey: key) else { return }
+        _ = observer.disconnect?()
+        observerClosures[key] = nil
     }
 
     public func insert(_ child: JSObject, into parent: JSObject, before anchor: JSObject?) {
@@ -344,6 +394,10 @@ public final class DOMBackend: RendererBackend {
         offlineClosure = nil
         storageClosure = nil
         colorSchemeQuery = nil
+        for observer in domObservers.values { _ = observer.disconnect?() }
+        domObservers = [:]
+        observerClosures = [:]
+        observerIDs = [:]
     }
     public func setLinks(_ links: [LinkTag]) {
         // Churn guard: skip remove-all/re-add-all when the set is unchanged (e.g.
