@@ -92,4 +92,18 @@ import Testing
         #expect(DistLayout.reservedNames.contains("sw-assets.js"))
         #expect(!DistLayout.reservedNames.contains("sw.js"))   // user-owned, must stay allowed
     }
+
+    @Test func symlinkedDirectoryThrows() throws {
+        let dir = try makeDist(withSW: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let fm = FileManager.default
+        let real = dir + "-real-assets"
+        try fm.createDirectory(atPath: real, withIntermediateDirectories: true)
+        try "hidden".write(toFile: real + "/asset.txt", atomically: true, encoding: .utf8)
+        defer { try? fm.removeItem(atPath: real) }
+        try fm.createSymbolicLink(atPath: dir + "/linked", withDestinationPath: real)
+        #expect(throws: (any Error).self) {
+            try PWAAssets.generateManifest(distDir: dir)
+        }
+    }
 }

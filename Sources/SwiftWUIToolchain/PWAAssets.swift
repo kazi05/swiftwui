@@ -24,8 +24,18 @@ public enum PWAAssets {
         }
         var entries: [(url: String, integrity: String)] = []
         while let rel = en.nextObject() as? String {
-            var isDir: ObjCBool = false
             let full = distDir + "/" + rel
+            // Check for symlinked directories (silently broken manifest → loud error)
+            if let attrs = try fm.attributesOfItem(atPath: full) as [FileAttributeKey: Any]?,
+               attrs[.type] as? FileAttributeType == .typeSymbolicLink {
+                var isDir: ObjCBool = false
+                fm.fileExists(atPath: full, isDirectory: &isDir)
+                if isDir.boolValue {
+                    throw ToolchainError.io("symlinked directory in dist/ is not supported by the PWA precache generator: \(rel) — copy real files into public/ instead")
+                }
+                // Symlink to a regular file: continue (fine to precache)
+            }
+            var isDir: ObjCBool = false
             guard fm.fileExists(atPath: full, isDirectory: &isDir), !isDir.boolValue else { continue }
             if isExcluded(relPath: rel) { continue }
             guard let data = fm.contents(atPath: full) else {
