@@ -23,8 +23,8 @@ to:
 struct Card: TagModifier {
     func body(content: Content) -> some Tag {
         Div(class: "card") { content }
-            .style(.padding(.px(16)))
-            .style(.borderRadius(.px(8)))
+            .padding(.px(16))
+            .borderRadius(.px(8))
     }
 }
 
@@ -110,7 +110,8 @@ TextArea()
 ```
 
 - `onVisibilityChange(threshold:_:)` — backed by `IntersectionObserver`;
-  delivers `true`/`false` as the element enters/leaves the viewport.
+  delivers `true`/`false` as the element enters/leaves the viewport, at
+  `threshold` fraction visible (default `0.0`, i.e. any visibility at all).
 - `onSizeChange(_:)` — backed by `ResizeObserver`; delivers a ``SizeEvent``
   on every resize.
 

@@ -6,10 +6,11 @@ property wrappers.
 
 ## Overview
 
-All four capabilities report safe defaults outside a live runtime (light
-scheme, online, storage wrappers falling back to their own caller-supplied
-defaults with writes dropped, an "unsupported" fetch session) so the same
-component compiles, tests, and prerenders on native/SSG without a browser.
+System signals, storage, and fetch all report safe defaults outside a live
+runtime (light scheme, online, storage wrappers falling back to their own
+caller-supplied defaults with writes dropped, an "unsupported" fetch
+session) so the same component compiles, tests, and prerenders on
+native/SSG without a browser.
 
 ### Color scheme and online status
 
@@ -103,6 +104,7 @@ Cancelling the enclosing `Task` aborts the underlying request.
 for exactly that case:
 
 ```swift
+@MainActor
 @Observable
 final class ItemsViewModel {
     var items: [String] = []
@@ -117,6 +119,9 @@ final class ItemsViewModel {
 }
 ```
 
+`WebSession.shared` is `@MainActor`-isolated, so a default argument that
+reads it needs an isolated context — `@MainActor` on the class, here (state
+writes for a view model backing the UI need to be main-actor anyway).
 Injecting `session` through `init` (defaulting to `.shared`) keeps the view
 model unit-testable — pass a scripted `WebSession` in tests without touching
 the shared instance. `.shared` itself is set once by the platform entry
@@ -159,5 +164,5 @@ whole file into memory.
 
 ### See it running
 
-`Examples/Counter` ships a `BrowserAPIDemo` component exercising all four
-capabilities together.
+`Examples/Counter` ships a `BrowserAPIDemo` component exercising system
+signals, storage, fetch, networking, and file selection together.
