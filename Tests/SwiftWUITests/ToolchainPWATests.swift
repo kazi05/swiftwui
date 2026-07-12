@@ -102,8 +102,28 @@ import Testing
         try "hidden".write(toFile: real + "/asset.txt", atomically: true, encoding: .utf8)
         defer { try? fm.removeItem(atPath: real) }
         try fm.createSymbolicLink(atPath: dir + "/linked", withDestinationPath: real)
-        #expect(throws: (any Error).self) {
+        #expect(throws: ToolchainError.self) {
             try PWAAssets.generateManifest(distDir: dir)
         }
+    }
+
+    @Test func symlinkedFileIsPrecached() throws {
+        let dir = try makeDist(withSW: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let fm = FileManager.default
+        let externalDir = NSTemporaryDirectory() + "swiftwui-external-\(UUID().uuidString)"
+        try fm.createDirectory(atPath: externalDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: externalDir) }
+
+        let logoContent = "logo-content"
+        try logoContent.write(toFile: externalDir + "/logo.txt", atomically: true, encoding: .utf8)
+        try fm.createSymbolicLink(atPath: dir + "/logo.txt", withDestinationPath: externalDir + "/logo.txt")
+
+        #expect(try PWAAssets.generateManifest(distDir: dir) == true)
+        let manifest = try String(contentsOfFile: dir + "/sw-assets.js", encoding: .utf8)
+
+        let expectedIntegrity = "sha256-" + SHA256.base64(SHA256.digest(Array(logoContent.utf8)))
+        #expect(manifest.contains("\"/logo.txt\""))
+        #expect(manifest.contains("\"integrity\": \"\(expectedIntegrity)\""))
     }
 }

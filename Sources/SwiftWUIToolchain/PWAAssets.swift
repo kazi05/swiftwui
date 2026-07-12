@@ -26,17 +26,29 @@ public enum PWAAssets {
         while let rel = en.nextObject() as? String {
             let full = distDir + "/" + rel
             // Check for symlinked directories (silently broken manifest → loud error)
-            if let attrs = try fm.attributesOfItem(atPath: full) as [FileAttributeKey: Any]?,
-               attrs[.type] as? FileAttributeType == .typeSymbolicLink {
-                var isDir: ObjCBool = false
+            let attrs: [FileAttributeKey: Any]
+            do {
+                guard let a = try fm.attributesOfItem(atPath: full) as? [FileAttributeKey: Any] else {
+                    throw ToolchainError.io("cannot stat \(full) while generating sw-assets.js")
+                }
+                attrs = a
+            } catch let err as ToolchainError {
+                throw err
+            } catch {
+                throw ToolchainError.io("cannot stat \(full) while generating sw-assets.js")
+            }
+
+            var isDir: ObjCBool = false
+            if attrs[.type] as? FileAttributeType == .typeSymbolicLink {
                 fm.fileExists(atPath: full, isDirectory: &isDir)
                 if isDir.boolValue {
                     throw ToolchainError.io("symlinked directory in dist/ is not supported by the PWA precache generator: \(rel) — copy real files into public/ instead")
                 }
-                // Symlink to a regular file: continue (fine to precache)
+                // Symlink to a regular file: fine to precache
+            } else {
+                fm.fileExists(atPath: full, isDirectory: &isDir)
             }
-            var isDir: ObjCBool = false
-            guard fm.fileExists(atPath: full, isDirectory: &isDir), !isDir.boolValue else { continue }
+            guard !isDir.boolValue else { continue }
             if isExcluded(relPath: rel) { continue }
             guard let data = fm.contents(atPath: full) else {
                 throw ToolchainError.io("cannot read \(full) while generating sw-assets.js")
