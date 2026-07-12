@@ -193,3 +193,43 @@ import Testing
         #expect(!js.contains("skipWaiting()") || js.contains("event.data.type === 'SKIP_WAITING'"))
     }
 }
+
+@Suite struct PWABuildIntegrationTests {
+    /// Mimics BuildCommand.run(): assemble dist from a fixture bundle, then generate.
+    private func makeProject(withPWA: Bool) throws -> (proj: String, bundle: String) {
+        let fm = FileManager.default
+        let proj = NSTemporaryDirectory() + "swiftwui-pwa-build-\(UUID().uuidString)"
+        let bundle = proj + "/fake-bundle"
+        try fm.createDirectory(atPath: bundle, withIntermediateDirectories: true)
+        try "glue".write(toFile: bundle + "/index.js", atomically: true, encoding: .utf8)
+        try "<html><head></head><body></body></html>"
+            .write(toFile: proj + "/index.html", atomically: true, encoding: .utf8)
+        if withPWA {
+            try fm.createDirectory(atPath: proj + "/public", withIntermediateDirectories: true)
+            try "importScripts('/sw-assets.js');"
+                .write(toFile: proj + "/public/sw.js", atomically: true, encoding: .utf8)
+        }
+        return (proj, bundle)
+    }
+
+    @Test func pwaProjectGetsManifestInDist() throws {
+        let (proj, bundle) = try makeProject(withPWA: true)
+        defer { try? FileManager.default.removeItem(atPath: proj) }
+        let out = proj + "/dist"
+        try DistLayout.assemble(projectDir: proj, bundleDir: bundle, outDir: out)
+        #expect(try PWAAssets.generateManifest(distDir: out) == true)
+        #expect(FileManager.default.fileExists(atPath: out + "/sw-assets.js"))
+        let js = try String(contentsOfFile: out + "/sw-assets.js", encoding: .utf8)
+        #expect(js.contains("\"/sw.js\"") == false)      // worker never precaches itself
+        #expect(js.contains("\"/app/index.js\""))         // bundle is precached
+    }
+
+    @Test func plainSPAIsUntouched() throws {
+        let (proj, bundle) = try makeProject(withPWA: false)
+        defer { try? FileManager.default.removeItem(atPath: proj) }
+        let out = proj + "/dist"
+        try DistLayout.assemble(projectDir: proj, bundleDir: bundle, outDir: out)
+        #expect(try PWAAssets.generateManifest(distDir: out) == false)
+        #expect(!FileManager.default.fileExists(atPath: out + "/sw-assets.js"))
+    }
+}

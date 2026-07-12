@@ -17,5 +17,8 @@ struct SSG: ParsableCommand {
         let r = try runner.run("swift", ["run", name, "ssg", "--out", out], cwd: cwd, streamOutput: true)
         guard r.exitCode == 0 else { throw ExitCode(r.exitCode) }
         try DistLayout.copyPublic(projectDir: cwd, outDir: cwd + "/" + out)
+        if try PWAAssets.generateManifest(distDir: cwd + "/" + out) {
+            print("generated sw-assets.js (PWA precache manifest)")
+        }
     }
 }

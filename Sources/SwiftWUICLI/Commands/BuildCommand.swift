@@ -20,6 +20,9 @@ struct Build: ParsableCommand {
         let bundle = try WasmBuilder(runner: runner, projectDir: cwd, sdk: sdk)
             .build(configuration: config)
         try DistLayout.assemble(projectDir: cwd, bundleDir: bundle, outDir: cwd + "/" + out)
+        if try PWAAssets.generateManifest(distDir: cwd + "/" + out) {
+            print("generated sw-assets.js (PWA precache manifest)")
+        }
         print("built \(out)/ (app bundle + vendor shim + index.html)")
     }
 }
