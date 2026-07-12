@@ -11,4 +11,6 @@ public struct EventName: RawRepresentable, Hashable, ExpressibleByStringLiteral 
     public static let focus: EventName = "focus"
     public static let blur: EventName = "blur"
     public static let dblclick: EventName = "dblclick"
+    public static let mouseenter: EventName = "mouseenter"
+    public static let mouseleave: EventName = "mouseleave"
 }

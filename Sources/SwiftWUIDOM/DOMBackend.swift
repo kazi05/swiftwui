@@ -97,7 +97,11 @@ public final class DOMBackend: RendererBackend {
             return ChangeEvent(value: target?.value.string ?? "",
                                checked: target?.checked.boolean ?? false)
         case "keydown", "keyup":
-            return KeyEvent(key: e.key.string ?? "", repeated: e["repeat"].boolean ?? false)
+            return KeyEvent(key: e.key.string ?? "", repeated: e["repeat"].boolean ?? false,
+                            metaKey: e.metaKey.boolean ?? false,
+                            ctrlKey: e.ctrlKey.boolean ?? false,
+                            shiftKey: e.shiftKey.boolean ?? false,
+                            altKey: e.altKey.boolean ?? false)
         case "submit":
             _ = e.preventDefault?()
             return SubmitEvent()

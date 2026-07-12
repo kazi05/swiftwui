@@ -4,8 +4,55 @@ public struct InputEvent  { public let value: String
                             public init(value: String) { self.value = value } }
 public struct ChangeEvent { public let value: String; public let checked: Bool
                             public init(value: String, checked: Bool) { self.value = value; self.checked = checked } }
-public struct KeyEvent    { public let key: String; public let repeated: Bool
-                            public init(key: String, repeated: Bool) { self.key = key; self.repeated = repeated } }
+public struct KeyEvent {
+    public let key: String
+    public let repeated: Bool
+    public let metaKey: Bool
+    public let ctrlKey: Bool
+    public let shiftKey: Bool
+    public let altKey: Bool
+    public init(key: String, repeated: Bool,
+                metaKey: Bool = false, ctrlKey: Bool = false,
+                shiftKey: Bool = false, altKey: Bool = false) {
+        self.key = key; self.repeated = repeated
+        self.metaKey = metaKey; self.ctrlKey = ctrlKey
+        self.shiftKey = shiftKey; self.altKey = altKey
+    }
+    public var modifiers: EventModifiers {
+        var m: EventModifiers = []
+        if metaKey { m.insert(.meta) }
+        if ctrlKey { m.insert(.ctrl) }
+        if shiftKey { m.insert(.shift) }
+        if altKey { m.insert(.alt) }
+        return m
+    }
+}
+
+/// DOM KeyboardEvent.key values, SwiftUI-KeyEquivalent style.
+public struct KeyEquivalent: Equatable, ExpressibleByStringLiteral {
+    public let key: String
+    public init(key: String) { self.key = key }
+    public init(stringLiteral value: String) { key = value }
+    public static let enter = KeyEquivalent(key: "Enter")
+    public static let escape = KeyEquivalent(key: "Escape")
+    public static let space = KeyEquivalent(key: " ")
+    public static let tab = KeyEquivalent(key: "Tab")
+    public static let delete = KeyEquivalent(key: "Backspace")
+    public static let upArrow = KeyEquivalent(key: "ArrowUp")
+    public static let downArrow = KeyEquivalent(key: "ArrowDown")
+    public static let leftArrow = KeyEquivalent(key: "ArrowLeft")
+    public static let rightArrow = KeyEquivalent(key: "ArrowRight")
+}
+
+public struct EventModifiers: OptionSet, Equatable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let meta  = EventModifiers(rawValue: 1 << 0)
+    public static let ctrl  = EventModifiers(rawValue: 1 << 1)
+    public static let shift = EventModifiers(rawValue: 1 << 2)
+    public static let alt   = EventModifiers(rawValue: 1 << 3)
+}
+
 public struct SubmitEvent { public init() {} }   // backend always preventDefault()s submit (spec D10)
 public struct FocusEvent  { public init() {} }
 
