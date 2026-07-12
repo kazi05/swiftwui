@@ -28,3 +28,68 @@ import Testing
             "ungWv48Bz+pBQUDeXa4iI7ADYaOWF3qctBD/YfIAFa0=")
     }
 }
+
+@Suite struct PWAAssetsTests {
+    private func makeDist(withSW: Bool) throws -> String {
+        let dir = NSTemporaryDirectory() + "swiftwui-pwa-\(UUID().uuidString)"
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: dir + "/app", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: dir + "/about", withIntermediateDirectories: true)
+        try "shell".write(toFile: dir + "/index.html", atomically: true, encoding: .utf8)
+        try "wasm-bytes".write(toFile: dir + "/app/App.wasm", atomically: true, encoding: .utf8)
+        try "glue".write(toFile: dir + "/app/index.js", atomically: true, encoding: .utf8)
+        try "prerendered".write(toFile: dir + "/about/index.html", atomically: true, encoding: .utf8)
+        try "junk".write(toFile: dir + "/.DS_Store", atomically: true, encoding: .utf8)
+        if withSW {
+            try "importScripts('/sw-assets.js');".write(toFile: dir + "/sw.js", atomically: true, encoding: .utf8)
+        }
+        return dir
+    }
+
+    @Test func noSWMeansNoManifest() throws {
+        let dir = try makeDist(withSW: false)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        #expect(try PWAAssets.generateManifest(distDir: dir) == false)
+        #expect(!FileManager.default.fileExists(atPath: dir + "/sw-assets.js"))
+    }
+
+    @Test func generatesSortedDeterministicManifest() throws {
+        let dir = try makeDist(withSW: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        #expect(try PWAAssets.generateManifest(distDir: dir) == true)
+        let first = try String(contentsOfFile: dir + "/sw-assets.js", encoding: .utf8)
+        // exclusions
+        #expect(!first.contains("/about/index.html"))
+        #expect(!first.contains(".DS_Store"))
+        #expect(!first.contains("\"/sw.js\""))
+        #expect(!first.contains("\"/sw-assets.js\""))
+        // root shell + bundle present, with the integrity our own SHA256 computes
+        #expect(first.contains("\"/index.html\""))
+        let expected = "sha256-" + SHA256.base64(SHA256.digest(Array("wasm-bytes".utf8)))
+        #expect(first.contains("{ \"url\": \"/app/App.wasm\", \"integrity\": \"\(expected)\" }"))
+        // sorted by URL
+        let appRange = first.range(of: "\"/app/App.wasm\"")!
+        let idxRange = first.range(of: "\"/index.html\"")!
+        #expect(appRange.lowerBound < idxRange.lowerBound)
+        // deterministic across runs
+        try PWAAssets.generateManifest(distDir: dir)
+        let second = try String(contentsOfFile: dir + "/sw-assets.js", encoding: .utf8)
+        #expect(first == second)
+    }
+
+    @Test func versionTracksContent() throws {
+        let dir = try makeDist(withSW: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try PWAAssets.generateManifest(distDir: dir)
+        let v1 = try String(contentsOfFile: dir + "/sw-assets.js", encoding: .utf8)
+        try "wasm-bytes-CHANGED".write(toFile: dir + "/app/App.wasm", atomically: true, encoding: .utf8)
+        try PWAAssets.generateManifest(distDir: dir)
+        let v2 = try String(contentsOfFile: dir + "/sw-assets.js", encoding: .utf8)
+        #expect(v1 != v2)
+    }
+
+    @Test func swAssetsIsReservedPublicName() {
+        #expect(DistLayout.reservedNames.contains("sw-assets.js"))
+        #expect(!DistLayout.reservedNames.contains("sw.js"))   // user-owned, must stay allowed
+    }
+}
