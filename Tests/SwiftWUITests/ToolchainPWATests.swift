@@ -257,3 +257,18 @@ import Testing
         #expect(js.contains("\"/app/App.wasm\""))
     }
 }
+
+@Suite struct PWAServingPolicyTests {
+    @Test func nginxTemplatesSendNoCache() throws {
+        for template in Scaffolder.templates {
+            let path = ToolchainResources.url("templates/\(template)/nginx.conf").path
+            let conf = try String(contentsOfFile: path, encoding: .utf8)
+            #expect(conf.contains("add_header Cache-Control \"no-cache\";"), "template \(template)")
+        }
+    }
+    @Test func devClientUnregistersServiceWorkers() throws {
+        let js = try String(contentsOf: ToolchainResources.url("dev-client.js"), encoding: .utf8)
+        #expect(js.contains("getRegistrations"))
+        #expect(js.contains("unregister"))
+    }
+}

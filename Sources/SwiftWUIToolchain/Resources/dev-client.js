@@ -1,5 +1,10 @@
 // SwiftWUI dev client — injected by `swiftwui dev`. Never shipped to production.
 (() => {
+  // Kill any service worker left by a production preview on this origin —
+  // a stale SW serving cached wasm poisons the dev loop (PWA spec 2026-07-12).
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+  }
   const es = new EventSource("/__swiftwui/events");
   es.addEventListener("reload", () => {
     try {
