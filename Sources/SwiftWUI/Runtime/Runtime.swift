@@ -33,6 +33,7 @@ public final class Runtime<Backend: RendererBackend> {
     private var pendingTransactions: [NodeIdentity: Transaction] = [:]
     var _pendingCompletionGroups: [CompletionGroup] = []                 // armed post-flush
     var _lastEffectiveTransactions: [NodeIdentity: Transaction] = [:]    // test hook (Task 4): union of this flush's passes
+    var _animationRegistry: AnimationRegistry { applier.animationRegistry }   // test hook (Task 7)
     public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
     public var _signals: EnvironmentSignals { signals }   // SPI: backend wiring + tests
     public var _storage: StorageStore { storage }   // SPI: backend wiring + tests
@@ -241,7 +242,10 @@ public final class Runtime<Backend: RendererBackend> {
         animationValues.sweep(under: id, reachable: ctx.reachable)
 
         let patches = Reconciler().diff(old: old, new: new)
+        applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
+                                                      reduceMotion: false, suppressTransitions: false)
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
+        applier.animationPass = nil
         current = splicing(current!, at: id, with: new)
 
         if styleRegistry.version != flushedStyleVersion {
@@ -305,6 +309,8 @@ public final class Runtime<Backend: RendererBackend> {
         listeners.sweep(under: .root, keep: ctx.liveListeners)
         animationValues.sweep(under: .root, reachable: ctx.reachable)
         // 3–4. DIFF + APPLY.
+        applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
+                                                      reduceMotion: false, suppressTransitions: current == nil)
         if let old = current {
             let patches = Reconciler().diff(old: old, new: new)
             applier.apply(patches, to: applier.root.children[0])
@@ -314,6 +320,7 @@ public final class Runtime<Backend: RendererBackend> {
             m.indexInParent = 0
             applier.root.children = [m]
         }
+        applier.animationPass = nil
         // 5. COMMIT.
         current = new
 

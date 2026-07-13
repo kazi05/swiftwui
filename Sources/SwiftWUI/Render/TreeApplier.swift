@@ -4,13 +4,16 @@ final class MountedNode<N> {
     let host: N?                       // nil for component shadow nodes
     let hostParent: N                  // nearest enclosing realized element
     let componentIdentity: NodeIdentity?   // set for component shadow nodes only
+    let elementIdentity: NodeIdentity?     // set for element hosts only (anim spec §6); stable across reuse slots
     weak var parent: MountedNode<N>?
     var indexInParent: Int = 0
     var children: [MountedNode<N>] = []
     var events: Set<String> = []
     var observerKinds: Set<ObserverKind> = []
-    init(host: N?, hostParent: N, componentIdentity: NodeIdentity? = nil) {
-        self.host = host; self.hostParent = hostParent; self.componentIdentity = componentIdentity
+    init(host: N?, hostParent: N, componentIdentity: NodeIdentity? = nil, elementIdentity: NodeIdentity? = nil) {
+        self.host = host; self.hostParent = hostParent
+        self.componentIdentity = componentIdentity
+        self.elementIdentity = elementIdentity
     }
 }
 
@@ -22,6 +25,10 @@ final class TreeApplier<Backend: RendererBackend> {
     let root: MountedNode<Backend.HostNode>
     /// Component shadow-node lookup by identity, kept in sync by mount/unmount.
     private(set) var componentIndex: [NodeIdentity: MountedNode<Backend.HostNode>] = [:]
+    /// Set by Runtime immediately before each `apply`/`mount` call, cleared
+    /// immediately after — never leaks into a later pass (anim spec §6).
+    var animationPass: AnimationPassContext?
+    let animationRegistry = AnimationRegistry()
 
     init(backend: Backend, container: Backend.HostNode) {
         self.backend = backend
@@ -56,7 +63,7 @@ final class TreeApplier<Backend: RendererBackend> {
                 backend.observe(h, kind: kind, id: el.observers[kind]!)
             }
             backend.insert(h, into: hostParent, before: anchor)
-            let m = MountedNode(host: h, hostParent: hostParent)
+            let m = MountedNode(host: h, hostParent: hostParent, elementIdentity: el.identity)
             m.events = Set(el.listeners.keys)
             m.observerKinds = Set(el.observers.keys)
             for child in el.children {
@@ -136,8 +143,34 @@ final class TreeApplier<Backend: RendererBackend> {
                 backend.setAttribute(m.host!, name: name, value: value)
             case .removeAttribute(let name):
                 backend.removeAttribute(m.host!, name: name)
-            case .setStyleProperty(let name, let value, _):
-                backend.setStyleProperty(m.host!, name: name, value: value)
+            case .setStyleProperty(let name, let value, let previous):
+                backend.setStyleProperty(m.host!, name: name, value: value)   // model final FIRST (anim spec §6.1)
+                if let pass = animationPass, !pass.reduceMotion,
+                   let id = m.elementIdentity, let txn = pass.transactions[id],
+                   let anim = txn.animation,
+                   let request = AnimationPlanner.request(property: name, from: previous, to: value,
+                                                          timing: anim.resolved()) {
+                    let key = AnimationRegistry.Key(identity: id, property: name)
+                    if let old = animationRegistry.running[key], request.mode == .replace {
+                        backend.cancelAnimation(old.token)   // additive retarget hygiene (anim spec §6.2)
+                    }
+                    // register() always; settle() either via onSettle (finite) or immediately
+                    // here (infinite) — onSettle then must skip the group to avoid double-settle.
+                    let countsTowardGroup = !request.timing.isInfinite
+                    txn._group?.register()
+                    let group = txn._group
+                    let token = backend.animate(m.host!, request: request) { [weak self] _ in
+                        self?.animationRegistry.remove(key)
+                        if countsTowardGroup { group?.settle() }
+                    }
+                    if let token {
+                        animationRegistry.track(key, .init(token: token, timing: request.timing, to: request.to))
+                        if !countsTowardGroup { group?.settle() }   // repeatForever excluded from groups (anim spec §7.4)
+                    } else {
+                        animationRegistry.remove(key)
+                        group?.settle()   // no-op backend: settle immediately
+                    }
+                }
             case .removeStyleProperty(let name):
                 backend.removeStyleProperty(m.host!, name: name)
             case .setProperty(let name, let value):
