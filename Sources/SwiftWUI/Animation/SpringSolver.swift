@@ -1,10 +1,12 @@
-// ponytail: sin/cos/exp/cosh/sinh aren't in the stdlib — need libm. Matches the
-// existing State/Storage.swift + Fetch/WebFetch.swift precedent in this same
-// target (which already ships to WASM), so no new cross-platform risk.
-#if canImport(FoundationEssentials)
-import FoundationEssentials
-#else
-import Foundation
+// ponytail: sin/cos/exp/cosh/sinh aren't in the stdlib — need libm directly.
+// FoundationEssentials doesn't re-export libm on wasm32, so import the platform
+// libc where these symbols actually live.
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(WASILibc)
+import WASILibc
 #endif
 
 /// Closed-form damped harmonic oscillator sampled into a CSS `linear()` easing (anim spec §6.3).
@@ -35,13 +37,17 @@ enum SpringSolver {
         if zeta < 1 {
             let omegaD = omega * (1 - zeta * zeta).squareRoot()
             let envelope = exp(-zeta * omega * t)
-            return 1 - envelope * (cos(omegaD * t) + (zeta * omega / omegaD) * sin(omegaD * t))
+            let coeff = zeta * omega / omegaD
+            let oscillation = cos(omegaD * t) + coeff * sin(omegaD * t)
+            return 1 - envelope * oscillation
         } else if zeta == 1 {
             return 1 - exp(-omega * t) * (1 + omega * t)
         } else {
             let omegaD = omega * (zeta * zeta - 1).squareRoot()
             let envelope = exp(-zeta * omega * t)
-            return 1 - envelope * (cosh(omegaD * t) + (zeta * omega / omegaD) * sinh(omegaD * t))
+            let coeff = zeta * omega / omegaD
+            let oscillation = cosh(omegaD * t) + coeff * sinh(omegaD * t)
+            return 1 - envelope * oscillation
         }
     }
 

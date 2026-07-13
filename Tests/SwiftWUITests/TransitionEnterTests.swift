@@ -108,6 +108,16 @@ private struct CombinedBlock: Tag {
         #expect(backend.animations.count == 1)
     }
 
+    @Test func emptyFlushConsumesSuppressFlagWithoutLeaking() {
+        let (runtime, backend, sched) = makeRuntime(EnterAnimatesBlock())
+        runtime._suppressTransitionsOnce = true
+        runtime.flush()   // nothing dirty — must still consume the flag
+        let button = findFirst(backend.container, tag: "button")!
+        runtime.dispatch(button.events["click"]!)   // real flush inside withAnimation
+        sched.pump()
+        #expect(backend.animations.count == 1)   // flag did NOT leak into this pass
+    }
+
     @Test func combinedTransitionEmitsOneAnimatePerProperty() {
         let (runtime, backend, sched) = makeRuntime(CombinedBlock())
         let button = findFirst(backend.container, tag: "button")!

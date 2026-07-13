@@ -168,6 +168,11 @@ public final class Runtime<Backend: RendererBackend> {
 
     public func flush() {
         scheduled = false
+        // Consumed unconditionally by any flush, even one that early-returns on
+        // empty dirt — the contract is "cleared after that flush", not "after
+        // the next flush that renders" (Task 9).
+        let suppressOnce = _suppressTransitionsOnce
+        _suppressTransitionsOnce = false
         guard !dirty.isEmpty else { return }
         let ids = dirty
         dirty.removeAll()
@@ -176,8 +181,6 @@ public final class Runtime<Backend: RendererBackend> {
         let drainedGroups = _pendingCompletionGroups
         _pendingCompletionGroups.removeAll()
         _lastEffectiveTransactions.removeAll()
-        let suppressOnce = _suppressTransitionsOnce
-        _suppressTransitionsOnce = false
         if current == nil || _forceFullPasses || ids.contains(.root) {
             renderPass(transactionOverrides: drained, suppressTransitionsOnce: suppressOnce)
         } else {
