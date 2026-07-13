@@ -69,6 +69,17 @@ public protocol RendererBackend: AnyObject {
     /// Called once, lazily, on the first onWindowScroll/onWindowResize
     /// subscription ever (page lifetime — like environment observation).
     func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void)
+
+    // MARK: Animations (spec 2026-07-13, task 6)
+    /// Drives a single property's animation. `onSettle` fires exactly once
+    /// (`.finished`, `.cancelled`, or `.forced`). No-op default returns nil.
+    @discardableResult
+    func animate(_ node: HostNode, request: AnimationRequest,
+                 onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken?
+    /// Settles with `.cancelled` and snaps to the current presentation value.
+    func cancelAnimation(_ token: AnimationToken)
+    /// Settles with `.forced` and jumps straight to the end value.
+    func finishAnimation(_ token: AnimationToken)
 }
 
 extension RendererBackend {
@@ -82,4 +93,9 @@ extension RendererBackend {
     public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {}
     public func reloadForUpdate() {}
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {}
+    @discardableResult
+    public func animate(_ node: HostNode, request: AnimationRequest,
+                         onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? { nil }
+    public func cancelAnimation(_ token: AnimationToken) {}
+    public func finishAnimation(_ token: AnimationToken) {}
 }

@@ -189,4 +189,11 @@ where Base.HostNode: AnyObject {
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
         base.beginWindowEventObservation(sink)
     }
+    @discardableResult
+    public func animate(_ node: HostNode, request: AnimationRequest,
+                         onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? {
+        base.animate(node, request: request, onSettle: onSettle)
+    }
+    public func cancelAnimation(_ token: AnimationToken) { base.cancelAnimation(token) }
+    public func finishAnimation(_ token: AnimationToken) { base.finishAnimation(token) }
 }

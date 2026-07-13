@@ -11,6 +11,15 @@ public final class MockNode {
     public init() {}
 }
 
+/// One `animate()` call recorded by `MockBackend`, replaying the settle
+/// callback via `settleAnimation(at:reason:)`.
+public struct RecordedAnimation {
+    public let node: MockNode
+    public let request: AnimationRequest
+    let settle: (AnimationSettle) -> Void
+    public let token: AnimationToken
+}
+
 /// Native reference backend: counts every primitive call (churn assertions)
 /// and serializes to HTML for the cross-check property (spec §10.4).
 @MainActor
@@ -129,6 +138,35 @@ public final class MockBackend: RendererBackend {
     public private(set) var windowEventSink: ((WindowEventKind, Any) -> Void)?
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
         bump("beginWindowEventObservation"); windowEventSink = sink
+    }
+
+    public private(set) var animations: [RecordedAnimation] = []
+    private var settledTokens: Set<ObjectIdentifier> = []
+    @discardableResult
+    public func animate(_ node: MockNode, request: AnimationRequest,
+                         onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? {
+        bump("animate")
+        let token = AnimationToken()
+        animations.append(RecordedAnimation(node: node, request: request, settle: onSettle, token: token))
+        return token
+    }
+    /// Idempotent: settling an already-settled index is a no-op.
+    public func settleAnimation(at index: Int, reason: AnimationSettle.Reason = .finished) {
+        let recorded = animations[index]
+        let id = ObjectIdentifier(recorded.token)
+        guard !settledTokens.contains(id) else { return }
+        settledTokens.insert(id)
+        recorded.settle(AnimationSettle(reason: reason))
+    }
+    public func cancelAnimation(_ token: AnimationToken) {
+        bump("cancelAnimation")
+        guard let index = animations.firstIndex(where: { $0.token === token }) else { return }
+        settleAnimation(at: index, reason: .cancelled)
+    }
+    public func finishAnimation(_ token: AnimationToken) {
+        bump("finishAnimation")
+        guard let index = animations.firstIndex(where: { $0.token === token }) else { return }
+        settleAnimation(at: index, reason: .forced)
     }
 
     /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
