@@ -72,23 +72,18 @@ public struct _AttributeBag {
                 out[name] = value
             }
         }
-        if !styles.isEmpty {
-            out["style"] = Self.mergeStyleText(base: out["style"], styles)
-        }
         return out
     }
 
-    /// "prop: value; …" — call order, last-wins per property, base text first.
-    static func mergeStyleText(base: String?, _ styles: [StyleDeclaration]) -> String {
-        var order: [String] = []
-        var valueFor: [String: String] = [:]
-        for d in styles {
-            if valueFor[d.property] == nil { order.append(d.property) }
-            valueFor[d.property] = d.value
-        }
-        let text = order.map { "\($0): \(valueFor[$0]!)" }.joined(separator: "; ")
-        if let base, !base.isEmpty { return base + "; " + text }
-        return text
+    /// Typed inline style: the raw `style` attribute escape hatch (if set via
+    /// `.attribute("style", …)`, last-wins like any other attribute) is the
+    /// base, with the bag's collected `styles` merged on top in call order —
+    /// last-wins per property, so a later declaration overrides an earlier
+    /// same-property one instead of appearing twice.
+    func flattenedStyle() -> OrderedStyle {
+        var style = OrderedStyle(parsing: flattened()["style"] ?? "")
+        style.merge(styles)
+        return style
     }
 
     /// [a-zA-Z_:][a-zA-Z0-9_.:-]* — spec §11 point 3. Foundation-free.

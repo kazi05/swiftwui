@@ -44,10 +44,9 @@ public struct _StyledTag<Content: Tag>: Tag, _PrimitiveTag {
 /// TOP-LEVEL text root, i.e. the wrapped content's own root is text; a text
 /// SIBLING found while descending through a component root, e.g. a component
 /// whose body is `Text(…); Span { … }`, is silently skipped — IMPORTANT 3).
-/// `mergeStyleText` is last-wins across `base + new`, so a wrapper declaration
-/// overrides the element's own same-property declaration (spec's "outer wins").
-/// The base is a pre-joined string, so a duplicate property appears twice in
-/// the attribute — CSS itself applies last-wins, which matches the spec.
+/// `OrderedStyle.merge`/`set` is last-wins per property, so a wrapper
+/// declaration overrides the element's own same-property declaration in
+/// place (spec's "outer wins") — the property appears exactly once.
 ///
 /// Free function (not a `_StyledTag<Content>` static member) so both the
 /// wrapper's own `_resolve` and `Runtime.subtreePass`'s replay path (which has
@@ -63,10 +62,7 @@ func applyStyleWrapper(declarations: [StyleDeclaration], classes: [String], to n
                        stash: ((NodeIdentity) -> Void)? = nil, isTopLevel: Bool = true) {
     switch node {
     case .element(var e):
-        if !declarations.isEmpty {
-            e.attributes["style"] = _AttributeBag.mergeStyleText(
-                base: e.attributes["style"], declarations)
-        }
+        e.style.merge(declarations)
         for cls in classes {
             let existing = e.attributes["class"]
             e.attributes["class"] = existing.map { $0.isEmpty ? cls : $0 + " " + cls } ?? cls

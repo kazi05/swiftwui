@@ -2,6 +2,8 @@ enum Patch: Equatable {
     case setText(String)
     case setAttribute(name: String, value: String)
     case removeAttribute(name: String)
+    case setStyleProperty(name: String, value: String, previous: String?)
+    case removeStyleProperty(name: String)
     case setProperty(name: String, value: PropertyValue)
     case setListener(event: String, id: ListenerID)
     case removeListener(event: String)
@@ -50,6 +52,13 @@ struct Reconciler {
             }
             for name in o.attributes.keys.sorted() where n.attributes[name] == nil {
                 patches.append(.removeAttribute(name: name))
+            }
+            for entry in n.style.entries where o.style[entry.property] != entry.value {
+                patches.append(.setStyleProperty(name: entry.property, value: entry.value,
+                                                 previous: o.style[entry.property]))
+            }
+            for entry in o.style.entries where n.style[entry.property] == nil {
+                patches.append(.removeStyleProperty(name: entry.property))
             }
             for name in n.properties.keys.sorted() where o.properties[name] != n.properties[name] {
                 patches.append(.setProperty(name: name, value: n.properties[name]!))

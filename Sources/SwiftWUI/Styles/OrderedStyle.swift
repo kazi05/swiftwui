@@ -70,6 +70,11 @@ public struct OrderedStyle: Equatable {
         for d in declarations { set(d.property, d.value) }
     }
 
+    /// Removes a property if present; no-op otherwise.
+    public mutating func remove(_ property: String) {
+        entries.removeAll { $0.property == property }
+    }
+
     public subscript(property: String) -> String? {
         entries.first(where: { $0.property == property })?.value
     }

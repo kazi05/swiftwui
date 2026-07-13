@@ -43,6 +43,9 @@ final class TreeApplier<Backend: RendererBackend> {
             for name in el.attributes.keys.sorted() {
                 backend.setAttribute(h, name: name, value: el.attributes[name]!)
             }
+            for e in el.style.entries {
+                backend.setStyleProperty(h, name: e.property, value: e.value)
+            }
             for name in el.properties.keys.sorted() {
                 backend.setProperty(h, name: name, value: el.properties[name]!)
             }
@@ -133,6 +136,10 @@ final class TreeApplier<Backend: RendererBackend> {
                 backend.setAttribute(m.host!, name: name, value: value)
             case .removeAttribute(let name):
                 backend.removeAttribute(m.host!, name: name)
+            case .setStyleProperty(let name, let value, _):
+                backend.setStyleProperty(m.host!, name: name, value: value)
+            case .removeStyleProperty(let name):
+                backend.removeStyleProperty(m.host!, name: name)
             case .setProperty(let name, let value):
                 backend.setProperty(m.host!, name: name, value: value)
             case .setListener(let event, let id):

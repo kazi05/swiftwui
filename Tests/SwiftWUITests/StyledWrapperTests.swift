@@ -40,8 +40,9 @@ private struct Labeled: Tag {
         // Card's root Div has no margin; give it one inline and override from outside
         struct Inner: Tag { var body: some Tag { Div { Text("x") }.margin(.px(1)) } }
         let html = HTMLRenderer.render(Inner().margin(.px(9)))
-        // both appear; CSS last-wins → 9px is effective. Pin the order:
-        #expect(html.contains("margin: 1px; margin: 9px"))
+        // OrderedStyle collapses same-property duplicates: outer (wrapper) wins in place.
+        #expect(html.contains(#"style="margin: 9px""#))
+        #expect(!html.contains("1px"))
     }
     @Test func mixedTextAndElementRootsNoCrash() {
         // IMPORTANT 3: a component whose body descends through a text root

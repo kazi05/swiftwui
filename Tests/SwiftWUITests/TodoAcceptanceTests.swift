@@ -273,7 +273,7 @@ private struct TodoApp: Tag {
         _ = rt   // silence unused if needed
         // inline style landed
         let h1 = findFirst(backend.container, tag: "h1")!
-        #expect(h1.attrs["style"]?.contains("color: var(--accent)") == true)
+        #expect(h1.style.cssText.contains("color: var(--accent)"))
         // stylesheet: globals, themes, scoped rule, hover, media
         let css = backend.stylesheetText ?? ""
         #expect(css.contains("body { margin: 0 }"))

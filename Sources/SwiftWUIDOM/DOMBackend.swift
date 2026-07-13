@@ -63,6 +63,15 @@ public final class DOMBackend: RendererBackend {
     public func removeAttribute(_ node: JSObject, name: String) {
         try! SWNode(unsafelyWrapping: node).removeAttribute(name)
     }
+    // No bridged CSSStyleDeclaration binding — dynamic JSObject call, same
+    // idiom as the other ad hoc DOM calls in this file (e.g. setStylesheet's
+    // `el.setAttribute`, setMetaTags' `removeChild`).
+    public func setStyleProperty(_ node: JSObject, name: String, value: String) {
+        _ = node.style.object?.setProperty?(name, value)
+    }
+    public func removeStyleProperty(_ node: JSObject, name: String) {
+        _ = node.style.object?.removeProperty?(name)
+    }
     public func setProperty(_ node: JSObject, name: String, value: PropertyValue) {
         switch value {
         case .string(let s):

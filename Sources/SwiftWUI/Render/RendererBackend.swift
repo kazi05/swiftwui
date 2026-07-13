@@ -8,6 +8,9 @@ public protocol RendererBackend: AnyObject {
     func setText(_ node: HostNode, _ text: String)
     func setAttribute(_ node: HostNode, name: String, value: String)
     func removeAttribute(_ node: HostNode, name: String)
+    // MARK: Typed inline style (spec 2026-07-13, animations)
+    func setStyleProperty(_ node: HostNode, name: String, value: String)
+    func removeStyleProperty(_ node: HostNode, name: String)
     func setProperty(_ node: HostNode, name: String, value: PropertyValue)
     func setEventListener(_ node: HostNode, event: String, id: ListenerID)
     func removeEventListener(_ node: HostNode, event: String)
@@ -71,6 +74,8 @@ public protocol RendererBackend: AnyObject {
 extension RendererBackend {
     public func observe(_ node: HostNode, kind: ObserverKind, id: ListenerID) {}
     public func unobserve(_ node: HostNode, kind: ObserverKind) {}
+    public func setStyleProperty(_ node: HostNode, name: String, value: String) {}
+    public func removeStyleProperty(_ node: HostNode, name: String) {}
     public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {}
     public func storageRead(kind: StorageKind, key: String) -> String? { nil }
     public func storageWrite(kind: StorageKind, key: String, value: String?) {}

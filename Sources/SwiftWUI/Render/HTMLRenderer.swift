@@ -32,7 +32,13 @@ public enum HTMLRenderer {
             return render(c.children)                        // transparent boundary
         case .element(let el):
             var out = "<" + el.tag
-            for name in el.attributes.keys.sorted() {        // deterministic goldens
+            var names = Array(el.attributes.keys)
+            if !el.style.isEmpty { names.append("style") }
+            for name in names.sorted() {                      // deterministic goldens
+                if name == "style" {
+                    out += " style=\"" + HTMLEscaping.text(el.style.cssText) + "\""
+                    continue
+                }
                 let value = el.attributes[name]!
                 out += value.isEmpty
                     ? " " + name                              // boolean attribute

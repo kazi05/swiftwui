@@ -155,6 +155,8 @@ where Base.HostNode: AnyObject {
     public func setText(_ node: HostNode, _ text: String) { base.setText(node, text) }
     public func setAttribute(_ node: HostNode, name: String, value: String) { base.setAttribute(node, name: name, value: value) }
     public func removeAttribute(_ node: HostNode, name: String) { base.removeAttribute(node, name: name) }
+    public func setStyleProperty(_ node: HostNode, name: String, value: String) { base.setStyleProperty(node, name: name, value: value) }
+    public func removeStyleProperty(_ node: HostNode, name: String) { base.removeStyleProperty(node, name: name) }
     public func setProperty(_ node: HostNode, name: String, value: PropertyValue) { base.setProperty(node, name: name, value: value) }
     public func setEventListener(_ node: HostNode, event: String, id: ListenerID) { base.setEventListener(node, event: event, id: id) }
     public func removeEventListener(_ node: HostNode, event: String) { base.removeEventListener(node, event: event) }

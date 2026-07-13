@@ -2,6 +2,7 @@ public final class MockNode {
     public var tag: String?
     public var text: String?
     public var attrs: [String: String] = [:]
+    public var style = OrderedStyle()
     public var props: [String: PropertyValue] = [:]
     public var events: [String: ListenerID] = [:]
     public var observers: [ObserverKind: ListenerID] = [:]
@@ -32,6 +33,12 @@ public final class MockBackend: RendererBackend {
     }
     public func removeAttribute(_ node: MockNode, name: String) {
         bump("removeAttribute"); node.attrs[name] = nil
+    }
+    public func setStyleProperty(_ node: MockNode, name: String, value: String) {
+        bump("setStyleProperty"); node.style.set(name, value)
+    }
+    public func removeStyleProperty(_ node: MockNode, name: String) {
+        bump("removeStyleProperty"); node.style.remove(name)
     }
     public func setProperty(_ node: MockNode, name: String, value: PropertyValue) {
         bump("setProperty"); node.props[name] = value
@@ -132,7 +139,13 @@ public final class MockBackend: RendererBackend {
             return n.children.map { serializeHTML($0) }.joined()
         }
         var out = "<" + tag
-        for name in n.attrs.keys.sorted() {
+        var names = Array(n.attrs.keys)
+        if !n.style.isEmpty { names.append("style") }
+        for name in names.sorted() {
+            if name == "style" {
+                out += " style=\"\(HTMLEscaping.text(n.style.cssText))\""
+                continue
+            }
             let value = n.attrs[name]!
             out += value.isEmpty ? " " + name : " \(name)=\"\(HTMLEscaping.text(value))\""
         }

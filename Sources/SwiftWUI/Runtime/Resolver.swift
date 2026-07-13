@@ -146,7 +146,10 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
         effectiveBag.appendClasses([scope])
     }
     let children = coalesceText(resolve(content, path: path.appending(.child(0)), ctx: &ctx))
-    return [.element(ElementNode(identity: path, tag: tagName, attributes: effectiveBag.flattened(),
+    let style = effectiveBag.flattenedStyle()
+    var attrs = effectiveBag.flattened()
+    attrs["style"] = nil                    // moved onto the typed ElementNode.style
+    return [.element(ElementNode(identity: path, tag: tagName, attributes: attrs, style: style,
                                  properties: effectiveBag.flattenedProperties(),
                                  listeners: listeners, observers: observers, children: children, key: nil))]
 }
