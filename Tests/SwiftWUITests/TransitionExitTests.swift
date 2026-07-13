@@ -56,6 +56,14 @@ private struct MoveBlock: Tag {
     }
 }
 
+private struct ReExitBlock: Tag {
+    @State var show = true
+    var body: some Tag {
+        if show { Div(class: "gone").transition(.opacity.animation(.linear(duration: 1))) }
+        Button("t") { show.toggle() }
+    }
+}
+
 private final class FireBox { var fired = false }
 private struct DisappearBlock: Tag {
     @State var show = true
@@ -123,8 +131,15 @@ private struct DisappearBlock: Tag {
         sched.pump()
         #expect(backend.animations.isEmpty)                        // no transition → no exit machinery
         #expect(backend.counts["cancelAnimation"] == nil)
-        #expect(findFirst(backend.container, tag: "div") == nil)   // removed this flush, like baseline
+        #expect(findFirst(backend.container, tag: "div") == nil)   // removed this flush
         #expect(runtime._exitingCount == 0)
+
+        // Byte-identical to a second, transition-free run of the same scenario:
+        // the exit path adds zero backend churn when nothing is registered.
+        let (base, baseBackend, baseSched) = makeRuntime(NoTransitionBlock())
+        base.dispatch(findFirst(baseBackend.container, tag: "button")!.events["click"]!)
+        baseSched.pump()
+        #expect(backend.counts == baseBackend.counts)
     }
 
     @Test func parentUnmountForceFinishesChildExit() {
@@ -216,5 +231,19 @@ private struct DisappearBlock: Tag {
         #expect(findFirst(backend.container, tag: "div") != nil)   // ...while the ghost is still exiting
         #expect(backend.animations.count == 1)
         #expect(runtime._exitingCount == 1)
+    }
+
+    @Test func sameIdentityReExitCleansStaleGhost() {
+        let (runtime, backend, sched) = makeRuntime(ReExitBlock())
+        let button = findFirst(backend.container, tag: "button")!
+        runtime.dispatch(button.events["click"]!); sched.pump()   // off → exit 1 (ghost)
+        #expect(runtime._exitingCount == 1)
+        runtime.dispatch(button.events["click"]!); sched.pump()   // on → duplicate mounts (pre-Task-11)
+        runtime.dispatch(button.events["click"]!); sched.pump()   // off → exit 2 force-finishes the stale ghost
+        for i in backend.animations.indices { backend.settleAnimation(at: i) }
+        sched.pump()
+        #expect(findAll(backend.container, tag: "div").isEmpty)   // no leaked corpse
+        #expect(!backend.serializeHTML().contains("gone"))
+        #expect(runtime._exitingCount == 0)
     }
 }

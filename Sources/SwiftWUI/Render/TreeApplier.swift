@@ -285,6 +285,14 @@ final class TreeApplier<Backend: RendererBackend> {
         topLevelHosts(m, into: &hosts)
         for h in hosts { backend.setAttribute(h, name: "inert", value: "") }
 
+        // Same-identity re-exit (toggle off→on→off inside the window): the prior
+        // ghost still owns `key`. Tear it out first or its host + listeners leak
+        // and its late settle contaminates the new record (pre-Task-11 re-insert
+        // mounts a duplicate, so this is reachable today).
+        if let stale = exiting[key] {
+            stale.tokens.forEach(backend.cancelAnimation)
+            finishExit(key)
+        }
         exiting[key] = ExitRecord(mounted: m, oldNode: node, tokens: [])
         for w in work {
             for d in w.transition.removalActive {
@@ -431,6 +439,7 @@ final class TreeApplier<Backend: RendererBackend> {
         // Removals first (anim spec §7.3): a transition-bearing removed root
         // becomes an inert ghost that leaves the shadow tree here but stays in
         // the DOM until its exit animation settles; everything else unmounts now.
+        assert(plan.removedNodes.count == plan.removedOldIndices.count)
         for (k, i) in plan.removedOldIndices.enumerated() {
             let m = oldChildren[i]
             if animationPass != nil, beginExit(m, node: plan.removedNodes[k]) { continue }
