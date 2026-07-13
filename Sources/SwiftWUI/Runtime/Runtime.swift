@@ -27,7 +27,9 @@ public final class Runtime<Backend: RendererBackend> {
     private let themes: [ThemeDefinition]
     private let fontFaces: [FontFace]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
-    private var pendingTransactions: [NodeIdentity: Transaction] = [:]   // per-write capture, drained each flush
+    // Per-write capture, drained each flush. Component-granularity: a second write
+    // to the SAME component id under a different withAnimation in one flush is last-wins.
+    private var pendingTransactions: [NodeIdentity: Transaction] = [:]
     var _pendingCompletionGroups: [CompletionGroup] = []                 // armed post-flush
     var _lastEffectiveTransactions: [NodeIdentity: Transaction] = [:]    // test hook (Task 4): union of this flush's passes
     public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
@@ -190,7 +192,7 @@ public final class Runtime<Backend: RendererBackend> {
                              transactionOverrides: [NodeIdentity: Transaction] = [:]) {
         guard let old = findNode(current!, at: id),
               let mounted = applier.componentIndex[id] else {
-            renderPass(); return                                  // defensive: fall back to full
+            renderPass(transactionOverrides: transactionOverrides); return   // defensive: fall back to full — forward the flush's captures so animated writes don't silently degrade
         }
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] in self?.markDirty($0) })
