@@ -29,6 +29,9 @@ final class TreeApplier<Backend: RendererBackend> {
     /// immediately after — never leaks into a later pass (anim spec §6).
     var animationPass: AnimationPassContext?
     let animationRegistry = AnimationRegistry()
+    /// Set once by `Runtime` (init/mount) — the persistent `.transition(_:)`
+    /// registry (Task 8); the applier only reads it, never owns it.
+    var transitionsRef: TransitionRegistry?
 
     init(backend: Backend, container: Backend.HostNode) {
         self.backend = backend
@@ -71,6 +74,7 @@ final class TreeApplier<Backend: RendererBackend> {
                 cm.parent = m; cm.indexInParent = m.children.count
                 m.children.append(cm)
             }
+            playEnterTransition(el, host: h)
             return m
 
         case .component(let c):
@@ -126,6 +130,75 @@ final class TreeApplier<Backend: RendererBackend> {
         return anchor(after: parent.indexInParent, in: gp)   // component: enclosing scope
     }
 
+    // MARK: Animation (Task 9)
+
+    /// Shared enter/style-diff animate ceremony (anim spec §6, §6.2): drive
+    /// `backend.animate`, track/retarget the registry entry, and balance the
+    /// driving transaction's completion group.
+    private func playAnimation(_ host: Backend.HostNode, key: AnimationRegistry.Key,
+                               request: AnimationRequest, group: CompletionGroup?) {
+        if let old = animationRegistry.running[key], request.mode == .replace {
+            backend.cancelAnimation(old.token)   // additive retarget hygiene (anim spec §6.2)
+        }
+        // register() always; settle() either via onSettle (finite) or immediately
+        // here (infinite) — onSettle then must skip the group to avoid double-settle.
+        let countsTowardGroup = !request.timing.isInfinite
+        group?.register()
+        var ownToken: AnimationToken?
+        let token = backend.animate(host, request: request) { [weak self] _ in
+            // Token-ownership guard: an additive retarget leaves the OLD
+            // animation running; its later natural settle must NOT evict the
+            // NEWER registry entry (anim spec §6.2). AnimationToken is a class.
+            if let self, self.animationRegistry.running[key]?.token === ownToken {
+                self.animationRegistry.remove(key)
+            }
+            if countsTowardGroup { group?.settle() }
+        }
+        ownToken = token
+        if let token {
+            animationRegistry.track(key, .init(token: token, timing: request.timing, to: request.to))
+            if !countsTowardGroup { group?.settle() }   // repeatForever excluded from groups (anim spec §7.4)
+        } else {
+            animationRegistry.remove(key)
+            group?.settle()   // no-op backend: settle immediately
+        }
+    }
+
+    /// Enter animation for a freshly-mounted element (anim spec §3.4, Task 9).
+    /// Runs AFTER `backend.insert` and children mount, so `from` at offset 0
+    /// with implicit `to` (current value) is flash-free: the whole flush
+    /// completes before paint, there's no frame where the un-animated final
+    /// value is visible.
+    private func playEnterTransition(_ el: ElementNode, host: Backend.HostNode) {
+        guard transitionsRef?.isEmpty == false,
+              let pass = animationPass, !pass.suppressTransitions, !pass.reduceMotion,
+              let t = transitionsRef!.transition(for: el.identity) else { return }
+        // Driving animation resolution order (anim spec §3.4): the transition's
+        // own `.animation` always plays and carries no completion group (it
+        // isn't a Transaction); otherwise "the transaction that caused the
+        // insert" — this element's own in-effect transaction, else the pass's
+        // default — supplies both the timing and the group it settles into.
+        let anim: Animation?
+        let group: CompletionGroup?
+        if let ownAnim = t.animation {
+            anim = ownAnim; group = nil
+        } else if let elTxn = pass.transactions[el.identity], let txnAnim = elTxn.animation {
+            anim = txnAnim; group = elTxn._group
+        } else if let defTxn = pass.defaultTransaction, let defAnim = defTxn.animation {
+            anim = defAnim; group = defTxn._group
+        } else {
+            anim = nil; group = nil
+        }
+        guard let anim else { return }   // unanimated structural insert doesn't transition
+        let timing = anim.resolved()
+        for d in t.insertionActive {
+            let request = AnimationRequest(property: d.property, from: d.value, to: nil,
+                                           mode: .replace, timing: timing)
+            let key = AnimationRegistry.Key(identity: el.identity, property: d.property)
+            playAnimation(host, key: key, request: request, group: group)
+        }
+    }
+
     // MARK: Patch application
 
     /// `endAnchor` is the live host that should end up right after `m`'s block,
@@ -158,31 +231,7 @@ final class TreeApplier<Backend: RendererBackend> {
                         group?.settle()
                     } else {
                         let key = AnimationRegistry.Key(identity: id, property: name)
-                        if let old = animationRegistry.running[key], request.mode == .replace {
-                            backend.cancelAnimation(old.token)   // additive retarget hygiene (anim spec §6.2)
-                        }
-                        // register() always; settle() either via onSettle (finite) or immediately
-                        // here (infinite) — onSettle then must skip the group to avoid double-settle.
-                        let countsTowardGroup = !request.timing.isInfinite
-                        group?.register()
-                        var ownToken: AnimationToken?
-                        let token = backend.animate(m.host!, request: request) { [weak self] _ in
-                            // Token-ownership guard: an additive retarget leaves the OLD
-                            // animation running; its later natural settle must NOT evict the
-                            // NEWER registry entry (anim spec §6.2). AnimationToken is a class.
-                            if let self, self.animationRegistry.running[key]?.token === ownToken {
-                                self.animationRegistry.remove(key)
-                            }
-                            if countsTowardGroup { group?.settle() }
-                        }
-                        ownToken = token
-                        if let token {
-                            animationRegistry.track(key, .init(token: token, timing: request.timing, to: request.to))
-                            if !countsTowardGroup { group?.settle() }   // repeatForever excluded from groups (anim spec §7.4)
-                        } else {
-                            animationRegistry.remove(key)
-                            group?.settle()   // no-op backend: settle immediately
-                        }
+                        playAnimation(m.host!, key: key, request: request, group: group)
                     }
                 }
             case .removeStyleProperty(let name):

@@ -18,6 +18,9 @@
 @MainActor final class TransitionRegistry {
     private(set) var byIdentity: [NodeIdentity: AnyTransition] = [:]
     private var seenThisPass: Set<NodeIdentity> = []
+    /// Cheap guard for the mount-path lookup (Task 9): skip the per-element
+    /// dictionary probe entirely when nothing is registered.
+    var isEmpty: Bool { byIdentity.isEmpty }
 
     func register(_ t: AnyTransition, for id: NodeIdentity) {
         seenThisPass.insert(id)

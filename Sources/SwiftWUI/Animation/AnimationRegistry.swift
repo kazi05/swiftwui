@@ -41,4 +41,10 @@ struct AnimationPassContext {
     var transactions: [NodeIdentity: Transaction]
     var reduceMotion: Bool
     var suppressTransitions: Bool
+    /// The transaction that caused this pass (Task 9 §3.4): the drained
+    /// `.root` override for a renderPass, or the subtree pass's own cover-id
+    /// transaction. Driving-animation fallback for a fresh mount whose
+    /// element has no per-identity entry in `transactions` (e.g. a plain
+    /// `Div` with no other animated writes this pass).
+    var defaultTransaction: Transaction?
 }

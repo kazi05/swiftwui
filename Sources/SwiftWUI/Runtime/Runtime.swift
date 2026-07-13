@@ -29,6 +29,11 @@ public final class Runtime<Backend: RendererBackend> {
     private let themes: [ThemeDefinition]
     private let fontFaces: [FontFace]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
+    /// SSG/hydration SPI (Task 9): set by boot code before its first flush
+    /// after adopting a server-rendered tree, so that flush's fresh mounts
+    /// don't play enter transitions as if newly inserted. Consumed (cleared)
+    /// after that flush — covers every pass the flush runs, not just the first.
+    public var _suppressTransitionsOnce = false
     // Per-write capture, drained each flush. Component-granularity: a second write
     // to the SAME component id under a different withAnimation in one flush is last-wins.
     private var pendingTransactions: [NodeIdentity: Transaction] = [:]
@@ -75,6 +80,7 @@ public final class Runtime<Backend: RendererBackend> {
         currentPath = RouteURL.normalizePath(path)
         currentQuery = query
         applier = TreeApplier(backend: backend, container: container)
+        applier.transitionsRef = transitions
         rootTag = AnyTag(root)
         self.scheduleMicrotask = scheduleMicrotask
         self.globalStyles = globalStyles
@@ -170,12 +176,14 @@ public final class Runtime<Backend: RendererBackend> {
         let drainedGroups = _pendingCompletionGroups
         _pendingCompletionGroups.removeAll()
         _lastEffectiveTransactions.removeAll()
+        let suppressOnce = _suppressTransitionsOnce
+        _suppressTransitionsOnce = false
         if current == nil || _forceFullPasses || ids.contains(.root) {
-            renderPass(transactionOverrides: drained)
+            renderPass(transactionOverrides: drained, suppressTransitionsOnce: suppressOnce)
         } else {
             for id in minimalCover(ids) {
                 guard let row = store.retainedRow(at: id) else { continue }   // removed this flush
-                subtreePass(id, row, transactionOverrides: drained)
+                subtreePass(id, row, transactionOverrides: drained, suppressTransitionsOnce: suppressOnce)
             }
         }
         // Armed AFTER all of this flush's passes: an empty group (nothing yet
@@ -193,10 +201,12 @@ public final class Runtime<Backend: RendererBackend> {
     }
 
     private func subtreePass(_ id: NodeIdentity, _ row: RetainedComponent,
-                             transactionOverrides: [NodeIdentity: Transaction] = [:]) {
+                             transactionOverrides: [NodeIdentity: Transaction] = [:],
+                             suppressTransitionsOnce: Bool = false) {
         guard let old = findNode(current!, at: id),
               let mounted = applier.componentIndex[id] else {
-            renderPass(transactionOverrides: transactionOverrides); return   // defensive: fall back to full — forward the flush's captures so animated writes don't silently degrade
+            renderPass(transactionOverrides: transactionOverrides,
+                      suppressTransitionsOnce: suppressTransitionsOnce); return   // defensive: fall back to full — forward the flush's captures so animated writes don't silently degrade
         }
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] in self?.markDirty($0) })
@@ -246,7 +256,9 @@ public final class Runtime<Backend: RendererBackend> {
 
         let patches = Reconciler().diff(old: old, new: new)
         applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
-                                                      reduceMotion: false, suppressTransitions: false)
+                                                      reduceMotion: false,
+                                                      suppressTransitions: suppressTransitionsOnce,
+                                                      defaultTransaction: ctx.transaction)
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
         applier.animationPass = nil
         current = splicing(current!, at: id, with: new)
@@ -288,7 +300,8 @@ public final class Runtime<Backend: RendererBackend> {
         }
     }
 
-    private func renderPass(transactionOverrides: [NodeIdentity: Transaction] = [:]) {
+    private func renderPass(transactionOverrides: [NodeIdentity: Transaction] = [:],
+                            suppressTransitionsOnce: Bool = false) {
         // 1. RESOLVE + LINK.
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] id in self?.markDirty(id) })
@@ -319,7 +332,9 @@ public final class Runtime<Backend: RendererBackend> {
         animationValues.sweep(under: .root, reachable: ctx.reachable)
         // 3–4. DIFF + APPLY.
         applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
-                                                      reduceMotion: false, suppressTransitions: current == nil)
+                                                      reduceMotion: false,
+                                                      suppressTransitions: current == nil || suppressTransitionsOnce,
+                                                      defaultTransaction: transactionOverrides[.root])
         if let old = current {
             let patches = Reconciler().diff(old: old, new: new)
             applier.apply(patches, to: applier.root.children[0])
