@@ -33,6 +33,17 @@ final class TreeApplier<Backend: RendererBackend> {
     /// registry (Task 8); the applier only reads it, never owns it.
     var transitionsRef: TransitionRegistry?
 
+    /// A removed subtree kept alive as an inert "ghost" while its exit
+    /// transition plays; torn out of the DOM once every exit animation settles
+    /// (anim spec §7.3). Keyed by the removed root's identity.
+    struct ExitRecord {
+        let mounted: MountedNode<Backend.HostNode>
+        let oldNode: Node?          // retained for ghost-adoption re-diff (Task 11)
+        var tokens: [AnimationToken]
+        var settled = 0             // idempotence bookkeeping
+    }
+    private(set) var exiting: [NodeIdentity: ExitRecord] = [:]
+
     init(backend: Backend, container: Backend.HostNode) {
         self.backend = backend
         root = MountedNode(host: container, hostParent: container)
@@ -92,6 +103,7 @@ final class TreeApplier<Backend: RendererBackend> {
     }
 
     func unmount(_ m: MountedNode<Backend.HostNode>) {
+        forceFinishExits(under: m)   // ghosts under m die with it (anim spec §7.3.6)
         unregister(m)
         tearDownListeners(m)
         removeHosts(m)
@@ -199,6 +211,133 @@ final class TreeApplier<Backend: RendererBackend> {
         }
     }
 
+    // MARK: Exit orchestration (Task 10 — anim spec §7.3)
+
+    private func rootIdentity(of node: Node) -> NodeIdentity? {
+        switch node {
+        case .element(let e): return e.identity
+        case .component(let c): return c.identity
+        case .text: return nil
+        }
+    }
+
+    /// Visits the OUTERMOST transition-bearing element hosts under `m` (stops
+    /// descending once a root animates — SwiftUI's outermost-transition rule).
+    private func collectExitRoots(_ m: MountedNode<Backend.HostNode>,
+                                  _ visit: (Backend.HostNode, NodeIdentity, AnyTransition) -> Void) {
+        if let h = m.host, let id = m.elementIdentity,
+           let t = transitionsRef?.transition(for: id), !t.removalActive.isEmpty {
+            visit(h, id, t); return
+        }
+        for c in m.children { collectExitRoots(c, visit) }
+    }
+
+    /// Every realized element host at the root level of `m`'s block (a component
+    /// ghost realizes several) — the hosts marked `inert` (anim spec §7.3.2).
+    private func topLevelHosts(_ m: MountedNode<Backend.HostNode>, into out: inout [Backend.HostNode]) {
+        if let h = m.host { out.append(h); return }
+        for c in m.children { topLevelHosts(c, into: &out) }
+    }
+
+    /// Nearest identity at or under `m` — force-finish's prefix anchor.
+    private func nearestIdentity(_ m: MountedNode<Backend.HostNode>) -> NodeIdentity? {
+        if let id = m.componentIdentity ?? m.elementIdentity { return id }
+        for c in m.children { if let id = nearestIdentity(c) { return id } }
+        return nil
+    }
+
+    /// Returns true when an exit transition started (the ghost is kept and torn
+    /// out on settle); false → the caller must `unmount(m)` normally. `node` is
+    /// the removed Node (nil from `replace()`, which has no old Node in hand).
+    func beginExit(_ m: MountedNode<Backend.HostNode>, node: Node?) -> Bool {
+        guard let pass = animationPass, !pass.reduceMotion,
+              transitionsRef?.isEmpty == false else { return false }
+        // Driving-animation resolution per outermost root, mirroring the enter
+        // path (anim spec §3.4): the transition's own animation, else this
+        // element's in-effect transaction, else the pass default. All nil = no
+        // transition on that root (unanimated remove is instant — SwiftUI parity).
+        var work: [(host: Backend.HostNode, transition: AnyTransition,
+                    timing: ResolvedTiming, group: CompletionGroup?)] = []
+        collectExitRoots(m) { host, id, t in
+            let anim: Animation?
+            let group: CompletionGroup?
+            if let own = t.animation {
+                anim = own; group = nil
+            } else if let txn = pass.transactions[id], let a = txn.animation {
+                anim = a; group = txn._group
+            } else if let def = pass.defaultTransaction, let a = def.animation {
+                anim = a; group = def._group
+            } else {
+                anim = nil; group = nil
+            }
+            if let anim { work.append((host, t, anim.resolved(), group)) }
+        }
+        guard !work.isEmpty,
+              let key = node.flatMap(rootIdentity(of:)) ?? m.componentIdentity ?? m.elementIdentity
+        else { return false }
+
+        // Commit the ghost: free component bookkeeping and mark inert. Listeners
+        // stay attached (registry sweep already killed the handlers; fire-time
+        // lookup no-ops) — DOM listener teardown happens in finishExit, and Task
+        // 11 adoption needs them attached until then (anim spec §7.3).
+        unregister(m)
+        var hosts: [Backend.HostNode] = []
+        topLevelHosts(m, into: &hosts)
+        for h in hosts { backend.setAttribute(h, name: "inert", value: "") }
+
+        exiting[key] = ExitRecord(mounted: m, oldNode: node, tokens: [])
+        for w in work {
+            for d in w.transition.removalActive {
+                // identity→active: from implicit (current), to the off-stage value.
+                let request = AnimationRequest(property: d.property, from: nil, to: d.value,
+                                               mode: .replace, timing: w.timing)
+                let countsGroup = !w.timing.isInfinite   // repeatForever excluded (anim spec §7.4)
+                w.group?.register()
+                let token = backend.animate(w.host, request: request) { [weak self] _ in
+                    if countsGroup { w.group?.settle() }
+                    self?.recordExitSettle(key)
+                }
+                if let token {
+                    exiting[key]?.tokens.append(token)
+                    if !countsGroup { w.group?.settle() }
+                } else {
+                    w.group?.settle()   // no-op backend: nothing to wait on
+                }
+            }
+        }
+        // No real animation ran (backend couldn't animate any property): remove
+        // the ghost immediately rather than leaking it (backends never call
+        // onSettle synchronously, so tokens is fully populated here).
+        if exiting[key]?.tokens.isEmpty == true { finishExit(key) }
+        return true
+    }
+
+    private func recordExitSettle(_ key: NodeIdentity) {
+        guard var rec = exiting[key] else { return }   // already finished — idempotent
+        rec.settled += 1
+        exiting[key] = rec
+        if rec.settled >= rec.tokens.count { finishExit(key) }
+    }
+
+    /// Idempotent (anim spec §7.3.6): tears the ghost down for good.
+    /// `unregister` already ran in `beginExit`; here we drop DOM listeners + hosts.
+    func finishExit(_ id: NodeIdentity) {
+        guard let record = exiting.removeValue(forKey: id) else { return }
+        tearDownListeners(record.mounted)
+        removeHosts(record.mounted)
+    }
+
+    /// Force-finishes every exit whose ghost lives under `m` before `m` unmounts:
+    /// its DOM dies with the ancestor anyway, so cancel the backend animations
+    /// (which fire onSettle) and finish the records; late settles are no-ops.
+    private func forceFinishExits(under m: MountedNode<Backend.HostNode>) {
+        guard !exiting.isEmpty, let root = nearestIdentity(m) else { return }
+        for (id, rec) in exiting.filter({ $0.key.isSelfOrDescendant(of: root) }) {
+            rec.tokens.forEach(backend.cancelAnimation)
+            finishExit(id)
+        }
+    }
+
     // MARK: Patch application
 
     /// `endAnchor` is the live host that should end up right after `m`'s block,
@@ -268,8 +407,15 @@ final class TreeApplier<Backend: RendererBackend> {
         // Position marker: m's own first host, else the threaded live anchor if
         // given, else the (only safe when non-nested) shadow-tree fallback.
         let a = firstHost(m) ?? (endAnchor ?? anchor(after: m.indexInParent, in: parent))
+        // Enter side fires inside mount(new) → playEnterTransition (Task 9). Exit
+        // side: try to keep the old subtree as a ghost that animates out AFTER
+        // the new node in DOM order (anim spec §7.1). `node: nil` — replace has no
+        // old Node in hand, so ghost adoption after a replaceSelf-exit falls back
+        // to force-finish + fresh mount (documented, Task 11).
         let nm = mount(new, hostParent: m.hostParent, before: a)
-        unmount(m)
+        if animationPass == nil || !beginExit(m, node: nil) {
+            unmount(m)
+        }
         nm.parent = parent
         nm.indexInParent = m.indexInParent
         parent.children[m.indexInParent] = nm
@@ -282,7 +428,14 @@ final class TreeApplier<Backend: RendererBackend> {
                        endAnchor: Backend.HostNode?? = nil) {
         let oldChildren = parent.children
 
-        for i in plan.removedOldIndices { unmount(oldChildren[i]) }
+        // Removals first (anim spec §7.3): a transition-bearing removed root
+        // becomes an inert ghost that leaves the shadow tree here but stays in
+        // the DOM until its exit animation settles; everything else unmounts now.
+        for (k, i) in plan.removedOldIndices.enumerated() {
+            let m = oldChildren[i]
+            if animationPass != nil, beginExit(m, node: plan.removedNodes[k]) { continue }
+            unmount(m)
+        }
 
         let hostParent = parent.host ?? parent.hostParent
         var newChildren = [MountedNode<Backend.HostNode>?](repeating: nil, count: plan.slots.count)

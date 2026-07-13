@@ -40,6 +40,7 @@ public final class Runtime<Backend: RendererBackend> {
     var _pendingCompletionGroups: [CompletionGroup] = []                 // armed post-flush
     var _lastEffectiveTransactions: [NodeIdentity: Transaction] = [:]    // test hook (Task 4): union of this flush's passes
     var _animationRegistry: AnimationRegistry { applier.animationRegistry }   // test hook (Task 7)
+    var _exitingCount: Int { applier.exiting.count }   // test hook (Task 10): ghost-leak assertions
     var _transitionRegistry: TransitionRegistry { transitions }   // test hook (Task 8)
     public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
     public var _signals: EnvironmentSignals { signals }   // SPI: backend wiring + tests

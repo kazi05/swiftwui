@@ -20,6 +20,11 @@ struct ChildrenPlan: Equatable {
     }
     var slots: [Slot]
     var removedOldIndices: [Int]
+    /// Parallel to `removedOldIndices` (same order): the removed old Nodes.
+    /// Exit orchestration needs the Node for the removed root's identity and
+    /// (Task 11) ghost-adoption re-diff (anim spec §7.3). Default keeps the
+    /// hand-built plans in ApplierTests compiling unchanged.
+    var removedNodes: [Node] = []
 
     /// True when the plan changes nothing: every slot reuses its own old index
     /// with no patches, in order, covering all old children.
@@ -175,6 +180,7 @@ struct Reconciler {
         }
 
         let removed = (0..<old.count).filter { !usedOld.contains($0) }
-        return ChildrenPlan(slots: slots, removedOldIndices: removed)
+        return ChildrenPlan(slots: slots, removedOldIndices: removed,
+                            removedNodes: removed.map { old[$0] })
     }
 }
