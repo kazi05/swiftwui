@@ -24,11 +24,17 @@
     }
 
     /// Cancels (via `backend`) and drops every entry whose identity is `root`
-    /// or a descendant of it — used when a subtree unmounts (Task 10).
+    /// or a descendant of it — used to kill in-flight enter/property animations
+    /// when their subtree begins exiting (Task 11, anim spec §7.5).
+    ///
+    /// Snapshot via `filter` first: cancel fires the animation's `onSettle`
+    /// synchronously (mock backend), which the token-ownership guard would use
+    /// to mutate `running` — iterating the live dictionary while it mutates is
+    /// UB. Dropping the entry BEFORE the cancel makes that guard a no-op.
     func cancelAll(under root: NodeIdentity, using backend: (AnimationToken) -> Void) {
-        for (key, r) in running where key.identity.isSelfOrDescendant(of: root) {
-            backend(r.token)
+        for (key, r) in running.filter({ $0.key.identity.isSelfOrDescendant(of: root) }) {
             running[key] = nil
+            backend(r.token)
         }
     }
 }

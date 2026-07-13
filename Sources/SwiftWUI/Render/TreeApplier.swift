@@ -113,6 +113,13 @@ final class TreeApplier<Backend: RendererBackend> {
         if let id = m.componentIdentity, componentIndex[id] === m { componentIndex[id] = nil }
         for c in m.children { unregister(c) }
     }
+    /// Mirror of `unregister` (Task 11, anim spec §7.5): repopulates
+    /// `componentIndex` for a ghost being adopted back into the live tree. The
+    /// ids were freed at exit-start, so this simply re-claims them.
+    private func reregister(_ m: MountedNode<Backend.HostNode>) {
+        if let id = m.componentIdentity { componentIndex[id] = m }
+        for c in m.children { reregister(c) }
+    }
     private func tearDownListeners(_ m: MountedNode<Backend.HostNode>) {
         for c in m.children { tearDownListeners(c) }
         if let h = m.host {
@@ -182,9 +189,17 @@ final class TreeApplier<Backend: RendererBackend> {
     /// completes before paint, there's no frame where the un-animated final
     /// value is visible.
     private func playEnterTransition(_ el: ElementNode, host: Backend.HostNode) {
+        playEnter(identity: el.identity, host: host)
+    }
+
+    /// Emits the active→identity enter animations for `identity`'s registered
+    /// transition. Shared by the fresh-mount enter path (Task 9) and ghost
+    /// adoption's enter replay (Task 11) — both drive from the current
+    /// presentation (WAAPI implicit `to`) with the same resolution order.
+    private func playEnter(identity: NodeIdentity, host: Backend.HostNode) {
         guard transitionsRef?.isEmpty == false,
               let pass = animationPass, !pass.suppressTransitions, !pass.reduceMotion,
-              let t = transitionsRef!.transition(for: el.identity) else { return }
+              let t = transitionsRef!.transition(for: identity), !t.insertionActive.isEmpty else { return }
         // Driving animation resolution order (anim spec §3.4): the transition's
         // own `.animation` always plays and carries no completion group (it
         // isn't a Transaction); otherwise "the transaction that caused the
@@ -194,7 +209,7 @@ final class TreeApplier<Backend: RendererBackend> {
         let group: CompletionGroup?
         if let ownAnim = t.animation {
             anim = ownAnim; group = nil
-        } else if let elTxn = pass.transactions[el.identity], let txnAnim = elTxn.animation {
+        } else if let elTxn = pass.transactions[identity], let txnAnim = elTxn.animation {
             anim = txnAnim; group = elTxn._group
         } else if let defTxn = pass.defaultTransaction, let defAnim = defTxn.animation {
             anim = defAnim; group = defTxn._group
@@ -206,7 +221,7 @@ final class TreeApplier<Backend: RendererBackend> {
         for d in t.insertionActive {
             let request = AnimationRequest(property: d.property, from: d.value, to: nil,
                                            mode: .replace, timing: timing)
-            let key = AnimationRegistry.Key(identity: el.identity, property: d.property)
+            let key = AnimationRegistry.Key(identity: identity, property: d.property)
             playAnimation(host, key: key, request: request, group: group)
         }
     }
@@ -294,6 +309,13 @@ final class TreeApplier<Backend: RendererBackend> {
             finishExit(key)
         }
         exiting[key] = ExitRecord(mounted: m, oldNode: node, tokens: [])
+
+        // Removal during enter (anim spec §7.5): kill any in-flight enter/style
+        // animations under this subtree so the exit starts from the CURRENT
+        // presentation (implicit-from), not a snapped-to-final value. Their
+        // onSettle balances the driving transaction's completion group (t7).
+        animationRegistry.cancelAll(under: key, using: backend.cancelAnimation)
+
         for w in work {
             for d in w.transition.removalActive {
                 // identity→active: from implicit (current), to the off-stage value.
@@ -344,6 +366,51 @@ final class TreeApplier<Backend: RendererBackend> {
             rec.tokens.forEach(backend.cancelAnimation)
             finishExit(id)
         }
+    }
+
+    /// Visits the OUTERMOST enter-transition-bearing element hosts under `m` —
+    /// adoption's enter-replay counterpart of `collectExitRoots` (Task 11).
+    private func collectEnterRoots(_ m: MountedNode<Backend.HostNode>,
+                                   _ visit: (Backend.HostNode, NodeIdentity) -> Void) {
+        if let h = m.host, let id = m.elementIdentity,
+           let t = transitionsRef?.transition(for: id), !t.insertionActive.isEmpty {
+            visit(h, id); return
+        }
+        for c in m.children { collectEnterRoots(c, visit) }
+    }
+
+    /// Re-insertion during exit (anim spec §7.5): a fresh slot whose identity is
+    /// still exiting adopts the ghost back instead of mounting a duplicate.
+    /// State was swept at exit-start, so the incoming (already-resolved-with-
+    /// fresh-state) `node` re-diffs against the ghost's retained `oldNode` and
+    /// the adopted subtree restarts fresh — SwiftUI parity, documented.
+    /// `anchorNode` is the live anchor of the in-flight right-to-left slot pass.
+    private func adopt(_ node: Node, key: NodeIdentity, rec: ExitRecord,
+                       hostParent: Backend.HostNode,
+                       anchorNode: Backend.HostNode?) -> MountedNode<Backend.HostNode> {
+        guard let oldNode = rec.oldNode else {
+            // replaceSelf ghost has no retained old Node to re-diff against:
+            // force-finish it and mount fresh (documented fallback, anim spec §7.5).
+            rec.tokens.forEach(backend.cancelAnimation)
+            finishExit(key)
+            return mount(node, hostParent: hostParent, before: anchorNode)
+        }
+        // Drop the record BEFORE cancelling: cancel fires each token's onSettle
+        // (recordExitSettle), which must no-op against a gone record rather than
+        // run finishExit → removeHosts and tear the ghost's DOM/listeners out.
+        // The onSettle still balances the exit's completion group.
+        exiting[key] = nil
+        rec.tokens.forEach(backend.cancelAnimation)   // presentation snaps toward model
+        reregister(rec.mounted)                        // ghost back into componentIndex
+        var hosts: [Backend.HostNode] = []
+        topLevelHosts(rec.mounted, into: &hosts)
+        for h in hosts { backend.removeAttribute(h, name: "inert") }   // clicks/focus live again
+        let patches = Reconciler().diff(old: oldNode, new: node)
+        apply(patches, to: rec.mounted, endAnchor: anchorNode)
+        moveHosts(rec.mounted, before: anchorNode, in: hostParent)     // ghost may be out of position
+        // Re-run the enter path from the current presentation (WAAPI implicit-from).
+        collectEnterRoots(rec.mounted) { host, id in playEnter(identity: id, host: host) }
+        return rec.mounted
     }
 
     // MARK: Patch application
@@ -464,7 +531,14 @@ final class TreeApplier<Backend: RendererBackend> {
         for idx in stride(from: plan.slots.count - 1, through: 0, by: -1) {
             switch plan.slots[idx] {
             case .fresh(let node):
-                newChildren[idx] = mount(node, hostParent: hostParent, before: anchorNode)
+                // Adopt a still-exiting ghost of the same identity back to life
+                // (anim spec §7.5) rather than mounting a duplicate.
+                if let key = rootIdentity(of: node), let rec = exiting[key] {
+                    newChildren[idx] = adopt(node, key: key, rec: rec,
+                                             hostParent: hostParent, anchorNode: anchorNode)
+                } else {
+                    newChildren[idx] = mount(node, hostParent: hostParent, before: anchorNode)
+                }
             case .reuse(let oldIndex, let patches):
                 let m = oldChildren[oldIndex]
                 // Apply patches (which may grow/reorder m's own children) BEFORE
