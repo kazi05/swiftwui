@@ -44,6 +44,14 @@ private struct RetargetBlock: Tag {
     }
 }
 
+private struct ColorBlock: Tag {
+    @State var color = "red"
+    var body: some Tag {
+        Div(class: "color").style("background-color", color)
+        Button("next") { withAnimation(.linear(duration: 1)) { color = color == "red" ? "blue" : "green" } }
+    }
+}
+
 private struct AttrBlock: Tag {
     @State var flag = false
     var body: some Tag {
@@ -132,5 +140,42 @@ private struct AttrBlock: Tag {
         runtime.dispatch(button.events["click"]!)
         sched.pump()
         #expect(backend.counts["animate"] == nil)
+    }
+
+    @Test func additiveRetargetOldSettleKeepsNewEntry() {
+        let (runtime, backend, sched) = makeRuntime(RetargetBlock())
+        let button = findFirst(backend.container, tag: "button")!
+        runtime.dispatch(button.events["click"]!); sched.pump()   // opacity 0→1 (token0)
+        runtime.dispatch(button.events["click"]!); sched.pump()   // opacity 1→2 (token1, additive: no cancel)
+        #expect(backend.animations.count == 2)
+        #expect(runtime._animationRegistry.running.count == 1)
+        backend.settleAnimation(at: 0)   // OLD settles first — must NOT evict the newer entry
+        #expect(runtime._animationRegistry.running.count == 1)
+        backend.settleAnimation(at: 1)   // NEW settles — its own entry gone
+        #expect(runtime._animationRegistry.running.count == 0)
+    }
+
+    @Test func replaceRetargetCancelsOld() {
+        let (runtime, backend, sched) = makeRuntime(ColorBlock())
+        let button = findFirst(backend.container, tag: "button")!
+        runtime.dispatch(button.events["click"]!); sched.pump()   // red→blue (replace)
+        #expect(backend.animations[0].request.mode == .replace)
+        runtime.dispatch(button.events["click"]!); sched.pump()   // blue→green (replace → cancels old)
+        #expect(backend.counts["cancelAnimation"] == 1)
+        #expect(backend.animations.count == 2)
+        #expect(runtime._animationRegistry.running.count == 1)   // old evicted, new tracked
+    }
+
+    @Test func noOpBackendNoEntryCompletionStillFires() {
+        let (runtime, backend, sched) = makeRuntime(PlainOpacityBlock())
+        backend.animateReturnsNil = true
+        let button = findFirst(backend.container, tag: "button")!
+        var completed = false
+        withAnimation(.linear(duration: 1), completion: { completed = true }) {
+            runtime.dispatch(button.events["click"]!)
+        }
+        sched.pump()
+        #expect(runtime._animationRegistry.running.isEmpty)
+        #expect(completed)
     }
 }

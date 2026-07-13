@@ -142,10 +142,14 @@ public final class MockBackend: RendererBackend {
 
     public private(set) var animations: [RecordedAnimation] = []
     private var settledTokens: Set<ObjectIdentifier> = []
+    /// Test knob: simulate a backend that can't animate this property (returns
+    /// nil, records nothing, never calls onSettle). `animate` is still counted.
+    public var animateReturnsNil = false
     @discardableResult
     public func animate(_ node: MockNode, request: AnimationRequest,
                          onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? {
         bump("animate")
+        if animateReturnsNil { return nil }
         let token = AnimationToken()
         animations.append(RecordedAnimation(node: node, request: request, settle: onSettle, token: token))
         return token

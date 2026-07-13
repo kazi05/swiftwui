@@ -145,30 +145,44 @@ final class TreeApplier<Backend: RendererBackend> {
                 backend.removeAttribute(m.host!, name: name)
             case .setStyleProperty(let name, let value, let previous):
                 backend.setStyleProperty(m.host!, name: name, value: value)   // model final FIRST (anim spec §6.1)
-                if let pass = animationPass, !pass.reduceMotion,
+                if let pass = animationPass,
                    let id = m.elementIdentity, let txn = pass.transactions[id],
                    let anim = txn.animation,
                    let request = AnimationPlanner.request(property: name, from: previous, to: value,
                                                           timing: anim.resolved()) {
-                    let key = AnimationRegistry.Key(identity: id, property: name)
-                    if let old = animationRegistry.running[key], request.mode == .replace {
-                        backend.cancelAnimation(old.token)   // additive retarget hygiene (anim spec §6.2)
-                    }
-                    // register() always; settle() either via onSettle (finite) or immediately
-                    // here (infinite) — onSettle then must skip the group to avoid double-settle.
-                    let countsTowardGroup = !request.timing.isInfinite
-                    txn._group?.register()
                     let group = txn._group
-                    let token = backend.animate(m.host!, request: request) { [weak self] _ in
-                        self?.animationRegistry.remove(key)
-                        if countsTowardGroup { group?.settle() }
-                    }
-                    if let token {
-                        animationRegistry.track(key, .init(token: token, timing: request.timing, to: request.to))
-                        if !countsTowardGroup { group?.settle() }   // repeatForever excluded from groups (anim spec §7.4)
+                    if pass.reduceMotion {
+                        // Reduce motion: no backend animation, no registry entry — but still
+                        // register()+settle() so completion semantics hold (anim spec §6, Task 13).
+                        group?.register()
+                        group?.settle()
                     } else {
-                        animationRegistry.remove(key)
-                        group?.settle()   // no-op backend: settle immediately
+                        let key = AnimationRegistry.Key(identity: id, property: name)
+                        if let old = animationRegistry.running[key], request.mode == .replace {
+                            backend.cancelAnimation(old.token)   // additive retarget hygiene (anim spec §6.2)
+                        }
+                        // register() always; settle() either via onSettle (finite) or immediately
+                        // here (infinite) — onSettle then must skip the group to avoid double-settle.
+                        let countsTowardGroup = !request.timing.isInfinite
+                        group?.register()
+                        var ownToken: AnimationToken?
+                        let token = backend.animate(m.host!, request: request) { [weak self] _ in
+                            // Token-ownership guard: an additive retarget leaves the OLD
+                            // animation running; its later natural settle must NOT evict the
+                            // NEWER registry entry (anim spec §6.2). AnimationToken is a class.
+                            if let self, self.animationRegistry.running[key]?.token === ownToken {
+                                self.animationRegistry.remove(key)
+                            }
+                            if countsTowardGroup { group?.settle() }
+                        }
+                        ownToken = token
+                        if let token {
+                            animationRegistry.track(key, .init(token: token, timing: request.timing, to: request.to))
+                            if !countsTowardGroup { group?.settle() }   // repeatForever excluded from groups (anim spec §7.4)
+                        } else {
+                            animationRegistry.remove(key)
+                            group?.settle()   // no-op backend: settle immediately
+                        }
                     }
                 }
             case .removeStyleProperty(let name):
