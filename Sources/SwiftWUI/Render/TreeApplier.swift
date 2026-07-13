@@ -40,7 +40,7 @@ final class TreeApplier<Backend: RendererBackend> {
         let mounted: MountedNode<Backend.HostNode>
         let oldNode: Node?          // retained for ghost-adoption re-diff (Task 11)
         var tokens: [AnimationToken]
-        var settled = 0             // idempotence bookkeeping
+        var settledTokens: Set<ObjectIdentifier> = []   // token-verified idempotence (anim spec §7.5)
     }
     private(set) var exiting: [NodeIdentity: ExitRecord] = [:]
 
@@ -301,9 +301,10 @@ final class TreeApplier<Backend: RendererBackend> {
         for h in hosts { backend.setAttribute(h, name: "inert", value: "") }
 
         // Same-identity re-exit (toggle off→on→off inside the window): the prior
-        // ghost still owns `key`. Tear it out first or its host + listeners leak
-        // and its late settle contaminates the new record (pre-Task-11 re-insert
-        // mounts a duplicate, so this is reachable today).
+        // ghost still owns `key`. Tear it out first or its host + listeners leak.
+        // (Its cancelled tokens' late async settle can no longer contaminate the
+        // new record — `recordExitSettle` is token-verified — but the DOM/listener
+        // teardown still has to happen here.)
         if let stale = exiting[key] {
             stale.tokens.forEach(backend.cancelAnimation)
             finishExit(key)
@@ -323,10 +324,12 @@ final class TreeApplier<Backend: RendererBackend> {
                                                mode: .replace, timing: w.timing)
                 let countsGroup = !w.timing.isInfinite   // repeatForever excluded (anim spec §7.4)
                 w.group?.register()
+                var ownToken: AnimationToken?
                 let token = backend.animate(w.host, request: request) { [weak self] _ in
                     if countsGroup { w.group?.settle() }
-                    self?.recordExitSettle(key)
+                    if let ownToken { self?.recordExitSettle(key, token: ownToken) }
                 }
+                ownToken = token
                 if let token {
                     exiting[key]?.tokens.append(token)
                     if !countsGroup { w.group?.settle() }
@@ -342,11 +345,15 @@ final class TreeApplier<Backend: RendererBackend> {
         return true
     }
 
-    private func recordExitSettle(_ key: NodeIdentity) {
-        guard var rec = exiting[key] else { return }   // already finished — idempotent
-        rec.settled += 1
+    /// Token-verified (anim spec §7.5): a superseded record's token settling late
+    /// (an async backend's cancel-rejection lands a microtask later) must NOT
+    /// count against whatever record now holds this key — only this record's own
+    /// tokens advance it toward finish. Stray tokens are ignored no-ops.
+    private func recordExitSettle(_ key: NodeIdentity, token: AnimationToken) {
+        guard var rec = exiting[key], rec.tokens.contains(where: { $0 === token }) else { return }
+        rec.settledTokens.insert(ObjectIdentifier(token))
         exiting[key] = rec
-        if rec.settled >= rec.tokens.count { finishExit(key) }
+        if rec.settledTokens.count >= rec.tokens.count { finishExit(key) }
     }
 
     /// Idempotent (anim spec §7.3.6): tears the ghost down for good.

@@ -22,6 +22,20 @@ private struct EnterThenExitBlock: Tag {
     }
 }
 
+private struct NestedPropBlock: Tag {
+    @State var show = true
+    @State var w = 10
+    var body: some Tag {
+        if show {
+            Div(class: "root") {
+                Span(class: "inner").style("width", "\(w)px")
+            }.transition(.opacity)
+        }
+        Button("grow") { withAnimation(.linear(duration: 1)) { w = 100 } }
+        Button("hide") { withAnimation(.linear(duration: 1)) { show = false } }
+    }
+}
+
 private struct CounterInBranch: Tag {
     @State var n = 0
     var body: some Tag {
@@ -147,5 +161,59 @@ private struct SeededRNG: RandomNumberGenerator {
         #expect(runtime._exitingCount == 0)                       // no leaked ghosts at rest
         // 5 toggles from `show = true` → final state hidden, deterministically.
         #expect(findAll(backend.container, tag: "div").isEmpty)
+    }
+
+    // A `withAnimation` property animation on a NESTED element under the exit
+    // root must be cancelled when the root exits (cancelAll prefix match).
+    @Test func descendantPropertyAnimationCancelledOnExit() {
+        let (runtime, backend, sched) = makeRuntime(NestedPropBlock())
+        runtime.dispatch(button(backend, "grow").events["click"]!); sched.pump()
+        #expect(backend.animations.contains { $0.request.property == "width" })
+        let cancelsBefore = backend.counts["cancelAnimation", default: 0]
+
+        runtime.dispatch(button(backend, "hide").events["click"]!); sched.pump()
+        #expect(backend.counts["cancelAnimation", default: 0] == cancelsBefore + 1)  // nested width cancelled
+        #expect(runtime._exitingCount == 1)
+    }
+
+    // Async-race guard (anim spec §7.5), driven at the applier level: a token
+    // from a SUPERSEDED record settling late must not finish the record that now
+    // holds the key. MockBackend settles synchronously, so we simulate the race
+    // by finishing rec1 while its token T1 is still unsettled, then let T1's
+    // late settle land after rec2 exists.
+    @Test func straySettleFromSupersededRecordIgnored() {
+        let backend = MockBackend()
+        let applier = TreeApplier(backend: backend, container: backend.container)
+        let registry = TransitionRegistry()
+        applier.transitionsRef = registry
+        let id = NodeIdentity.root.appending(.child(0))
+        registry.register(.opacity.animation(.linear(duration: 1)), for: id)
+        func el() -> Node {
+            .element(ElementNode(identity: id, tag: "div", attributes: [:],
+                                 listeners: [:], observers: [:], children: [], key: nil))
+        }
+        func mountRoot() -> MountedNode<MockNode> {
+            let m = applier.mount(el(), hostParent: backend.container, before: nil)
+            m.parent = applier.root; m.indexInParent = 0; applier.root.children = [m]
+            return m
+        }
+        // suppressTransitions keeps mounts enter-free (so the only recorded
+        // animations are the two exits) while exits still fire.
+        applier.animationPass = AnimationPassContext(transactions: [:], reduceMotion: false,
+                                                     suppressTransitions: true, defaultTransaction: nil)
+
+        // rec1 / T1 = animations[0], then supersede rec1 WITHOUT cancelling T1.
+        #expect(applier.beginExit(mountRoot(), node: el()))
+        applier.finishExit(id)
+
+        // rec2 / T2 = animations[1] at the SAME key.
+        #expect(applier.beginExit(mountRoot(), node: el()))
+        #expect(applier.exiting[id] != nil)
+
+        backend.settleAnimation(at: 0)                 // T1's late settle — stray, must no-op
+        #expect(applier.exiting[id] != nil)            // rec2's ghost survives
+        backend.settleAnimation(at: 1)                 // T2 — rec2's own token finishes it
+        #expect(applier.exiting[id] == nil)
+        applier.animationPass = nil
     }
 }
