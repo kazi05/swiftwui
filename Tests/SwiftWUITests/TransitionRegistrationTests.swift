@@ -45,6 +45,27 @@ private struct TransScopedFixture: Tag {
     }
 }
 
+/// Custom component owning internal @State, wrapped by `.transition` — the
+/// registered element ids live INSIDE it, below any pass rooted at the
+/// component, while the registering wrapper sits above.
+private struct TransStateComponent: Tag {
+    @State var k = 0
+    var body: some Tag {
+        Div(class: "trans-comp") {
+            Text("k=\(k)")
+            Button("compBump") { k += 1 }
+        }
+    }
+}
+private struct WrappedComponentRoot: Tag {
+    var body: some Tag {
+        Div {
+            TransStateComponent()
+                .transition(.opacity)
+        }
+    }
+}
+
 @Suite @MainActor struct TransitionRegistrationTests {
     func makeRuntime(_ root: some Tag) -> (Runtime<MockBackend>, MockBackend, TestScheduler) {
         let backend = MockBackend()
@@ -108,6 +129,41 @@ private struct TransScopedFixture: Tag {
         dispatchTag("outerBump")     // wrapper below the pass root — re-asserted
         dispatchTag("innerBump")     // wrapper above the pass root — untouched, must persist
         dispatchTag("outerBump")
+    }
+
+    /// Registration must survive a subtree pass rooted at the wrapped custom
+    /// component itself — the registering wrapper is above that pass root, so
+    /// it never re-runs, yet the element is still live (post-commit
+    /// `stillExists` sweep, not seen-this-pass).
+    @Test func survivesSubtreePassOfWrappedComponent() {
+        let (runtime, backend, sched) = makeRuntime(WrappedComponentRoot())
+        let div = findElement(runtime._current!, where: { $0.attributes["class"] == "trans-comp" })!
+        #expect(runtime._transitionRegistry.transition(for: div.identity) != nil)
+        let button = findFirst(backend.container, tag: "button")!   // "compBump" — internal @State only
+        runtime.dispatch(button.events["click"]!)
+        sched.pump()
+        // Same element identity (internal state change doesn't restructure it).
+        let div2 = findElement(runtime._current!, where: { $0.attributes["class"] == "trans-comp" })!
+        #expect(div2.identity == div.identity)
+        #expect(runtime._transitionRegistry.transition(for: div2.identity) != nil)
+    }
+
+    @Test func survivesSubtreePassScopedEqualsFull() {
+        let schedA = TestScheduler(), schedB = TestScheduler()
+        let backA = MockBackend(), backB = MockBackend()
+        let scoped = Runtime(backend: backA, container: backA.container,
+                             root: WrappedComponentRoot(), scheduleMicrotask: schedA.schedule)
+        let full = Runtime(backend: backB, container: backB.container,
+                           root: WrappedComponentRoot(), scheduleMicrotask: schedB.schedule)
+        full._forceFullPasses = true
+        scoped.mount(); full.mount()
+        let bA = findFirst(backA.container, tag: "button")!
+        let bB = findFirst(backB.container, tag: "button")!
+        scoped.dispatch(bA.events["click"]!)
+        full.dispatch(bB.events["click"]!)
+        schedA.pump(); schedB.pump()
+        #expect(Set(scoped._transitionRegistry.byIdentity.keys) == Set(full._transitionRegistry.byIdentity.keys))
+        #expect(!scoped._transitionRegistry.byIdentity.isEmpty)
     }
 }
 

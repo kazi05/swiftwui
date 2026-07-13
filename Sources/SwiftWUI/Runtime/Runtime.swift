@@ -243,7 +243,6 @@ public final class Runtime<Backend: RendererBackend> {
         store.sweep(under: id, reachable: ctx.reachable)
         listeners.sweep(under: id, keep: ctx.liveListeners)
         animationValues.sweep(under: id, reachable: ctx.reachable)
-        transitions.sweep(under: id, keep: ctx.reachable)
 
         let patches = Reconciler().diff(old: old, new: new)
         applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
@@ -251,6 +250,11 @@ public final class Runtime<Backend: RendererBackend> {
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
         applier.animationPass = nil
         current = splicing(current!, at: id, with: new)
+        // Post-commit (see renderPass): survive an entry whose element is
+        // still live even though the registering wrapper is above this pass root.
+        transitions.sweep(under: id, stillExists: { [weak self] eid in
+            self.flatMap { $0.current.flatMap { findNode($0, at: eid) != nil } } ?? false
+        })
 
         if styleRegistry.version != flushedStyleVersion {
             flushedStyleVersion = styleRegistry.version
@@ -313,7 +317,6 @@ public final class Runtime<Backend: RendererBackend> {
         store.sweep(under: .root, reachable: ctx.reachable)
         listeners.sweep(under: .root, keep: ctx.liveListeners)
         animationValues.sweep(under: .root, reachable: ctx.reachable)
-        transitions.sweep(under: .root, keep: ctx.reachable)
         // 3–4. DIFF + APPLY.
         applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
                                                       reduceMotion: false, suppressTransitions: current == nil)
@@ -329,6 +332,12 @@ public final class Runtime<Backend: RendererBackend> {
         applier.animationPass = nil
         // 5. COMMIT.
         current = new
+        // Transition sweep runs post-commit: an entry survives while its
+        // element is still in the tree even if this pass didn't re-run its
+        // registering wrapper (wrapper above a subtree pass root).
+        transitions.sweep(under: .root, stillExists: { [weak self] id in
+            self.flatMap { $0.current.flatMap { findNode($0, at: id) != nil } } ?? false
+        })
 
         if styleRegistry.version != flushedStyleVersion {
             flushedStyleVersion = styleRegistry.version
