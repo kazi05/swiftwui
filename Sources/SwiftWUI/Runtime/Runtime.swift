@@ -27,6 +27,9 @@ public final class Runtime<Backend: RendererBackend> {
     private let themes: [ThemeDefinition]
     private let fontFaces: [FontFace]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
+    private var pendingTransactions: [NodeIdentity: Transaction] = [:]   // per-write capture, drained each flush
+    var _pendingCompletionGroups: [CompletionGroup] = []                 // armed post-flush
+    var _lastEffectiveTransactions: [NodeIdentity: Transaction] = [:]    // test hook (Task 4): union of this flush's passes
     public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
     public var _signals: EnvironmentSignals { signals }   // SPI: backend wiring + tests
     public var _storage: StorageStore { storage }   // SPI: backend wiring + tests
@@ -89,6 +92,12 @@ public final class Runtime<Backend: RendererBackend> {
     func markDirty(_ id: NodeIdentity) {
         assert(!isRendering, "State write during body evaluation")
         dirty.insert(id)
+        if let t = Transaction._active {
+            pendingTransactions[id] = t
+            if let g = t._group, !_pendingCompletionGroups.contains(where: { $0 === g }) {
+                _pendingCompletionGroups.append(g)
+            }
+        }
         if !scheduled {
             scheduled = true
             scheduleMicrotask { [weak self] in self?.flush() }
@@ -150,13 +159,22 @@ public final class Runtime<Backend: RendererBackend> {
         guard !dirty.isEmpty else { return }
         let ids = dirty
         dirty.removeAll()
+        let drained = pendingTransactions
+        pendingTransactions.removeAll()
+        let drainedGroups = _pendingCompletionGroups
+        _pendingCompletionGroups.removeAll()
+        _lastEffectiveTransactions.removeAll()
         if current == nil || _forceFullPasses || ids.contains(.root) {
-            renderPass(); return
+            renderPass(transactionOverrides: drained)
+        } else {
+            for id in minimalCover(ids) {
+                guard let row = store.retainedRow(at: id) else { continue }   // removed this flush
+                subtreePass(id, row, transactionOverrides: drained)
+            }
         }
-        for id in minimalCover(ids) {
-            guard let row = store.retainedRow(at: id) else { continue }   // removed this flush
-            subtreePass(id, row)
-        }
+        // Armed AFTER all of this flush's passes: an empty group (nothing yet
+        // registered against it) fires on the next microtask (anim spec §7.4).
+        for g in drainedGroups { g.arm(schedule: scheduleMicrotask) }
     }
 
     /// Drops ids that are descendants of other dirty ids (spec §2.2).
@@ -168,7 +186,8 @@ public final class Runtime<Backend: RendererBackend> {
         return cover
     }
 
-    private func subtreePass(_ id: NodeIdentity, _ row: RetainedComponent) {
+    private func subtreePass(_ id: NodeIdentity, _ row: RetainedComponent,
+                             transactionOverrides: [NodeIdentity: Transaction] = [:]) {
         guard let old = findNode(current!, at: id),
               let mounted = applier.componentIndex[id] else {
             renderPass(); return                                  // defensive: fall back to full
@@ -185,10 +204,16 @@ public final class Runtime<Backend: RendererBackend> {
         // without re-seeding, the scope marker would drop from the modifier body
         // and wrapped content on this pass (scoped ≡ full invariant, spec §6/§11).
         ctx.scopeClass = row.scopeClass
+        // Carrier (anim spec §4): this cover id's own captured transaction, plus
+        // the full drained map so deeper dirty ids under this cover still
+        // override at their own component boundary.
+        ctx.transaction = transactionOverrides[id]
+        ctx.transactionOverrides = transactionOverrides
         isRendering = true
         let parentPath = NodeIdentity(segments: Array(id.segments.dropLast()))
         let nodes = resolve(row.tag, path: parentPath, ctx: &ctx)   // re-appends .type → same id
         isRendering = false
+        _lastEffectiveTransactions.merge(ctx.effectiveTransactions) { _, latest in latest }
         assert(nodes.count == 1, "component must resolve to exactly one node")
         var new = nodes[0]
         new.key = old.key   // resolve() doesn't see ForEach's key tagging (one level up); preserve it
@@ -246,11 +271,12 @@ public final class Runtime<Backend: RendererBackend> {
         }
     }
 
-    private func renderPass() {
+    private func renderPass(transactionOverrides: [NodeIdentity: Transaction] = [:]) {
         // 1. RESOLVE + LINK.
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] id in self?.markDirty(id) })
         ctx.registry = styleRegistry
+        ctx.transactionOverrides = transactionOverrides   // carrier (anim spec §4): applied at each component boundary
         passCounter += 1; ctx.pass = passCounter
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
         ctx.environment._signals = signals
@@ -265,6 +291,7 @@ public final class Runtime<Backend: RendererBackend> {
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
         isRendering = false
+        _lastEffectiveTransactions.merge(ctx.effectiveTransactions) { _, latest in latest }
         let new = Node.component(ComponentNode(identity: .root, typeName: "Root",
                                                key: nil, children: children))
         // 2. SWEEP (state: reachable component ids; listeners: live IDs — decision 21).

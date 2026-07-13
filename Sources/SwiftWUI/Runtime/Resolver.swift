@@ -36,6 +36,16 @@ public struct ResolveContext {
     /// Non-nil during a `Runtime._collectRoutes()` pass: every Router appends
     /// its patterns here (spec §5, SSG route enumeration).
     var collectedRoutes: [RoutePattern]? = nil
+    /// Ambient transaction for the element(s) currently resolving (anim spec §4).
+    /// Set at a component boundary from `transactionOverrides`; otherwise
+    /// inherited from the enclosing component (propagates through primitives).
+    var transaction: Transaction? = nil
+    /// Input: this flush's per-write captures, keyed by the component id that
+    /// made the write (`Runtime.markDirty`). Looked up at every component
+    /// boundary to (re)set `transaction`.
+    var transactionOverrides: [NodeIdentity: Transaction] = [:]
+    /// Output: element identity → the transaction in effect when it resolved.
+    var effectiveTransactions: [NodeIdentity: Transaction] = [:]
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }
@@ -58,9 +68,11 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     let box = _InvalidateBox(fire: { inv(id) })
     let savedOwner = ctx.owner
     let savedScope = ctx.scopeClass
+    let savedTransaction = ctx.transaction
     ctx.owner = id
     ctx.scopeClass = nil                       // child components never inherit a parent scope
-    defer { ctx.owner = savedOwner; ctx.scopeClass = savedScope }
+    if let t = ctx.transactionOverrides[id] { ctx.transaction = t }
+    defer { ctx.owner = savedOwner; ctx.scopeClass = savedScope; ctx.transaction = savedTransaction }
     // Tracking covers body evaluation; ForEach additionally re-binds tracking
     // for its per-item content closures to ctx.owner (see ForEach._resolve).
     var styledRules: [Rule] = []
@@ -150,6 +162,7 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
     var style = OrderedStyle(parsing: attrs["style"] ?? "")   // raw `.attribute("style", …)` escape hatch as base
     style.merge(effectiveBag.styles)                          // bag styles on top, last-wins per property
     attrs["style"] = nil                                      // moved onto the typed ElementNode.style
+    if let t = ctx.transaction { ctx.effectiveTransactions[path] = t }
     return [.element(ElementNode(identity: path, tag: tagName, attributes: attrs, style: style,
                                  properties: effectiveBag.flattenedProperties(),
                                  listeners: listeners, observers: observers, children: children, key: nil))]
