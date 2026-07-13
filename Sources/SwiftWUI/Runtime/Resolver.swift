@@ -46,6 +46,9 @@ public struct ResolveContext {
     var transactionOverrides: [NodeIdentity: Transaction] = [:]
     /// Output: element identity → the transaction in effect when it resolved.
     var effectiveTransactions: [NodeIdentity: Transaction] = [:]
+    /// Owning runtime's `.animation(_:value:)` value store (anim spec §4.3);
+    /// nil in passes that never seed it (e.g. `_collectRoutes`).
+    var animationValues: AnimationValueStore? = nil
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }

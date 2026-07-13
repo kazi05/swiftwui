@@ -8,6 +8,7 @@ public final class Runtime<Backend: RendererBackend> {
     private let storage = StorageStore()
     private let listeners = ListenerRegistry()
     private let effects = EffectStore()
+    private let animationValues = AnimationValueStore()
     private let windowEvents = WindowEventHub()
     private let rootTag: AnyTag
     private let scheduleMicrotask: (@escaping () -> Void) -> Void
@@ -197,6 +198,7 @@ public final class Runtime<Backend: RendererBackend> {
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] in self?.markDirty($0) })
         ctx.registry = styleRegistry
+        ctx.animationValues = animationValues
         passCounter += 1; ctx.pass = passCounter
         // Snapshot is never stale for routeInfo: navigation always marks .root (full pass),
         // which re-retains every row's environment.
@@ -236,6 +238,7 @@ public final class Runtime<Backend: RendererBackend> {
 
         store.sweep(under: id, reachable: ctx.reachable)
         listeners.sweep(under: id, keep: ctx.liveListeners)
+        animationValues.sweep(under: id, reachable: ctx.reachable)
 
         let patches = Reconciler().diff(old: old, new: new)
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
@@ -278,6 +281,7 @@ public final class Runtime<Backend: RendererBackend> {
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] id in self?.markDirty(id) })
         ctx.registry = styleRegistry
+        ctx.animationValues = animationValues
         ctx.transactionOverrides = transactionOverrides   // carrier (anim spec §4): applied at each component boundary
         passCounter += 1; ctx.pass = passCounter
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
@@ -299,6 +303,7 @@ public final class Runtime<Backend: RendererBackend> {
         // 2. SWEEP (state: reachable component ids; listeners: live IDs — decision 21).
         store.sweep(under: .root, reachable: ctx.reachable)
         listeners.sweep(under: .root, keep: ctx.liveListeners)
+        animationValues.sweep(under: .root, reachable: ctx.reachable)
         // 3–4. DIFF + APPLY.
         if let old = current {
             let patches = Reconciler().diff(old: old, new: new)
