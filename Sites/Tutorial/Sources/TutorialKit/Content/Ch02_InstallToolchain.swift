@@ -50,7 +50,7 @@ public enum Ch02 {
                         TermLine(.command, "brew trust kazi05/swiftwui"),
                         TermLine(.command, "brew install swiftwui"),
                         TermLine(.command, "swiftwui --version"),
-                        TermLine(.note, "> 0.1.0"),
+                        TermLine(.note, "> 0.2.0"),
                     ])),
         ])
 }
