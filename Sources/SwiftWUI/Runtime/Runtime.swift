@@ -9,6 +9,7 @@ public final class Runtime<Backend: RendererBackend> {
     private let listeners = ListenerRegistry()
     private let effects = EffectStore()
     private let animationValues = AnimationValueStore()
+    private let transitions = TransitionRegistry()
     private let windowEvents = WindowEventHub()
     private let rootTag: AnyTag
     private let scheduleMicrotask: (@escaping () -> Void) -> Void
@@ -34,6 +35,7 @@ public final class Runtime<Backend: RendererBackend> {
     var _pendingCompletionGroups: [CompletionGroup] = []                 // armed post-flush
     var _lastEffectiveTransactions: [NodeIdentity: Transaction] = [:]    // test hook (Task 4): union of this flush's passes
     var _animationRegistry: AnimationRegistry { applier.animationRegistry }   // test hook (Task 7)
+    var _transitionRegistry: TransitionRegistry { transitions }   // test hook (Task 8)
     public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
     public var _signals: EnvironmentSignals { signals }   // SPI: backend wiring + tests
     public var _storage: StorageStore { storage }   // SPI: backend wiring + tests
@@ -200,6 +202,7 @@ public final class Runtime<Backend: RendererBackend> {
                                  invalidate: { [weak self] in self?.markDirty($0) })
         ctx.registry = styleRegistry
         ctx.animationValues = animationValues
+        ctx.transitions = transitions
         passCounter += 1; ctx.pass = passCounter
         // Snapshot is never stale for routeInfo: navigation always marks .root (full pass),
         // which re-retains every row's environment.
@@ -240,6 +243,7 @@ public final class Runtime<Backend: RendererBackend> {
         store.sweep(under: id, reachable: ctx.reachable)
         listeners.sweep(under: id, keep: ctx.liveListeners)
         animationValues.sweep(under: id, reachable: ctx.reachable)
+        transitions.sweep(under: id, keep: ctx.reachable)
 
         let patches = Reconciler().diff(old: old, new: new)
         applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
@@ -286,6 +290,7 @@ public final class Runtime<Backend: RendererBackend> {
                                  invalidate: { [weak self] id in self?.markDirty(id) })
         ctx.registry = styleRegistry
         ctx.animationValues = animationValues
+        ctx.transitions = transitions
         ctx.transactionOverrides = transactionOverrides   // carrier (anim spec §4): applied at each component boundary
         passCounter += 1; ctx.pass = passCounter
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
@@ -308,6 +313,7 @@ public final class Runtime<Backend: RendererBackend> {
         store.sweep(under: .root, reachable: ctx.reachable)
         listeners.sweep(under: .root, keep: ctx.liveListeners)
         animationValues.sweep(under: .root, reachable: ctx.reachable)
+        transitions.sweep(under: .root, keep: ctx.reachable)
         // 3–4. DIFF + APPLY.
         applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
                                                       reduceMotion: false, suppressTransitions: current == nil)

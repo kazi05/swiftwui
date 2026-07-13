@@ -49,6 +49,9 @@ public struct ResolveContext {
     /// Owning runtime's `.animation(_:value:)` value store (anim spec §4.3);
     /// nil in passes that never seed it (e.g. `_collectRoutes`).
     var animationValues: AnimationValueStore? = nil
+    /// Owning runtime's `.transition(_:)` registry (Task 8); nil in passes
+    /// that never seed it (e.g. `_collectRoutes`).
+    var transitions: TransitionRegistry? = nil
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }
