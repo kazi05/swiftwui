@@ -20,7 +20,7 @@ public struct StyleProxy {
         var sub = StyleProxy()
         body(&sub)
         assert(sub.pseudoBlocks.isEmpty, "nested pseudo blocks are not supported")
-        assert(sub.mediaBlocks.isEmpty, "nested media blocks are not supported")
+        assert(sub.mediaBlocks.isEmpty && sub.containerBlocks.isEmpty, "nested media/container blocks are not supported")
         guard !sub.declarations.isEmpty else { return }   // empty block → nothing to register
         pseudoBlocks.append((name, sub.declarations))
     }
@@ -35,7 +35,7 @@ public struct StyleProxy {
         var sub = StyleProxy()
         body(&sub)
         assert(sub.pseudoBlocks.isEmpty, "pseudo blocks inside a media block are not supported")
-        assert(sub.mediaBlocks.isEmpty, "nested media blocks are not supported")
+        assert(sub.mediaBlocks.isEmpty && sub.containerBlocks.isEmpty, "nested media/container blocks are not supported")
         guard !sub.declarations.isEmpty else { return }   // empty block → nothing to register
         mediaBlocks.append((query.condition, sub.declarations))
     }
