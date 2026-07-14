@@ -26,8 +26,10 @@ public struct AnyTransition: Equatable {
 
     public static let opacity = AnyTransition.active([.opacity(0)])
 
-    public static func scale(_ s: Double = 0.0) -> AnyTransition {
-        .active([StyleDeclaration(property: "scale", value: cssNumber(s))])
+    public static func scale(_ s: Double = 0.0, anchor: UnitPoint = .center) -> AnyTransition {
+        var declarations = [StyleDeclaration(property: "scale", value: cssNumber(s))]
+        if anchor != .center { declarations.append(.transformOrigin(anchor)) }
+        return .active(declarations)
     }
 
     public static func offset(x: Double = 0, y: Double = 0) -> AnyTransition {

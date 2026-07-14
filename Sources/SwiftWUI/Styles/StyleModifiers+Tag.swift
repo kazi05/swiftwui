@@ -73,7 +73,7 @@ extension Tag {
     public func opacity(_ v: Double) -> _StyledTag<Self> { _styled(.opacity(v)) }
     public func outline(_ v: Outline) -> _StyledTag<Self> { _styled(.outline(v)) }
     public func cursor(_ v: Cursor) -> _StyledTag<Self> { _styled(.cursor(v)) }
-    public func transition(_ v: String) -> _StyledTag<Self> { _styled(.transition(v)) }
+    public func cssTransition(_ v: String) -> _StyledTag<Self> { _styled(.transition(v)) }
     public func listStyle(_ v: String) -> _StyledTag<Self> { _styled(.listStyle(v)) }
 }
 
@@ -151,6 +151,6 @@ extension _StyledTag {
     public func opacity(_ v: Double) -> Self { _styled(.opacity(v)) }
     public func outline(_ v: Outline) -> Self { _styled(.outline(v)) }
     public func cursor(_ v: Cursor) -> Self { _styled(.cursor(v)) }
-    public func transition(_ v: String) -> Self { _styled(.transition(v)) }
+    public func cssTransition(_ v: String) -> Self { _styled(.transition(v)) }
     public func listStyle(_ v: String) -> Self { _styled(.listStyle(v)) }
 }

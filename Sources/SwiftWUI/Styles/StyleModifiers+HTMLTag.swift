@@ -66,6 +66,6 @@ extension HTMLTag {
     public func outline(_ v: Outline) -> Self { _style(.outline(v)) }
     // Misc
     public func cursor(_ v: Cursor) -> Self { _style(.cursor(v)) }
-    public func transition(_ v: String) -> Self { _style(.transition(v)) }
+    public func cssTransition(_ v: String) -> Self { _style(.transition(v)) }
     public func listStyle(_ v: String) -> Self { _style(.listStyle(v)) }
 }
