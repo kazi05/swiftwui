@@ -19,6 +19,11 @@ final class DOMAnimationToken: AnimationToken {
     var settled = false
     var settle: ((AnimationSettle) -> Void)?
     var timeoutID: JSValue?
+    // finished.then(onFinished, onRejected) + the timeout oneshot. A
+    // JSOneshotClosure self-releases only when INVOKED, so the unfired ones
+    // (the losing .then branch, and the timeout on a happy-path finish) would
+    // leak their host-func box. Retained here; released in settleOnce.
+    var closures: [JSOneshotClosure] = []
     init(animation: JSObject, isInfinite: Bool) {
         self.animation = animation
         self.isInfinite = isInfinite
@@ -548,11 +553,14 @@ public final class DOMBackend: RendererBackend {
             return .undefined
         }
         _ = anim.finished.object?.then?(onFinished, onRejected)
+        token.closures = [onFinished, onRejected]
 
         // Timeout race (anim spec §7.3.3): the `finished` promise can hang
-        // (e.g. a display:none ancestor pauses the animation) — force it
-        // after its own duration + a 200ms margin. Infinite animations never
-        // finish by design, so they get no timeout.
+        // (e.g. a display:none ancestor pauses the animation) — force it after
+        // the animation's TOTAL wall-clock runtime + a 200ms margin. WAAPI
+        // counts each `alternate` leg as one iteration, so total is simply
+        // duration × iterations regardless of autoreverses. Infinite animations
+        // never finish by design, so they get no timeout.
         if !timing.isInfinite {
             let timeoutClosure = JSOneshotClosure { [weak self, weak token] _ in
                 guard let self, let token else { return .undefined }
@@ -560,7 +568,9 @@ public final class DOMBackend: RendererBackend {
                 self.settleOnce(token, reason: .forced)
                 return .undefined
             }
-            token.timeoutID = JSObject.global.setTimeout!(timeoutClosure, timing.durationMs + timing.delayMs + 200)
+            let total = timing.durationMs * max(timing.iterations, 1) + timing.delayMs + 200
+            token.timeoutID = JSObject.global.setTimeout!(timeoutClosure, total)
+            token.closures.append(timeoutClosure)
         }
         return token
     }
@@ -597,6 +607,12 @@ public final class DOMBackend: RendererBackend {
         liveAnimationTokens[ObjectIdentifier(token)] = nil
         if let t = token.timeoutID { _ = JSObject.global.clearTimeout?(t) }
         token.timeoutID = nil
+        // Deterministically free every host-func box, whichever fired or not.
+        // JSOneshotClosure.release() is an idempotent dict removal — releasing
+        // the already-fired one again is harmless (the `settled` guard above
+        // makes this whole block run once regardless).
+        for c in token.closures { c.release() }
+        token.closures = []
         let settle = token.settle
         token.settle = nil
         settle?(AnimationSettle(reason: reason))
