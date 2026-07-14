@@ -260,7 +260,7 @@ public final class Runtime<Backend: RendererBackend> {
 
         let patches = Reconciler().diff(old: old, new: new)
         applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
-                                                      reduceMotion: false,
+                                                      reduceMotion: signals.reduceMotion,
                                                       suppressTransitions: suppressTransitionsOnce,
                                                       defaultTransaction: ctx.transaction)
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
@@ -336,7 +336,7 @@ public final class Runtime<Backend: RendererBackend> {
         animationValues.sweep(under: .root, reachable: ctx.reachable)
         // 3–4. DIFF + APPLY.
         applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
-                                                      reduceMotion: false,
+                                                      reduceMotion: signals.reduceMotion,
                                                       suppressTransitions: current == nil || suppressTransitionsOnce,
                                                       defaultTransaction: transactionOverrides[.root])
         if let old = current {

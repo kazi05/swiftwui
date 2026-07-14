@@ -36,6 +36,8 @@ public final class DOMBackend: RendererBackend {
     private var windowResizeClosure: JSClosure?
     private var storageClosure: JSClosure?          // window "storage" event — same teardown as above
     private var colorSchemeQuery: JSObject?        // keep the MediaQueryList alive with its listener
+    private var reduceMotionClosure: JSClosure?
+    private var reduceMotionQuery: JSObject?       // keep the MediaQueryList alive with its listener
     // PWA service-worker wiring (spec 2026-07-12) — retained for backend lifetime.
     private var swUpdateFoundClosure: JSClosure?
     private var swStateChangeClosures: [JSClosure] = []
@@ -292,6 +294,17 @@ public final class DOMBackend: RendererBackend {
             schemeClosure = onSchemeChange
             colorSchemeQuery = mql
         }
+        // prefers-reduced-motion: initial read BEFORE the first render pass, then change listener.
+        if let mql = window?.matchMedia?("(prefers-reduced-motion: reduce)").object {
+            writer.setReduceMotion(mql.matches.boolean == true)
+            let onMotionChange = JSClosure { args in
+                writer.setReduceMotion(args.first?.object?.matches.boolean == true)
+                return .undefined
+            }
+            _ = mql.addEventListener?("change", onMotionChange)
+            reduceMotionClosure = onMotionChange
+            reduceMotionQuery = mql
+        }
         // navigator.onLine + online/offline events.
         if let nav = JSObject.global.navigator.object {
             writer.setOnline(nav.onLine.boolean ?? true)
@@ -412,6 +425,9 @@ public final class DOMBackend: RendererBackend {
         if let mql = colorSchemeQuery, let onChange = schemeClosure {
             _ = mql.removeEventListener?("change", onChange)
         }
+        if let mql = reduceMotionQuery, let onChange = reduceMotionClosure {
+            _ = mql.removeEventListener?("change", onChange)
+        }
         if let onOnline = onlineClosure { _ = window?.removeEventListener?("online", onOnline) }
         if let onOffline = offlineClosure { _ = window?.removeEventListener?("offline", onOffline) }
         if let onStorage = storageClosure { _ = window?.removeEventListener?("storage", onStorage) }
@@ -436,6 +452,8 @@ public final class DOMBackend: RendererBackend {
         windowScrollClosure = nil
         windowResizeClosure = nil
         colorSchemeQuery = nil
+        reduceMotionClosure = nil
+        reduceMotionQuery = nil
         for observer in domObservers.values { _ = observer.disconnect?() }
         domObservers = [:]
         observerClosures = [:]

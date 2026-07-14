@@ -15,23 +15,36 @@ public final class EnvironmentSignals {
     public private(set) var isOnline: Bool = true
     /// A new service-worker version is installed and waiting (PWA spec 2026-07-12).
     public private(set) var appUpdateAvailable: Bool = false
+    /// `prefers-reduced-motion: reduce` (anim spec §9). `false` outside a live
+    /// runtime (native/SSG) — zero behavior change for non-reduced users.
+    public private(set) var reduceMotion: Bool = false
     public init() {}
 
     func _setColorScheme(_ v: ColorScheme) { colorScheme = v }
     func _setOnline(_ v: Bool) { isOnline = v }
     func _setAppUpdateAvailable(_ v: Bool) { appUpdateAvailable = v }
+    func _setReduceMotion(_ v: Bool) { reduceMotion = v }
 
     /// Cross-module write surface: setters stay core-private; backends receive
     /// closures via `RendererBackend.beginEnvironmentObservation`.
+    ///
+    /// Recipe for adding a new signal: (1) add a `private(set) var` + `_setX`
+    /// setter above, (2) add a `setX` field here + wire it in `writer` below,
+    /// (3) add a computed key in `EnvironmentValues` (Environment.swift) reading
+    /// `_signals?.x ?? <default>`, (4) backend wires the real source in
+    /// `beginEnvironmentObservation` (DOMBackend.swift) — initial synchronous
+    /// read + retained change-listener calling the writer closure.
     public struct Writer {
         public let setColorScheme: (ColorScheme) -> Void
         public let setOnline: (Bool) -> Void
         public let setAppUpdateAvailable: (Bool) -> Void
+        public let setReduceMotion: (Bool) -> Void
     }
     var writer: Writer {
         Writer(setColorScheme: { [weak self] in self?._setColorScheme($0) },
                setOnline: { [weak self] in self?._setOnline($0) },
-               setAppUpdateAvailable: { [weak self] in self?._setAppUpdateAvailable($0) })
+               setAppUpdateAvailable: { [weak self] in self?._setAppUpdateAvailable($0) },
+               setReduceMotion: { [weak self] in self?._setReduceMotion($0) })
     }
 }
 
@@ -51,4 +64,11 @@ extension EnvironmentValues {
     /// True when a new app version is downloaded and waiting; pair with
     /// `\.reloadToUpdate` to offer a reload. `false` outside a live runtime.
     public var appUpdateAvailable: Bool { _signals?.appUpdateAvailable ?? false }
+    /// `prefers-reduced-motion: reduce` (anim spec §9). Gates the animation
+    /// engine automatically (Runtime reads this into `AnimationPassContext`).
+    /// Any decorative `@keyframes` registered directly through Styled/keyframes
+    /// (not the withAnimation/.transition engine) should be authored inside
+    /// `@media (prefers-reduced-motion: no-preference) { ... }` — the engine
+    /// gate doesn't reach hand-written CSS keyframes. `false` outside a live runtime.
+    public var accessibilityReduceMotion: Bool { _signals?.reduceMotion ?? false }
 }
