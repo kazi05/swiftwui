@@ -5,6 +5,7 @@
 public final class StyleRegistry {
     struct Entry {
         let media: String        // "" for no condition — sorts before any @media
+        let container: String     // "" for no @container condition
         let text: String         // full rule text WITHOUT media wrapper
         let hash: UInt64
     }
@@ -33,10 +34,10 @@ public final class StyleRegistry {
         }.joined(separator: "; ")
     }
 
-    private func insert(media: String, text: String, seed: String) -> UInt64 {
+    private func insert(media: String, container: String, text: String, seed: String) -> UInt64 {
         let hash = Self.fnv1a(seed)
         if byHash[hash] == nil {
-            byHash[hash] = Entry(media: media, text: text, hash: hash)
+            byHash[hash] = Entry(media: media, container: container, text: text, hash: hash)
             version += 1
         }
         return hash
@@ -44,41 +45,44 @@ public final class StyleRegistry {
 
     /// Element-attached rule (.hover/.media modifiers, wrapper rules):
     /// returns the generated class name; the rule targets exactly that class.
-    func registerAnonymous(pseudo: String?, media: String?, declarations: [StyleDeclaration]) -> String {
+    func registerAnonymous(pseudo: String?, media: String?, container: String? = nil,
+                           declarations: [StyleDeclaration]) -> String {
         let body = Self.body(declarations)
-        let seed = "anon|\(pseudo ?? "")|\(media ?? "")|\(body)"
+        let seed = "anon|\(pseudo ?? "")|\(media ?? "")|\(container ?? "")|\(body)"
         let hash = Self.fnv1a(seed)
         let cls = Self.className(hash)
         guard !declarations.isEmpty else { return cls }   // nothing to register — no useless `{ }` rule
         let selector = "." + cls + (pseudo ?? "")
-        _ = insert(media: media ?? "", text: "\(selector) { \(body) }", seed: seed)
+        _ = insert(media: media ?? "", container: container ?? "", text: "\(selector) { \(body) }", seed: seed)
         return cls
     }
 
     /// Styled/global rule: explicit selector base (".field" / "#submit" / "input"),
     /// optional scope marker class appended (spec §8).
     func registerSelector(base: String, scope: String?, pseudo: String?, media: String?,
-                          declarations: [StyleDeclaration]) {
+                          container: String? = nil, declarations: [StyleDeclaration]) {
         let body = Self.body(declarations)
         let selector = base + (scope.map { "." + $0 } ?? "") + (pseudo ?? "")
-        let seed = "sel|\(selector)|\(media ?? "")|\(body)"
-        _ = insert(media: media ?? "", text: "\(selector) { \(body) }", seed: seed)
+        let seed = "sel|\(selector)|\(media ?? "")|\(container ?? "")|\(body)"
+        _ = insert(media: media ?? "", container: container ?? "", text: "\(selector) { \(body) }", seed: seed)
     }
 
     /// Pre-serialized block (themes, Task 9). Caller guarantees safety of the
     /// text (built from validated tokens + CSSValueConvertible values only).
     func registerRaw(_ text: String) {
-        _ = insert(media: "", text: text, seed: "raw|" + text)
+        _ = insert(media: "", container: "", text: text, seed: "raw|" + text)
     }
 
-    /// Canonical order: (media, hash) — deterministic regardless of which
+    /// Canonical order: (media, container, hash) — deterministic regardless of which
     /// pass registered first (spec §7: scoped ≡ full byte-identical text).
     public var text: String {
         let sorted = byHash.values.sorted {
-            ($0.media, $0.hash) < ($1.media, $1.hash)
+            ($0.media, $0.container, $0.hash) < ($1.media, $1.container, $1.hash)
         }
         return sorted.map { e in
-            e.media.isEmpty ? e.text : "@media \(e.media) { \(e.text) }"
+            if !e.container.isEmpty { return "@container \(e.container) { \(e.text) }" }
+            if !e.media.isEmpty { return "@media \(e.media) { \(e.text) }" }
+            return e.text
         }.joined(separator: "\n")
     }
 }

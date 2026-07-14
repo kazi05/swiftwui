@@ -3,6 +3,7 @@
 public struct PendingStyleRule {
     let pseudo: String?
     let media: String?
+    var container: String? = nil
     let declarations: [StyleDeclaration]
 }
 
