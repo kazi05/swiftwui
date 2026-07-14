@@ -189,6 +189,9 @@ where Base.HostNode: AnyObject {
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
         base.beginWindowEventObservation(sink)
     }
+    public func observeMediaQuery(_ condition: String, onChange: @escaping (Bool) -> Void) -> Bool {
+        base.observeMediaQuery(condition, onChange: onChange)
+    }
     @discardableResult
     public func animate(_ node: HostNode, request: AnimationRequest,
                          onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? {

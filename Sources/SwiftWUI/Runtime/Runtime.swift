@@ -5,6 +5,9 @@ public final class Runtime<Backend: RendererBackend> {
     private let applier: TreeApplier<Backend>
     private let store = StateStore()
     private let signals = EnvironmentSignals()
+    private lazy var mediaStore = MediaMatchStore(observe: { [weak self] cond, cb in
+        self?.applier.backend.observeMediaQuery(cond, onChange: cb) ?? false
+    })
     private let storage = StorageStore()
     private let listeners = ListenerRegistry()
     private let effects = EffectStore()
@@ -44,6 +47,7 @@ public final class Runtime<Backend: RendererBackend> {
     var _transitionRegistry: TransitionRegistry { transitions }   // test hook (Task 8)
     public var _store: StateStore { store }     // test hook + SPI (spec §5): SSG snapshot encode
     public var _signals: EnvironmentSignals { signals }   // SPI: backend wiring + tests
+    public var _mediaStore: MediaMatchStore { mediaStore }   // SPI: tests
     public var _storage: StorageStore { storage }   // SPI: backend wiring + tests
     /// Set by the platform layer (DOMRuntime / SSG driver) BEFORE mount().
     public var _webSession: WebSession?
@@ -316,6 +320,7 @@ public final class Runtime<Backend: RendererBackend> {
         passCounter += 1; ctx.pass = passCounter
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
         ctx.environment._signals = signals
+        ctx.environment._mediaStore = mediaStore
         ctx.environment._storageStore = storage
         ctx.environment._webSessionOptional = _webSession
         ctx.environment.routeInfo = RouteInfo(path: currentPath, query: currentQuery)
