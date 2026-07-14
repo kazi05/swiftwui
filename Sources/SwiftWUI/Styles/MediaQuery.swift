@@ -16,3 +16,24 @@ public struct MediaQuery: Equatable {
         return .init(condition: s)
     }
 }
+
+public enum Orientation: String { case portrait, landscape }
+
+extension MediaQuery {
+    public static func minHeight(_ l: CSSLength) -> MediaQuery { .init(condition: "(min-height: \(l.css))") }
+    public static func maxHeight(_ l: CSSLength) -> MediaQuery { .init(condition: "(max-height: \(l.css))") }
+    public static func orientation(_ o: Orientation) -> MediaQuery { .init(condition: "(orientation: \(o.rawValue))") }
+
+    // Each COMPOUND operand is wrapped in parens so nesting stays valid CSS
+    // (fixes v1's unparenthesized combinator bug). Simple features are already
+    // individually parenthesized.
+    public static func and(_ a: MediaQuery, _ b: MediaQuery) -> MediaQuery {
+        .init(condition: "(\(a.condition) and \(b.condition))")
+    }
+    public static func or(_ a: MediaQuery, _ b: MediaQuery) -> MediaQuery {
+        .init(condition: "(\(a.condition) or \(b.condition))")
+    }
+    public static func not(_ q: MediaQuery) -> MediaQuery {
+        .init(condition: "(not \(q.condition))")
+    }
+}
