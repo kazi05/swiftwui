@@ -63,6 +63,9 @@ public final class DOMBackend: RendererBackend {
     private var reduceMotionQuery: JSObject?       // keep the MediaQueryList alive with its listener
     // observeMediaQuery (responsive styling) — one closure per call, retained for backend lifetime.
     private var retainedMediaClosures: [JSClosure] = []
+    // ... and the MediaQueryList itself (v1 leak lesson, same as colorSchemeQuery/reduceMotionQuery
+    // above) — otherwise JS can GC the MQL and silently drop the change listener.
+    private var retainedMediaQueries: [JSObject] = []
     // PWA service-worker wiring (spec 2026-07-12) — retained for backend lifetime.
     private var swUpdateFoundClosure: JSClosure?
     private var swStateChangeClosures: [JSClosure] = []
@@ -349,8 +352,9 @@ public final class DOMBackend: RendererBackend {
     }
     /// Responsive styling (matches() reactivity, Task 9): synchronous initial
     /// read + a `change` listener, same matchMedia idiom as
-    /// beginEnvironmentObservation. Each call gets its own MediaQueryList and
-    /// closure, retained for the backend's lifetime (v1 leak lesson).
+    /// beginEnvironmentObservation. Each call gets its own MediaQueryList AND
+    /// closure, both retained for the backend's lifetime (v1 leak lesson) —
+    /// otherwise the MediaQueryList can be GC'd and silently drops its listener.
     public func observeMediaQuery(_ condition: String, onChange: @escaping (Bool) -> Void) -> Bool {
         guard let mql = JSObject.global.window.object?.matchMedia?(condition).object else { return false }
         let onMatchChange = JSClosure { args in
@@ -359,6 +363,7 @@ public final class DOMBackend: RendererBackend {
         }
         _ = mql.addEventListener?("change", onMatchChange)
         retainedMediaClosures.append(onMatchChange)
+        retainedMediaQueries.append(mql)
         return mql.matches.boolean == true
     }
     /// PWA (spec 2026-07-12): register the service worker when the scaffold
