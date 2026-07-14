@@ -61,4 +61,16 @@ import Testing
         #expect(!css.contains("bad)"))
         #expect(css.contains("@container (min-width: 400px) {"))
     }
+    @Test func styleBundleContainerEmitsAtContainer() {
+        struct CardStyle: Style {
+            func build(_ s: inout StyleProxy) {
+                s.padding(.px(8))
+                s.container(.minWidth(.px(400)), name: "sidebar") { $0.flexDirection(.row) }
+            }
+        }
+        let (html, css) = HTMLRenderer.renderWithStylesheet(Div { Text("x") }.style(CardStyle()))
+        #expect(css.contains("@container sidebar (min-width: 400px)"))
+        #expect(css.contains("flex-direction: row"))
+        #expect(html.contains("padding: 8px"))
+    }
 }

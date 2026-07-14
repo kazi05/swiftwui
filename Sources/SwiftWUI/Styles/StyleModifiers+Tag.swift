@@ -104,6 +104,10 @@ extension Tag {
     public func cssTransition(_ v: String) -> _StyledTag<Self> { _styled(.transition(v)) }
     public func listStyle(_ v: String) -> _StyledTag<Self> { _styled(.listStyle(v)) }
 
+    /// Desugars a `Responsive` value into a base stylesheet rule + non-overlapping
+    /// `@media` override rules. Note: do NOT also apply a plain (inline) modifier for
+    /// the same property on the same element — inline styles out-specify these
+    /// class-based rules and would defeat every breakpoint override.
     func _responsive<V>(_ r: Responsive<V>,
                         _ apply: (inout StyleProxy, V) -> Void) -> _StyledTag<Self> {
         var base = StyleProxy(); apply(&base, r.base)

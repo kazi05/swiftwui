@@ -30,6 +30,7 @@ public struct Rule {
     public init(class name: String, media: MediaQuery? = nil,
                container: MediaQuery? = nil, containerName: String? = nil,
                _ build: (inout StyleProxy) -> Void) {
+        assert(media == nil || container == nil, "Rule: media and container are mutually exclusive")
         var p = StyleProxy(); build(&p)
         self.base = .cls(Self.validated(name, kind: "class")); self.media = media
         self.container = Self.buildContainer(container, containerName); self.proxy = p
@@ -37,6 +38,7 @@ public struct Rule {
     public init(id name: String, media: MediaQuery? = nil,
                container: MediaQuery? = nil, containerName: String? = nil,
                _ build: (inout StyleProxy) -> Void) {
+        assert(media == nil || container == nil, "Rule: media and container are mutually exclusive")
         var p = StyleProxy(); build(&p)
         self.base = .id(Self.validated(name, kind: "id")); self.media = media
         self.container = Self.buildContainer(container, containerName); self.proxy = p
@@ -44,6 +46,7 @@ public struct Rule {
     public init(element name: String, media: MediaQuery? = nil,
                container: MediaQuery? = nil, containerName: String? = nil,
                _ build: (inout StyleProxy) -> Void) {
+        assert(media == nil || container == nil, "Rule: media and container are mutually exclusive")
         var p = StyleProxy(); build(&p)
         self.base = .element(Self.validated(name, kind: "element")); self.media = media
         self.container = Self.buildContainer(container, containerName); self.proxy = p

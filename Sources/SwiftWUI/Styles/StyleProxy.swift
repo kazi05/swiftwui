@@ -4,6 +4,7 @@ public struct StyleProxy {
     var declarations: [StyleDeclaration] = []
     var pseudoBlocks: [(pseudo: String, declarations: [StyleDeclaration])] = []
     var mediaBlocks: [(media: String, declarations: [StyleDeclaration])] = []
+    var containerBlocks: [(container: String, declarations: [StyleDeclaration])] = []
 
     mutating func _add(_ d: StyleDeclaration) { declarations.append(d) }
 
@@ -37,6 +38,17 @@ public struct StyleProxy {
         assert(sub.mediaBlocks.isEmpty, "nested media blocks are not supported")
         guard !sub.declarations.isEmpty else { return }   // empty block → nothing to register
         mediaBlocks.append((query.condition, sub.declarations))
+    }
+
+    /// Container-query block collector for `Style` bundles, mirroring `media`.
+    public mutating func container(_ query: MediaQuery, name: String? = nil, _ body: (inout StyleProxy) -> Void) {
+        var sub = StyleProxy()
+        body(&sub)
+        assert(sub.pseudoBlocks.isEmpty, "pseudo blocks inside a container block are not supported")
+        assert(sub.mediaBlocks.isEmpty && sub.containerBlocks.isEmpty, "nested media/container blocks are not supported")
+        guard !sub.declarations.isEmpty else { return }
+        let safeName = name.flatMap { CSSSanitize.isValidIdent($0) ? $0 : nil }
+        containerBlocks.append(((safeName.map { "\($0) " } ?? "") + query.condition, sub.declarations))
     }
 
     // Layout
