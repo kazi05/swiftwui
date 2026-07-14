@@ -56,21 +56,70 @@ struct AnimationDemo: Tag {
     var body: some Tag {
         Div {
             H2("Animations (task 14 smoke)")
+// tutorial:begin anim-value
             Div { "●" }
                 .opacity(pulsed ? 1 : 0.3)
                 .scaleEffect(pulsed ? 1.2 : 1.0)
                 .animation(.spring(duration: 0.4, bounce: 0.3), value: pulsed)
+// tutorial:end anim-value
+// tutorial:begin anim-spring
             Button(pulsed ? "Shrink" : "Grow") {
                 withAnimation(.spring(duration: 0.4, bounce: 0.3)) { pulsed.toggle() }
             }
+// tutorial:end anim-spring
             Button(showBanner ? "Hide banner" : "Show banner") { showBanner.toggle() }
+// tutorial:begin anim-transition
             if showBanner {
                 P { "Hello from a transitioning banner." }
                     .transition(.opacity.combined(with: .offset(y: 12)))
             }
+// tutorial:end anim-transition
         }
     }
 }
+
+// tutorial:begin anim-transform
+struct SpinAndSlide: Tag {
+    @State private var active = false
+    var body: some Tag {
+        Div {
+            Div { "▲" }
+                .offset(x: active ? 40 : 0)
+                .rotationEffect(active ? 45 : 0)
+                .scaleEffect(active ? 1.3 : 1.0)
+                .animation(.snappy, value: active)
+            Button(active ? "Reset" : "Animate") { active.toggle() }
+        }
+    }
+}
+// tutorial:end anim-transform
+
+// tutorial:begin anim-completion
+struct SaveButton: Tag {
+    @State private var saved = false
+    var body: some Tag {
+        Div {
+            Span { saved ? "✓ Saved" : "" }
+                .opacity(saved ? 1 : 0)
+                .animation(.smooth, value: saved)
+            Button("Save") {
+                withAnimation(.smooth, completion: { saved = false }) {
+                    saved = true
+                }
+            }
+        }
+    }
+}
+// tutorial:end anim-completion
+
+// tutorial:begin anim-reduced-motion
+struct MotionStatus: Tag {
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    var body: some Tag {
+        P { reduceMotion ? "Reduced motion: ON — animations play instantly." : "Reduced motion: OFF." }
+    }
+}
+// tutorial:end anim-reduced-motion
 
 @main
 struct CounterApp: App {
@@ -79,6 +128,9 @@ struct CounterApp: App {
             Counter()
             BrowserAPIDemo()
             AnimationDemo()
+            SpinAndSlide()
+            SaveButton()
+            MotionStatus()
         }
     }
 }
