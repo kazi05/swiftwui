@@ -54,6 +54,18 @@ extension Tag {
     }
 }
 
+struct _MediaStoreKey: EnvironmentKey { static let defaultValue: MediaMatchStore? = nil }
+extension EnvironmentValues {
+    var _mediaStore: MediaMatchStore? {
+        get { self[_MediaStoreKey.self] }
+        set { self[_MediaStoreKey.self] = newValue }
+    }
+    /// Reactive media matching. `media.matches(q)` re-renders the reading
+    /// component when `q` crosses. Use for STRUCTURAL branching; for styling
+    /// prefer `.media()`/`.container()`/`responsive()` (no FOUC). `false` under SSR.
+    public var media: MediaProxy { MediaProxy(store: _mediaStore) }
+}
+
 private struct SetThemeKey: EnvironmentKey {
     static let defaultValue: (String?) -> Void = { _ in }
 }
