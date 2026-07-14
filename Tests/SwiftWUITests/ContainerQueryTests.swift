@@ -51,4 +51,14 @@ import Testing
         let (_, css) = HTMLRenderer.renderWithStylesheet(Card())
         #expect(css.contains("@container sidebar (min-width: 400px) { .card"))
     }
+    @Test func maliciousContainerNameIsDroppedNotInjected() {
+        // An invalid (injection-y) name must not reach emitted CSS; it falls back
+        // to the safe unnamed @container form.
+        let (_, css) = HTMLRenderer.renderWithStylesheet(
+            Div { Text("x") }.container(.minWidth(.px(400)), name: "bad) {} .evil") { $0.display(.flex) }
+        )
+        #expect(!css.contains(".evil"))
+        #expect(!css.contains("bad)"))
+        #expect(css.contains("@container (min-width: 400px) {"))
+    }
 }

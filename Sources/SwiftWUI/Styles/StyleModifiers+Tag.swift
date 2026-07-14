@@ -14,7 +14,12 @@ extension Tag {
     func _styledContainer(_ query: MediaQuery, name: String?,
                           _ body: (inout StyleProxy) -> Void) -> _StyledTag<Self> {
         var proxy = StyleProxy(); body(&proxy)
-        let container = (name.map { "\($0) " } ?? "") + query.condition
+        let safeName = name.flatMap { CSSSanitize.isValidIdent($0) ? $0 : nil }
+        let container = (safeName.map { "\($0) " } ?? "") + query.condition
+        // safeName drops an invalid ident: the @container prelude is emitted raw into
+        // CSS with no downstream sanitize sink, so validating-and-dropping here is the
+        // injection guard (must hold in release; no assert, which would also break the
+        // regression test under debug).
         return _StyledTag(content: self, declarations: [],
                           rules: [PendingStyleRule(pseudo: nil, media: nil, container: container,
                                                    declarations: proxy.declarations)])
@@ -115,7 +120,12 @@ extension _StyledTag {
     func _styledContainer(_ query: MediaQuery, name: String?,
                           _ body: (inout StyleProxy) -> Void) -> Self {
         var proxy = StyleProxy(); body(&proxy)
-        let container = (name.map { "\($0) " } ?? "") + query.condition
+        let safeName = name.flatMap { CSSSanitize.isValidIdent($0) ? $0 : nil }
+        let container = (safeName.map { "\($0) " } ?? "") + query.condition
+        // safeName drops an invalid ident: the @container prelude is emitted raw into
+        // CSS with no downstream sanitize sink, so validating-and-dropping here is the
+        // injection guard (must hold in release; no assert, which would also break the
+        // regression test under debug).
         var copy = self
         copy.rules.append(PendingStyleRule(pseudo: nil, media: nil, container: container,
                                            declarations: proxy.declarations))
