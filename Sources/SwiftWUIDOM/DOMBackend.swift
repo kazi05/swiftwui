@@ -61,6 +61,8 @@ public final class DOMBackend: RendererBackend {
     private var colorSchemeQuery: JSObject?        // keep the MediaQueryList alive with its listener
     private var reduceMotionClosure: JSClosure?
     private var reduceMotionQuery: JSObject?       // keep the MediaQueryList alive with its listener
+    // observeMediaQuery (responsive styling) — one closure per call, retained for backend lifetime.
+    private var retainedMediaClosures: [JSClosure] = []
     // PWA service-worker wiring (spec 2026-07-12) — retained for backend lifetime.
     private var swUpdateFoundClosure: JSClosure?
     private var swStateChangeClosures: [JSClosure] = []
@@ -344,6 +346,20 @@ public final class DOMBackend: RendererBackend {
         onlineClosure = onOnline
         offlineClosure = onOffline
         registerServiceWorkerIfConfigured(writer)
+    }
+    /// Responsive styling (matches() reactivity, Task 9): synchronous initial
+    /// read + a `change` listener, same matchMedia idiom as
+    /// beginEnvironmentObservation. Each call gets its own MediaQueryList and
+    /// closure, retained for the backend's lifetime (v1 leak lesson).
+    public func observeMediaQuery(_ condition: String, onChange: @escaping (Bool) -> Void) -> Bool {
+        guard let mql = JSObject.global.window.object?.matchMedia?(condition).object else { return false }
+        let onMatchChange = JSClosure { args in
+            onChange(args.first?.object?.matches.boolean == true)
+            return .undefined
+        }
+        _ = mql.addEventListener?("change", onMatchChange)
+        retainedMediaClosures.append(onMatchChange)
+        return mql.matches.boolean == true
     }
     /// PWA (spec 2026-07-12): register the service worker when the scaffold
     /// marker is present. Skipped in dev — a caching SW poisons hot reload.
