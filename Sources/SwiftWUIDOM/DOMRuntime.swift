@@ -118,6 +118,10 @@ public enum DOMRuntime {
             seed(runtime, with: payload)
             runtime.mount()
             if adopting.finishAdoption() {
+                // The adopted tree's nodes are already on screen — the next flush
+                // (whenever it comes) must not replay their enter transitions as
+                // if they were freshly inserted (anim spec, Task 9 SPI).
+                runtime._suppressTransitionsOnce = true
                 SnapshotBoot.removeScriptTag()
                 finishMount(runtime: runtime, box: box, raw: raw, container: container, hydrated: true)
                 return

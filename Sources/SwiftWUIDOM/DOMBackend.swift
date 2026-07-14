@@ -7,6 +7,24 @@ import FoundationEssentials
 import Foundation
 #endif
 
+/// Retains the WAAPI `Animation` object plus the bookkeeping `animate` needs to
+/// settle exactly once, whichever of finished/timeout/cancel/finish/visibility
+/// fires first (anim spec §8). Keyed in `DOMBackend.liveAnimationTokens` by
+/// `ObjectIdentifier(self)` — this is a Swift class, not a JSObject, so that
+/// key is stable (unlike ObjectIdentifier(JSObject), see file header note).
+@MainActor
+final class DOMAnimationToken: AnimationToken {
+    let animation: JSObject
+    let isInfinite: Bool
+    var settled = false
+    var settle: ((AnimationSettle) -> Void)?
+    var timeoutID: JSValue?
+    init(animation: JSObject, isInfinite: Bool) {
+        self.animation = animation
+        self.isInfinite = isInfinite
+    }
+}
+
 /// JSObject glue. All bookkeeping keys use the __swuid int stamped at creation —
 /// NEVER ObjectIdentifier(JSObject) (spec §8.5 invariant 4, trap T5).
 @MainActor
@@ -43,6 +61,11 @@ public final class DOMBackend: RendererBackend {
     private var swStateChangeClosures: [JSClosure] = []
     private var swRegistration: JSObject?
     private var lastAppliedLinks: [LinkTag]? = nil   // churn guard (setLinks) — nil means "never applied"
+    // Animations (task 14) — table of unsettled tokens (force-finished on
+    // visibilitychange) and the lazily-installed page-lifetime listener.
+    private var liveAnimationTokens: [ObjectIdentifier: DOMAnimationToken] = [:]
+    private var visibilityChangeClosure: JSClosure?
+    private var linearEasingSupported: Bool?    // cached CSS.supports() probe, first animate() call
 
     public init(dispatch: @escaping (ListenerID, Any?) -> Void) { self.dispatch = dispatch }
 
@@ -484,6 +507,127 @@ public final class DOMBackend: RendererBackend {
             _ = head.appendChild?(el)
         }
         lastAppliedLinks = links
+    }
+
+    // MARK: Animations (task 14, anim spec §8) — real WAAPI via dynamic JSObject calls.
+    @discardableResult
+    public func animate(_ node: JSObject, request: AnimationRequest,
+                         onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? {
+        var keyframes: [[String: JSValue]] = []
+        if let from = request.from {
+            keyframes.append([request.property: .string(from), "offset": .number(0)])
+        }
+        if let to = request.to {
+            keyframes.append([request.property: .string(to)])
+        }
+        let timing = request.timing
+        let options = JSObject.global.Object.function!.new()
+        options.duration = .number(timing.durationMs)
+        options.delay = .number(timing.delayMs)
+        options.easing = .string(resolvedEasing(timing.easing))
+        options.iterations = .number(timing.iterations)   // already .infinity when isInfinite
+        options.direction = .string(timing.autoreverses ? "alternate" : "normal")
+        options.composite = .string(request.mode == .additive ? "add" : "replace")
+        options.fill = "none"
+
+        guard let anim = node.animate?(keyframes.jsValue, options.jsValue).object else { return nil }
+
+        let token = DOMAnimationToken(animation: anim, isInfinite: timing.isInfinite)
+        token.settle = onSettle
+        liveAnimationTokens[ObjectIdentifier(token)] = token
+        installVisibilityListenerIfNeeded()
+
+        let onFinished = JSOneshotClosure { [weak self, weak token] _ in
+            guard let self, let token else { return .undefined }
+            self.settleOnce(token, reason: .finished)
+            return .undefined
+        }
+        let onRejected = JSOneshotClosure { [weak self, weak token] _ in
+            guard let self, let token else { return .undefined }
+            self.settleOnce(token, reason: .cancelled)
+            return .undefined
+        }
+        _ = anim.finished.object?.then?(onFinished, onRejected)
+
+        // Timeout race (anim spec §7.3.3): the `finished` promise can hang
+        // (e.g. a display:none ancestor pauses the animation) — force it
+        // after its own duration + a 200ms margin. Infinite animations never
+        // finish by design, so they get no timeout.
+        if !timing.isInfinite {
+            let timeoutClosure = JSOneshotClosure { [weak self, weak token] _ in
+                guard let self, let token else { return .undefined }
+                _ = token.animation.cancel?()
+                self.settleOnce(token, reason: .forced)
+                return .undefined
+            }
+            token.timeoutID = JSObject.global.setTimeout!(timeoutClosure, timing.durationMs + timing.delayMs + 200)
+        }
+        return token
+    }
+
+    public func cancelAnimation(_ token: AnimationToken) {
+        guard let t = token as? DOMAnimationToken else { return }
+        _ = t.animation.cancel?()
+        settleOnce(t, reason: .cancelled)
+    }
+
+    public func finishAnimation(_ token: AnimationToken) {
+        guard let t = token as? DOMAnimationToken else { return }
+        forceFinish(t)
+    }
+
+    /// WAAPI throws InvalidStateError on `finish()` of an infinite animation —
+    /// `cancel()` instead for those. Shared by `finishAnimation` and the
+    /// visibilitychange handler (both are "force-finish every live token").
+    private func forceFinish(_ token: DOMAnimationToken) {
+        if token.isInfinite {
+            _ = token.animation.cancel?()
+        } else {
+            _ = token.animation.finish?()
+        }
+        settleOnce(token, reason: .forced)
+    }
+
+    /// Guards `settled`, clears the timeout, drops the table entry, and fires
+    /// `onSettle` exactly once — every settle path (finished/timeout/cancel/
+    /// finish/visibility) funnels through here.
+    private func settleOnce(_ token: DOMAnimationToken, reason: AnimationSettle.Reason) {
+        guard !token.settled else { return }
+        token.settled = true
+        liveAnimationTokens[ObjectIdentifier(token)] = nil
+        if let t = token.timeoutID { _ = JSObject.global.clearTimeout?(t) }
+        token.timeoutID = nil
+        let settle = token.settle
+        token.settle = nil
+        settle?(AnimationSettle(reason: reason))
+    }
+
+    /// One document-level listener, page lifetime (anim spec §7.3.3): the tab
+    /// going to the background force-finishes every in-flight animation so it
+    /// doesn't hang forever behind a throttled rAF/timer.
+    private func installVisibilityListenerIfNeeded() {
+        guard visibilityChangeClosure == nil else { return }
+        let closure = JSClosure { [weak self] _ in
+            guard let self, self.jsDocument.hidden.boolean == true else { return .undefined }
+            for token in Array(self.liveAnimationTokens.values) {   // snapshot: forceFinish mutates the table
+                self.forceFinish(token)
+            }
+            return .undefined
+        }
+        _ = jsDocument.addEventListener("visibilitychange", closure)
+        visibilityChangeClosure = closure
+    }
+
+    /// CSS `linear(...)` easing (emitted by SpringSolver) isn't supported by
+    /// every engine yet — probe once and fall back to "ease-out" (anim spec §13).
+    /// The plain "linear" keyword is universally supported and never rewritten.
+    private func resolvedEasing(_ easing: String) -> String {
+        guard easing.hasPrefix("linear(") else { return easing }
+        if linearEasingSupported == nil {
+            linearEasingSupported = JSObject.global.CSS.object?
+                .supports?("animation-timing-function", "linear(0, 1)").boolean ?? false
+        }
+        return linearEasingSupported == true ? easing : "ease-out"
     }
 
     // MARK: Web storage (phase 8a)
