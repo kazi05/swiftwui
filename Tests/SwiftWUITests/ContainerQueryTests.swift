@@ -17,3 +17,38 @@ import Testing
         #expect(reg.text.hasPrefix("@media (max-width: 600px) { .swui-"))
     }
 }
+
+@Suite struct ContainerModifierTests {
+    @Test func containerModifierEmitsAtContainer() {
+        let (_, css) = HTMLRenderer.renderWithStylesheet(
+            Div { Text("x") }.container(.minWidth(.px(400)), name: "sidebar") { $0.flexDirection(.row) }
+        )
+        #expect(css.hasPrefix("@container sidebar (min-width: 400px) { .swui-"))
+        #expect(css.contains("flex-direction: row"))
+    }
+    @Test func unnamedContainer() {
+        let (_, css) = HTMLRenderer.renderWithStylesheet(
+            Div { Text("x") }.container(.minWidth(.px(400))) { $0.display(.flex) }
+        )
+        #expect(css.hasPrefix("@container (min-width: 400px) { .swui-"))
+    }
+    @Test func containerTypeSetsDeclarations() {
+        let (html, _) = HTMLRenderer.renderWithStylesheet(
+            Div { Text("x") }.containerType(.inlineSize, name: "sidebar")
+        )
+        #expect(html.contains("container-type: inline-size"))
+        #expect(html.contains("container-name: sidebar"))
+    }
+    @Test func ruleContainer() {
+        struct Card: Tag, Styled {
+            @RulesBuilder var styles: [Rule] {
+                Rule(class: "card", container: .minWidth(.px(400)), containerName: "sidebar") {
+                    $0.flexDirection(.row)
+                }
+            }
+            var body: some Tag { Div(class: "card") { Text("x") } }
+        }
+        let (_, css) = HTMLRenderer.renderWithStylesheet(Card())
+        #expect(css.contains("@container sidebar (min-width: 400px) { .card"))
+    }
+}

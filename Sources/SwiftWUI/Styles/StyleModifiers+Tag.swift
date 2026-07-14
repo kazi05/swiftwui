@@ -1,3 +1,5 @@
+public enum ContainerType: String { case inlineSize = "inline-size", size, normal }
+
 extension Tag {
     func _styled(_ d: StyleDeclaration) -> _StyledTag<Self> {
         _StyledTag(content: self, declarations: [d], rules: [])
@@ -7,6 +9,14 @@ extension Tag {
         assert(proxy.pseudoBlocks.isEmpty, "pseudo blocks inside a rule modifier are not supported")
         return _StyledTag(content: self, declarations: [],
                           rules: [PendingStyleRule(pseudo: pseudo, media: media,
+                                                   declarations: proxy.declarations)])
+    }
+    func _styledContainer(_ query: MediaQuery, name: String?,
+                          _ body: (inout StyleProxy) -> Void) -> _StyledTag<Self> {
+        var proxy = StyleProxy(); body(&proxy)
+        let container = (name.map { "\($0) " } ?? "") + query.condition
+        return _StyledTag(content: self, declarations: [],
+                          rules: [PendingStyleRule(pseudo: nil, media: nil, container: container,
                                                    declarations: proxy.declarations)])
     }
 
@@ -22,6 +32,19 @@ extension Tag {
     public func active(_ body: (inout StyleProxy) -> Void) -> _StyledTag<Self> { _styledRule(pseudo: ":active", media: nil, body) }
     public func media(_ query: MediaQuery, _ body: (inout StyleProxy) -> Void) -> _StyledTag<Self> {
         _styledRule(pseudo: nil, media: query.condition, body)
+    }
+    public func container(_ query: MediaQuery, name: String? = nil,
+                          _ body: (inout StyleProxy) -> Void) -> _StyledTag<Self> {
+        _styledContainer(query, name: name, body)
+    }
+    public func containerType(_ type: ContainerType = .inlineSize, name: String? = nil) -> _StyledTag<Self> {
+        var t = _styled(StyleDeclaration(property: "container-type", value: type.rawValue))
+        if let name, CSSSanitize.isValidIdent(name) {
+            t = t._styled(StyleDeclaration(property: "container-name", value: name))
+        } else if name != nil {
+            assertionFailure("invalid container-name ident")
+        }
+        return t
     }
 
     // The full §4 surface — every line delegates to a Task-3 factory:
@@ -89,6 +112,15 @@ extension _StyledTag {
                                            declarations: proxy.declarations))
         return copy
     }
+    func _styledContainer(_ query: MediaQuery, name: String?,
+                          _ body: (inout StyleProxy) -> Void) -> Self {
+        var proxy = StyleProxy(); body(&proxy)
+        let container = (name.map { "\($0) " } ?? "") + query.condition
+        var copy = self
+        copy.rules.append(PendingStyleRule(pseudo: nil, media: nil, container: container,
+                                           declarations: proxy.declarations))
+        return copy
+    }
     public func style(_ property: String, _ value: String) -> Self {
         guard CSSSanitize.isValidIdent(property), CSSSanitize.isSafeValue(value) else {
             assertionFailure("invalid style declaration: \(property): \(value)")
@@ -101,6 +133,19 @@ extension _StyledTag {
     public func active(_ body: (inout StyleProxy) -> Void) -> Self { _styledRule(pseudo: ":active", media: nil, body) }
     public func media(_ query: MediaQuery, _ body: (inout StyleProxy) -> Void) -> Self {
         _styledRule(pseudo: nil, media: query.condition, body)
+    }
+    public func container(_ query: MediaQuery, name: String? = nil,
+                          _ body: (inout StyleProxy) -> Void) -> Self {
+        _styledContainer(query, name: name, body)
+    }
+    public func containerType(_ type: ContainerType = .inlineSize, name: String? = nil) -> Self {
+        var t = _styled(StyleDeclaration(property: "container-type", value: type.rawValue))
+        if let name, CSSSanitize.isValidIdent(name) {
+            t = t._styled(StyleDeclaration(property: "container-name", value: name))
+        } else if name != nil {
+            assertionFailure("invalid container-name ident")
+        }
+        return t
     }
     // Collapse variants of the full surface — every line appends to self:
     public func display(_ v: Display) -> Self { _styled(.display(v)) }

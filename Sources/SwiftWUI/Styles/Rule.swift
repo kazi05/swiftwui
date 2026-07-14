@@ -11,6 +11,7 @@ public struct Rule {
     }
     let base: SelectorBase
     let media: MediaQuery?
+    let container: String?     // built prelude "name cond" / "cond", or nil
     let proxy: StyleProxy
 
     static func validated(_ name: String, kind: String) -> String {
@@ -20,28 +21,45 @@ public struct Rule {
         }
         return name
     }
-    public init(class name: String, media: MediaQuery? = nil, _ build: (inout StyleProxy) -> Void) {
-        var p = StyleProxy(); build(&p)
-        self.base = .cls(Self.validated(name, kind: "class")); self.media = media; self.proxy = p
+    // helper reused by all three inits:
+    private static func buildContainer(_ q: MediaQuery?, _ name: String?) -> String? {
+        guard let q else { return nil }
+        let n = name.flatMap { CSSSanitize.isValidIdent($0) ? "\($0) " : nil } ?? ""
+        return n + q.condition
     }
-    public init(id name: String, media: MediaQuery? = nil, _ build: (inout StyleProxy) -> Void) {
+    public init(class name: String, media: MediaQuery? = nil,
+               container: MediaQuery? = nil, containerName: String? = nil,
+               _ build: (inout StyleProxy) -> Void) {
         var p = StyleProxy(); build(&p)
-        self.base = .id(Self.validated(name, kind: "id")); self.media = media; self.proxy = p
+        self.base = .cls(Self.validated(name, kind: "class")); self.media = media
+        self.container = Self.buildContainer(container, containerName); self.proxy = p
     }
-    public init(element name: String, media: MediaQuery? = nil, _ build: (inout StyleProxy) -> Void) {
+    public init(id name: String, media: MediaQuery? = nil,
+               container: MediaQuery? = nil, containerName: String? = nil,
+               _ build: (inout StyleProxy) -> Void) {
         var p = StyleProxy(); build(&p)
-        self.base = .element(Self.validated(name, kind: "element")); self.media = media; self.proxy = p
+        self.base = .id(Self.validated(name, kind: "id")); self.media = media
+        self.container = Self.buildContainer(container, containerName); self.proxy = p
+    }
+    public init(element name: String, media: MediaQuery? = nil,
+               container: MediaQuery? = nil, containerName: String? = nil,
+               _ build: (inout StyleProxy) -> Void) {
+        var p = StyleProxy(); build(&p)
+        self.base = .element(Self.validated(name, kind: "element")); self.media = media
+        self.container = Self.buildContainer(container, containerName); self.proxy = p
     }
 
     /// Registers this rule (plus its pseudo blocks) under an optional scope marker.
     @MainActor func register(into registry: StyleRegistry, scope: String?) {
         if !proxy.declarations.isEmpty {
             registry.registerSelector(base: base.css, scope: scope, pseudo: nil,
-                                      media: media?.condition, declarations: proxy.declarations)
+                                      media: media?.condition, container: container,
+                                      declarations: proxy.declarations)
         }
         for block in proxy.pseudoBlocks {
             registry.registerSelector(base: base.css, scope: scope, pseudo: block.pseudo,
-                                      media: media?.condition, declarations: block.declarations)
+                                      media: media?.condition, container: container,
+                                      declarations: block.declarations)
         }
     }
 }

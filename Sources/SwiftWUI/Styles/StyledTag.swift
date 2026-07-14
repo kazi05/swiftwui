@@ -16,6 +16,7 @@ public struct _StyledTag<Content: Tag>: Tag, _PrimitiveTag {
         var ruleClasses: [String] = []
         for r in rules {
             ruleClasses.append(ctx.registry.registerAnonymous(pseudo: r.pseudo, media: r.media,
+                                                              container: r.container,
                                                               declarations: r.declarations))
         }
         var nodes = resolve(content, path: id, ctx: &ctx)
