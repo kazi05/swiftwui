@@ -103,6 +103,40 @@ extension Tag {
     public func cursor(_ v: Cursor) -> _StyledTag<Self> { _styled(.cursor(v)) }
     public func cssTransition(_ v: String) -> _StyledTag<Self> { _styled(.transition(v)) }
     public func listStyle(_ v: String) -> _StyledTag<Self> { _styled(.listStyle(v)) }
+
+    func _responsive<V>(_ r: Responsive<V>,
+                        _ apply: (inout StyleProxy, V) -> Void) -> _StyledTag<Self> {
+        var base = StyleProxy(); apply(&base, r.base)
+        var rules: [PendingStyleRule] = []
+        // Base goes through the same anonymous-rule path (media: nil → no @media
+        // wrapper) rather than the wrapper's inline `declarations`, so it lands in
+        // the stylesheet next to its overrides instead of an inline style attribute.
+        if !base.declarations.isEmpty {
+            rules.append(PendingStyleRule(pseudo: nil, media: nil, declarations: base.declarations))
+        }
+        for (i, pair) in r.overrides.enumerated() {
+            var p = StyleProxy(); apply(&p, pair.1)
+            guard !p.declarations.isEmpty else { continue }
+            let cond: MediaQuery = (i + 1 < r.overrides.count)
+                ? .and(.up(pair.0), .maxWidth(.px(r.overrides[i + 1].0.minWidthPx - 0.02)))
+                : .up(pair.0)
+            rules.append(PendingStyleRule(pseudo: nil, media: cond.condition, declarations: p.declarations))
+        }
+        return _StyledTag(content: self, declarations: [], rules: rules)
+    }
+    // ponytail: overload set bounded to layout/typography props that actually vary by width; extend per demand.
+    public func padding(_ r: Responsive<CSSLength>) -> _StyledTag<Self> { _responsive(r) { $0.padding($1) } }
+    public func margin(_ r: Responsive<CSSLength>) -> _StyledTag<Self> { _responsive(r) { $0.margin($1) } }
+    public func width(_ r: Responsive<CSSLength>) -> _StyledTag<Self> { _responsive(r) { $0.width($1) } }
+    public func height(_ r: Responsive<CSSLength>) -> _StyledTag<Self> { _responsive(r) { $0.height($1) } }
+    public func minWidth(_ r: Responsive<CSSLength>) -> _StyledTag<Self> { _responsive(r) { $0.minWidth($1) } }
+    public func maxWidth(_ r: Responsive<CSSLength>) -> _StyledTag<Self> { _responsive(r) { $0.maxWidth($1) } }
+    public func fontSize(_ r: Responsive<CSSLength>) -> _StyledTag<Self> { _responsive(r) { $0.fontSize($1) } }
+    public func gap(_ r: Responsive<CSSLength>) -> _StyledTag<Self> { _responsive(r) { $0.gap($1) } }
+    public func display(_ r: Responsive<Display>) -> _StyledTag<Self> { _responsive(r) { $0.display($1) } }
+    public func flexDirection(_ r: Responsive<FlexDirection>) -> _StyledTag<Self> { _responsive(r) { $0.flexDirection($1) } }
+    public func textAlign(_ r: Responsive<TextAlign>) -> _StyledTag<Self> { _responsive(r) { $0.textAlign($1) } }
+    public func gridTemplateColumns(_ r: Responsive<String>) -> _StyledTag<Self> { _responsive(r) { $0.gridTemplateColumns($1) } }
 }
 
 extension _StyledTag {
@@ -208,4 +242,37 @@ extension _StyledTag {
     public func cursor(_ v: Cursor) -> Self { _styled(.cursor(v)) }
     public func cssTransition(_ v: String) -> Self { _styled(.transition(v)) }
     public func listStyle(_ v: String) -> Self { _styled(.listStyle(v)) }
+
+    func _responsive<V>(_ r: Responsive<V>,
+                        _ apply: (inout StyleProxy, V) -> Void) -> Self {
+        var copy = self
+        var base = StyleProxy(); apply(&base, r.base)
+        // Same anonymous-rule routing as the Tag variant (see its comment) —
+        // base declarations join `rules`, not the wrapper's inline `declarations`.
+        if !base.declarations.isEmpty {
+            copy.rules.append(PendingStyleRule(pseudo: nil, media: nil, declarations: base.declarations))
+        }
+        for (i, pair) in r.overrides.enumerated() {
+            var p = StyleProxy(); apply(&p, pair.1)
+            guard !p.declarations.isEmpty else { continue }
+            let cond: MediaQuery = (i + 1 < r.overrides.count)
+                ? .and(.up(pair.0), .maxWidth(.px(r.overrides[i + 1].0.minWidthPx - 0.02)))
+                : .up(pair.0)
+            copy.rules.append(PendingStyleRule(pseudo: nil, media: cond.condition, declarations: p.declarations))
+        }
+        return copy
+    }
+    // ponytail: overload set bounded to layout/typography props that actually vary by width; extend per demand.
+    public func padding(_ r: Responsive<CSSLength>) -> Self { _responsive(r) { $0.padding($1) } }
+    public func margin(_ r: Responsive<CSSLength>) -> Self { _responsive(r) { $0.margin($1) } }
+    public func width(_ r: Responsive<CSSLength>) -> Self { _responsive(r) { $0.width($1) } }
+    public func height(_ r: Responsive<CSSLength>) -> Self { _responsive(r) { $0.height($1) } }
+    public func minWidth(_ r: Responsive<CSSLength>) -> Self { _responsive(r) { $0.minWidth($1) } }
+    public func maxWidth(_ r: Responsive<CSSLength>) -> Self { _responsive(r) { $0.maxWidth($1) } }
+    public func fontSize(_ r: Responsive<CSSLength>) -> Self { _responsive(r) { $0.fontSize($1) } }
+    public func gap(_ r: Responsive<CSSLength>) -> Self { _responsive(r) { $0.gap($1) } }
+    public func display(_ r: Responsive<Display>) -> Self { _responsive(r) { $0.display($1) } }
+    public func flexDirection(_ r: Responsive<FlexDirection>) -> Self { _responsive(r) { $0.flexDirection($1) } }
+    public func textAlign(_ r: Responsive<TextAlign>) -> Self { _responsive(r) { $0.textAlign($1) } }
+    public func gridTemplateColumns(_ r: Responsive<String>) -> Self { _responsive(r) { $0.gridTemplateColumns($1) } }
 }
