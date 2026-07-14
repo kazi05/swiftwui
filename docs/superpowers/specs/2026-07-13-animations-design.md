@@ -311,3 +311,5 @@ Browser acceptance (manual, end of phase): Counter/TodoMVC visual checks — spr
 ## 14. Future phases (explicitly out)
 
 FLIP layout animation (D-completion; measurement hooks, ghost pop-out); analytic spring velocity retargeting (registry metadata already present); `matchedGeometryEffect` / View Transitions opt-in; custom `Animatable`/rAF escape hatch; `appear` opt-in; PhaseAnimator/KeyframeAnimator; `.contentTransition`.
+
+**Recorded deviation (Task 15):** the `.transition(_:)` surface shipped on the `AnyTransition.active([StyleDeclaration])` primitive (§3.4), not the `.modifier(active:identity:)` `TagModifier`-based primitive originally sketched in §3.4/§7 decision #10. Rationale: the engine animates typed CSS style properties (§5/§6.1); a `TagModifier`-based active phase would need a double-resolve diff against the modifier's own body, which was deferred rather than built into v1.

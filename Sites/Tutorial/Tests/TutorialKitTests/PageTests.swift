@@ -4,12 +4,12 @@ import SwiftWUI
 
 @Suite @MainActor struct PageTests {
     @Test func ssgPathListMatchesCurriculum() {
-        // spec §9.5: 11 dynamic paths + static root == 12 pages
+        // spec §9.5: 12 dynamic paths + static root == 13 pages
         #expect(Curriculum.ssgPaths.count + 1 == Curriculum.chapters.count)
-        #expect(Set(Curriculum.ssgPaths).count == 11)
+        #expect(Set(Curriculum.ssgPaths).count == 12)
     }
 
-    @Test func routerServesAllTwelvePages() {
+    @Test func routerServesAllCurriculumPages() {
         let (rt, backend, sched) = makeRuntime(TutorialApp().body)
         rt.mount()
         #expect(textContent(backend.container).contains("Welcome to SwiftWUI Tutorials"))

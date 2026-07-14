@@ -1,6 +1,6 @@
 import SwiftWUI
 
-/// Chapter-menu overlay (Figma 10:26): all 12 curriculum entries grouped by
+/// Chapter-menu overlay (Figma 10:26): all curriculum entries grouped by
 /// track, current entry highlighted with an accent dot.
 public struct ChapterMenu: Tag {
     let currentSlug: String

@@ -14,6 +14,7 @@ public enum Curriculum {
         Ch10.chapter,
         Ch11.chapter,
         Ch12.chapter,
+        Ch13.chapter,
     ]
 
     public static func chapter(slug: String) -> Chapter? {

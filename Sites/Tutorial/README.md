@@ -1,9 +1,10 @@
 # Tutorial
 
-The "Hello, SwiftWUI" tutorial site: a 12-chapter, statically-prerendered
+The "Hello, SwiftWUI" tutorial site: a 13-chapter, statically-prerendered
 curriculum teaching SwiftWUI itself, built with SwiftWUI. It covers the core
-`Tag` API, `@State` reactivity, styling, routing, and prerender + hydrate —
-each chapter pairs prose with runnable samples and browser screenshots.
+`Tag` API, `@State` reactivity, styling, routing, animations, and prerender +
+hydrate — each chapter pairs prose with runnable samples and browser
+screenshots.
 
 ## Prerequisites
 
@@ -19,7 +20,7 @@ each chapter pairs prose with runnable samples and browser screenshots.
 ```
 
 Assembles the wasm bundle, copies `public/` into `dist/`, and prerenders
-all 12 pages into `dist/`.
+all 13 pages into `dist/`.
 
 ## Preview
 
@@ -51,7 +52,7 @@ Regenerates the chapter screenshots under `public/assets/screens` via Playwright
 cd tools/screenshots && npm run smoke
 ```
 
-Runs against `swiftwui serve dist` — checks hydration marker on all 12
+Runs against `swiftwui serve dist` — checks hydration marker on all 13
 pages, quiz, chapter menu, scrollspy, and panel swap.
 
 ## Layout

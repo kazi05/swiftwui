@@ -3,7 +3,7 @@ import SwiftWUI
 @testable import TutorialKit
 
 @Suite @MainActor struct ChapterBarTests {
-    @Test func menuListsAll12EntriesGroupedByTrack() {
+    @Test func menuListsAllEntriesGroupedByTrack() {
         let html = HTMLRenderer.render(ChapterMenu(currentSlug: "hello-swiftwui"))
         for ch in Curriculum.chapters { #expect(html.contains(ch.title)) }
         for label in ["WELCOME", "EXPLORE SWIFTWUI", "STYLES", "ROUTING", "SHIP"] {
