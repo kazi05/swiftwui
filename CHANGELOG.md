@@ -30,6 +30,11 @@ Notable changes to SwiftWUI. Format loosely follows
 - DOMBackend animates via the Web Animations API (`element.animate`) — one
   call per changed style property, zero per-frame bridge traffic.
 
+### Known limitations
+
+- `.animation(_:value:)` drives enter transitions but does not drive removal
+  transitions in v1 (removed identities never resolve under the wrapper).
+
 ### Changed
 
 - **BREAKING:** the CSS shorthand modifier `.transition(String)` is renamed to

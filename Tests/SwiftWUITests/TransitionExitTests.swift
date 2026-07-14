@@ -64,6 +64,19 @@ private struct ReExitBlock: Tag {
     }
 }
 
+// Same shape as WrapperEnterBlock but toggling OFF: exercises the v1 divergence
+// where `.animation(_:value:)` drives enter but NOT removal transitions.
+private struct WrapperExitBlock: Tag {
+    @State var show = true
+    var body: some Tag {
+        Div {
+            if show { Div(class: "child").transition(.opacity) }
+        }
+        .animation(.linear(duration: 1), value: show)
+        Button("+") { show = false }   // plain write
+    }
+}
+
 private final class FireBox { var fired = false }
 private struct DisappearBlock: Tag {
     @State var show = true
@@ -231,6 +244,23 @@ private struct DisappearBlock: Tag {
         #expect(findFirst(backend.container, tag: "div") != nil)   // ...while the ghost is still exiting
         #expect(backend.animations.count == 1)
         #expect(runtime._exitingCount == 1)
+    }
+
+    // v1 KNOWN DIVERGENCE (anim spec §14): `.animation(_:value:)` drives ENTER
+    // transitions but NOT removal transitions — the removed identity is never
+    // resolved under the wrapper, so it gets no effective transaction, and the
+    // plain write carries no ambient/default transaction either. Result: instant
+    // removal, zero exit animates. SwiftUI animates both; a future phase flips
+    // this test deliberately (rename + assert an animate is recorded).
+    @Test func animationWrapperDoesNotDriveRemoval_v1Divergence() {
+        let (runtime, backend, sched) = makeRuntime(WrapperExitBlock())
+        let button = findFirst(backend.container, tag: "button")!
+        runtime.dispatch(button.events["click"]!)
+        sched.pump()
+        #expect(backend.animations.isEmpty)                        // no exit animation
+        #expect(!backend.serializeHTML().contains("class=\"child\""))   // removed instantly
+        #expect(findAll(backend.container, tag: "div").count == 1)  // only the outer wrapper Div
+        #expect(runtime._exitingCount == 0)
     }
 
     @Test func sameIdentityReExitCleansStaleGhost() {

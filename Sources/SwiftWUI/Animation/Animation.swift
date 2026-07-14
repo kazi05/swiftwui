@@ -53,6 +53,13 @@ public struct Animation: Equatable {
         copy.delay = s
         return copy
     }
+    /// Scales duration and delay by `1 / factor` (so `factor > 1` is faster).
+    /// `factor` must be finite and `> 0`; a non-positive or non-finite value is
+    /// coerced to `1` in `resolved()`. The coercion is deliberate: WAAPI
+    /// `element.animate` throws on invalid numbers (→ wasm trap here), and this
+    /// library never traps the runtime, so an invalid speed degrades gracefully
+    /// rather than crashing. (A debug `assertionFailure` was considered but
+    /// rejected — it would trap the very inputs the sanitizer is meant to absorb.)
     public func speed(_ factor: Double) -> Animation {
         var copy = self
         copy.speedFactor = factor
@@ -85,11 +92,17 @@ public struct Animation: Equatable {
             durationSeconds = settleMs / 1000
             easing = easingStr
         }
+        // Sanitize before emitting: `element.animate` throws a TypeError on any
+        // non-finite or negative timing value, which the non-throwing JS dynamic
+        // call turns into a wasm trap. Guarantee every numeric field finite and
+        // >= 0 (iterations may be `.infinity` by design — `isForever`).
+        let speed = (speedFactor.isFinite && speedFactor > 0) ? speedFactor : 1
+        func nonNegative(_ ms: Double) -> Double { (ms.isFinite && ms >= 0) ? ms : 0 }
         return ResolvedTiming(
-            durationMs: durationSeconds * 1000 / speedFactor,
+            durationMs: nonNegative(durationSeconds * 1000 / speed),
             easing: easing,
-            delayMs: delay * 1000 / speedFactor,
-            iterations: isForever ? .infinity : repeatCount,
+            delayMs: nonNegative(delay * 1000 / speed),
+            iterations: isForever ? .infinity : max(repeatCount, 0),
             autoreverses: autoreverses
         )
     }

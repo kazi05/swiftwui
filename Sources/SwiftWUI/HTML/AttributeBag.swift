@@ -75,17 +75,6 @@ public struct _AttributeBag {
         return out
     }
 
-    /// Typed inline style: the raw `style` attribute escape hatch (if set via
-    /// `.attribute("style", …)`, last-wins like any other attribute) is the
-    /// base, with the bag's collected `styles` merged on top in call order —
-    /// last-wins per property, so a later declaration overrides an earlier
-    /// same-property one instead of appearing twice.
-    func flattenedStyle() -> OrderedStyle {
-        var style = OrderedStyle(parsing: flattened()["style"] ?? "")
-        style.merge(styles)
-        return style
-    }
-
     /// [a-zA-Z_:][a-zA-Z0-9_.:-]* — spec §11 point 3. Foundation-free.
     static func isValidName(_ name: String) -> Bool {
         guard let first = name.unicodeScalars.first else { return false }

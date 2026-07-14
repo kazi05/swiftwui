@@ -51,6 +51,19 @@ private struct CombinedBlock: Tag {
     }
 }
 
+// `.animation(_:value:)` (no `withAnimation`) drives an enter transition: the
+// value-gated wrapper's override becomes the fresh child's effective transaction.
+private struct WrapperEnterBlock: Tag {
+    @State var show = false
+    var body: some Tag {
+        Div {
+            if show { Div(class: "child").transition(.opacity) }
+        }
+        .animation(.linear(duration: 1), value: show)
+        Button("+") { show = true }   // plain write — the wrapper supplies the animation
+    }
+}
+
 @Suite @MainActor struct TransitionEnterTests {
     func makeRuntime(_ root: some Tag) -> (Runtime<MockBackend>, MockBackend, TestScheduler) {
         let backend = MockBackend()
@@ -130,5 +143,18 @@ private struct CombinedBlock: Tag {
         #expect(opacity.from == "0")
         let translate = backend.animations.first { $0.request.property == "translate" }!.request
         #expect(translate.from == "0px 20px")
+    }
+
+    @Test func animationWrapperDrivesEnter() {
+        let (runtime, backend, sched) = makeRuntime(WrapperEnterBlock())
+        let button = findFirst(backend.container, tag: "button")!
+        runtime.dispatch(button.events["click"]!)   // value change arms the wrapper; child inserts
+        sched.pump()
+        #expect(backend.animations.count == 1)
+        let request = backend.animations[0].request
+        #expect(request.property == "opacity")
+        #expect(request.from == "0")
+        #expect(request.to == nil)
+        #expect(request.timing == Animation.linear(duration: 1).resolved())   // the wrapper's animation
     }
 }

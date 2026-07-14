@@ -16,8 +16,13 @@ enum SpringSolver {
     /// `bounce < 0` overdamped).
     /// - Returns: settle duration in ms (≥ perceptual `duration` for bounce > 0)
     ///   and a `linear(v1 p1%, v2 p2%, …)` easing string.
-    static func solve(duration: Double, bounce: Double) -> (durationMs: Double, easing: String) {
-        let zeta = 1 - min(1, max(-1, bounce))
+    static func solve(duration rawDuration: Double, bounce: Double) -> (durationMs: Double, easing: String) {
+        // A zero/negative/non-finite duration divides `omega` by ~0 → nan/inf
+        // propagates into the `linear()` string, which `element.animate` rejects
+        // (TypeError → wasm trap via the non-throwing JS dynamic call). Clamp to a
+        // tiny positive floor; `isFinite` also catches nan/inf that `max` lets through.
+        let duration = rawDuration.isFinite ? max(rawDuration, 0.01) : 0.01
+        let zeta = 1 - min(1, max(-1, bounce.isFinite ? bounce : 0))
         let omega = 2 * Double.pi / duration
         let settle = settleSeconds(omega: omega, zeta: zeta, duration: duration)
         let n = min(200, max(16, Int(settle * 120)))

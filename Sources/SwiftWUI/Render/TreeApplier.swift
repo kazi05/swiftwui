@@ -104,6 +104,15 @@ final class TreeApplier<Backend: RendererBackend> {
 
     func unmount(_ m: MountedNode<Backend.HostNode>) {
         forceFinishExits(under: m)   // ghosts under m die with it (anim spec §7.3.6)
+        // Cancel in-flight property/enter animations under the removed subtree
+        // (anim spec §6.2): finite ones would settle harmlessly, but a
+        // `repeatForever` animation's WAAPI object + registry entry would leak
+        // forever with the host gone. Exit-ghost tokens live in ExitRegistry, NOT
+        // AnimationRegistry, so this can never kill an exit animation. `nil`
+        // identity (text nodes) has nothing tracked.
+        if let root = nearestIdentity(m) {
+            animationRegistry.cancelAll(under: root, using: backend.cancelAnimation)
+        }
         unregister(m)
         tearDownListeners(m)
         removeHosts(m)
