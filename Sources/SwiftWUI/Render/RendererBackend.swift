@@ -70,6 +70,13 @@ public protocol RendererBackend: AnyObject {
     /// subscription ever (page lifetime — like environment observation).
     func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void)
 
+    // MARK: Reactive media matching (spec 2026-07-14)
+    /// Called lazily the first time a component reads `matches(condition)`. The
+    /// backend evaluates the condition now (synchronous initial value), retains a
+    /// change listener calling `onChange` on every future flip, and returns the
+    /// current match. Non-browser backends return `false` and never call onChange.
+    func observeMediaQuery(_ condition: String, onChange: @escaping (Bool) -> Void) -> Bool
+
     // MARK: Animations (spec 2026-07-13, task 6)
     /// Drives a single property's animation. `onSettle` fires exactly once
     /// (`.finished`, `.cancelled`, or `.forced`). No-op default returns nil.
@@ -88,6 +95,7 @@ extension RendererBackend {
     public func setStyleProperty(_ node: HostNode, name: String, value: String) {}
     public func removeStyleProperty(_ node: HostNode, name: String) {}
     public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {}
+    public func observeMediaQuery(_ condition: String, onChange: @escaping (Bool) -> Void) -> Bool { false }
     public func storageRead(kind: StorageKind, key: String) -> String? { nil }
     public func storageWrite(kind: StorageKind, key: String, value: String?) {}
     public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {}

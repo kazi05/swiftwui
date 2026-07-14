@@ -105,6 +105,19 @@ public final class MockBackend: RendererBackend {
         environmentWriter = writer
     }
 
+    public private(set) var mediaObservers: [String: (Bool) -> Void] = [:]
+    public var mediaMatches: [String: Bool] = [:]         // pre-seedable by tests
+    public func observeMediaQuery(_ condition: String, onChange: @escaping (Bool) -> Void) -> Bool {
+        bump("observeMediaQuery")
+        mediaObservers[condition] = onChange
+        return mediaMatches[condition] ?? false
+    }
+    /// Test helper: simulate a media-condition flip (resize / orientation change).
+    public func simulateMediaChange(_ condition: String, matches: Bool) {
+        mediaMatches[condition] = matches
+        mediaObservers[condition]?(matches)
+    }
+
     public private(set) var reloadForUpdateCount = 0
     public func reloadForUpdate() { bump("reloadForUpdate"); reloadForUpdateCount += 1 }
 
