@@ -131,3 +131,6 @@ Sources/SwiftWUICLI/Templates/showcase/static-dump/
 # Vendored wasi-shim resource (tracked despite blanket vendor/ rule above)
 !Sources/SwiftWUIToolchain/Resources/vendor/
 !Sources/SwiftWUIToolchain/Resources/vendor/**
+
+# Design notes / specs — kept local, not tracked
+docs/
