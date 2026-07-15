@@ -4,7 +4,10 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
-## Unreleased
+## v0.3.0 — 2026-07-15
+
+Animations (WAAPI engine), responsive styling (breakpoints, container
+queries, reactive viewport checks), release precompression + nginx config.
 
 ### Added — Release artifacts
 
@@ -20,6 +23,21 @@ Notable changes to SwiftWUI. Format loosely follows
   PackageToJS silently ships a ~2.5× larger wasm without it.
 - `nginx.conf` joined the reserved `public/` names; service-worker precache
   manifests exclude `.gz`/`.br` siblings and `nginx.conf`.
+
+### Added — Responsive styling
+
+- `@Environment(\.media)` — reactive `matches(_:)` viewport checks inside a
+  component `body`, backed by `window.matchMedia` change events; defaults to
+  `false` during SSR/hydration, so use it for structural branching, not styling.
+- `Breakpoint` scale — `sm`/`md`/`lg`/`xl` at 640/768/1024/1280 px with
+  `MediaQuery.up(_:)`/`.down(_:)` helpers.
+- `MediaQuery` grew `minHeight`/`maxHeight`/`orientation(_:)` conditions and
+  `and`/`or`/`not` combinators.
+- `responsive(_:sm:md:lg:xl:)` / `Responsive<Value>` — per-breakpoint values
+  desugared into non-overlapping media rules with a cascade-safe base.
+- Container queries — `.containerType(_:name:)` / `.container(_:name:)`
+  modifiers, `Rule(container:)`, and `container` blocks inside style proxies
+  emit `@container` rules (names validated against CSS injection).
 
 ### Added — Animations
 
