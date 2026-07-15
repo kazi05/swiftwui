@@ -6,6 +6,21 @@ Notable changes to SwiftWUI. Format loosely follows
 
 ## Unreleased
 
+### Added — Release artifacts
+
+- `swiftwui build -c release` now precompresses dist files: every
+  compressible asset ≥ 1 KB (wasm/js/css/html/json/svg/…) gets `.gz`
+  (gzip -9) and, when brotli is installed, `.br` (brotli -q 11) siblings —
+  served for free via nginx `gzip_static`/`brotli_static`. Debug builds
+  remove stale siblings; `swiftwui ssg` refreshes them after prerendering.
+- `dist/nginx.conf` — generated ready-to-deploy server block (conf.d style):
+  precompressed serving, wasm MIME for `instantiateStreaming`, SPA fallback
+  with ssg prerender support, safe revalidation caching.
+- Loud warning when `wasm-opt` (binaryen) is missing on release builds —
+  PackageToJS silently ships a ~2.5× larger wasm without it.
+- `nginx.conf` joined the reserved `public/` names; service-worker precache
+  manifests exclude `.gz`/`.br` siblings and `nginx.conf`.
+
 ### Added — Animations
 
 - `withAnimation(_:completion:)` — animates every state write inside the

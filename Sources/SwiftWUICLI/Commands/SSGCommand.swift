@@ -16,9 +16,16 @@ struct SSG: ParsableCommand {
         let name = try product ?? PackageInfo.executableProduct(in: cwd, runner: runner)
         let r = try runner.run("swift", ["run", name, "ssg", "--out", out], cwd: cwd, streamOutput: true)
         guard r.exitCode == 0 else { throw ExitCode(r.exitCode) }
-        try DistLayout.copyPublic(projectDir: cwd, outDir: cwd + "/" + out)
-        if try PWAAssets.generateManifest(distDir: cwd + "/" + out) {
+        let outDir = cwd + "/" + out
+        try DistLayout.copyPublic(projectDir: cwd, outDir: outDir)
+        if try PWAAssets.generateManifest(distDir: outDir) {
             print("generated sw-assets.js (PWA precache manifest)")
+        }
+        // ssg rewrites index.html files; refresh .gz/.br so a stale
+        // index.html.gz never shadows fresh markup under gzip_static.
+        if ReleaseArtifacts.hasCompressedArtifacts(distDir: outDir) {
+            let s = try ReleaseArtifacts.compress(distDir: outDir, runner: runner)
+            print("refreshed \(s.gzipped) precompressed file(s) after ssg")
         }
     }
 }
