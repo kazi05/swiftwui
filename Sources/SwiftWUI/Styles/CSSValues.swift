@@ -3,13 +3,18 @@ public protocol CSSValueConvertible {
 }
 
 /// Integer-valued doubles render without a trailing ".0" (Foundation-free).
-func cssNumber(_ d: Double) -> String {
+nonisolated func cssNumber(_ d: Double) -> String {
     if d == d.rounded(), abs(d) < 1e15 { return String(Int(d)) }
     return String(d)
 }
 
 public enum CSSLength: Equatable, CSSValueConvertible {
-    case px(Double), rem(Double), em(Double), percent(Double), vw(Double), vh(Double)
+    case px(Double), rem(Double), em(Double), ch(Double), percent(Double)
+    case vw(Double), vh(Double), vmin(Double), vmax(Double)
+    case dvh(Double), svh(Double), lvh(Double)   // dynamic/small/large viewport height
+    case dvw(Double), svw(Double), lvw(Double)   // …width — mobile URL-bar safe
+    case minContent, maxContent                  // intrinsic sizing
+    indirect case fitContent(CSSLength)          // fit-content(<len>)
     case auto, zero
     case variable(String)
     public var css: String {
@@ -17,9 +22,21 @@ public enum CSSLength: Equatable, CSSValueConvertible {
         case .px(let v): return cssNumber(v) + "px"
         case .rem(let v): return cssNumber(v) + "rem"
         case .em(let v): return cssNumber(v) + "em"
+        case .ch(let v): return cssNumber(v) + "ch"
         case .percent(let v): return cssNumber(v) + "%"
         case .vw(let v): return cssNumber(v) + "vw"
         case .vh(let v): return cssNumber(v) + "vh"
+        case .vmin(let v): return cssNumber(v) + "vmin"
+        case .vmax(let v): return cssNumber(v) + "vmax"
+        case .dvh(let v): return cssNumber(v) + "dvh"
+        case .svh(let v): return cssNumber(v) + "svh"
+        case .lvh(let v): return cssNumber(v) + "lvh"
+        case .dvw(let v): return cssNumber(v) + "dvw"
+        case .svw(let v): return cssNumber(v) + "svw"
+        case .lvw(let v): return cssNumber(v) + "lvw"
+        case .minContent: return "min-content"
+        case .maxContent: return "max-content"
+        case .fitContent(let inner): return "fit-content(\(inner.css))"
         case .auto: return "auto"
         case .zero: return "0"
         case .variable(let name):
@@ -70,7 +87,12 @@ public enum CSSColor: Equatable, CSSValueConvertible {
 
 public enum Display: String, CSSValueConvertible {
     case block, inline, flex, grid, none, contents
-    case inlineBlock = "inline-block", inlineFlex = "inline-flex"
+    case inlineBlock = "inline-block", inlineFlex = "inline-flex", inlineGrid = "inline-grid"
+    case table, tableRow = "table-row", tableCell = "table-cell", tableCaption = "table-caption"
+    case tableRowGroup = "table-row-group", tableHeaderGroup = "table-header-group"
+    case tableFooterGroup = "table-footer-group"
+    case tableColumn = "table-column", tableColumnGroup = "table-column-group"
+    case listItem = "list-item", flowRoot = "flow-root"
     public var css: String { rawValue }
 }
 public enum Position: String, CSSValueConvertible {
@@ -88,6 +110,7 @@ public enum FlexWrap: String, CSSValueConvertible {
 public enum JustifyContent: String, CSSValueConvertible {
     case flexStart = "flex-start", flexEnd = "flex-end", center
     case spaceBetween = "space-between", spaceAround = "space-around", spaceEvenly = "space-evenly"
+    case start, end   // box-alignment keywords (also valid on place-content's justify axis)
     public var css: String { rawValue }
 }
 public enum AlignItems: String, CSSValueConvertible {
@@ -113,10 +136,17 @@ public enum FontWeight: CSSValueConvertible {
 }
 public enum Cursor: String, CSSValueConvertible {
     case auto, `default`, pointer, text, move, notAllowed = "not-allowed", grab
+    case crosshair, wait, help, progress, grabbing
+    case zoomIn = "zoom-in", zoomOut = "zoom-out", contextMenu = "context-menu"
+    case alias, copy, noDrop = "no-drop", cell, verticalText = "vertical-text", none
+    case allScroll = "all-scroll", colResize = "col-resize", rowResize = "row-resize"
+    case nResize = "n-resize", eResize = "e-resize", sResize = "s-resize", wResize = "w-resize"
+    case neResize = "ne-resize", nwResize = "nw-resize", seResize = "se-resize", swResize = "sw-resize"
+    case nsResize = "ns-resize", ewResize = "ew-resize", neswResize = "nesw-resize", nwseResize = "nwse-resize"
     public var css: String { rawValue }
 }
 public enum Overflow: String, CSSValueConvertible {
-    case visible, hidden, scroll, auto
+    case visible, hidden, scroll, auto, clip
     public var css: String { rawValue }
 }
 public enum BorderStyle: String, CSSValueConvertible {

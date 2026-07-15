@@ -2,7 +2,7 @@
 /// `.scaleEffect`/`.rotationEffect` (anim spec §3.5). `(0, 0)` is the
 /// top-leading corner, `(1, 1)` the bottom-trailing corner — SwiftUI's
 /// convention. LTR-only, matching `Edge` (AnyTransition.swift).
-public struct UnitPoint: Equatable {
+public nonisolated struct UnitPoint: Equatable, Sendable {
     public var x: Double
     public var y: Double
     public init(x: Double, y: Double) { self.x = x; self.y = y }

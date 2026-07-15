@@ -4,6 +4,60 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
+## v0.4.0 — 2026-07-15
+
+Typed style-modifier expansion: ~150 new typed CSS modifiers so real
+web-apps rarely need the `.style("prop","val")` string escape. Purely
+additive — no existing modifier changed; the escape hatch stays for the
+deliberate long tail.
+
+### Added — CSS value types
+
+- `CSSLength` gained intrinsic sizing (`.minContent`, `.maxContent`,
+  `.fitContent(_)`) and the mobile-safe viewport units
+  (`.dvh/.svh/.lvh/.dvw/.svw/.lvw/.vmin/.vmax/.ch`).
+- `Overflow` gained `.clip`; `Display` gained the table/`list-item`/
+  `flow-root`/`inline-grid` family; `Cursor` gained ~28 keywords
+  (resize directions, `grabbing`, `zoom-in/out`, …).
+- New value types: `CSSAngle`, `CSSDuration`, `TimingFunction`, `Shadow`
+  (box + text), `BlendMode`, `GridLine`, `BorderRadius` (per-corner),
+  `FilterFunction`, `TransformFunction`, `CSSBackgroundImage` (linear/
+  radial/conic gradients + `url()`), `ObjectPosition`, `BackgroundPosition`,
+  `BackgroundSize`, `AspectRatio`, and dedicated `JustifyItems`/
+  `JustifySelf`/`AlignContent`.
+
+### Added — modifiers
+
+- Layout/box: `overflowX/Y`, `objectFit`, `objectPosition`, `aspectRatio`,
+  `visibility`, `inset`, logical `margin*/padding*/inset*` (inline/block),
+  `min/maxInlineSize`, `min/maxBlockSize`, `rowGap`/`columnGap`/
+  `gap(row:column:)`, `order`, `float`, `clear`, `isolation`.
+- Flex/grid: `justifyItems`, `justifySelf`, `alignContent`, `placeContent/
+  Items/Self`, `gridAutoFlow`, `grid{Column,Row}[Start/End]`, `gridArea`,
+  `gridTemplateAreas`, `flex`, `flexFlow`.
+- Typography: `whiteSpace`, `textTransform`, `textOverflow`, `lineClamp`,
+  `textDecoration{Line,Color,Style,Thickness}`, `textIndent`, `textShadow`,
+  `wordBreak`, `overflowWrap`, `verticalAlign`, `lineHeight(CSSLength)`,
+  `listStyleType/Position`, `textWrap`, `fontVariant/Numeric`, `fontStyle`,
+  `fontStretch`, `fontOpticalSizing`, `fontSmoothing`, `textAlignLast`,
+  `textUnderlineOffset`, `wordSpacing`, `hyphens`, `direction`, `caretColor`,
+  `textStroke`.
+- Backgrounds/borders: `backgroundColor/Image/Repeat/Position/Size/
+  Attachment/Origin/Clip/BlendMode`, per-side `border`/`borderWidth/Style/
+  Color`, per-corner `borderRadius`, `outline{Width,Style,Color,Offset}`,
+  `boxShadow(Shadow…)`, `borderCollapse`, `tableLayout`, `borderSpacing`.
+- Effects/motion: `filter`, `backdropFilter`, `mixBlendMode`, `clipPath`,
+  `transform`, `transformStyle`, `perspective`, `backfaceVisibility`,
+  `willChange`, `transition(property:duration:timingFunction:delay:)` (typed;
+  `cssTransition(String)` unchanged), `transitionDuration/TimingFunction/
+  Delay`, `contentVisibility`, `containIntrinsicSize`.
+- Interactivity/misc: `pointerEvents`, `userSelect`, `touchAction`,
+  `scrollBehavior`, `scrollSnapType/Align/Stop`, `scrollPadding/Margin`,
+  `overscrollBehavior[X/Y]`, `resize`, `appearance`, `accentColor`,
+  `colorSchemeHint`, `break{Inside,Before,After}`, `scrollbarWidth`,
+  `tapHighlightColor`, `fill`/`stroke`/`strokeWidth`, `columnCount/Width`,
+  `counter{Reset,Increment,Set}`.
+
 ## v0.3.0 — 2026-07-15
 
 Animations (WAAPI engine), responsive styling (breakpoints, container
