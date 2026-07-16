@@ -46,6 +46,7 @@ public enum HTMLRenderer {
             }
             var textareaValue: String? = nil
             for name in el.properties.keys.sorted() {
+                if name.hasPrefix("swui:cmd:") { continue }   // command channel, never serialized
                 if el.tag == "textarea", name == "value",
                    case .string(let s) = el.properties[name]! {
                     textareaValue = s                      // real HTML: child text, not attr

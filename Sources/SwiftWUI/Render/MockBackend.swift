@@ -206,6 +206,7 @@ public final class MockBackend: RendererBackend {
         }
         var textareaValue: String? = nil
         for name in n.props.keys.sorted() {
+            if name.hasPrefix("swui:cmd:") { continue }   // command channel, never serialized
             if tag == "textarea", name == "value",
                case .string(let s) = n.props[name]! {
                 textareaValue = s                          // real HTML: child text, not attr
