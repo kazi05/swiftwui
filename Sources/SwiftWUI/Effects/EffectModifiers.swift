@@ -74,3 +74,23 @@ extension Tag {
         _AppearEffect(onAppear: nil, onDisappear: action, content: self)
     }
 }
+
+struct _DropGuardEffect<Content: Tag>: Tag, _PrimitiveTag {
+    typealias Body = Never
+    let content: Content
+    @MainActor func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
+        _TypeNameRegistry.register(Self.self)
+        let id = path.appending(.type(ObjectIdentifier(Self.self)))
+        ctx.effects.append(.dropGuard(id: id))
+        return resolve(content, path: id, ctx: &ctx)
+    }
+}
+
+extension Tag {
+    /// While mounted anywhere in the tree: a file dropped OUTSIDE any drop
+    /// zone no longer navigates the tab away (the classic DnD-app footgun).
+    /// Drops inside `data-swui-drop-accepts` zones are untouched.
+    public func preventsAccidentalDropNavigation() -> some Tag {
+        _DropGuardEffect(content: self)
+    }
+}

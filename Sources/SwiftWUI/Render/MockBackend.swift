@@ -153,6 +153,11 @@ public final class MockBackend: RendererBackend {
         bump("beginWindowEventObservation"); windowEventSink = sink
     }
 
+    public private(set) var dropNavigationGuard = false
+    public func setDropNavigationGuard(_ enabled: Bool) {
+        bump("setDropNavigationGuard"); dropNavigationGuard = enabled
+    }
+
     public private(set) var animations: [RecordedAnimation] = []
     private var settledTokens: Set<ObjectIdentifier> = []
     /// Test knob: simulate a backend that can't animate this property (returns

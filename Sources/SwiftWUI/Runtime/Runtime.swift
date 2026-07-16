@@ -92,6 +92,9 @@ public final class Runtime<Backend: RendererBackend> {
         self.themes = themes
         self.fontFaces = fontFaces
         effects._windowHub = windowEvents
+        effects._onDropGuardChange = { [weak self] enabled in
+            self?.applier.backend.setDropNavigationGuard(enabled)
+        }
         windowEvents.onFirstSubscriber = { [weak self] in
             guard let self else { return }
             self.applier.backend.beginWindowEventObservation { [weak self] kind, payload in

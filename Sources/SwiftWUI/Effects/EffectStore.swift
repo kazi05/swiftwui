@@ -9,12 +9,14 @@ enum EffectRequest {
     case appear(id: NodeIdentity, action: () -> Void)
     case disappear(id: NodeIdentity, action: () -> Void)
     case windowEvent(id: NodeIdentity, kind: WindowEventKind, action: (Any) -> Void)
+    case dropGuard(id: NodeIdentity)
 
     var id: NodeIdentity {
         switch self {
         case .onChange(let id, _, _, _, _), .task(let id, _, _, _),
              .appear(let id, _), .disappear(let id, _),
              .windowEvent(let id, _, _): return id
+        case .dropGuard(let id): return id
         }
     }
 }
@@ -34,6 +36,9 @@ public final class EffectStore {
     /// though `EffectStore` is public).
     var _windowHub: WindowEventHub?
     private var windowSubscriptions: Set<NodeIdentity> = []
+    private var dropGuardIDs: Set<NodeIdentity> = []
+    /// Set by Runtime → backend.setDropNavigationGuard.
+    var _onDropGuardChange: ((Bool) -> Void)?
 
     /// SSG driver mode (spec §6): .build tasks are collected, not started;
     /// .client tasks don't run at all.
@@ -59,6 +64,7 @@ public final class EffectStore {
         disappearActions.removeAll()
         for id in windowSubscriptions { _windowHub?.unsubscribe(id: id) }
         windowSubscriptions.removeAll()
+        dropGuardIDs.removeAll()
     }
 
     /// Awaits every pending `.build` task in turn, tracking which identities
@@ -95,16 +101,19 @@ public final class EffectStore {
     func reconcile(_ requests: [EffectRequest], under passRoot: NodeIdentity) -> [() -> Void] {
         var queue: [() -> Void] = []
         let requested = Set(requests.map(\.id))
+        let hadGuards = !dropGuardIDs.isEmpty
 
         var known = Set(previousValues.keys)
         known.formUnion(tasks.keys); known.formUnion(appeared); known.formUnion(disappearActions.keys)
         known.formUnion(windowSubscriptions)
+        known.formUnion(dropGuardIDs)
         for id in known where id.isSelfOrDescendant(of: passRoot) && !requested.contains(id) {
             if let t = tasks.removeValue(forKey: id) { t.task.cancel() }
             if let d = disappearActions.removeValue(forKey: id) { queue.append(d) }
             previousValues[id] = nil
             appeared.remove(id)
             if windowSubscriptions.remove(id) != nil { _windowHub?.unsubscribe(id: id) }
+            dropGuardIDs.remove(id)
         }
 
         for request in requests {
@@ -146,8 +155,11 @@ public final class EffectStore {
             case .windowEvent(let id, let kind, let action):
                 windowSubscriptions.insert(id)
                 _windowHub?.subscribe(id: id, kind: kind, action: action)
+            case .dropGuard(let id):
+                dropGuardIDs.insert(id)
             }
         }
+        if hadGuards != !dropGuardIDs.isEmpty { _onDropGuardChange?(!dropGuardIDs.isEmpty) }
         return queue
     }
 }

@@ -68,6 +68,10 @@ public final class DOMBackend: RendererBackend {
     private var dragLeaveClosure: JSClosure?
     private var dragResetDropClosure: JSClosure?
     private var dragResetEndClosure: JSClosure?
+    // preventsAccidentalDropNavigation (DnD task 7) — window dragover/drop
+    // listeners installed only while ≥1 guard is mounted; both nil ⇔ disabled.
+    private var dropGuardOverClosure: JSClosure?
+    private var dropGuardDropClosure: JSClosure?
     // observeMediaQuery (responsive styling) — one closure per call, retained for backend lifetime.
     private var retainedMediaClosures: [JSClosure] = []
     // ... and the MediaQueryList itself (v1 leak lesson, same as colorSchemeQuery/reduceMotionQuery
@@ -592,6 +596,32 @@ public final class DOMBackend: RendererBackend {
         _ = window.addEventListener?("resize", resize)
         windowScrollClosure = scroll
         windowResizeClosure = resize
+    }
+    /// preventsAccidentalDropNavigation (DnD task 7): a file dropped anywhere
+    /// outside a `data-swui-drop-accepts` zone would otherwise navigate the
+    /// tab to that file — the classic DnD-app footgun. Idempotent both ways.
+    public func setDropNavigationGuard(_ enabled: Bool) {
+        guard let window = JSObject.global.window.object else { return }
+        if enabled {
+            guard dropGuardOverClosure == nil else { return }
+            let make = { JSClosure { args in
+                if let e = args.first?.object,
+                   e.target.object?.closest?("[data-swui-drop-accepts]").object == nil {
+                    _ = e.preventDefault?()
+                }
+                return .undefined
+            } }
+            let over = make(); let drop = make()
+            _ = window.addEventListener?("dragover", over)
+            _ = window.addEventListener?("drop", drop)
+            dropGuardOverClosure = over
+            dropGuardDropClosure = drop
+        } else {
+            if let c = dropGuardOverClosure { _ = window.removeEventListener?("dragover", c) }
+            if let c = dropGuardDropClosure { _ = window.removeEventListener?("drop", c) }
+            dropGuardOverClosure = nil
+            dropGuardDropClosure = nil
+        }
     }
     /// Detaches every environment-observation listener and releases its
     /// closure. Called by DOMRuntime when a mount attempt is discarded

@@ -70,6 +70,11 @@ public protocol RendererBackend: AnyObject {
     /// subscription ever (page lifetime — like environment observation).
     func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void)
 
+    // MARK: Drop-navigation guard (spec 2026-07-16, DnD task 7)
+    /// Enabled while `.preventsAccidentalDropNavigation()` is mounted anywhere
+    /// in the tree; toggled only on 0↔some subscriber-count transitions.
+    func setDropNavigationGuard(_ enabled: Bool)
+
     // MARK: Reactive media matching (spec 2026-07-14)
     /// Called lazily the first time a component reads `matches(condition)`. The
     /// backend evaluates the condition now (synchronous initial value), retains a
@@ -101,6 +106,7 @@ extension RendererBackend {
     public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {}
     public func reloadForUpdate() {}
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {}
+    public func setDropNavigationGuard(_ enabled: Bool) {}
     @discardableResult
     public func animate(_ node: HostNode, request: AnimationRequest,
                          onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? { nil }
