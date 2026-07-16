@@ -1,9 +1,8 @@
-import Foundation   // IndexSet
 import Testing
 @testable import SwiftWUI
 
 private final class Recorder {
-    var moves: [(IndexSet, Int)] = []
+    var moves: [(Int, Int)] = []
 }
 private struct ListFixture: Tag {
     let cap: Recorder
@@ -57,7 +56,7 @@ private struct ListFixture: Tag {
         rt.dispatch(rows(backend)[2].events["drop"]!, payload: DropEvent())
         sched.pump()
         #expect(cap.moves.count == 1)
-        #expect(cap.moves[0].0 == IndexSet(integer: 0) && cap.moves[0].1 == 3)
+        #expect(cap.moves[0].0 == 0 && cap.moves[0].1 == 3)
     }
     @Test func dragUpUpperHalfInsertsBefore() {
         let (rt, backend, sched, cap) = mount()
@@ -69,7 +68,7 @@ private struct ListFixture: Tag {
         sched.pump()
         rt.dispatch(rows(backend)[0].events["drop"]!, payload: DropEvent())
         sched.pump()
-        #expect(cap.moves[0].0 == IndexSet(integer: 2) && cap.moves[0].1 == 0)
+        #expect(cap.moves[0].0 == 2 && cap.moves[0].1 == 0)
     }
     @Test func dragendClearsWithoutMove() {
         let (rt, backend, sched, cap) = mount()

@@ -1,5 +1,3 @@
-import Foundation   // IndexSet (onMove signature) lives in full Foundation, not FoundationEssentials
-
 public enum SortAxis: Sendable { case vertical, horizontal }
 
 extension ForEach {
@@ -9,8 +7,13 @@ extension ForEach {
     /// row roots — user drag modifiers on the same element are overwritten.
     /// Reorder is same-list only; a drag from another list shows a droppable
     /// cursor (shared content type) but its drop is a no-op.
+    ///
+    /// SwiftUI's `(IndexSet, Int)` shape deliberately not mirrored: `IndexSet`
+    /// lives in full Foundation, which costs ~40 MB of ICU in wasm binaries;
+    /// HTML5 DnD is single-item anyway. `action` receives (fromIndex,
+    /// toInsertionOffset) with SwiftUI's toOffset semantics.
     public func onMove(axis: SortAxis = .vertical,
-                       perform action: @escaping (IndexSet, Int) -> Void) -> some Tag {
+                       perform action: @escaping (Int, Int) -> Void) -> some Tag {
         _SortableCoordinator(forEach: self, axis: axis, action: action)
     }
 }
@@ -19,7 +22,7 @@ extension ForEach {
 struct _SortableCoordinator<Data: RandomAccessCollection, ID: Hashable, Content: Tag>: Tag {
     let forEach: ForEach<Data, ID, Content>
     let axis: SortAxis
-    let action: (IndexSet, Int) -> Void
+    let action: (Int, Int) -> Void
     @State private var sourceIndex: Int? = nil
     @State private var hoverInsertion: Int? = nil
     @State private var rowExtent: Double = 0
@@ -38,7 +41,7 @@ struct _SortableDecorator<Data: RandomAccessCollection, ID: Hashable, Content: T
     typealias Body = Never
     let forEach: ForEach<Data, ID, Content>
     let axis: SortAxis
-    let action: (IndexSet, Int) -> Void
+    let action: (Int, Int) -> Void
     let sourceIndex: Binding<Int?>
     let hoverInsertion: Binding<Int?>
     let rowExtent: Binding<Double>
@@ -108,7 +111,7 @@ struct _SortableDecorator<Data: RandomAccessCollection, ID: Hashable, Content: T
         }
         install("drop") { _ in
             if let s = src.wrappedValue {
-                act(IndexSet(integer: s), hover.wrappedValue ?? s)
+                act(s, hover.wrappedValue ?? s)
             }
             src.wrappedValue = nil; hover.wrappedValue = nil
         }
