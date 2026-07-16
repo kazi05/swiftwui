@@ -4,7 +4,7 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
-## Unreleased
+## [0.5.0] - 2026-07-16
 
 Drag & drop and file input: HTML5 drag/drop for both OS files and typed
 in-app payloads, plus a click-to-pick file dialog and a drag-reorderable
