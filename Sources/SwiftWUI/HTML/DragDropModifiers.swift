@@ -48,7 +48,7 @@ extension HTMLTag {
         var copy = self
         copy._attributes.set("draggable", "true")
         if let body = payload._encodeDragBody() {
-            copy._attributes.set("data-swui-drag-type", T.dragContentType)
+            copy._attributes.set("data-swui-drag-type", T.dragContentType.lowercased())
             copy._attributes.set("data-swui-drag", body)
         } else {
             assertionFailure("DragPayload encoding failed for \(T.self)")
@@ -74,9 +74,13 @@ extension HTMLTag {
         isTargeted: @escaping (Bool) -> Void = { _ in }
     ) -> Self {
         var copy = self
-        copy._attributes.set("data-swui-drop-accepts", T.dragContentType)
+        // Browsers lowercase DataTransfer formats — normalize once here so a
+        // user-overridden dragContentType with uppercase still matches.
+        let dropType = T.dragContentType.lowercased()
+        copy._attributes.set("data-swui-drop-accepts", dropType)
         copy._attributes.addHandler(.dragenter, payload: DragEvent.self) { e in
-            if !e.isInternalTransition && e.types.contains(T.dragContentType) { isTargeted(true) }
+            let type = dropType
+            if !e.isInternalTransition && e.types.contains(type) { isTargeted(true) }
         }
         copy._attributes.addHandler(.dragleave, payload: DragEvent.self) { e in
             if !e.isInternalTransition { isTargeted(false) }
@@ -84,7 +88,8 @@ extension HTMLTag {
         copy._attributes.addHandler(.dragover, payload: DragEvent.self) { _ in }
         copy._attributes.addHandler(.drop, payload: DropEvent.self) { e in
             isTargeted(false)
-            guard let body = e.strings[T.dragContentType],
+            let type = dropType
+            guard let body = e.strings[type],
                   body.utf8.count <= Self._dropBodyByteCap,
                   let value = T._decodeDragBody(body) else { return }   // foreign/malformed → ignore
             _ = action([value], DropLocation(x: e.x, y: e.y))

@@ -31,6 +31,7 @@ Swift web UI framework: SwiftUI-inspired declarative API compiled to WebAssembly
 - Native (primary gate): `swift build` / `swift test` — no browser needed; reconciler/applier tested via MockBackend.
 - Toolchain: Swift **6.3.3** (swiftly) + official Swift.org WASM SDK `swift-6.3.3-RELEASE_wasm`. Host and SDK versions must match exactly. Never pass `-disable-reflection-metadata` (breaks Mirror → silently resets all @State; runtime has a startup canary).
 - WASM example: `cd Examples/Counter && swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug`; Vite as dev server.
+- wasm gates: run a clean build (`rm -rf .build/wasm32-unknown-wasip1`) before release-critical checks — stale .o files have masked real wasm-only compile breaks.
 
 ## Hard-won WASM knowledge (from v1 — still true)
 

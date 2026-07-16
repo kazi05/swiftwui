@@ -12,6 +12,9 @@ extension ForEach {
     /// lives in full Foundation, which costs ~40 MB of ICU in wasm binaries;
     /// HTML5 DnD is single-item anyway. `action` receives (fromIndex,
     /// toInsertionOffset) with SwiftUI's toOffset semantics.
+    ///
+    /// Avoid `.draggable` elements filling an entire sortable row — both
+    /// dragstarts fire and the dataTransfer carries both payload types.
     public func onMove(axis: SortAxis = .vertical,
                        perform action: @escaping (Int, Int) -> Void) -> some Tag {
         _SortableCoordinator(forEach: self, axis: axis, action: action)
@@ -35,7 +38,11 @@ struct _SortableCoordinator<Data: RandomAccessCollection, ID: Hashable, Content:
     }
 }
 
-let _sortableMoveType = "application/x-swiftwui.move"
+// A dash can never appear in a default-derived dragContentType (spec:
+// "application/x-swiftwui.\(typename)"), so this can't collide with a user
+// type — unlike the previous ".move" suffix, which a type literally named
+// `Move` would derive to verbatim.
+let _sortableMoveType = "application/x-swiftwui.move-row"
 
 struct _SortableDecorator<Data: RandomAccessCollection, ID: Hashable, Content: Tag>: Tag, _PrimitiveTag {
     typealias Body = Never

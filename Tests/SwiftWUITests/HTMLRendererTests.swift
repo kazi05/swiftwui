@@ -47,6 +47,17 @@ private struct Card: Tag {
         #expect(HTMLRenderer.render(Cond(flag: true)) == "<div><p>yes</p></div>")
         #expect(HTMLRenderer.render(Cond(flag: false)) == "<div></div>")
     }
+    @Test func commandChannelNeverSerializedEvenWhenBumped() {
+        // SSG output constraint: `_render` is the same SPI SwiftWUIStatic folds
+        // an already-resolved (post-interaction) tree through, so a bumped
+        // nonce must still be dropped, not just the initial "0".
+        let el = ElementNode(identity: .root, tag: "input", attributes: [:],
+                             properties: ["swui:cmd:click": .string("1")],
+                             listeners: [:], observers: [:], children: [])
+        let html = HTMLRenderer._render([.element(el)])
+        #expect(html == "<input>")
+        #expect(!html.contains("swui:cmd"))
+    }
     @Test func mockBackendSerializesTextareaValueAsChildText() {
         let backend = MockBackend()
         let n = backend.createElement("textarea")

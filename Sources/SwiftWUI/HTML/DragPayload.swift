@@ -9,7 +9,9 @@ import Foundation
 /// pasteboard — VISIBLE to the page and other apps. Never put secrets in a
 /// drag payload. Inbound bodies on drop are untrusted foreign data.
 public protocol DragPayload: Codable {
-    /// DataTransfer content type; also the zone-acceptance token.
+    /// DataTransfer content type; also the zone-acceptance token. Browsers
+    /// lowercase DataTransfer formats; SwiftWUI normalizes at use sites —
+    /// prefer lowercase custom values.
     static var dragContentType: String { get }
     /// Body written to `data-swui-drag` / `dataTransfer.setData`.
     func _encodeDragBody() -> String?

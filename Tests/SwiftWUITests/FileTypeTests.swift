@@ -26,6 +26,7 @@ private func stubFile(name: String, mime: String) -> WebFile {
         #expect(FileType.jpeg.matches(stubFile(name: "photo.JPG", mime: "")))
         #expect(!FileType.jpeg.matches(stubFile(name: "photo", mime: "")))     // no dot
         #expect(!FileType.png.matches(stubFile(name: "photo.jpg", mime: "")))
+        #expect(FileType(mime: "image/png", extensions: ["PNG"]).matches(stubFile(name: "a.png", mime: "")))
     }
     @Test func acceptStringJoins() {
         #expect(FileType.acceptString([]) == nil)

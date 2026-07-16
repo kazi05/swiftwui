@@ -5,7 +5,7 @@ public struct FileType: Hashable, Sendable {
     public let mime: String              // "image/png" or family "image/*"
     public let extensions: [String]      // no leading dots
     public init(mime: String, extensions: [String] = []) {
-        self.mime = mime; self.extensions = extensions
+        self.mime = mime; self.extensions = extensions.map { $0.lowercased() }
     }
 
     public static let image = FileType(mime: "image/*")

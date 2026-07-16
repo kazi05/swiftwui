@@ -16,6 +16,18 @@ private struct ListFixture: Tag {
         }
     }
 }
+private struct HorizontalListFixture: Tag {
+    let cap: Recorder
+    let items: [String]
+    var body: some Tag {
+        Div(class: "list") {
+            ForEach(items, id: \.self) { item in
+                Div(class: "row") { P { item } }
+            }
+            .onMove(axis: .horizontal) { from, to in cap.moves.append((from, to)) }
+        }
+    }
+}
 
 @Suite @MainActor struct SortableTests {
     private func mount(_ items: [String] = ["a", "b", "c"])
@@ -24,6 +36,16 @@ private struct ListFixture: Tag {
         let backend = MockBackend(); let sched = TestScheduler()
         let rt = Runtime(backend: backend, container: backend.container,
                          root: ListFixture(cap: cap, items: items),
+                         scheduleMicrotask: sched.schedule)
+        rt.mount()
+        return (rt, backend, sched, cap)
+    }
+    private func mountHorizontal(_ items: [String] = ["a", "b", "c"])
+        -> (Runtime<MockBackend>, MockBackend, TestScheduler, Recorder) {
+        let cap = Recorder()
+        let backend = MockBackend(); let sched = TestScheduler()
+        let rt = Runtime(backend: backend, container: backend.container,
+                         root: HorizontalListFixture(cap: cap, items: items),
                          scheduleMicrotask: sched.schedule)
         rt.mount()
         return (rt, backend, sched, cap)
@@ -37,9 +59,9 @@ private struct ListFixture: Tag {
         let r = rows(backend)
         #expect(r.count == 3)
         #expect(r[1].attrs["draggable"] == "true")
-        #expect(r[1].attrs["data-swui-drag-type"] == "application/x-swiftwui.move")
+        #expect(r[1].attrs["data-swui-drag-type"] == "application/x-swiftwui.move-row")
         #expect(r[1].attrs["data-swui-drag"] == "1")
-        #expect(r[1].attrs["data-swui-drop-accepts"] == "application/x-swiftwui.move")
+        #expect(r[1].attrs["data-swui-drop-accepts"] == "application/x-swiftwui.move-row")
         for e in ["dragstart", "dragover", "drop", "dragend"] {
             #expect(r[0].events[e] != nil)
         }
@@ -77,6 +99,10 @@ private struct ListFixture: Tag {
         rt.dispatch(r[0].events["dragend"]!, payload: DragEvent())
         sched.pump()
         #expect(cap.moves.isEmpty)
+        // A drop arriving after dragend already cleared sourceIndex must stay a no-op.
+        rt.dispatch(rows(backend)[2].events["drop"]!, payload: DropEvent())
+        sched.pump()
+        #expect(cap.moves.isEmpty)
     }
     @Test func foreignDropIsNoop() {
         let (rt, backend, sched, cap) = mount()
@@ -111,5 +137,22 @@ private struct ListFixture: Tag {
         #expect(r[0].style.cssText.contains("translateY(40")
                 && r[1].style.cssText.contains("translateY(40"))
         #expect(r[2].style.cssText.contains("opacity"))
+    }
+    @Test func horizontalAxisDragMovesRow() {
+        let (rt, backend, sched, cap) = mountHorizontal()
+        let r = rows(backend)
+        rt.dispatch(r[0].events["dragstart"]!, payload: DragEvent(targetWidth: 40))
+        sched.pump()
+        // hover right half of row 2 → insertion index 3
+        rt.dispatch(rows(backend)[2].events["dragover"]!,
+                    payload: DragEvent(targetWidth: 40, offsetX: 30))
+        sched.pump()
+        let preview = rows(backend)
+        #expect(preview[1].style.cssText.contains("translateX(-40"))
+        #expect(preview[2].style.cssText.contains("translateX(-40"))
+        rt.dispatch(rows(backend)[2].events["drop"]!, payload: DropEvent())
+        sched.pump()
+        #expect(cap.moves.count == 1)
+        #expect(cap.moves[0].0 == 0 && cap.moves[0].1 == 3)
     }
 }

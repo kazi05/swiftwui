@@ -7,8 +7,8 @@ import Foundation
 @testable import SwiftWUI
 
 private struct TaskCard: DragPayload, Equatable {
-    let id: Int
     let title: String
+    let id: Int
 }
 
 @Suite struct DragPayloadTests {
@@ -16,7 +16,7 @@ private struct TaskCard: DragPayload, Equatable {
         #expect(TaskCard.dragContentType == "application/x-swiftwui.taskcard")
     }
     @Test func jsonRoundTripSortedKeys() {
-        let card = TaskCard(id: 7, title: "hi")
+        let card = TaskCard(title: "hi", id: 7)
         let body = card._encodeDragBody()
         #expect(body == #"{"id":7,"title":"hi"}"#)
         #expect(TaskCard._decodeDragBody(body!) == card)

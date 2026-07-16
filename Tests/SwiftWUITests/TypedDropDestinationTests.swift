@@ -1,7 +1,7 @@
 import Testing
 @testable import SwiftWUI
 
-private struct TaskCard: DragPayload, Equatable { let id: Int }
+private struct TaskCard: DragPayload, Equatable { let id: Int; let pad: String? = nil }
 
 private final class Recorder {
     var targeted: [Bool] = []
@@ -12,6 +12,24 @@ private struct BoardFixture: Tag {
     var body: some Tag {
         Div(class: "zone")
             .dropDestination(for: TaskCard.self) { cards, _ in
+                cap.received += cards; return true
+            } isTargeted: { cap.targeted.append($0) }
+    }
+}
+
+private struct CustomTypeCard: DragPayload, Equatable {
+    let id: Int
+    static var dragContentType: String { "application/X-Custom" }
+}
+private final class CustomRecorder {
+    var targeted: [Bool] = []
+    var received: [CustomTypeCard] = []
+}
+private struct CustomBoardFixture: Tag {
+    let cap: CustomRecorder
+    var body: some Tag {
+        Div(class: "zone")
+            .dropDestination(for: CustomTypeCard.self) { cards, _ in
                 cap.received += cards; return true
             } isTargeted: { cap.targeted.append($0) }
     }
@@ -54,11 +72,30 @@ private struct BoardFixture: Tag {
         let div = findFirst(backend.container, tag: "div")!
         rt.dispatch(div.events["drop"]!, payload: DropEvent(
             strings: ["application/x-swiftwui.taskcard": "not json"]))
-        let bomb = String(repeating: "x", count: 1_048_577)
+        // Valid JSON, over the 1 MiB cap — must be rejected by the byte-cap
+        // guard specifically, not because it fails to parse.
+        let bomb = "{\"id\":1,\"pad\":\"" + String(repeating: "x", count: 1_048_600) + "\"}"
         rt.dispatch(div.events["drop"]!, payload: DropEvent(
             strings: ["application/x-swiftwui.taskcard": bomb]))
         rt.dispatch(div.events["drop"]!, payload: DropEvent(strings: ["text/plain": "hi"]))
         sched.pump()
         #expect(cap.received.isEmpty)
+    }
+    @Test func mixedCaseContentTypeNormalizedToLowercase() {
+        let cap = CustomRecorder()
+        let backend = MockBackend(); let sched = TestScheduler()
+        let rt = Runtime(backend: backend, container: backend.container,
+                         root: CustomBoardFixture(cap: cap), scheduleMicrotask: sched.schedule)
+        rt.mount()
+        let div = findFirst(backend.container, tag: "div")!
+        #expect(div.attrs["data-swui-drop-accepts"] == "application/x-custom")
+        rt.dispatch(div.events["dragenter"]!,
+                    payload: DragEvent(types: ["application/x-custom"]))
+        sched.pump()
+        #expect(cap.targeted == [true])
+        rt.dispatch(div.events["drop"]!, payload: DropEvent(
+            strings: ["application/x-custom": #"{"id":1}"#]))
+        sched.pump()
+        #expect(cap.received == [CustomTypeCard(id: 1)])
     }
 }

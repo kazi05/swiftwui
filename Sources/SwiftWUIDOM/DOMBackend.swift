@@ -121,8 +121,12 @@ public final class DOMBackend: RendererBackend {
     public func setProperty(_ node: JSObject, name: String, value: PropertyValue) {
         if name.hasPrefix("swui:cmd:") {
             // One-shot imperative command, delivered via the property diff
-            // channel (applies only on change). "0" is the initial no-op nonce.
-            guard case .string(let nonce) = value, nonce != "0" else { return }
+            // channel (applies only on change). "0" is the initial no-op nonce;
+            // "" is also a no-op — the reconciler's property-removal path emits
+            // .string("") for a cleared property. A grafted nonce re-applied on
+            // a hot-reload remount triggers a click() without transient
+            // activation — browsers ignore it (documented-harmless).
+            guard case .string(let nonce) = value, nonce != "0", !nonce.isEmpty else { return }
             if name == "swui:cmd:click" { _ = node.click?() }
             return
         }
