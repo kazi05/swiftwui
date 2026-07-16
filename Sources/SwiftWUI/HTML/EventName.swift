@@ -18,4 +18,10 @@ public struct EventName: RawRepresentable, Hashable, ExpressibleByStringLiteral 
     public static let pointercancel: EventName = "pointercancel"
     public static let pointerleave: EventName = "pointerleave"
     public static let scroll: EventName = "scroll"
+    public static let dragstart: EventName = "dragstart"
+    public static let dragend: EventName = "dragend"
+    public static let dragenter: EventName = "dragenter"
+    public static let dragover: EventName = "dragover"
+    public static let dragleave: EventName = "dragleave"
+    public static let drop: EventName = "drop"
 }

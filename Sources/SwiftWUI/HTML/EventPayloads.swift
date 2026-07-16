@@ -115,3 +115,47 @@ public struct ClickEvent {
     /// True → new-tab/context intent; SPA must not intercept.
     public var isModified: Bool { button != 0 || metaKey || ctrlKey || shiftKey || altKey }
 }
+
+/// Payload for dragstart/dragend/dragenter/dragover/dragleave (DnD spec §2.2).
+public struct DragEvent: Equatable {
+    /// `dataTransfer.types` snapshot ("Files" marks an OS-file drag).
+    public let types: [String]
+    public let hasFiles: Bool
+    public let x: Double, y: Double                    // clientX/Y
+    /// True when this enter/leave is a crossing between children of the
+    /// listening element (`currentTarget.contains(relatedTarget)`); a null
+    /// relatedTarget (left the window / Safari) reads as false = a real leave.
+    public let isInternalTransition: Bool
+    /// currentTarget geometry — lets sortable compute insertion halves
+    /// without a backend measure API.
+    public let targetWidth: Double, targetHeight: Double
+    public let offsetX: Double, offsetY: Double
+    public init(types: [String] = [], hasFiles: Bool = false,
+                x: Double = 0, y: Double = 0,
+                isInternalTransition: Bool = false,
+                targetWidth: Double = 0, targetHeight: Double = 0,
+                offsetX: Double = 0, offsetY: Double = 0) {
+        self.types = types; self.hasFiles = hasFiles; self.x = x; self.y = y
+        self.isInternalTransition = isInternalTransition
+        self.targetWidth = targetWidth; self.targetHeight = targetHeight
+        self.offsetX = offsetX; self.offsetY = offsetY
+    }
+}
+
+/// Payload for `drop`. `files` from `dataTransfer.files`; `strings` maps each
+/// non-file content type to its `getData` body. Inbound bodies are UNTRUSTED.
+public struct DropEvent {
+    public let files: [WebFile]
+    public let strings: [String: String]
+    public let x: Double, y: Double
+    public init(files: [WebFile] = [], strings: [String: String] = [:],
+                x: Double = 0, y: Double = 0) {
+        self.files = files; self.strings = strings; self.x = x; self.y = y
+    }
+}
+
+/// Drop point in client coordinates (SwiftUI's CGPoint analog).
+public struct DropLocation: Equatable {
+    public let x: Double, y: Double
+    public init(x: Double = 0, y: Double = 0) { self.x = x; self.y = y }
+}
