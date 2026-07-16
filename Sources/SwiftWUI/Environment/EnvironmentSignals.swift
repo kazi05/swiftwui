@@ -18,12 +18,16 @@ public final class EnvironmentSignals {
     /// `prefers-reduced-motion: reduce` (anim spec §9). `false` outside a live
     /// runtime (native/SSG) — zero behavior change for non-reduced users.
     public private(set) var reduceMotion: Bool = false
+    /// Window-level drag state (DnD spec §3.4). Equality-guarded: repeated
+    /// identical writes (child dragenters bubble to window) don't invalidate.
+    public private(set) var dragSession: DragSessionInfo = .none
     public init() {}
 
     func _setColorScheme(_ v: ColorScheme) { colorScheme = v }
     func _setOnline(_ v: Bool) { isOnline = v }
     func _setAppUpdateAvailable(_ v: Bool) { appUpdateAvailable = v }
     func _setReduceMotion(_ v: Bool) { reduceMotion = v }
+    func _setDragSession(_ v: DragSessionInfo) { if dragSession != v { dragSession = v } }
 
     /// Cross-module write surface: setters stay core-private; backends receive
     /// closures via `RendererBackend.beginEnvironmentObservation`.
@@ -39,12 +43,14 @@ public final class EnvironmentSignals {
         public let setOnline: (Bool) -> Void
         public let setAppUpdateAvailable: (Bool) -> Void
         public let setReduceMotion: (Bool) -> Void
+        public let setDragSession: (DragSessionInfo) -> Void
     }
     var writer: Writer {
         Writer(setColorScheme: { [weak self] in self?._setColorScheme($0) },
                setOnline: { [weak self] in self?._setOnline($0) },
                setAppUpdateAvailable: { [weak self] in self?._setAppUpdateAvailable($0) },
-               setReduceMotion: { [weak self] in self?._setReduceMotion($0) })
+               setReduceMotion: { [weak self] in self?._setReduceMotion($0) },
+               setDragSession: { [weak self] in self?._setDragSession($0) })
     }
 }
 
@@ -71,4 +77,7 @@ extension EnvironmentValues {
     /// `@media (prefers-reduced-motion: no-preference) { ... }` — the engine
     /// gate doesn't reach hand-written CSS keyframes. `false` outside a live runtime.
     public var accessibilityReduceMotion: Bool { _signals?.reduceMotion ?? false }
+    /// Live drag-over-window state — build overlay "drop anywhere" zones the
+    /// moment files enter the window. `.none` outside a live runtime.
+    public var dragSession: DragSessionInfo { _signals?.dragSession ?? .none }
 }

@@ -61,6 +61,13 @@ public final class DOMBackend: RendererBackend {
     private var colorSchemeQuery: JSObject?        // keep the MediaQueryList alive with its listener
     private var reduceMotionClosure: JSClosure?
     private var reduceMotionQuery: JSObject?       // keep the MediaQueryList alive with its listener
+    // dragSession (DnD spec §3.4): window-level dragenter/dragleave depth counter
+    // plus drop/dragend resets, all retained for backend lifetime.
+    private var dragDepth = 0
+    private var dragEnterClosure: JSClosure?
+    private var dragLeaveClosure: JSClosure?
+    private var dragResetDropClosure: JSClosure?
+    private var dragResetEndClosure: JSClosure?
     // observeMediaQuery (responsive styling) — one closure per call, retained for backend lifetime.
     private var retainedMediaClosures: [JSClosure] = []
     // ... and the MediaQueryList itself (v1 leak lesson, same as colorSchemeQuery/reduceMotionQuery
@@ -428,6 +435,41 @@ public final class DOMBackend: RendererBackend {
         _ = window?.addEventListener?("offline", onOffline)
         onlineClosure = onOnline
         offlineClosure = onOffline
+        // dragSession (DnD spec §3.4): dragenter/dragleave depth-counted so
+        // bubbling child enters/leaves don't flip the session off early; drop
+        // and dragend force-reset the depth (the pairing dragleave never fires
+        // on a successful drop).
+        let enter = JSClosure { [weak self] args in
+            guard let self else { return .undefined }
+            self.dragDepth += 1
+            if let e = args.first?.object {
+                let ev = Self.decodeDragEvent(e)
+                writer.setDragSession(DragSessionInfo(isActive: true,
+                                                      hasFiles: ev.hasFiles,
+                                                      types: ev.types))
+            }
+            return .undefined
+        }
+        _ = window?.addEventListener?("dragenter", enter)
+        dragEnterClosure = enter
+        let leave = JSClosure { [weak self] _ in
+            guard let self else { return .undefined }
+            self.dragDepth = max(0, self.dragDepth - 1)
+            if self.dragDepth == 0 { writer.setDragSession(.none) }
+            return .undefined
+        }
+        _ = window?.addEventListener?("dragleave", leave)
+        dragLeaveClosure = leave
+        let reset = { [weak self] (_: [JSValue]) -> JSValue in
+            self?.dragDepth = 0
+            writer.setDragSession(.none)
+            return .undefined
+        }
+        let dropReset = JSClosure(reset); let endReset = JSClosure(reset)
+        _ = window?.addEventListener?("drop", dropReset)
+        _ = window?.addEventListener?("dragend", endReset)
+        dragResetDropClosure = dropReset
+        dragResetEndClosure = endReset
         registerServiceWorkerIfConfigured(writer)
     }
     /// Responsive styling (matches() reactivity, Task 9): synchronous initial
@@ -562,6 +604,10 @@ public final class DOMBackend: RendererBackend {
         if let onStorage = storageClosure { _ = window?.removeEventListener?("storage", onStorage) }
         if let onScroll = windowScrollClosure { _ = window?.removeEventListener?("scroll", onScroll) }
         if let onResize = windowResizeClosure { _ = window?.removeEventListener?("resize", onResize) }
+        if let onEnter = dragEnterClosure { _ = window?.removeEventListener?("dragenter", onEnter) }
+        if let onLeave = dragLeaveClosure { _ = window?.removeEventListener?("dragleave", onLeave) }
+        if let onDrop = dragResetDropClosure { _ = window?.removeEventListener?("drop", onDrop) }
+        if let onDragEnd = dragResetEndClosure { _ = window?.removeEventListener?("dragend", onDragEnd) }
         // swStateChangeClosures is cleared below without individually removing each
         // listener: this teardown only runs while the backend itself is being
         // discarded (a hydration-mismatch remount), and that discard path
@@ -583,6 +629,11 @@ public final class DOMBackend: RendererBackend {
         colorSchemeQuery = nil
         reduceMotionClosure = nil
         reduceMotionQuery = nil
+        dragEnterClosure = nil
+        dragLeaveClosure = nil
+        dragResetDropClosure = nil
+        dragResetEndClosure = nil
+        dragDepth = 0
         for observer in domObservers.values { _ = observer.disconnect?() }
         domObservers = [:]
         observerClosures = [:]
