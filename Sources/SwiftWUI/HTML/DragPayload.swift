@@ -45,9 +45,14 @@ extension URL: DragPayload {
     public func _encodeDragBody() -> String? { absoluteString }
     public static func _decodeDragBody(_ body: String) -> URL? {
         for line in body.split(whereSeparator: \.isNewline) {
-            let s = line.trimmingCharacters(in: .whitespaces)
-            if s.isEmpty || s.hasPrefix("#") { continue }
-            return URL(string: s)
+            // ponytail: stdlib whitespace trim — trimmingCharacters(in:) is full
+            // Foundation only (absent from FoundationEssentials), and pulling it
+            // links ICU into every wasm app (~40 MB). isWhitespace is equivalent here.
+            var s = line
+            while let c = s.first, c.isWhitespace { s = s.dropFirst() }
+            while let c = s.last, c.isWhitespace { s = s.dropLast() }
+            if s.isEmpty || s.first == "#" { continue }
+            return URL(string: String(s))
         }
         return nil
     }
