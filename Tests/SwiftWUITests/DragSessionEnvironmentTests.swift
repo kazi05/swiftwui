@@ -1,10 +1,15 @@
 import Testing
 @testable import SwiftWUI
 
+private final class Recorder {
+    var renders = 0
+}
 private struct OverlayFixture: Tag {
+    let cap: Recorder
     @Environment(\.dragSession) private var session
     var body: some Tag {
-        Div(class: session.isActive ? "overlay-on" : "overlay-off") {
+        cap.renders += 1
+        return Div(class: session.isActive ? "overlay-on" : "overlay-off") {
             P { session.hasFiles ? "files" : "none" }
         }
     }
@@ -15,7 +20,7 @@ private struct OverlayFixture: Tag {
         #expect(DragSessionInfo.none.isActive == false)
         let backend = MockBackend(); let sched = TestScheduler()
         let rt = Runtime(backend: backend, container: backend.container,
-                         root: OverlayFixture(), scheduleMicrotask: sched.schedule)
+                         root: OverlayFixture(cap: Recorder()), scheduleMicrotask: sched.schedule)
         rt.mount()
         _ = rt
         #expect(findFirst(backend.container, tag: "div")!.attrs["class"] == "overlay-off")
@@ -23,7 +28,7 @@ private struct OverlayFixture: Tag {
     @Test func writerFlipsAndRerenders() {
         let backend = MockBackend(); let sched = TestScheduler()
         let rt = Runtime(backend: backend, container: backend.container,
-                         root: OverlayFixture(), scheduleMicrotask: sched.schedule)
+                         root: OverlayFixture(cap: Recorder()), scheduleMicrotask: sched.schedule)
         rt.mount()
         _ = rt
         backend.environmentWriter?.setDragSession(
@@ -37,16 +42,21 @@ private struct OverlayFixture: Tag {
     }
     @Test func equalWritesDoNotInvalidate() {
         let backend = MockBackend(); let sched = TestScheduler()
+        let cap = Recorder()
         let rt = Runtime(backend: backend, container: backend.container,
-                         root: OverlayFixture(), scheduleMicrotask: sched.schedule)
+                         root: OverlayFixture(cap: cap), scheduleMicrotask: sched.schedule)
         rt.mount()
         _ = rt
         let info = DragSessionInfo(isActive: true, hasFiles: false, types: ["text/plain"])
         backend.environmentWriter?.setDragSession(info)
         sched.pump()
-        let renders = backend.counts["setAttribute", default: 0]
+        let renders = cap.renders
         backend.environmentWriter?.setDragSession(info)   // bubbling child enter
         sched.pump()
-        #expect(backend.counts["setAttribute", default: 0] == renders)
+        #expect(cap.renders == renders)   // equal value → guard suppresses body re-evaluation
+        // sanity: a genuinely different value DOES re-evaluate body (counter has teeth)
+        backend.environmentWriter?.setDragSession(.none)
+        sched.pump()
+        #expect(cap.renders == renders + 1)
     }
 }
