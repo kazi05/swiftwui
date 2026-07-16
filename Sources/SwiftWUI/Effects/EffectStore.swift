@@ -64,7 +64,10 @@ public final class EffectStore {
         disappearActions.removeAll()
         for id in windowSubscriptions { _windowHub?.unsubscribe(id: id) }
         windowSubscriptions.removeAll()
-        dropGuardIDs.removeAll()
+        if !dropGuardIDs.isEmpty {
+            dropGuardIDs.removeAll()
+            _onDropGuardChange?(false)
+        }
     }
 
     /// Awaits every pending `.build` task in turn, tracking which identities
