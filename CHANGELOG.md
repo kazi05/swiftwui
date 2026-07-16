@@ -4,6 +4,41 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
+## Unreleased
+
+Drag & drop and file input: HTML5 drag/drop for both OS files and typed
+in-app payloads, plus a click-to-pick file dialog and a drag-reorderable
+`ForEach`.
+
+### Added
+
+- `.draggable(_:isDragged:)` / `.dropDestination(for:allowedTypes:action:isTargeted:)`
+  (`WebFile`) and `.dropDestination(for:action:isTargeted:)` (typed
+  `DragPayload`) — HTMLTag drag sources and drop zones.
+- `DragPayload` protocol (Codable-backed) for custom drag payloads; encoded
+  into DOM attributes at render time and travels via the OS drag pasteboard
+  — visible in the DOM, so never put secrets in a payload.
+- `FileType` (UTType analog: `.image`, `.pdf`, `.zip`, …), `.fileImporter(
+  isPresented:allowedContentTypes:allowsMultipleSelection:onCompletion:)`
+  for a click-to-pick file dialog, and typed file drop zones.
+- `@Environment(\.dragSession)` — window-level signal for whether something
+  is being dragged over the page right now, and whether it includes files.
+- `.preventsAccidentalDropNavigation()` — guards against the classic
+  drag-and-drop footgun where a file dropped outside any zone navigates the
+  tab away.
+- `ForEach.onMove(axis:perform:)` — drag-to-reorder rows with live preview
+  (shifting siblings, dimmed source); `action` receives `(fromIndex,
+  toInsertionOffset)`, not SwiftUI's `IndexSet` (would pull ~40 MB of
+  Foundation/ICU into the wasm bundle for no benefit over HTML5's
+  single-item drags).
+- Reserved DOM contract: `swui:cmd:` property-command channel and
+  `data-swui-*` attribute prefix — framework-owned, don't set by hand.
+
+### Example
+
+- `Examples/DragDrop` — acceptance app exercising every state above, plus
+  `ACCEPTANCE.md` manual browser checklist.
+
 ## v0.4.0 — 2026-07-15
 
 Typed style-modifier expansion: ~150 new typed CSS modifiers so real

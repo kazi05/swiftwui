@@ -24,6 +24,7 @@ Swift web UI framework: SwiftUI-inspired declarative API compiled to WebAssembly
 - **PWA (opt-in):** `swiftwui init --pwa` / `swiftwui pwa init` scaffold user-owned manifest+icons+sw.js; build/ssg regenerate `dist/sw-assets.js` (SHA-256 precache manifest, `sw-assets.js` is a reserved name); update surfaced via `\.appUpdateAvailable` + `\.reloadToUpdate`; SW never registers in dev. Per-route ssg prerenders are never precached (SEO artifact only).
 - **TagModifier:** compositional `ViewModifier` analog; `ModifiedTag` is a component boundary (@State/@Environment work, Styled scope preserved); event modifiers are HTMLTag-only, window-level effects Tag-wide.
 - **BridgeJS:** SwiftWUIDOM structural DOM ops use vendored BridgeJS bindings (`bridge-js.global.d.ts` → committed `Generated/`, regen via `swift package plugin --allow-writing-to-package-directory bridge-js --target SwiftWUIDOM`; one-time `npm install` inside `.build/checkouts/JavaScriptKit/Plugins/BridgeJS/Sources/TS2Swift/JavaScript/` first, or codegen fails with `ERR_MODULE_NOT_FOUND: typescript`; `Extern` feature flag on the target); events/nullable/dynamic-property paths stay on JSObject.
+- **DnD + files:** attribute-driven HTML5 DnD (`data-swui-drag*` contract, decode-layer preventDefault/acceptance); `.draggable`/`.dropDestination` (HTMLTag-only), `.fileImporter` (TagModifier + `swui:cmd:` property-command channel), `ForEach.onMove` (row decoration), `\.dragSession` env signal. `FileType` = UTType analog; payloads via `DragPayload` (Codable, visible in DOM — no secrets).
 
 ## Build & test
 
