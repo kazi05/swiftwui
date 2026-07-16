@@ -79,6 +79,23 @@ struct _SortableDecorator<Data: RandomAccessCollection, ID: Hashable, Content: T
 
     private func decorate(_ elem: inout ElementNode, index: Int,
                           ctx: inout ResolveContext) {
+        // Live preview: while a move-drag is active, rows between the source
+        // and the insertion point shift by one row extent; the source dims.
+        // Styles exist ONLY mid-drag — user styling is untouched when idle.
+        if let s = sourceIndex.wrappedValue {
+            let translate = axis == .vertical ? "translateY" : "translateX"
+            elem.style.set("transition", "transform 150ms ease")
+            if index == s {
+                elem.style.set("opacity", "0.4")
+            } else if let ins = hoverInsertion.wrappedValue {
+                let px = rowExtent.wrappedValue
+                if ins > s, index > s, index < ins {
+                    elem.style.set("transform", "\(translate)(-\(px)px)")
+                } else if ins <= s, index >= ins, index < s {
+                    elem.style.set("transform", "\(translate)(\(px)px)")
+                }
+            }
+        }
         elem.attributes["draggable"] = "true"
         elem.attributes["data-swui-drag-type"] = _sortableMoveType
         elem.attributes["data-swui-drag"] = String(index)

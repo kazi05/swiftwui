@@ -85,4 +85,31 @@ private struct ListFixture: Tag {
         sched.pump()
         #expect(cap.moves.isEmpty)
     }
+    @Test func previewShiftsRowsDuringDrag() {
+        let (rt, backend, sched, _) = mount()
+        rt.dispatch(rows(backend)[0].events["dragstart"]!, payload: DragEvent(targetHeight: 40))
+        sched.pump()
+        rt.dispatch(rows(backend)[2].events["dragover"]!,
+                    payload: DragEvent(targetHeight: 40, offsetY: 30))   // insertion 3
+        sched.pump()
+        let r = rows(backend)
+        #expect(r[0].style.cssText.contains("opacity"))
+        #expect(r[1].style.cssText.contains("translateY(-40"))
+        #expect(r[2].style.cssText.contains("translateY(-40"))
+        rt.dispatch(r[0].events["dragend"]!, payload: DragEvent())
+        sched.pump()
+        #expect(!rows(backend)[1].style.cssText.contains("translateY"))
+    }
+    @Test func previewDragUpShiftsDown() {
+        let (rt, backend, sched, _) = mount()
+        rt.dispatch(rows(backend)[2].events["dragstart"]!, payload: DragEvent(targetHeight: 40))
+        sched.pump()
+        rt.dispatch(rows(backend)[0].events["dragover"]!,
+                    payload: DragEvent(targetHeight: 40, offsetY: 10))   // insertion 0
+        sched.pump()
+        let r = rows(backend)
+        #expect(r[0].style.cssText.contains("translateY(40")
+                && r[1].style.cssText.contains("translateY(40"))
+        #expect(r[2].style.cssText.contains("opacity"))
+    }
 }
