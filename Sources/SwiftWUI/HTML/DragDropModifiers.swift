@@ -62,4 +62,33 @@ extension HTMLTag {
         }
         return copy
     }
+
+    /// 1 MiB cap on inbound drop bodies — pasteboard-bomb guard (spec §6).
+    private static var _dropBodyByteCap: Int { 1_048_576 }
+
+    /// Drop zone for a custom payload type. Single-item drops (multi-item
+    /// custom drags are out of scope; the array shape is SwiftUI parity).
+    public func dropDestination<T: DragPayload>(
+        for type: T.Type,
+        action: @escaping ([T], DropLocation) -> Bool,
+        isTargeted: @escaping (Bool) -> Void = { _ in }
+    ) -> Self {
+        var copy = self
+        copy._attributes.set("data-swui-drop-accepts", T.dragContentType)
+        copy._attributes.addHandler(.dragenter, payload: DragEvent.self) { e in
+            if !e.isInternalTransition && e.types.contains(T.dragContentType) { isTargeted(true) }
+        }
+        copy._attributes.addHandler(.dragleave, payload: DragEvent.self) { e in
+            if !e.isInternalTransition { isTargeted(false) }
+        }
+        copy._attributes.addHandler(.dragover, payload: DragEvent.self) { _ in }
+        copy._attributes.addHandler(.drop, payload: DropEvent.self) { e in
+            isTargeted(false)
+            guard let body = e.strings[T.dragContentType],
+                  body.utf8.count <= Self._dropBodyByteCap,
+                  let value = T._decodeDragBody(body) else { return }   // foreign/malformed → ignore
+            _ = action([value], DropLocation(x: e.x, y: e.y))
+        }
+        return copy
+    }
 }
