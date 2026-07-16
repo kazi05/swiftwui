@@ -6,11 +6,11 @@
 ///   "Files"                          — any OS-file drag
 ///   "Files:image/*,application/pdf"  — file drag whose items match a pattern
 ///   "<content-type>"                 — custom payload type (exact match)
-enum _DragAcceptance {
+public enum _DragAcceptance {
     /// - fileMimes: `dataTransfer.items[].type` for kind=="file" entries.
     ///   Empty while unavailable (some browsers hide items mid-drag) →
     ///   optimistic accept; the drop-side filter is authoritative.
-    static func matches(accepts: String, types: [String], fileMimes: [String]) -> Bool {
+    public static func matches(accepts: String, types: [String], fileMimes: [String]) -> Bool {
         for token in accepts.split(separator: " ") {
             if token == "Files" {
                 if types.contains("Files") { return true }
@@ -30,7 +30,7 @@ enum _DragAcceptance {
 
     /// "*/*" matches anything; "image/*" is a prefix family; else exact,
     /// case-insensitive. UX filtering only — never a security decision.
-    static func mimeMatches(pattern: String, mime: String) -> Bool {
+    public static func mimeMatches(pattern: String, mime: String) -> Bool {
         if pattern == "*/*" || pattern == "*" { return true }
         let p = pattern.lowercased(), m = mime.lowercased()
         if p.hasSuffix("/*") { return m.hasPrefix(p.dropLast()) }   // keeps the "/"

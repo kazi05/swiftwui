@@ -137,6 +137,62 @@ public final class DOMBackend: RendererBackend {
         }
     }
 
+    /// FileList → [WebFile] — same duck-typed shape for `input.files` and
+    /// `dataTransfer.files`.
+    static func webFiles(from files: JSObject) -> [WebFile] {
+        let n = Int(files.length.number ?? 0)
+        var out: [WebFile] = []
+        out.reserveCapacity(n)
+        for i in 0..<n {
+            guard let f = files.item?(i).object else { continue }
+            out.append(WebFile(
+                name: f.name.string ?? "",
+                size: Int(f.size.number ?? 0),
+                mimeType: f.type.string ?? "",
+                lastModified: Date(timeIntervalSince1970: (f.lastModified.number ?? 0) / 1000),
+                reader: DOMFileReader(file: f)))
+        }
+        return out
+    }
+
+    /// `dataTransfer.types`/`.items` are JS array-likes, not real Arrays —
+    /// no `.map`/`.compactMap` on the JSValue side, hence the manual index loop.
+    static func jsStringArray(_ value: JSValue) -> [String] {
+        guard let arr = value.object else { return [] }
+        let n = Int(arr.length.number ?? 0)
+        return (0..<n).compactMap { arr[$0].string }
+    }
+
+    /// Mimes of file items during hover (kind=="file"); empty when the
+    /// browser hides items mid-drag → matcher goes optimistic.
+    static func dragItemMimes(_ e: JSObject) -> [String] {
+        guard let items = e.dataTransfer.object?.items.object else { return [] }
+        let n = Int(items.length.number ?? 0)
+        var out: [String] = []
+        for i in 0..<n {
+            guard let item = items[i].object, item.kind.string == "file" else { continue }
+            out.append(item.type.string ?? "")
+        }
+        return out
+    }
+
+    static func decodeDragEvent(_ e: JSObject) -> DragEvent {
+        let types = jsStringArray(e.dataTransfer.object?.types ?? .undefined)
+        var isInternal = false
+        if let ct = e.currentTarget.object, let rt = e.relatedTarget.object {
+            isInternal = ct.contains?(rt).boolean ?? false
+        }
+        let cx = e.clientX.number ?? 0, cy = e.clientY.number ?? 0
+        var tw = 0.0, th = 0.0, ox = 0.0, oy = 0.0
+        if let rect = e.currentTarget.object?.getBoundingClientRect?().object {
+            tw = rect.width.number ?? 0; th = rect.height.number ?? 0
+            ox = cx - (rect.left.number ?? 0); oy = cy - (rect.top.number ?? 0)
+        }
+        return DragEvent(types: types, hasFiles: types.contains("Files"),
+                         x: cx, y: cy, isInternalTransition: isInternal,
+                         targetWidth: tw, targetHeight: th, offsetX: ox, offsetY: oy)
+    }
+
     static func decodePayload(event: String, jsEvent e: JSObject) -> Any {
         let target = e.target.object
         switch event {
@@ -144,19 +200,7 @@ public final class DOMBackend: RendererBackend {
             return InputEvent(value: target?.value.string ?? "")
         case "change":
             if let t = target, t.type.string == "file", let files = t.files.object {
-                let n = Int(files.length.number ?? 0)
-                var out: [WebFile] = []
-                out.reserveCapacity(n)
-                for i in 0..<n {
-                    guard let f = files.item?(i).object else { continue }
-                    out.append(WebFile(
-                        name: f.name.string ?? "",
-                        size: Int(f.size.number ?? 0),
-                        mimeType: f.type.string ?? "",
-                        lastModified: Date(timeIntervalSince1970: (f.lastModified.number ?? 0) / 1000),
-                        reader: DOMFileReader(file: f)))
-                }
-                return FilesEvent(files: out)
+                return FilesEvent(files: Self.webFiles(from: files))
             }
             return ChangeEvent(value: target?.value.string ?? "",
                                checked: target?.checked.boolean ?? false)
@@ -189,6 +233,42 @@ public final class DOMBackend: RendererBackend {
                 _ = e.preventDefault?()
             }
             return click
+        case "dragstart":
+            // Attribute-driven source (DnD spec §2.3/§2.4): payload was encoded
+            // at render time; setData MUST happen synchronously here.
+            if let ct = e.currentTarget.object, let dt = e.dataTransfer.object,
+               let type = ct.getAttribute?("data-swui-drag-type").string,
+               let body = ct.getAttribute?("data-swui-drag").string {
+                _ = dt.setData?(type, body)
+                dt.effectAllowed = .string("copyMove")
+            }
+            return Self.decodeDragEvent(e)
+        case "dragenter", "dragover":
+            let ev = Self.decodeDragEvent(e)
+            // preventDefault ⇔ this zone accepts the current drag — the browser
+            // cursor then honestly shows allowed/not-allowed (rejected state).
+            if let ct = e.currentTarget.object,
+               let accepts = ct.getAttribute?("data-swui-drop-accepts").string,
+               _DragAcceptance.matches(accepts: accepts, types: ev.types,
+                                       fileMimes: Self.dragItemMimes(e)) {
+                _ = e.preventDefault?()
+                e.dataTransfer.object?.dropEffect = .string("copy")
+            }
+            return ev
+        case "dragleave", "dragend":
+            return Self.decodeDragEvent(e)
+        case "drop":
+            _ = e.preventDefault?()          // never let the browser open the file
+            var files: [WebFile] = []
+            var strings: [String: String] = [:]
+            if let dt = e.dataTransfer.object {
+                if let list = dt.files.object { files = Self.webFiles(from: list) }
+                for t in Self.jsStringArray(dt.types) where t != "Files" {
+                    if let s = dt.getData?(t).string, !s.isEmpty { strings[t] = s }
+                }
+            }
+            return DropEvent(files: files, strings: strings,
+                             x: e.clientX.number ?? 0, y: e.clientY.number ?? 0)
         default:
             return GenericEvent(type: event,
                                 targetValue: target?.value.string,
