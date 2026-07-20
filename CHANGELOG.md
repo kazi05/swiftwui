@@ -12,6 +12,9 @@ Notable changes to SwiftWUI. Format loosely follows
   (components, models, closures), `DependencyKey` with `liveValue`/`testValue`
   (auto test detection), scoped `withDependencies` and permanent
   `prepareDependencies` overrides. No external dependency.
+- Built-in dependency key `\.webSession` — network access for models and
+  services outside the render tree (`WebSession.shared` passthrough,
+  `.unsupported` in tests so unmocked requests fail loudly).
 
 ## [0.5.0] - 2026-07-16
 
