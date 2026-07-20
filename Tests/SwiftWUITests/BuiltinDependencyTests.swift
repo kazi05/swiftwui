@@ -105,4 +105,17 @@ struct BuiltinDependencyTests {
         model.navigate("/next")
         #expect(backend.historyStack.contains("/next"))
     }
+
+    @Test func bootstrapDependenciesWiresWebSession() {
+        // Poison the cache first: resolve the default BEFORE boot, like a
+        // first-render read racing WebSession.bootstrap.
+        #expect(BuiltinModel().session === WebSession.unsupported)
+        let backend = MockBackend()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: EmptyFixture(), scheduleMicrotask: { _ in })
+        let session = WebSession(transport: StubTransport())
+        runtime._webSession = session
+        runtime.bootstrapDependencies()
+        #expect(BuiltinModel().session === session)   // override shadows the poisoned cache
+    }
 }

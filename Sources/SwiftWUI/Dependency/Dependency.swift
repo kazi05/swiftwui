@@ -132,6 +132,9 @@ public func withDependencies<R>(
 
 /// Permanently mutates the global overrides — app startup, staging
 /// configuration, SSG prerender stubs.
+///
+/// Calling it INSIDE an active `withDependencies` scope is reverted when the
+/// scope exits (save/restore) — call it outside scopes.
 public func prepareDependencies(_ mutate: (inout DependencyValues) throws -> Void) rethrows {
     var copy = DependencyStore.overrides
     try mutate(&copy)

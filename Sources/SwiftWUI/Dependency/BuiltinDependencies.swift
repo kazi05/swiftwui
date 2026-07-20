@@ -5,8 +5,10 @@
 /// and other code outside the render tree.
 
 struct WebSessionDependencyKey: DependencyKey {
-    /// Resolved lazily on first access — by then the platform runtime
-    /// (SwiftWUIDOM / SwiftWUIStatic) has configured `WebSession.shared`.
+    /// `WebSession.shared` passthrough. In a DOM app the session is ALSO
+    /// installed as a global override by `bootstrapDependencies()` — a read
+    /// during the first render (before `WebSession.bootstrap`) may cache
+    /// `.unsupported` as the default, and the override shadows that.
     static var liveValue: WebSession { .shared }
     /// Unmocked network access in tests throws `WebFetchError.unsupported`.
     static var testValue: WebSession { .unsupported }
@@ -49,9 +51,15 @@ public struct WebStorage {
     public func set<Value: StorageConvertible>(
         _ key: String, _ value: Value, kind: StorageKind = .local
     ) {
+        if key.hasPrefix("__swiftwui.") {
+            store.warnOnce(forKey: key, "WebStorage: key '\(key)' uses the reserved __swiftwui. prefix")
+        }
         store.write(kind: kind, key: key, raw: value._encodeStorage)
     }
     public func remove(_ key: String, kind: StorageKind = .local) {
+        if key.hasPrefix("__swiftwui.") {
+            store.warnOnce(forKey: key, "WebStorage: key '\(key)' uses the reserved __swiftwui. prefix")
+        }
         store.write(kind: kind, key: key, raw: nil)
     }
 }
@@ -124,6 +132,7 @@ extension Runtime {
                 self?.navigate(to: path, replace: replace)
             }
             deps.webStorage = WebStorage(store: _storage)
+            if let session = _webSession { deps.webSession = session }
         }
     }
 }
