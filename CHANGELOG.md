@@ -4,6 +4,15 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
+## [Unreleased]
+
+### Added
+
+- Lightweight dependency injection: `@Dependency(\.key)` resolvable anywhere
+  (components, models, closures), `DependencyKey` with `liveValue`/`testValue`
+  (auto test detection), scoped `withDependencies` and permanent
+  `prepareDependencies` overrides. No external dependency.
+
 ## [0.5.0] - 2026-07-16
 
 Drag & drop and file input: HTML5 drag/drop for both OS files and typed
