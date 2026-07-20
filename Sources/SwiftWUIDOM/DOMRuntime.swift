@@ -64,6 +64,7 @@ public enum DOMRuntime {
         runtime: Runtime<B>, box: DispatchBox, raw: DOMBackend, container: JSObject, hydrated: Bool
     ) {
         if let session = runtime._webSession { WebSession.bootstrap(session) }
+        runtime.bootstrapDependencies()
         box.fn = { [weak runtime] in runtime?.dispatch($0, payload: $1) }
         retained.append(runtime)
         retained.append(raw)

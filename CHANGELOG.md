@@ -12,6 +12,10 @@ Notable changes to SwiftWUI. Format loosely follows
   (components, models, closures), `DependencyKey` with `liveValue`/`testValue`
   (auto test detection), scoped `withDependencies` and permanent
   `prepareDependencies` overrides. No external dependency.
+- Built-in dependency keys `\.navigate`, `\.webStorage`, `\.logger` —
+  programmatic navigation, imperative web storage (shared with `@AppStorage`
+  reactivity), and a print-based logger. Runtime-backed after DOM boot via
+  `Runtime.bootstrapDependencies()`; safe no-op/in-memory defaults elsewhere.
 - Built-in dependency key `\.webSession` — network access for models and
   services outside the render tree (`WebSession.shared` passthrough,
   `.unsupported` in tests so unmocked requests fail loudly).
