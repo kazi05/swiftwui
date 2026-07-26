@@ -53,6 +53,44 @@ Notable changes to SwiftWUI. Format loosely follows
   enter transitions on the first flush after adopting prerendered HTML — now also suppresses
   exit transitions on that same flush, so a removed element can't leave behind an inert ghost
   still carrying its `view-transition-name`.
+- **On-demand SSG (Phase A)** — per-route control over what gets prerendered, when, and what's
+  in its `<head>`. See <doc:Prerendering> for the full picture.
+  - **Prerender policies** — `Route.prerender(_:)` / `App.prerender`, resolved most-specific-first
+    against `StaticSiteConfig.defaultPrerender`: `.never`, `.build`, `.onDemand`,
+    `.paths { async throws -> [String] }`, `.allowingOnDemand()`, `.revalidate(_:)`.
+  - **Kill-switch** — `StaticSiteConfig.prerenderEnabled`, readable from the `SWIFTWUI_PRERENDER`
+    environment variable via `PrerenderSwitch.enabled(fromEnvironment:)`. Fail-closed: unset means
+    on; `1`/`true`/`on`/`yes` (case-insensitive) mean on; every other non-empty value turns
+    prerendering off.
+  - **`.pageMeta(title:meta:links:structuredData:)`** — a head patch applied from inside the route
+    subtree, after the `@State` graft and after `.staticTask` writes, unlike `Page.title` which
+    the `Router` snapshots before either. Includes a JSON-LD channel
+    (`<script type="application/ld+json">`, serialized through the same raw-text-sink escaping the
+    hydration snapshot uses).
+  - **Canonical synthesis** — a `<link rel="canonical">` is added to any prerendered page that
+    declares none, when `StaticSiteConfig.siteURL` is set; no `siteURL` means no synthesis.
+  - **`@RouteParam`** — typed, optional read access to a matched route's captures.
+  - **`.onRouteChange(initial:)`** — pushes `RouteInfo` into a plain model class on mount and on
+    every navigation, guaranteed to run before `.staticTask` loaders in the same pass.
+  - **`staticTask(_:)` / `staticTask(id:)`** — a `.build`-policy `.task` variant: awaited during
+    SSG before the page's HTML is taken, skipped on a hydrated client boot (the snapshot's `tasks`
+    list covers it), and runs like a normal task on a cold client.
+  - **Public `StaticSite.render(_:path:config:)`** — renders exactly one path and returns an
+    explicit `RenderedPage` with a `.page` / `.redirect(to:permanent:)` / `.notFound` / `.error(_:)`
+    outcome; `StaticSite.generate` is now built on top of it. Every generated app template's
+    `main.swift` exposes this as `ssg --path <path>`, writing exactly one file.
+  - **Sitemap generation** — `sitemap.xml` (indexed into `sitemap-N.xml` chunks past 45,000 URLs),
+    written alongside a build when `siteURL` is set; only `.page`-outcome routes are listed.
+
+### Changed
+
+- **SPI:** `Runtime._collectRoutes()` now returns `[_CollectedRoute]` (pattern + the route's
+  `Prerender?`, if any) instead of just patterns — a caller pattern-matching the old element type
+  breaks at compile time, not silently at runtime.
+- **SPI:** `RendererBackend` gained `setStructuredData(_ blocks: [String])`, with a default no-op
+  implementation so existing conforming backends keep compiling. A custom backend that doesn't
+  override it silently drops JSON-LD — `AdoptingBackend` and `DOMBackend` both forward it; a
+  third-party backend needs to add its own override.
 
 ## [0.6.0] - 2026-07-20
 

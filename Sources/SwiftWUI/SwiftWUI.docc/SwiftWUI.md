@@ -91,7 +91,9 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 - ``RouteInfo``
 - ``NavigateAction``
 - ``QueryParam``
+- ``RouteParam``
 - <doc:ViewTransitions>
+- <doc:Prerendering>
 
 ### Effects
 

@@ -90,7 +90,8 @@ public protocol Page: Tag {
     /// (phase-4 decision; revisit if live titles are ever needed).
     /// STATIC-SITE NOTE: `title` is captured when the route resolves — before
     /// `.staticTask` loaders run — so a title computed from loader-filled @State
-    /// renders its initial value in SSG output (ledgered phase-6 ticket).
+    /// renders its initial value. Use `.pageMeta(title:)` for heads that depend
+    /// on loaded data; it runs inside the route subtree, after the state graft.
     var title: String { get }
     /// Managed `<meta>` set (replaces only tags marked data-swiftwui).
     var meta: [MetaTag] { get }
