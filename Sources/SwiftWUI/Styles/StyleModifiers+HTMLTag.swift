@@ -258,6 +258,25 @@ extension HTMLTag {
         guard let d = StyleDeclaration.willChange(hints) else { return self }
         return _style(d)
     }
+    /// See `Tag.animation(_:duration:…)`.
+    public func animation(_ keyframes: Keyframes, duration: CSSDuration,
+                          timingFunction: TimingFunction = .ease,
+                          delay: CSSDuration = .ms(0),
+                          iterations: AnimationIterations = .count(1),
+                          direction: AnimationDirection = .normal,
+                          fillMode: AnimationFillMode = .none,
+                          respectsReducedMotion: Bool = true) -> Self {
+        guard let rule = _animationRule(keyframes, duration: duration,
+                                        timingFunction: timingFunction, delay: delay,
+                                        iterations: iterations, direction: direction,
+                                        fillMode: fillMode,
+                                        respectsReducedMotion: respectsReducedMotion) else {
+            return self
+        }
+        var copy = self
+        copy._attributes.addPendingRule(rule)
+        return copy
+    }
     public func transitionDelay(_ v: CSSDuration) -> Self { _style(.transitionDelay(v)) }
     public func contentVisibility(_ v: ContentVisibility) -> Self { _style(.contentVisibility(v)) }
     public func containIntrinsicSize(_ v: CSSLength) -> Self { _style(.containIntrinsicSize(v)) }

@@ -324,6 +324,18 @@ extension StyleDeclaration {
         return .init(property: "will-change", value: hints.map(\.css).joined(separator: ", "))
     }
     public static func transitionDelay(_ v: CSSDuration) -> Self { .init(property: "transition-delay", value: v.css) }
+    /// All six operands are always emitted (no omit-if-default) so the value is
+    /// a pure function of the parameters. `name` is a `Keyframes.cssName`,
+    /// which is ident-validated at construction.
+    public static func animation(name: String, duration: CSSDuration,
+                                 timingFunction: TimingFunction, delay: CSSDuration,
+                                 iterations: AnimationIterations,
+                                 direction: AnimationDirection,
+                                 fillMode: AnimationFillMode) -> Self {
+        .init(property: "animation",
+              value: [name, duration.css, timingFunction.css, delay.css,
+                      iterations.css, direction.css, fillMode.css].joined(separator: " "))
+    }
     // Layout perf / scroll / flex
     public static func contentVisibility(_ v: ContentVisibility) -> Self { .init(property: "content-visibility", value: v.css) }
     public static func containIntrinsicSize(_ v: CSSLength) -> Self { .init(property: "contain-intrinsic-size", value: v.css) }

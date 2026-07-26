@@ -4,6 +4,11 @@ public struct PendingStyleRule {
     let pseudo: String?
     let media: String?
     var container: String? = nil
+    // ponytail: the at-rule rides on the rule that needs it instead of a
+    // parallel array on _StyledTag and _AttributeBag — it is registered from
+    // the same loop, at the same moment, and serves only this rule. Split it
+    // out if a second at-rule kind ever needs independent registration.
+    var keyframes: Keyframes? = nil
     let declarations: [StyleDeclaration]
 }
 

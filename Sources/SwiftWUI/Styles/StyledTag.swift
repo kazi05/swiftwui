@@ -15,6 +15,7 @@ public struct _StyledTag<Content: Tag>: Tag, _PrimitiveTag {
         let id = path.appending(.type(ObjectIdentifier(Self.self)))
         var ruleClasses: [String] = []
         for r in rules {
+            if let kf = r.keyframes { ctx.registry.registerRaw(kf.ruleText) }
             ruleClasses.append(ctx.registry.registerAnonymous(pseudo: r.pseudo, media: r.media,
                                                               container: r.container,
                                                               declarations: r.declarations))

@@ -308,6 +308,30 @@ extension Tag {
         guard let d = StyleDeclaration.willChange(hints) else { return _StyledTag(content: self, declarations: [], rules: []) }
         return _styled(d)
     }
+    /// Attaches a CSS `@keyframes` animation. Distinct from the WAAPI engine's
+    /// `animation(_:value:)` (Animation/AnimationModifier.swift): that one
+    /// interpolates between two states when a value changes, this one drives a
+    /// declarative CSS loop the engine does not cover.
+    ///
+    /// Gated on `@media (prefers-reduced-motion: no-preference)` by default —
+    /// pass `respectsReducedMotion: false` for an animation that carries
+    /// information rather than decoration.
+    public func animation(_ keyframes: Keyframes, duration: CSSDuration,
+                          timingFunction: TimingFunction = .ease,
+                          delay: CSSDuration = .ms(0),
+                          iterations: AnimationIterations = .count(1),
+                          direction: AnimationDirection = .normal,
+                          fillMode: AnimationFillMode = .none,
+                          respectsReducedMotion: Bool = true) -> _StyledTag<Self> {
+        guard let rule = _animationRule(keyframes, duration: duration,
+                                        timingFunction: timingFunction, delay: delay,
+                                        iterations: iterations, direction: direction,
+                                        fillMode: fillMode,
+                                        respectsReducedMotion: respectsReducedMotion) else {
+            return _StyledTag(content: self, declarations: [], rules: [])
+        }
+        return _StyledTag(content: self, declarations: [], rules: [rule])
+    }
     public func transitionDelay(_ v: CSSDuration) -> _StyledTag<Self> { _styled(.transitionDelay(v)) }
     public func contentVisibility(_ v: ContentVisibility) -> _StyledTag<Self> { _styled(.contentVisibility(v)) }
     public func containIntrinsicSize(_ v: CSSLength) -> _StyledTag<Self> { _styled(.containIntrinsicSize(v)) }
@@ -677,6 +701,25 @@ extension _StyledTag {
     public func willChange(_ hints: WillChange...) -> Self {
         guard let d = StyleDeclaration.willChange(hints) else { return self }
         return _styled(d)
+    }
+    /// See `Tag.animation(_:duration:…)`.
+    public func animation(_ keyframes: Keyframes, duration: CSSDuration,
+                          timingFunction: TimingFunction = .ease,
+                          delay: CSSDuration = .ms(0),
+                          iterations: AnimationIterations = .count(1),
+                          direction: AnimationDirection = .normal,
+                          fillMode: AnimationFillMode = .none,
+                          respectsReducedMotion: Bool = true) -> Self {
+        guard let rule = _animationRule(keyframes, duration: duration,
+                                        timingFunction: timingFunction, delay: delay,
+                                        iterations: iterations, direction: direction,
+                                        fillMode: fillMode,
+                                        respectsReducedMotion: respectsReducedMotion) else {
+            return self
+        }
+        var copy = self
+        copy.rules.append(rule)
+        return copy
     }
     public func transitionDelay(_ v: CSSDuration) -> Self { _styled(.transitionDelay(v)) }
     public func contentVisibility(_ v: ContentVisibility) -> Self { _styled(.contentVisibility(v)) }

@@ -97,3 +97,28 @@ public enum AnimationFillMode: String, CSSValueConvertible {
     case none, forwards, backwards, both
     public var css: String { rawValue }
 }
+
+/// Builds the gated rule the three `.animation(_:duration:…)` paths share.
+/// Returns nil for empty keyframes — nothing to register, nothing to apply.
+///
+/// The animation lands in a registered rule rather than an inline declaration
+/// so it can sit inside `@media (prefers-reduced-motion: no-preference)`
+/// (spec §5). CSS can only *enable* under a condition, hence `no-preference`
+/// rather than `reduce`. The `@keyframes` definition itself is never wrapped:
+/// an unreferenced definition is inert, and wrapping it would break a
+/// hand-written `.style("animation", …)` naming the same keyframes.
+func _animationRule(_ keyframes: Keyframes, duration: CSSDuration,
+                    timingFunction: TimingFunction, delay: CSSDuration,
+                    iterations: AnimationIterations, direction: AnimationDirection,
+                    fillMode: AnimationFillMode,
+                    respectsReducedMotion: Bool) -> PendingStyleRule? {
+    guard !keyframes.isEmpty else { return nil }
+    let declaration = StyleDeclaration.animation(
+        name: keyframes.cssName, duration: duration, timingFunction: timingFunction,
+        delay: delay, iterations: iterations, direction: direction, fillMode: fillMode)
+    return PendingStyleRule(
+        pseudo: nil,
+        media: respectsReducedMotion ? "(prefers-reduced-motion: no-preference)" : nil,
+        keyframes: keyframes,
+        declarations: [declaration])
+}
