@@ -228,8 +228,7 @@ public final class Runtime<Backend: RendererBackend> {
         let suppressOnce = _suppressTransitionsOnce
         _suppressTransitionsOnce = false
         guard !dirty.isEmpty else {
-            pendingViewTransition = nil; pendingViewTransitionIsNavigation = false
-            pendingNavigationDirection = nil; return
+            pendingViewTransition = nil; pendingViewTransitionIsNavigation = false; return
         }
         let ids = dirty
         dirty.removeAll()
@@ -238,6 +237,12 @@ public final class Runtime<Backend: RendererBackend> {
         let drainedGroups = _pendingCompletionGroups
         _pendingCompletionGroups.removeAll()
         _lastEffectiveTransactions.removeAll()
+        // Cleared exactly once per flush, regardless of which path follows: a
+        // navigation that armed nothing this flush (blocked by `vtInFlight`,
+        // reduced motion, a drag session, or simply resolving no transition)
+        // still records a direction in `armViewTransition`, and without this it
+        // survives into a later, unrelated flush's ambient arm.
+        pendingNavigationDirection = nil
 
         guard let vt = pendingViewTransition else {
             runPasses(ids, transactionOverrides: drained, groups: drainedGroups,
@@ -246,7 +251,6 @@ public final class Runtime<Backend: RendererBackend> {
         }
         pendingViewTransition = nil
         pendingViewTransitionIsNavigation = false
-        pendingNavigationDirection = nil
         vtInFlight = true
         var ran = false
         let body: () -> Void = { [weak self] in

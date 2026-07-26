@@ -212,6 +212,51 @@ private struct SelectionApp: Tag {
         #expect(backend.viewTransitions.count == 1)
         #expect(backend.viewTransitions[0].direction == .push)
     }
+
+    @Test func staleNavigationDirectionDoesNotLeakIntoALaterAmbientTransition() {
+        // Fix round 1 (review of f92b9ac): `armViewTransition` records
+        // `pendingNavigationDirection` unconditionally, even when the
+        // navigation's own arm is refused (here, because a transition is
+        // already in flight). That recording must not survive past the flush
+        // that refused it — otherwise a later, unrelated `withViewTransition`
+        // write inherits a `.push`/`.pop` direction it has nothing to do with.
+        let backend = MockBackend()
+        backend.deferViewTransition = true   // hold the update closure open, simulating the browser's async capture window
+        let sched = TestScheduler()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: StaleDirectionApp(), scheduleMicrotask: sched.schedule)
+        runtime.mount()
+        let button = findFirst(backend.container, tag: "button")!
+
+        // First transition: armed, then held open (not yet released).
+        withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
+        sched.pump()
+        #expect(backend.viewTransitions.count == 1)
+
+        // A navigation lands INSIDE the capture window: `armViewTransition`
+        // still records `.push` (unconditional), but arms nothing (`vtInFlight`).
+        runtime.navigate(to: "/somewhere")
+        sched.pump()   // flush() sees vtInFlight and returns without draining `dirty`
+
+        // Release the in-flight transition; its completion schedules a
+        // follow-up "tail" flush that finally drains the navigate's dirty root.
+        backend.runPendingViewTransition()
+        sched.pump()
+        #expect(backend.viewTransitions.count == 1)   // the tail flush took the plain (non-transition) path
+
+        // A later, unrelated ambient write must NOT inherit the stale direction.
+        withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
+        sched.pump()
+        #expect(backend.viewTransitions.count == 2)
+        #expect(backend.viewTransitions[1].direction == nil)
+    }
+}
+
+private struct StaleDirectionApp: Tag {
+    @State var count = 0
+    var body: some Tag {
+        Button("count") { count += 1 }
+    }
 }
 
 private struct NoAmbientApp: Tag {
