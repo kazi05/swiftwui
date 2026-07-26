@@ -141,6 +141,30 @@ import Testing
         runtime.mount()                     // must not trap under debug
         #expect(findFirst(backend.container, tag: "div") != nil)
     }
+
+    @Test func zoomRulesTargetOldAndNewNeverTheGroup() {
+        let registry = StyleRegistry()
+        PageTransition.zoom(sourceID: "card-7").register(into: registry)
+        let css = registry.text
+        #expect(css.contains("::view-transition-old(card-7)"))
+        #expect(css.contains("::view-transition-new(card-7)"))
+        #expect(css.contains("border-radius"))
+        for line in css.split(separator: "\n") where line.contains("view-transition-group") {
+            guard !line.contains("animation: none") else { continue }
+            #expect(!line.contains("animation-name"))
+        }
+    }
+
+    @Test func sugarResolvesToTheSameNameOnBothSides() {
+        let ns = TransitionNamespace("hotels")
+        let backend = MockBackend()
+        let sched = TestScheduler()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: ZoomSugarFixture(namespace: ns), scheduleMicrotask: sched.schedule)
+        runtime.mount()
+        let source = findFirst(backend.container, tag: "article")!
+        #expect(transitionName(source) == "hotels-7")
+    }
 }
 
 private func transitionName(_ node: MockNode) -> String? {
@@ -173,5 +197,12 @@ private struct DuplicateNames: Tag {
             Span { "a" }.matchedTransition(id: "dup")
             Span { "b" }.matchedTransition(id: "dup")
         }
+    }
+}
+
+private struct ZoomSugarFixture: Tag {
+    let namespace: TransitionNamespace
+    var body: some Tag {
+        Article { Text("card") }.matchedTransitionSource(id: "7", in: namespace)
     }
 }

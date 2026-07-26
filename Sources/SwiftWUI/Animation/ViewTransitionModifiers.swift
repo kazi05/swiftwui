@@ -104,4 +104,24 @@ extension Tag {
     public func pageTransition(_ t: PageTransition?) -> some Tag {
         _PageTransitionTag(transition: t, content: self)
     }
+
+    /// SwiftUI-parity spelling of `.matchedTransition(id:in:)` for the source side
+    /// of a zoom. Same mechanism, familiar name.
+    public func matchedTransitionSource(id: String, in namespace: TransitionNamespace) -> _StyledTag<Self> {
+        matchedTransition(id: id, in: namespace)
+    }
+
+    /// Names this page's root with the source's name so the browser morphs the
+    /// source rect into the whole page (spec §2.2).
+    public func navigationTransition(_ t: NavigationTransition) -> _StyledTag<Self> {
+        matchedTransition(id: t.sourceName)
+    }
+}
+
+/// SwiftUI-parity destination side of a zoom.
+public struct NavigationTransition: Equatable {
+    let sourceName: String
+    public static func zoom(sourceID: String, in namespace: TransitionNamespace) -> NavigationTransition {
+        NavigationTransition(sourceName: namespace.qualify(sourceID))
+    }
 }

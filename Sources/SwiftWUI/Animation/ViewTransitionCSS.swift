@@ -147,8 +147,15 @@ extension ViewTransitionCSS {
         return (out, into, outRev, inRev)
     }
 
-    /// Task 5 replaces the body with the real radius/clip interpolation. Until
-    /// then a zoom animates like a fade with the group timing already set.
+    /// The zoom's shape comes from the UA's own group morph (source rect → page
+    /// rect), which is why nothing here touches the group. These rules only
+    /// interpolate the corner treatment so a rounded card unrolls into a
+    /// square-cornered page instead of popping.
     static func zoomRules(scope: String, name: String,
-                          duration: String, easing: String) -> String { "" }
+                          duration: String, easing: String) -> String {
+        """
+        \(scope)::view-transition-old(\(name)) { border-radius: inherit; overflow: clip }
+        \(scope)::view-transition-new(\(name)) { border-radius: inherit; overflow: clip }
+        """
+    }
 }
