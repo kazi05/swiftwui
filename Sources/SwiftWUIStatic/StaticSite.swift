@@ -181,6 +181,7 @@ public enum StaticSite {
         var cssUnion: [String] = []
         var cssSeen = Set<String>()
         var documents: [(path: String, html: String)] = []
+        var sitemapPaths: [String] = []   // .page only — .notFound stays out (review finding)
 
         for path in pagePaths {
             let rendered = try await renderPage(A.self, path: path, config: config, session: session)
@@ -196,6 +197,7 @@ public enum StaticSite {
                 throw StaticSiteError.buildTaskOverflow(page: path, iterations: buildTaskIterationCap + 1)
             case .notFound, .page:
                 report.pages.append(path)
+                if case .page = rendered.outcome { sitemapPaths.append(path) }
                 if config.cssFile, !rendered.css.isEmpty, cssSeen.insert(rendered.css).inserted {
                     cssUnion.append(rendered.css)
                 }
@@ -212,9 +214,9 @@ public enum StaticSite {
             do { try cssUnion.joined(separator: "\n").write(toFile: cssPath, atomically: true, encoding: .utf8) }
             catch { throw StaticSiteError.io(path: cssPath, underlying: "\(error)") }
         }
-        if let siteURL = config.siteURL, !report.pages.isEmpty {
+        if let siteURL = config.siteURL, !siteURL.isEmpty, !sitemapPaths.isEmpty {
             let stamp = ISO8601DateFormatter().string(from: Date()).prefix(10)
-            for (name, xml) in Sitemap.documents(paths: report.pages, siteURL: siteURL,
+            for (name, xml) in Sitemap.documents(paths: sitemapPaths, siteURL: siteURL,
                                                  lastmod: String(stamp)) {
                 let p = config.outDir + "/" + name
                 do { try xml.write(toFile: p, atomically: true, encoding: .utf8) }

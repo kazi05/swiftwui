@@ -40,6 +40,35 @@ import Testing
     }
 }
 
+/// A static route whose guard redirects to itself never actually navigates
+/// (Runtime.navigate no-ops when target == currentPath), so `renderPage`
+/// settles on the SAME path it was asked to render while `_routeMatched` is
+/// false — outcome `.notFound`, landing in `report.pages` (pre-existing
+/// behavior, spec-preserved) but NOT a redirect. Confirms `generate()`'s
+/// sitemap step must filter outcome, not just consume `report.pages` as-is.
+private struct SelfRedirectApp: App {
+    init() {}
+    var body: some Tag {
+        Router(notFound: { P { Text("nope") } }) {
+            Route("/") { P { Text("home") } }
+            Route("/blocked", guard: { .redirect("/blocked") }) { P { Text("secret") } }
+        }
+    }
+}
+
+@Suite @MainActor struct SitemapExcludesNotFoundTests {
+    @Test func notFoundPageIsExcludedFromSitemapButKeptInReportPages() async throws {
+        let out = NSTemporaryDirectory() + "swui-sitemap-notfound-\(UUID().uuidString)"
+        let report = try await StaticSite.generate(SelfRedirectApp.self, config: .init(
+            outDir: out, mode: .staticOnly, siteURL: "https://x.test"))
+        #expect(report.pages.contains("/blocked"))          // pre-existing behavior, unchanged
+        #expect(report.redirects.isEmpty)                   // not a redirect — the leak this pins
+        let sitemap = try String(contentsOfFile: out + "/sitemap.xml", encoding: .utf8)
+        #expect(sitemap.contains("<loc>https://x.test/</loc>"))
+        #expect(!sitemap.contains("/blocked"))
+    }
+}
+
 @Suite struct RobotsConventionTests {
     @Test func robotsTxtFromPublicReachesDist() throws {
         let fm = FileManager.default
