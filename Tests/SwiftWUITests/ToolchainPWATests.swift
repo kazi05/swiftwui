@@ -268,6 +268,28 @@ import Testing
         #expect(!js.contains("/about/index.html"))        // route prerender excluded
         #expect(js.contains("\"/app/App.wasm\""))
     }
+
+    // final-review #2: a generated sitemap set is the same "HTTP-layer SEO
+    // artifact, not offline artifact" category as per-route prerenders — it
+    // must not silently bloat every visitor's precache.
+    @Test func generatedSitemapsAreExcludedFromManifest() throws {
+        let fm = FileManager.default
+        let proj = NSTemporaryDirectory() + "swiftwui-pwa-sitemap-\(UUID().uuidString)"
+        let out = proj + "/dist"
+        defer { try? fm.removeItem(atPath: proj) }
+        try fm.createDirectory(atPath: out, withIntermediateDirectories: true)
+        try "shell".write(toFile: out + "/index.html", atomically: true, encoding: .utf8)
+        try "<urlset></urlset>".write(toFile: out + "/sitemap.xml", atomically: true, encoding: .utf8)
+        try "<urlset></urlset>".write(toFile: out + "/sitemap-1.xml", atomically: true, encoding: .utf8)
+        try fm.createDirectory(atPath: proj + "/public", withIntermediateDirectories: true)
+        try "importScripts('/sw-assets.js');"
+            .write(toFile: proj + "/public/sw.js", atomically: true, encoding: .utf8)
+        try DistLayout.copyPublic(projectDir: proj, outDir: out)
+        #expect(try PWAAssets.generateManifest(distDir: out) == true)
+        let js = try String(contentsOfFile: out + "/sw-assets.js", encoding: .utf8)
+        #expect(js.contains("\"/index.html\""))
+        #expect(!js.contains("sitemap"))
+    }
 }
 
 @Suite struct PWAServingPolicyTests {

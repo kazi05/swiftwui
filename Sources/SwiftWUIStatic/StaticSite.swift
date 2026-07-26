@@ -91,9 +91,18 @@ public struct RenderedPage: Sendable {
 extension StaticSite {
     /// Renders exactly one path. `generate()` is built on this, and so is any
     /// server or worker that renders on demand.
+    ///
+    /// This is a manual primitive: it renders whatever `path` you name and
+    /// does NOT consult that route's `.prerender` policy (`.never` included)
+    /// — only `generate()`'s automatic enumeration does that. It does honour
+    /// `config.prerenderEnabled`, the operational kill-switch.
     @MainActor
     public static func render<A: App>(_ app: A.Type, path: String,
                                       config: StaticSiteConfig) async throws -> RenderedPage {
+        guard config.prerenderEnabled else {
+            return RenderedPage(html: "", css: "", head: nil,
+                                outcome: .error("prerendering disabled (kill-switch)"))
+        }
         let session = WebSession(transport: URLSessionTransport())
         WebSession.bootstrap(session)
         return try await renderPage(A.self, path: path, config: config, session: session)
@@ -145,12 +154,18 @@ public enum StaticSite {
             }
             if let provider = policy?._pathProvider {
                 let produced = try await provider()
+                var addedAny = false
                 for path in produced where !claimed.contains(RouteURL._normalize(path)) {
                     guard pattern.match(path) != nil else { providerUnmatched.append(path); continue }
                     pagePaths.append(path)
                     claimed.insert(RouteURL._normalize(path))
+                    addedAny = true
                 }
                 if policy?._onDemandEnabled == true { onDemand.append(pattern.raw) }
+                // Empty or fully-claimed provider output must still land in a
+                // report bucket — otherwise a build meant to emit thousands of
+                // pages that emits zero gives no signal (final-review #5).
+                else if !addedAny { skipped.append(pattern.raw) }
                 continue
             }
             if pattern.isStatic {
@@ -223,7 +238,7 @@ public enum StaticSite {
                 catch { throw StaticSiteError.io(path: p, underlying: "\(error)") }
                 report.sitemapFiles.append(name)
             }
-        } else if config.siteURL == nil {
+        } else if config.siteURL == nil || config.siteURL?.isEmpty == true {
             print("SwiftWUI SSG: no siteURL in StaticSiteConfig — sitemap.xml not generated")
         }
         return report

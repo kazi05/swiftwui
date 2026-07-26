@@ -82,6 +82,73 @@ private func tmpDir() -> String {
         #expect(!report.pages.contains("/oops"))
         #expect(report.unmatchedPaths.contains("/oops"))
     }
+
+    // final-review #1: render() is a manual primitive independent of generate(),
+    // so the kill-switch has to be re-verified against it directly.
+    @Test func killSwitchBlocksRenderPath() async throws {
+        let page = try await StaticSite.render(TopRoutesApp.self, path: "/",
+                                               config: .init(outDir: tmpDir(), mode: .staticOnly,
+                                                             prerenderEnabled: false))
+        guard case .error = page.outcome else {
+            Issue.record("expected .error, got \(page.outcome)")
+            return
+        }
+        #expect(page.html.isEmpty)
+    }
+
+    // final-review #5: a paths{} provider that yields nothing usable (empty,
+    // or every produced path already claimed) must still surface in a report
+    // bucket — otherwise a build meant to emit thousands of pages that emits
+    // zero gives no signal.
+    @Test func emptyProviderOutputIsReportedAsSkipped() async throws {
+        let out = tmpDir()
+        let report = try await StaticSite.generate(EmptyProviderApp.self,
+                                                   config: .init(outDir: out, mode: .staticOnly))
+        #expect(report.skippedPatterns.contains("/items/:id"))
+        #expect(report.pages.isEmpty)
+    }
+
+    // final-review #3: the headline feature (data-driven <head> via @RouteParam
+    // + .staticTask + .pageMeta on a provider-enumerated route) has to reach
+    // the actual written file, not just the pure CanonicalSynthesis function.
+    @Test func providerRouteWiresDataDrivenTitleAndCanonicalIntoWrittenHTML() async throws {
+        let out = tmpDir()
+        _ = try await StaticSite.generate(ProviderMetaApp.self, config: .init(
+            outDir: out, mode: .staticOnly, siteURL: "https://x.test"))
+        let html = try String(contentsOfFile: out + "/items/42/index.html", encoding: .utf8)
+        #expect(html.contains("<title>Item 42 — 100 ₽</title>"))
+        #expect(html.contains("<link href=\"https://x.test/items/42\" rel=\"canonical\" data-swiftwui>"))
+    }
+}
+
+private struct EmptyProviderApp: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/items/:id") { Text("item") }
+                .prerender(.paths { [] })
+        }
+    }
+}
+
+private struct ItemMetaPage: Tag {
+    @RouteParam("id") var id: String?
+    @State private var price: Int? = nil
+    var body: some Tag {
+        P { Text("item") }
+            .staticTask { price = 100 }
+            .pageMeta(title: price.map { "Item \(id ?? "?") — \($0) ₽" })
+    }
+}
+
+private struct ProviderMetaApp: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/items/:id") { ItemMetaPage() }
+                .prerender(.paths { ["/items/42"] })
+        }
+    }
 }
 
 private struct MismatchedProviderApp: App {

@@ -4,12 +4,15 @@ import Foundation
 /// scaffolded service worker (spec 2026-07-12-pwa-mode-design.md §Build pipeline).
 public enum PWAAssets {
     /// Never precached: the worker + its manifest, dotfiles (.DS_Store & co),
-    /// and any index.html NOT at the dist root — ssg per-route prerenders are
-    /// an HTTP-layer SEO artifact, not an offline artifact (spec §SSG).
+    /// any index.html NOT at the dist root, and generated sitemap.xml /
+    /// sitemap-N.xml — all HTTP-layer SEO artifacts, not offline artifacts
+    /// (spec §SSG; sitemap exclusion is final-review #2).
     static func isExcluded(relPath: String) -> Bool {
         if relPath == "sw.js" || relPath == "sw-assets.js" { return true }
         if relPath == "nginx.conf" { return true }
         if relPath.hasSuffix("/index.html") { return true }
+        if relPath == "sitemap.xml" { return true }
+        if relPath.hasPrefix("sitemap-") && relPath.hasSuffix(".xml") { return true }
         if ((relPath as NSString).lastPathComponent).hasPrefix(".") { return true }
         // Framework-owned .gz/.br (a prior release build's siblings) are a
         // serving-layer artifact, never a precache entry; user assets (foo.tar.gz) stay.

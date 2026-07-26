@@ -266,16 +266,29 @@ current answer to "render this one path without a full site build." A
 transient, never map it to a 404 — repeated 404s deindex a URL, and an
 upstream outage during a build is routine, not permanent).
 
+**`render(path:)`/`ssg --path` does not consult per-route `.prerender`
+policy.** It's a manual primitive: it renders whatever `path` you name,
+regardless of whether that route declares `.prerender(.never)` or anything
+else — resolving route policy is `generate()`'s job, for its own automatic
+enumeration, not this call's. `render(path:)` does honour
+`StaticSiteConfig.prerenderEnabled`, the operational kill-switch: with it
+`false`, it returns `.error(_:)` immediately and writes nothing. If you need
+`.never` to actually block a specific path from `ssg --path`, that check has
+to live in your own CLI wrapper — the framework doesn't do it for you here.
+
 ## Sitemaps
 
 `StaticSite.generate` writes `sitemap.xml` (or a `sitemap.xml` index plus
 `sitemap-N.xml` chunks past 45,000 URLs) alongside the generated pages, but
-**only when `StaticSiteConfig.siteURL` is set** — the same gate canonical
-synthesis uses, because a sitemap of relative or unknown-origin URLs isn't
-useful to a crawler. Only pages that actually rendered with `.page` outcome
-are listed; a page whose Router fell through to `notFound` is excluded, so
-a stale or bad path in `StaticSiteConfig.paths` can't end up submitted to a
-search engine as canonical content.
+**only when `StaticSiteConfig.siteURL` is set and at least one page rendered
+with a `.page` outcome** — the same `siteURL` gate canonical synthesis uses,
+because a sitemap of relative or unknown-origin URLs isn't useful to a
+crawler, plus a plain "there is nothing to list yet" check: `siteURL` set
+with zero `.page` outcomes writes no sitemap. Only pages that actually
+rendered with `.page` outcome are listed; a page whose Router fell through
+to `notFound` is excluded, so a stale or bad path in
+`StaticSiteConfig.paths` can't end up submitted to a search engine as
+canonical content.
 
 ## Security note: what a prerendered page ships to every visitor
 
@@ -301,4 +314,10 @@ Two rules of thumb for anything rendered on a `.prerender`-enabled route:
 - **Anything per-user or sensitive gets `.prerender(.never)`.** A private
   dashboard, a page keyed to a logged-in session, anything with
   user-specific pricing or PII has no business being built into a static
-  file in the first place — it belongs on the client-only path.
+  file in the first place — it belongs on the client-only path. This
+  protects `generate()`'s automatic enumeration only — as noted above,
+  `render(path:)`/`ssg --path <path>` does not consult `.prerender` at all,
+  so a manual `ssg --path /account` call still renders and writes a
+  `.never` route if you invoke it directly. The kill-switch
+  (`prerenderEnabled` / `SWIFTWUI_PRERENDER=off`) is the only thing that
+  stops that call from producing output.
