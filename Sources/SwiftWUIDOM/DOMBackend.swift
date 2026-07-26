@@ -1021,30 +1021,35 @@ public final class DOMBackend: RendererBackend {
 
     /// Fallback for browsers without the View Transitions API (and for
     /// `?swui-vt=flip`). Deliberately partial — §7 of the spec lists every
-    /// degradation, and they are documented in the DocC article too.
+    /// degradation, and they are documented in the DocC article too. Notably: a
+    /// named element nested inside another named element rides its ancestor's
+    /// morph instead of animating independently (see the ancestor-skip below).
     private func performFlipTransition(_ options: ViewTransitionOptions,
                                        update: @escaping () -> Void) {
         let before = measureNamedHosts()
         update()
         let after = measureNamedHosts()
 
-        // Outermost-first, subtracting the nearest named ancestor's delta:
-        // native VT flattens nested names into sibling overlay groups, so
-        // applying a child's translate on top of its parent's would double the
-        // motion (the hero + form case in the spec's own example).
-        var applied: [(host: JSObject, dx: Double, dy: Double)] = []
+        // Outermost-first, SKIPPING any name whose nearest named ancestor is
+        // already animating: CSS transforms compound down the subtree, so an
+        // ancestor's `scale` already applies to its descendants' rendering —
+        // giving the descendant its own scale on top would double-transform it
+        // (the hero + form case in the spec's own example, where the hero
+        // itself scales). Compensating only translate (not scale) was tried and
+        // is wrong; riding the ancestor's morph is the correct visual result
+        // when the ancestor moves-only too, since the two deltas are then equal
+        // and this same guard already no-ops the descendant.
+        var applied: [JSObject] = []
         for (name, newRect) in after.sorted(by: { depth(of: $0.value.host) < depth(of: $1.value.host) }) {
-            guard let old = before[name] else { continue }
-            var dx = old.rect.left - newRect.rect.left
-            var dy = old.rect.top - newRect.rect.top
-            if let ancestor = applied.last(where: { isAncestor($0.host, of: newRect.host) }) {
-                dx -= ancestor.dx; dy -= ancestor.dy
-            }
+            guard let old = before[name],
+                  !applied.contains(where: { isAncestor($0, of: newRect.host) }) else { continue }
+            let dx = old.rect.left - newRect.rect.left
+            let dy = old.rect.top - newRect.rect.top
             let sx = newRect.rect.width > 0 ? old.rect.width / newRect.rect.width : 1
             let sy = newRect.rect.height > 0 ? old.rect.height / newRect.rect.height : 1
             guard dx != 0 || dy != 0 || sx != 1 || sy != 1 else { continue }
             animateFlip(newRect.host, dx: dx, dy: dy, sx: sx, sy: sy, durationMS: options.durationMS)
-            applied.append((newRect.host, dx, dy))
+            applied.append(newRect.host)
         }
     }
 
