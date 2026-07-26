@@ -144,6 +144,15 @@ private struct VTCounter: Tag {
         sched.pump()
         #expect(backend.viewTransitions.isEmpty)
     }
+
+    @Test func transitionFlushCreatesNoExitGhost() {
+        let (runtime, backend, sched) = makeRuntime(VTExiting())
+        let button = findFirst(backend.container, tag: "button")!
+        withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
+        sched.pump()
+        #expect(runtime._exitingCount == 0)
+        #expect(findFirst(backend.container, tag: "span") == nil)
+    }
 }
 
 private struct RedirectingApp: Tag {
@@ -169,16 +178,5 @@ private struct VTExiting: Tag {
             Button("toggle") { show.toggle() }
             if show { Span { Text("bye") }.transition(.opacity.animation(.linear(duration: 1))) }
         }
-    }
-}
-
-extension ViewTransitionFlushTests {
-    @Test func transitionFlushCreatesNoExitGhost() {
-        let (runtime, backend, sched) = makeRuntime(VTExiting())
-        let button = findFirst(backend.container, tag: "button")!
-        withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
-        sched.pump()
-        #expect(runtime._exitingCount == 0)
-        #expect(findFirst(backend.container, tag: "span") == nil)
     }
 }
