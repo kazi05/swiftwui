@@ -31,6 +31,8 @@ public struct ResolveContext {
     var pendingRedirect: String? = nil
     /// Head snapshot of the matched Page, if any (spec §9).
     var pageHead: PageHead? = nil
+    /// False when the Router fell through to its notFound branch (spec §7).
+    var routeMatched = true
     /// Partial head written by `.pageMeta` from inside the route subtree (spec §5.1).
     var pageHeadPatch: PageHeadPatch? = nil
     /// Routers resolved this pass — asserted ≤ 1 (spec D9).

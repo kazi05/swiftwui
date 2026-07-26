@@ -29,6 +29,7 @@ public final class Runtime<Backend: RendererBackend> {
     private var currentQuery: [String: String]
     private var lastPageHead: PageHead?
     private var redirectHops = 0
+    private var routeMatched = true
     private let themes: [ThemeDefinition]
     private let fontFaces: [FontFace]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
@@ -92,6 +93,8 @@ public final class Runtime<Backend: RendererBackend> {
     public var _currentTree: Node? { current }
     public var _pageHead: PageHead? { lastPageHead }
     public var _locationPath: String { currentPath }
+    /// SPI: did the last Router pass match a real route? (spec §7)
+    public var _routeMatched: Bool { routeMatched }
 
     /// One throwaway resolve with route collection on. Uses a FRESH store and
     /// listener registry. Collect passes skip StateStore.link (shared Slots
@@ -456,6 +459,9 @@ public final class Runtime<Backend: RendererBackend> {
         // patch over `lastPageHead` would ship the previous page's title on a
         // route whose content conforms to no `Page`.
         let empty = PageHead(title: "", meta: [], links: [])
+        if ctx.routerCount > 0 {
+            routeMatched = ctx.routeMatched
+        }
         let baseline: PageHead? = ctx.routerCount > 0 ? ctx.pageHead : lastPageHead
         var head: PageHead? = baseline
         if let patch = ctx.pageHeadPatch {

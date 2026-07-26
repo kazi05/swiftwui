@@ -50,18 +50,22 @@ struct {{NAME}}App: App {
 }
 
 #if canImport(SwiftWUIStatic)
+import Foundation
 import SwiftWUIStatic
 
 @main enum Entry {
     static func main() async throws {
         var args = Array(CommandLine.arguments.dropFirst())
         guard args.first == "ssg" else {
-            print("usage: {{NAME}} ssg --out <dir> [--static]")
+            print("usage: {{NAME}} ssg --out <dir> [--static] [--path <path>] [--no-prerender]")
             return
         }
         args.removeFirst()
         var out = "dist"
         var mode = StaticSiteMode.hydrate(wasmScriptPath: "/app/index.js")
+        var onlyPath: String? = nil
+        var prerenderEnabled = PrerenderSwitch.enabled(
+            fromEnvironment: ProcessInfo.processInfo.environment[PrerenderSwitch.environmentKey])
         var i = 0
         while i < args.count {
             switch args[i] {
@@ -69,12 +73,31 @@ import SwiftWUIStatic
                 guard i + 1 < args.count else { print("--out needs a value"); return }
                 i += 1; out = args[i]
             case "--static": mode = .staticOnly
+            case "--path":
+                guard i + 1 < args.count else { print("--path needs a value"); return }
+                i += 1; onlyPath = args[i]
+            case "--no-prerender": prerenderEnabled = false
             default: print("unknown arg \(args[i])")
             }
             i += 1
         }
+        if let onlyPath {
+            let page = try await StaticSite.render({{NAME}}App.self, path: onlyPath,
+                                                   config: .init(outDir: out, mode: mode,
+                                                                 prerenderEnabled: prerenderEnabled))
+            switch page.outcome {
+            case .page:
+                try StaticSite.writeDocument(page.html, path: onlyPath, outDir: out)
+                print("rendered \(onlyPath)")
+            case .redirect(let target, _): print("\(onlyPath) redirects to \(target); nothing written")
+            case .notFound: print("\(onlyPath) matched no route; nothing written")
+            case .error(let m): print("render failed: \(m)"); return
+            }
+            return
+        }
         let report = try await StaticSite.generate({{NAME}}App.self,
-                                                   config: .init(outDir: out, mode: mode))
+                                                   config: .init(outDir: out, mode: mode,
+                                                                 prerenderEnabled: prerenderEnabled))
         print("generated \(report.pages.count) pages")
     }
 }

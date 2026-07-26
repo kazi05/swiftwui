@@ -66,6 +66,37 @@ public struct StaticSiteReport {
     public var onDemandPatterns: [String] = []
 }
 
+/// One rendered page (spec §7). `outcome` is what a server maps to a status.
+public struct RenderedPage: Sendable {
+    public var html: String
+    public var css: String
+    public var head: PageHead?
+    public var outcome: Outcome
+
+    public enum Outcome: Sendable, Equatable {
+        case page
+        /// The runtime settled on a different location (guard redirect).
+        case redirect(to: String, permanent: Bool)
+        /// No route matched, or the Router fell through to notFound.
+        case notFound
+        /// Render failed — TRANSIENT. Never map this to 404: repeated 404s
+        /// deindex a URL, and an upstream outage is routine at scale.
+        case error(String)
+    }
+}
+
+extension StaticSite {
+    /// Renders exactly one path. `generate()` is built on this, and so is any
+    /// server or worker that renders on demand.
+    @MainActor
+    public static func render<A: App>(_ app: A.Type, path: String,
+                                      config: StaticSiteConfig) async throws -> RenderedPage {
+        let session = WebSession(transport: URLSessionTransport())
+        WebSession.bootstrap(session)
+        return try await renderPage(A.self, path: path, config: config, session: session)
+    }
+}
+
 public enum StaticSite {
     /// Renders one page per enumerated path (spec §5): a fresh native
     /// Runtime<MockBackend> per page — guards, redirects, effects and state
@@ -143,33 +174,27 @@ public enum StaticSite {
         var documents: [(path: String, html: String)] = []
 
         for path in pagePaths {
-            let (html, css, redirect) = try await renderPage(A.self, path: path, config: config, session: session)
-            if let redirect {
-                report.redirects[path] = redirect
-                documents.append((path, redirectStub(to: redirect)))
-                continue
+            let rendered = try await renderPage(A.self, path: path, config: config, session: session)
+            switch rendered.outcome {
+            case .redirect(let target, _):
+                report.redirects[path] = target
+                documents.append((path, redirectStub(to: target)))
+            case .error:
+                // generate() keeps its existing throwing contract; only the
+                // server (Phase B) treats a render failure as a 503.
+                throw StaticSiteError.buildTaskOverflow(page: path, iterations: 10)
+            case .notFound, .page:
+                report.pages.append(path)
+                if config.cssFile, !rendered.css.isEmpty, cssSeen.insert(rendered.css).inserted {
+                    cssUnion.append(rendered.css)
+                }
+                documents.append((path, rendered.html))
             }
-            report.pages.append(path)
-            if config.cssFile, !css.isEmpty, cssSeen.insert(css).inserted {
-                cssUnion.append(css)
-            }
-            documents.append((path, html))
         }
 
         // --- write files ---
-        let fm = FileManager.default
         for (path, html) in documents {
-            // Query strings (e.g. "/todo?f=active") are not distinct SSG
-            // outputs — strip to the path for the directory (documented
-            // limitation: query-variant pages collapse to one output).
-            let cleanPath = path.firstIndex(of: "?").map { String(path[..<$0]) } ?? path
-            let dir = cleanPath == "/" ? config.outDir : config.outDir + cleanPath
-            do {
-                try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
-                try html.write(toFile: dir + "/index.html", atomically: true, encoding: .utf8)
-            } catch {
-                throw StaticSiteError.io(path: dir + "/index.html", underlying: "\(error)")
-            }
+            try writeDocument(html, path: path, outDir: config.outDir)
         }
         if config.cssFile {
             let cssPath = config.outDir + "/styles.css"
@@ -177,6 +202,19 @@ public enum StaticSite {
             catch { throw StaticSiteError.io(path: cssPath, underlying: "\(error)") }
         }
         return report
+    }
+
+    /// Writes one document to `<outDir>/<path>/index.html`. Query strings are
+    /// stripped — query-variant pages collapse to one output (documented).
+    public static func writeDocument(_ html: String, path: String, outDir: String) throws {
+        let cleanPath = path.firstIndex(of: "?").map { String(path[..<$0]) } ?? path
+        let dir = cleanPath == "/" ? outDir : outDir + cleanPath
+        do {
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            try html.write(toFile: dir + "/index.html", atomically: true, encoding: .utf8)
+        } catch {
+            throw StaticSiteError.io(path: dir + "/index.html", underlying: "\(error)")
+        }
     }
 
     /// Meta-refresh stub for guard-redirected pages (spec D4).
@@ -195,7 +233,7 @@ public enum StaticSite {
     @MainActor
     private static func renderPage<A: App>(_ app: A.Type, path: String,
                                            config: StaticSiteConfig, session: WebSession) async throws
-        -> (html: String, css: String, redirect: String?) {
+        -> RenderedPage {
         // Immediate-drain scheduler: microtasks run synchronously in order.
         var queue: [() -> Void] = []
         var draining = false
@@ -223,7 +261,8 @@ public enum StaticSite {
             if !hadPending { break }
             iterations += 1
             guard iterations <= 10 else {
-                throw StaticSiteError.buildTaskOverflow(page: path, iterations: iterations)
+                return RenderedPage(html: "", css: "", head: nil,
+                                    outcome: .error("page '\(path)' never quiesced after \(iterations) build-task iterations"))
             }
             pump()                                 // state writes → re-render → possibly new tasks
         }
@@ -234,11 +273,12 @@ public enum StaticSite {
         let settled = runtime._locationPath
         let requestedPath = path.firstIndex(of: "?").map { String(path[..<$0]) } ?? path
         if settled != RouteURL._normalize(requestedPath) {
-            return ("", "", settled)
+            return RenderedPage(html: "", css: "", head: nil,
+                                outcome: .redirect(to: settled, permanent: false))
         }
 
-        guard case .component(let rootComponent)? = runtime._currentTree else {
-            return ("", runtime._registryText, nil)     // empty page (no route matched)
+        guard case .component(let rootComponent)? = runtime._currentTree, runtime._routeMatched else {
+            return RenderedPage(html: "", css: runtime._registryText, head: nil, outcome: .notFound)
         }
         let body = HTMLRenderer._render(rootComponent.children)
         let css = runtime._registryText
@@ -282,7 +322,7 @@ public enum StaticSite {
             snapshotJSON: snapshot,
             importMapJSON: importMap,
             wasmScriptPath: wasmPath))
-        return (doc, css, nil)
+        return RenderedPage(html: doc, css: css, head: head, outcome: .page)
     }
 }
 

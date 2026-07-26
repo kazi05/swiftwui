@@ -50,8 +50,10 @@ public struct Router: Tag, _PrimitiveTag {
             return nodes
         }
         if let notFound {
+            ctx.routeMatched = false
             return resolve(notFound, path: path.appending(.keyed(NodeKey("#not-found"))), ctx: &ctx)
         }
+        ctx.routeMatched = false
         #if DEBUG
         print("SwiftWUI Router: no route matched '\(info.path)' and no notFound content")
         #endif
