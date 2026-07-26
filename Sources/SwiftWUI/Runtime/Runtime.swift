@@ -49,6 +49,9 @@ public final class Runtime<Backend: RendererBackend> {
     /// `_currentTree`/`_locationPath` as settled truth and must never defer a commit.
     public var _disableViewTransitions = false
     var _viewTransitionInFlight: Bool { vtInFlight }      // test hook
+    /// Test hook: models the DOM watchdog clearing a transition whose callback
+    /// was never delivered.
+    func _forceClearViewTransitionForTests() { vtInFlight = false }
     var _animationRegistry: AnimationRegistry { applier.animationRegistry }   // test hook (Task 7)
     var _exitingCount: Int { applier.exiting.count }   // test hook (Task 10): ghost-leak assertions
     var _transitionRegistry: TransitionRegistry { transitions }   // test hook (Task 8)

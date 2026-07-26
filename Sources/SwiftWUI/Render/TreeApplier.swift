@@ -274,7 +274,7 @@ final class TreeApplier<Backend: RendererBackend> {
     /// out on settle); false → the caller must `unmount(m)` normally. `node` is
     /// the removed Node (nil from `replace()`, which has no old Node in hand).
     func beginExit(_ m: MountedNode<Backend.HostNode>, node: Node?) -> Bool {
-        guard let pass = animationPass, !pass.reduceMotion,
+        guard let pass = animationPass, !pass.reduceMotion, !pass.suppressTransitions,
               transitionsRef?.isEmpty == false else { return false }
         // Driving-animation resolution per outermost root, mirroring the enter
         // path (anim spec §3.4): the transition's own animation, else this

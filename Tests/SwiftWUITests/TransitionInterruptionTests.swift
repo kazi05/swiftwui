@@ -197,17 +197,25 @@ private struct SeededRNG: RandomNumberGenerator {
             m.parent = applier.root; m.indexInParent = 0; applier.root.children = [m]
             return m
         }
-        // suppressTransitions keeps mounts enter-free (so the only recorded
-        // animations are the two exits) while exits still fire.
-        applier.animationPass = AnimationPassContext(transactions: [:], reduceMotion: false,
-                                                     suppressTransitions: true, defaultTransaction: nil)
+        // suppressTransitions now also gates exits (view-transitions spec
+        // 2026-07-26 §3.2), so it can no longer stay `true` for the whole
+        // scenario — toggle it off again right before each `beginExit` call,
+        // keeping mounts enter-free without also silencing the exits under test.
+        func mountSuppressed() -> MountedNode<MockNode> {
+            applier.animationPass = AnimationPassContext(transactions: [:], reduceMotion: false,
+                                                         suppressTransitions: true, defaultTransaction: nil)
+            let m = mountRoot()
+            applier.animationPass = AnimationPassContext(transactions: [:], reduceMotion: false,
+                                                         suppressTransitions: false, defaultTransaction: nil)
+            return m
+        }
 
         // rec1 / T1 = animations[0], then supersede rec1 WITHOUT cancelling T1.
-        #expect(applier.beginExit(mountRoot(), node: el()))
+        #expect(applier.beginExit(mountSuppressed(), node: el()))
         applier.finishExit(id)
 
         // rec2 / T2 = animations[1] at the SAME key.
-        #expect(applier.beginExit(mountRoot(), node: el()))
+        #expect(applier.beginExit(mountSuppressed(), node: el()))
         #expect(applier.exiting[id] != nil)
 
         backend.settleAnimation(at: 0)                 // T1's late settle — stray, must no-op

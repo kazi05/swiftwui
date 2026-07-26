@@ -216,6 +216,8 @@ public final class MockBackend: RendererBackend {
     /// Simulates a backend that never delivers the callback (document torn down
     /// inside the capture window).
     public func dropPendingViewTransition() { pendingViewTransitionUpdate = nil }
+    /// Test hook: the closure currently held by `deferViewTransition`.
+    public var _heldViewTransitionUpdate: (() -> Void)? { pendingViewTransitionUpdate }
 
     /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
     public func serializeHTML(_ node: MockNode? = nil) -> String {

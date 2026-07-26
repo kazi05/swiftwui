@@ -263,6 +263,22 @@ private struct DisappearBlock: Tag {
         #expect(runtime._exitingCount == 0)
     }
 
+    // `_suppressTransitionsOnce` is also the hydration SPI (Task 9): the first
+    // post-adoption flush must skip exit transitions too, same as it already
+    // skips enter transitions (spec 2026-07-26 view-transitions §3.2 — the
+    // `TreeApplier.beginExit` guard now checks `pass.suppressTransitions`).
+    // Reuses `ReExitBlock` (self-driving `.animation` + plain toggle write):
+    // a bare `.transition(.opacity)` never reaches `beginExit`'s work
+    // collection at all, so it wouldn't exercise this guard.
+    @Test func suppressTransitionsOnceAlsoSkipsExits() {
+        let (runtime, backend, sched) = makeRuntime(ReExitBlock())
+        runtime._suppressTransitionsOnce = true
+        let button = findFirst(backend.container, tag: "button")!
+        runtime.dispatch(button.events["click"]!)
+        sched.pump()
+        #expect(runtime._exitingCount == 0)
+    }
+
     @Test func sameIdentityReExitCleansStaleGhost() {
         let (runtime, backend, sched) = makeRuntime(ReExitBlock())
         let button = findFirst(backend.container, tag: "button")!
