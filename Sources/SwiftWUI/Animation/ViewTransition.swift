@@ -85,8 +85,9 @@ extension PageTransition.Kind: Equatable {
 /// A flat name prefix for `matchedTransition(id:in:)`. NOT a SwiftUI
 /// `@Namespace`: `view-transition-name` is document-global, and two
 /// `@Namespace` instances in two route bodies could never match. The prefix is
-/// validated once here so a bad prefix fails in one place instead of poisoning
-/// every id built from it.
+/// validated once here: an invalid prefix is silently dropped (not stored),
+/// so every id built from it falls back to unqualified rather than each one
+/// having to be rejected downstream individually.
 public struct TransitionNamespace: Equatable {
     let prefix: String?
     public init(_ prefix: String) {

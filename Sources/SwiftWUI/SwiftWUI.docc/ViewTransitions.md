@@ -15,7 +15,11 @@ SwiftWUI's API is a thin, typed orchestrator over that mechanism.
 The feature is entirely opt-in. An app that never calls `.pageTransition`,
 never passes `transition:` to `navigate`, and never calls
 `withViewTransition` sees no behavior change at all — no extra CSS, no
-`<html>` attributes, no different navigation timing.
+`<html>` attributes, no different navigation timing. Two more APIs are
+opt-in the same way, just not covered by that list: `Route(transition:)`
+registers its CSS eagerly during `Router._resolve` (whether or not that
+route is ever navigated to), and `.matchedTransition` always emits an
+inline `view-transition-name` the moment it's called.
 
 Orthogonal to `withAnimation`/`.animation(value:)`/`.transition(_:)` (which
 animate properties of one live element) and to CSS `@keyframes`, whose
@@ -98,8 +102,10 @@ Both read from the same underlying action and accept the same
 automatically, because it's resolved from the current position in the
 render tree. `@Dependency(\.navigate)` is deliberately not
 render-tree-bound (there's no "current position" for a plain service
-object to read one from), so it only ever animates a navigation when you
-pass `transition:` explicitly.
+object to read one from), so it has no ambient channel — but a destination
+`Route(transition:)` still applies to it exactly as it would to any other
+call site. Only an ambient `.pageTransition` with nothing more specific set
+is invisible to it.
 
 ## In-page transitions
 
@@ -147,14 +153,14 @@ Section {
     SearchForm().matchedTransition(id: "search-form")
 }
 .minHeight(.vh(70))
-.matchedTransition(id: "hero", contentFit: .none)
+.matchedTransition(id: "hero", contentFit: TransitionContentFit.none)
 
 // Search results: same id, much shorter.
 Section {
     SearchForm().matchedTransition(id: "search-form")
 }
 .minHeight(.px(160))
-.matchedTransition(id: "hero", contentFit: .none)
+.matchedTransition(id: "hero", contentFit: TransitionContentFit.none)
 ```
 
 `.none` (the framework's own choice for this worked example) keeps content
@@ -162,6 +168,12 @@ at its natural size and clips instead of stretching it; `.cover` crops to
 fill the group; `.fill` stretches; `nil` (the default) leaves the UA's own
 behavior in place. There's no universally right default, which is why the
 parameter exists rather than the framework picking one for you.
+
+Note the spelled-out `TransitionContentFit.none` above: the parameter's type
+is `TransitionContentFit?`, so a bare `.none` binds to `Optional.none` (nil,
+"leave the UA's behavior in place") instead of the `.none` case, and no
+`object-fit` rule is emitted at all — the exact failure this section exists
+to prevent.
 
 `contentFit:` is available on the `HTMLTag`/`Tag` surfaces of
 `matchedTransition`; the `StyleProxy` form used inside `.style { }` has no
@@ -190,10 +202,11 @@ top.
 
 ## `.zoom` and the SwiftUI-parity spelling
 
-`.zoom(sourceID:)` names the **destination page's root** with the source
-element's own name, so the browser morphs the source element's rect into
-the entire new page — a card expanding into its detail page, rather than
-two elements swapping places:
+`.zoom(sourceID:)` does not name anything by itself — it only tunes the
+*group* for a card→page morph (a hook for an app-supplied
+`::view-transition-group` rule, see below). It has no handle on the new
+page's root, so naming the destination with the same id is still your job,
+done the normal way with `.matchedTransition(id:)`:
 
 ```swift
 struct HotelList: Tag {
@@ -210,11 +223,20 @@ struct HotelList: Tag {
         }
     }
 }
+
+// On the destination page's root — same id as the card above, or the
+// browser has nothing to morph the source rect into.
+struct HotelDetail: Tag {
+    let hotel: Hotel
+    var body: some Tag {
+        DetailPage(hotel).matchedTransition(id: "hotel-\(hotel.id)")
+    }
+}
 ```
 
 The SwiftUI-parity spelling is the same mechanism under a familiar name —
 `matchedTransitionSource` on the card, `navigationTransition` on the
-destination page's root:
+destination page's root, which does that naming for you:
 
 ```swift
 let hotels = TransitionNamespace("hotel")

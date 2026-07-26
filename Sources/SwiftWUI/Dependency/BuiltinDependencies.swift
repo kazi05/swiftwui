@@ -129,9 +129,9 @@ extension Runtime {
     public func bootstrapDependencies() {
         prepareDependencies { deps in
             // NOTE: @Dependency(\.navigate) is not render-tree-bound (CLAUDE.md),
-            // so it has no ambient \.pageTransition: it animates only when the
-            // caller passes `transition:` explicitly. @Environment(\.navigate)
-            // picks the ambient up.
+            // so it has no ambient \.pageTransition — but a destination
+            // Route(transition:) still applies to it, same as any other call
+            // site. @Environment(\.navigate) additionally picks the ambient up.
             deps.navigate = NavigateAction { [weak self] path, replace, transition, ambient in
                 self?.navigate(to: path, replace: replace, transition: transition, ambient: ambient)
             }

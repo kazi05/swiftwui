@@ -42,8 +42,8 @@ Notable changes to SwiftWUI. Format loosely follows
   channel, and `navigate(to:replace:transition:)` gained a `transition:` parameter; existing
   `NavigateAction { path, replace in … }` call sites still compile unchanged.
 - `@Environment(\.navigate)` picks up the nearest ambient `.pageTransition` automatically;
-  `@Dependency(\.navigate)` cannot (deliberately not render-tree-bound) and therefore only
-  animates a navigation when called with an explicit `transition:` argument.
+  `@Dependency(\.navigate)` cannot (deliberately not render-tree-bound) — but a destination
+  `Route(transition:)` still applies to it, same as any other call site.
 - A FLIP-based fallback (`element.animate`) runs in browsers without the View Transitions API,
   forceable with `?swui-vt=flip` for manual testing; it is deliberately partial — only named
   elements travel, a name nested inside another name rides its ancestor's morph instead of
