@@ -92,4 +92,17 @@ import SwiftWUI
         let a = SnapshotJSON.assemble(version: 1, path: "/", rows: ["b": ["[1]"], "a": ["[2]"]], tasks: ["z", "y"])
         #expect(a == "{\"v\":1,\"path\":\"\\/\",\"rows\":{\"a\":[[2]],\"b\":[[1]]},\"tasks\":[\"y\",\"z\"]}")
     }
+    @Test func structuredDataIsEmittedThroughScriptJSON() {
+        let payload = #"{"n":"</script><img src=x onerror=alert(1)>"}"#
+        let head = PageHead(title: "t", meta: [], links: [], structuredData: [payload])
+        let doc = DocumentSerializer.render(.init(bodyHTML: "<p>x</p>", head: head))
+        #expect(doc.contains(#"<script type="application/ld+json" data-swiftwui>"#))
+        #expect(!doc.contains("</script><img"))        // breakout neutralized
+        // Strengthened over the brief's version (whose closing assertion was
+        // `doc.contains(x) || doc.contains(x)` — the same check OR'd with
+        // itself, always true regardless of escaping). Assert the breakout was
+        // actually TRANSFORMED by scriptJSON, not merely absent for some
+        // unrelated reason (e.g. the field being dropped).
+        #expect(doc.contains(HTMLEscaping.scriptJSON(payload)))
+    }
 }

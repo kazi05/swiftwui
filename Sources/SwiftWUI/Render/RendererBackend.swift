@@ -38,6 +38,8 @@ public protocol RendererBackend: AnyObject {
     /// Replaces the document's MANAGED link set (marked data-swiftwui);
     /// hand-written <link> in the host HTML is never touched.
     func setLinks(_ links: [LinkTag])
+    /// Replaces the document's MANAGED JSON-LD set (marked data-swiftwui).
+    func setStructuredData(_ blocks: [String])
 
     // MARK: Hydration read API (phase 5, spec §10)
     /// Minimal DOM reads for the adopting walk. Text nodes count as children.
@@ -115,6 +117,7 @@ extension RendererBackend {
     public func reloadForUpdate() {}
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {}
     public func setDropNavigationGuard(_ enabled: Bool) {}
+    public func setStructuredData(_ blocks: [String]) {}
     @discardableResult
     public func animate(_ node: HostNode, request: AnimationRequest,
                          onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? { nil }

@@ -6,15 +6,19 @@ public struct PageHeadPatch: Equatable {
     public var title: String?
     public var meta: [MetaTag]?
     public var links: [LinkTag]?
+    public var structuredData: [String]?
 
-    public init(title: String? = nil, meta: [MetaTag]? = nil, links: [LinkTag]? = nil) {
-        self.title = title; self.meta = meta; self.links = links
+    public init(title: String? = nil, meta: [MetaTag]? = nil,
+                links: [LinkTag]? = nil, structuredData: [String]? = nil) {
+        self.title = title; self.meta = meta
+        self.links = links; self.structuredData = structuredData
     }
 
     public func folded(over base: PageHead) -> PageHead {
         PageHead(title: title ?? base.title,
                  meta: meta ?? base.meta,
-                 links: links ?? base.links)
+                 links: links ?? base.links,
+                 structuredData: structuredData ?? base.structuredData)
     }
 }
 
@@ -45,8 +49,40 @@ extension Tag {
     /// (spec §5.1). nil parameters inherit; an explicit value replaces.
     public func pageMeta(title: String? = nil,
                          meta: [MetaTag]? = nil,
-                         links: [LinkTag]? = nil) -> some Tag {
-        _PageMetaTag(patch: PageHeadPatch(title: title, meta: meta, links: links),
-                     content: self)
+                         links: [LinkTag]? = nil,
+                         structuredData: [String]? = nil) -> some Tag {
+        #if DEBUG
+        for block in structuredData ?? [] {
+            if !_JSONWellFormed.check(block) {
+                assertionFailure("pageMeta: structuredData block is not valid JSON: \(block.prefix(80))")
+            }
+        }
+        #endif
+        return _PageMetaTag(patch: PageHeadPatch(title: title, meta: meta, links: links,
+                                                 structuredData: structuredData),
+                            content: self)
+    }
+}
+
+enum _JSONWellFormed {
+    /// Cheap structural check: balanced braces/brackets outside strings, and a
+    /// non-empty trimmed body. DEBUG-only authoring aid, not a parser.
+    static func check(_ s: String) -> Bool {
+        var depth = 0, inString = false, escaped = false, sawAny = false
+        for ch in s {
+            if inString {
+                if escaped { escaped = false }
+                else if ch == "\\" { escaped = true }
+                else if ch == "\"" { inString = false }
+                continue
+            }
+            switch ch {
+            case "\"": inString = true; sawAny = true
+            case "{", "[": depth += 1; sawAny = true
+            case "}", "]": depth -= 1; if depth < 0 { return false }
+            default: if !ch.isWhitespace { sawAny = true }
+            }
+        }
+        return sawAny && depth == 0 && !inString
     }
 }

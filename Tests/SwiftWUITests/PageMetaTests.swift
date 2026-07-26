@@ -104,3 +104,29 @@ private struct RichPage: Tag, Page {
     var links: [LinkTag] { [.canonical("https://x.test/")] }
     var body: some Tag { P { Text("x") }.pageMeta(title: "patched") }
 }
+
+private struct JSONLDPage: Tag {
+    var body: some Tag {
+        P { Text("x") }.pageMeta(structuredData: [#"{"@type":"Offer","price":"4320"}"#])
+    }
+}
+
+@Suite @MainActor struct StructuredDataTests {
+    @Test func backendReceivesBlocks() {
+        let backend = MockBackend()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: JSONLDPage(), scheduleMicrotask: { $0() })
+        runtime.mount()
+        #expect(backend.structuredData == [#"{"@type":"Offer","price":"4320"}"#])
+    }
+
+    // Guards a hole this project has been bitten by: RendererBackend's default
+    // implementation makes a missing forward COMPILE, and prerendered pages
+    // then silently lose the feature while the dev server looks fine.
+    @Test func adoptingBackendForwardsStructuredData() {
+        let base = MockBackend()
+        let adopting = AdoptingBackend(base: base, container: base.container)
+        adopting.setStructuredData([#"{"a":1}"#])
+        #expect(base.structuredData == [#"{"a":1}"#])
+    }
+}

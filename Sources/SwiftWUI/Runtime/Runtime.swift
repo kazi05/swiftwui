@@ -466,6 +466,7 @@ public final class Runtime<Backend: RendererBackend> {
             applier.backend.setTitle(head.title)
             applier.backend.setMetaTags(head.meta)
             applier.backend.setLinks(head.links)
+            applier.backend.setStructuredData(head.structuredData)
         }
         if let target = ctx.pendingRedirect {
             redirectHops += 1

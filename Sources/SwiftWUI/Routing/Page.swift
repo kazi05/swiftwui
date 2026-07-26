@@ -108,7 +108,13 @@ public struct PageHead: Equatable {
     public var title: String
     public var meta: [MetaTag]
     public var links: [LinkTag]
-    public init(title: String, meta: [MetaTag], links: [LinkTag] = []) {
+    /// JSON-LD documents, emitted as <script type="application/ld+json">.
+    /// Serialized through `HTMLEscaping.scriptJSON` — NEVER `.text`, which
+    /// would corrupt JSON and miss a `</script>` breakout inside a string.
+    public var structuredData: [String]
+    public init(title: String, meta: [MetaTag], links: [LinkTag] = [],
+                structuredData: [String] = []) {
         self.title = title; self.meta = meta; self.links = links
+        self.structuredData = structuredData
     }
 }

@@ -48,6 +48,11 @@ public enum DocumentSerializer {
             }
             out += " data-swiftwui>\n"       // managed set marker (same as meta)
         }
+        for block in input.head?.structuredData ?? [] {
+            // Raw-text sink: same audited helper the state snapshot uses.
+            out += "<script type=\"application/ld+json\" data-swiftwui>"
+                + HTMLEscaping.scriptJSON(block) + "</script>\n"
+        }
         if let href = input.cssHref {
             out += "<link rel=\"stylesheet\" href=\"" + HTMLEscaping.text(href) + "\">\n"
         } else if let css = input.css, !css.isEmpty {

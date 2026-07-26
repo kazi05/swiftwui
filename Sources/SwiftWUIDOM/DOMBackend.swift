@@ -468,6 +468,24 @@ public final class DOMBackend: RendererBackend {
             _ = head.appendChild?(el)
         }
     }
+    public func setStructuredData(_ blocks: [String]) {
+        // Replace ONLY the managed set (spec §5.3): marked data-swiftwui.
+        let old = jsDocument.querySelectorAll("script[type='application/ld+json'][data-swiftwui]").object
+        let n = Int(old?.length.number ?? 0)
+        for i in (0..<n).reversed() {
+            if let el = old?[i].object {
+                _ = el.parentNode.object?.removeChild?(el)
+            }
+        }
+        guard let head = jsDocument.head.object else { return }
+        for block in blocks {
+            let el = jsDocument.createElement("script").object!
+            _ = el.setAttribute?("type", "application/ld+json")
+            _ = el.setAttribute?("data-swiftwui", "")
+            el.textContent = .string(block)      // textContent is not an HTML sink
+            _ = head.appendChild?(el)
+        }
+    }
     public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {
         let window = JSObject.global.window.object
         // prefers-color-scheme: initial read BEFORE the first render pass, then change listener.
