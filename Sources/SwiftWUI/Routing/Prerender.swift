@@ -29,6 +29,13 @@ public struct Prerender: Sendable {
         self.revalidateInterval = revalidateInterval
     }
 
+    // SPI for SwiftWUIStatic's generate() — not app-facing, mirrors the
+    // `RouteURL._normalize` underscore convention for cross-module framework use.
+    public var _pathProvider: PathProvider? { pathProvider }
+    public var _buildEnabled: Bool { buildEnabled }
+    public var _onDemandEnabled: Bool { onDemandEnabled }
+    public var _revalidateInterval: Duration? { revalidateInterval }
+
     /// Never prerendered — the route is client-only (private dashboards).
     public static let never = Prerender(pathProvider: nil, buildEnabled: false,
                                         onDemandEnabled: false, revalidateInterval: nil)

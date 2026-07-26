@@ -62,6 +62,8 @@ public struct StaticSiteReport {
     public var skippedPatterns: [String]          // dynamic patterns with no explicit path
     /// config.paths entries no pattern claimed — typos or dead config (final-review M2).
     public var unmatchedPaths: [String] = []
+    /// Patterns deliberately left to a render server (spec §4.4) — NOT mistakes.
+    public var onDemandPatterns: [String] = []
 }
 
 public enum StaticSite {
@@ -85,9 +87,31 @@ public enum StaticSite {
         let collected = probe._collectRoutes()
         var pagePaths: [String] = []
         var skipped: [String] = []
+        var onDemand: [String] = []
         var claimed = Set<String>()
+
         for route in collected {
             let pattern = route.pattern
+            let policy = PrerenderResolution.effective(route: route.prerender,
+                                                       app: A.prerender,
+                                                       config: config.defaultPrerender)
+            // Kill-switch and .never both mean "produce nothing for this pattern".
+            guard config.prerenderEnabled else { skipped.append(pattern.raw); continue }
+            if let policy, !policy._buildEnabled, policy._pathProvider == nil {
+                if policy._onDemandEnabled { onDemand.append(pattern.raw) }
+                else { skipped.append(pattern.raw) }
+                continue
+            }
+            if let provider = policy?._pathProvider {
+                let produced = try await provider()
+                for path in produced where !claimed.contains(RouteURL._normalize(path)) {
+                    guard pattern.match(path) != nil else { continue }   // reported below
+                    pagePaths.append(path)
+                    claimed.insert(RouteURL._normalize(path))
+                }
+                if policy?._onDemandEnabled == true { onDemand.append(pattern.raw) }
+                continue
+            }
             if pattern.isStatic {
                 pagePaths.append(pattern.raw)
                 claimed.insert(RouteURL._normalize(pattern.raw))   // M3: static pattern claims its exact path
@@ -95,8 +119,10 @@ public enum StaticSite {
                 let matching = config.paths.filter {
                     pattern.match($0) != nil && !claimed.contains(RouteURL._normalize($0))
                 }
-                if matching.isEmpty { skipped.append(pattern.raw) }
-                else {
+                if matching.isEmpty {
+                    if policy?._onDemandEnabled == true { onDemand.append(pattern.raw) }
+                    else { skipped.append(pattern.raw) }
+                } else {
                     pagePaths.append(contentsOf: matching)
                     claimed.formUnion(matching.map(RouteURL._normalize))   // first-match-wins, like the Router
                 }
@@ -106,7 +132,7 @@ public enum StaticSite {
 
         // --- render each page ---
         var report = StaticSiteReport(pages: [], redirects: [:], skippedPatterns: skipped,
-                                      unmatchedPaths: unmatched)
+                                      unmatchedPaths: unmatched, onDemandPatterns: onDemand)
         // cssFile mode: union at PAGE-TEXT granularity — registry text is not
         // guaranteed line-per-rule (media blocks), so we dedup whole page
         // registries in first-seen order. Overlap duplicates rules, which is
