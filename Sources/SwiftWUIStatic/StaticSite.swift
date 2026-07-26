@@ -64,6 +64,9 @@ public struct StaticSiteReport {
     public var unmatchedPaths: [String] = []
     /// Patterns deliberately left to a render server (spec §4.4) — NOT mistakes.
     public var onDemandPatterns: [String] = []
+    /// sitemap.xml + any sitemap-N.xml chunks written (spec §10). Empty when
+    /// config.siteURL is nil.
+    public var sitemapFiles: [String] = []
 }
 
 /// One rendered page (spec §7). `outcome` is what a server maps to a status.
@@ -208,6 +211,18 @@ public enum StaticSite {
             let cssPath = config.outDir + "/styles.css"
             do { try cssUnion.joined(separator: "\n").write(toFile: cssPath, atomically: true, encoding: .utf8) }
             catch { throw StaticSiteError.io(path: cssPath, underlying: "\(error)") }
+        }
+        if let siteURL = config.siteURL, !report.pages.isEmpty {
+            let stamp = ISO8601DateFormatter().string(from: Date()).prefix(10)
+            for (name, xml) in Sitemap.documents(paths: report.pages, siteURL: siteURL,
+                                                 lastmod: String(stamp)) {
+                let p = config.outDir + "/" + name
+                do { try xml.write(toFile: p, atomically: true, encoding: .utf8) }
+                catch { throw StaticSiteError.io(path: p, underlying: "\(error)") }
+                report.sitemapFiles.append(name)
+            }
+        } else if config.siteURL == nil {
+            print("SwiftWUI SSG: no siteURL in StaticSiteConfig — sitemap.xml not generated")
         }
         return report
     }
