@@ -156,6 +156,7 @@ public final class Runtime<Backend: RendererBackend> {
         for face in fontFaces { styleRegistry.registerRaw(face.ruleText) }
         for theme in themes { styleRegistry.registerRaw(theme.ruleText) }
         for rule in globalStyles { rule.register(into: styleRegistry, scope: nil) }
+        styleRegistry.registerRaw(ViewTransitionCSS.baseRuleText)
         renderPass()
     }
 
@@ -286,6 +287,7 @@ public final class Runtime<Backend: RendererBackend> {
               !(signals.reduceMotion && t.respectsReducedMotion),
               !signals.dragSession.isActive,
               isNavigation || !pendingViewTransitionIsNavigation else { return }
+        t.register(into: styleRegistry)
         pendingViewTransition = t.options(direction: direction)
         if isNavigation { pendingViewTransitionIsNavigation = true }
     }
@@ -366,6 +368,9 @@ public final class Runtime<Backend: RendererBackend> {
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
         applier.animationPass = nil
         current = splicing(current!, at: id, with: new)
+        #if DEBUG
+        warnOnDuplicateTransitionNames()
+        #endif
         // Post-commit (see renderPass): survive an entry whose element is
         // still live even though the registering wrapper is above this pass root.
         transitions.sweep(under: id, stillExists: { [weak self] eid in
@@ -452,6 +457,9 @@ public final class Runtime<Backend: RendererBackend> {
         applier.animationPass = nil
         // 5. COMMIT.
         current = new
+        #if DEBUG
+        warnOnDuplicateTransitionNames()
+        #endif
         // Transition sweep runs post-commit: an entry survives while its
         // element is still in the tree even if this pass didn't re-run its
         // registering wrapper (wrapper above a subtree pass root).
@@ -468,4 +476,31 @@ public final class Runtime<Backend: RendererBackend> {
         for cb in callbacks { cb() }
         commitRouteEffects(ctx)
     }
+
+    #if DEBUG
+    /// Two RENDERED elements sharing a `view-transition-name` make the browser
+    /// reject `ready` and skip the whole transition, with no app-visible error.
+    /// A warning, never an assert: only rendered elements count, and a mobile
+    /// nav plus a desktop nav both named `logo` with one hidden by a media query
+    /// is legal, common, and invisible to a tree walk.
+    private func warnOnDuplicateTransitionNames() {
+        guard let tree = current else { return }
+        var seen: Set<String> = []
+        func walk(_ node: Node) {
+            switch node {
+            case .element(let e):
+                if let name = e.style.entries.first(where: { $0.property == "view-transition-name" })?.value,
+                   !seen.insert(name).inserted {
+                    print("SwiftWUI: duplicate view-transition-name '\(name)' — the browser will skip the transition")
+                }
+                for child in e.children { walk(child) }
+            case .component(let c):
+                for child in c.children { walk(child) }
+            case .text:
+                break
+            }
+        }
+        walk(tree)
+    }
+    #endif
 }

@@ -376,4 +376,17 @@ extension StyleDeclaration {
         }
         return .init(property: property, value: actions.map { "\($0.name) \($0.value)" }.joined(separator: " "))
     }
+
+    /// `view-transition-name` (view-transitions spec §6). Returns nil for a name
+    /// that must not reach CSS: a non-ident (the value is serialized unquoted
+    /// into `style="…"` by HTMLRenderer, where a `;` would inject a sibling
+    /// declaration), `root` (the document element's own name — duplicating it
+    /// makes the browser skip every transition in the app), or the UA-reserved
+    /// `-ua-` prefix. Validate-and-drop with no assert, same reasoning as
+    /// `Keyframes.init`: the guard must hold in release, and an assert makes the
+    /// regression test unrunnable under debug.
+    public static func viewTransitionName(_ name: String) -> Self? {
+        guard CSSSanitize.isValidIdent(name), name != "root", !name.hasPrefix("-ua-") else { return nil }
+        return .init(property: "view-transition-name", value: name)
+    }
 }

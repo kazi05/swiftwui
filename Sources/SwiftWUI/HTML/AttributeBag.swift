@@ -9,6 +9,11 @@ public struct PendingStyleRule {
     // the same loop, at the same moment, and serves only this rule. Split it
     // out if a second at-rule kind ever needs independent registration.
     var keyframes: Keyframes? = nil
+    // ponytail: same argument as `keyframes` above — a document-level rule
+    // (::view-transition-*) rides on the rule that needs it instead of a
+    // parallel array, because it is registered from the same loop at the same
+    // moment. When set, `declarations` is empty and no class is generated.
+    var rawText: String? = nil
     let declarations: [StyleDeclaration]
 }
 

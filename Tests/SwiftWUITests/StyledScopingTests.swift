@@ -98,7 +98,8 @@ private struct DynamicRules: Tag, Styled {
                          root: Root(), scheduleMicrotask: sched.schedule,
                          globalStyles: [Rule(element: "body") { $0.margin(.zero) }])
         rt.mount()
-        #expect(backend.stylesheetText == "body { margin: 0 }")
+        // Every mount also registers the view-transitions base rule (Task 2).
+        #expect(backend.stylesheetText == "::view-transition { pointer-events: none }\nbody { margin: 0 }")
     }
     @Test func rulesBuilderSupportsEmptyAndConditionals() {
         @RulesBuilder func empty() -> [Rule] { }

@@ -123,8 +123,7 @@ public func withViewTransition<T>(_ transition: PageTransition = .fade,
 
 extension PageTransition {
     func options(direction: NavDirection?) -> ViewTransitionOptions {
-        ViewTransitionOptions(presetName: nil,          // Task 2: hashed attribute value
-                              direction: direction,
+        ViewTransitionOptions(presetName: cssAttributeValue, direction: direction,
                               durationMS: durationValue.milliseconds)
     }
 }

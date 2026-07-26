@@ -157,6 +157,7 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
     var effectiveBag = bag
     for rule in bag.pendingRules {
         if let kf = rule.keyframes { ctx.registry.registerRaw(kf.ruleText) }
+        if let raw = rule.rawText { ctx.registry.registerRaw(raw); continue }
         let cls = ctx.registry.registerAnonymous(pseudo: rule.pseudo, media: rule.media,
                                                  container: rule.container,
                                                  declarations: rule.declarations)
