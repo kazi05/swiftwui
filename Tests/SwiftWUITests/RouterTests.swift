@@ -114,8 +114,8 @@ private struct RApp: Tag {
                          root: CollectApp(), scheduleMicrotask: sched.schedule)
         rt.mount()
         let patterns = rt._collectRoutes()
-        #expect(patterns.map(\.raw) == ["/", "/about", "/todo/:id"])
-        #expect(patterns.map(\.isStatic) == [true, true, false])
+        #expect(patterns.map(\.pattern.raw) == ["/", "/about", "/todo/:id"])
+        #expect(patterns.map(\.pattern.isStatic) == [true, true, false])
         // Collection must not disturb live state (C1): a root @State write
         // after _collectRoutes() still schedules a flush and updates the DOM
         // (regression — link() used to rebind the live box's invalidate to

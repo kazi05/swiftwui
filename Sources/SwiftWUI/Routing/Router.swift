@@ -27,7 +27,9 @@ public struct Router: Tag, _PrimitiveTag {
             for route in routes { route.transition?.register(into: ctx.registry) }
             ctx.environment.pageTransition?.register(into: ctx.registry)
         }
-        ctx.collectedRoutes?.append(contentsOf: routes.map(\.pattern))
+        ctx.collectedRoutes?.append(contentsOf: routes.map {
+            _CollectedRoute(pattern: $0.pattern, prerender: $0.prerenderPolicy)
+        })
         let info = ctx.environment.routeInfo
         for route in routes {
             guard let params = route.pattern.match(info.path) else { continue }

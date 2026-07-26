@@ -98,7 +98,7 @@ public final class Runtime<Backend: RendererBackend> {
     /// would rebind live boxes — C1), so bodies resolve with struct-initial
     /// values and @Environment defaults. Guards DO run (they run on any
     /// resolve); redirects/pageHead of this pass are discarded.
-    public func _collectRoutes() -> [RoutePattern] {
+    public func _collectRoutes() -> [_CollectedRoute] {
         var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(),
                                  invalidate: { _ in })
         ctx.collectedRoutes = []

@@ -17,25 +17,42 @@ public struct Route {
     let transition: PageTransition?
     let guardClosure: (() -> RouteGuardResult)?
     let builder: ([String: String]) -> AnyTag
+    /// Prerender policy (spec 2026-07-26 §4.2); nil = "said nothing".
+    let prerenderPolicy: Prerender?
+
+    private init(pattern: RoutePattern, transition: PageTransition?,
+                 guardClosure: (() -> RouteGuardResult)?,
+                 builder: @escaping ([String: String]) -> AnyTag,
+                 prerenderPolicy: Prerender?) {
+        self.pattern = pattern
+        self.transition = transition
+        self.guardClosure = guardClosure
+        self.builder = builder
+        self.prerenderPolicy = prerenderPolicy
+    }
 
     /// Route without parameters in the content closure.
     public init<C: Tag>(_ path: String, transition: PageTransition? = nil,
                         guard guardClosure: (() -> RouteGuardResult)? = nil,
                         @TagBuilder content: @escaping () -> C) {
-        self.pattern = RoutePattern(path)
-        self.transition = transition
-        self.guardClosure = guardClosure
-        self.builder = { _ in AnyTag(content()) }
+        self.init(pattern: RoutePattern(path), transition: transition,
+                  guardClosure: guardClosure, builder: { _ in AnyTag(content()) },
+                  prerenderPolicy: nil)
     }
 
     /// Route receiving captured `:param` values (catch-all tail under "*").
     public init<C: Tag>(_ path: String, transition: PageTransition? = nil,
                         guard guardClosure: (() -> RouteGuardResult)? = nil,
                         @TagBuilder content: @escaping ([String: String]) -> C) {
-        self.pattern = RoutePattern(path)
-        self.transition = transition
-        self.guardClosure = guardClosure
-        self.builder = { AnyTag(content($0)) }
+        self.init(pattern: RoutePattern(path), transition: transition,
+                  guardClosure: guardClosure, builder: { AnyTag(content($0)) },
+                  prerenderPolicy: nil)
+    }
+
+    /// Declares how (and whether) this route is prerendered.
+    public func prerender(_ policy: Prerender) -> Route {
+        Route(pattern: pattern, transition: transition, guardClosure: guardClosure,
+              builder: builder, prerenderPolicy: policy)
     }
 }
 

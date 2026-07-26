@@ -67,3 +67,14 @@ extension Duration {
     public static func minutes(_ n: Int) -> Duration { .seconds(n * 60) }
     public static func hours(_ n: Int) -> Duration { .seconds(n * 3600) }
 }
+
+/// One route as seen by SSG enumeration (spec §4.4): its pattern plus the
+/// policy declared on it, if any. SPI — not part of the app-facing API.
+public struct _CollectedRoute {
+    public let pattern: RoutePattern
+    public let prerender: Prerender?
+    public init(pattern: RoutePattern, prerender: Prerender?) {
+        self.pattern = pattern
+        self.prerender = prerender
+    }
+}

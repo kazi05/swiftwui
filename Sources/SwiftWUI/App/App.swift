@@ -11,10 +11,15 @@ public protocol App {
     static var themes: [ThemeDefinition] { get }
     /// `@font-face` declarations, registered app-wide once at mount.
     static var fontFaces: [FontFace] { get }
+    /// Site-wide prerender default for routes that declare none (spec §4.3).
+    /// nil = "said nothing" — resolution falls through to
+    /// `StaticSiteConfig.defaultPrerender`, then to phase-5 behaviour.
+    static var prerender: Prerender? { get }
 }
 
 extension App {
     public static var globalStyles: [Rule] { [] }
     public static var themes: [ThemeDefinition] { [] }
     public static var fontFaces: [FontFace] { [] }
+    public static var prerender: Prerender? { nil }
 }

@@ -63,11 +63,12 @@ public enum StaticSite {
         probe._webSession = session
         probe._effects._buildMode = true      // enumeration must not run "/"'s effects for real
         probe.mount()
-        let patterns = probe._collectRoutes()
+        let collected = probe._collectRoutes()
         var pagePaths: [String] = []
         var skipped: [String] = []
         var claimed = Set<String>()
-        for pattern in patterns {
+        for route in collected {
+            let pattern = route.pattern
             if pattern.isStatic {
                 pagePaths.append(pattern.raw)
                 claimed.insert(RouteURL._normalize(pattern.raw))   // M3: static pattern claims its exact path

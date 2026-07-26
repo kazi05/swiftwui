@@ -42,8 +42,8 @@ public struct ResolveContext {
     /// to a different route than the one that renders.
     var routeTransitions: [(RoutePattern, PageTransition?)] = []
     /// Non-nil during a `Runtime._collectRoutes()` pass: every Router appends
-    /// its patterns here (spec §5, SSG route enumeration).
-    var collectedRoutes: [RoutePattern]? = nil
+    /// its routes here (spec §5, SSG route enumeration).
+    var collectedRoutes: [_CollectedRoute]? = nil
     /// Ambient transaction for the element(s) currently resolving (anim spec §4).
     /// Set at a component boundary from `transactionOverrides`; otherwise
     /// inherited from the enclosing component (propagates through primitives).
