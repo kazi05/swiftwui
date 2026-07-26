@@ -87,6 +87,31 @@ public final class DOMBackend: RendererBackend {
     private var liveAnimationTokens: [ObjectIdentifier: DOMAnimationToken] = [:]
     private var visibilityChangeClosure: JSClosure?
     private var linearEasingSupported: Bool?    // cached CSS.supports() probe, first animate() call
+    // View transitions (spec 2026-07-26 §3.1, §5.3, §7): the FLIP fallback
+    // (Task 6) needs the named elements, and every name write already passes
+    // through setStyleProperty/removeStyleProperty — exact, and cheaper than
+    // any DOM query. `[style*="view-transition-name"]` was the first draft and
+    // matches `none`, matches custom properties containing the text, and
+    // misses names set from a stylesheet rule.
+    private var namedHosts: [String: JSObject] = [:]
+    // Generation token: a second navigation aborts the first mid-animation,
+    // and an untokened cleanup would wipe the attributes the newer transition
+    // just wrote. Bumped once per performViewTransition call.
+    private var vtGeneration = 0
+    private var activeTransition: JSObject?
+    // A JSOneshotClosure self-releases only when INVOKED — the update
+    // callback, the losing ready/finished branch, and the watchdog when the
+    // transition already settled are all one-shots that may never fire.
+    // Retained here, released deterministically in releaseTransitionClosures.
+    private var vtUpdateClosures: [JSOneshotClosure] = []
+    private var pageHideClosure: JSClosure?      // retained for the backend's lifetime, like the others
+    /// `?swui-vt=flip` forces the FLIP path in a supporting browser — without it
+    /// nobody would ever exercise that code by hand.
+    private lazy var forceFlipFallback: Bool = {
+        guard let search = JSObject.global.location.object?.search.string,
+              let params = JSObject.global.URLSearchParams.function?.new(search) else { return false }
+        return params.get?("swui-vt").string == "flip"
+    }()
 
     public init(dispatch: @escaping (ListenerID, Any?) -> Void) { self.dispatch = dispatch }
 
@@ -114,9 +139,15 @@ public final class DOMBackend: RendererBackend {
     // `el.setAttribute`, setMetaTags' `removeChild`).
     public func setStyleProperty(_ node: JSObject, name: String, value: String) {
         _ = node.style.object?.setProperty?(name, value)
+        if name == "view-transition-name" {
+            if value == "none" { namedHosts[value] = nil } else { namedHosts[value] = node }
+        }
     }
     public func removeStyleProperty(_ node: JSObject, name: String) {
         _ = node.style.object?.removeProperty?(name)
+        if name == "view-transition-name" {
+            for (key, host) in namedHosts where host == node { namedHosts[key] = nil }
+        }
     }
     public func setProperty(_ node: JSObject, name: String, value: PropertyValue) {
         if name.hasPrefix("swui:cmd:") {
@@ -837,6 +868,121 @@ public final class DOMBackend: RendererBackend {
                 .supports?("animation-timing-function", "linear(0, 1)").boolean ?? false
         }
         return linearEasingSupported == true ? easing : "ease-out"
+    }
+
+    // MARK: View transitions (spec 2026-07-26 §3.1, §5.3)
+    public func performViewTransition(_ options: ViewTransitionOptions,
+                                      update: @escaping () -> Void) {
+        guard !forceFlipFallback,
+              jsDocument.startViewTransition.function != nil else {
+            performFlipTransition(options, update: update)   // Task 6; until then: update()
+            return
+        }
+        installPageHideSkipIfNeeded()
+
+        vtGeneration += 1
+        let generation = vtGeneration
+        let root = jsDocument.documentElement.object
+        // Set BEFORE the call: the old frame is captured at the rendering
+        // opportunity AFTER it, so these attributes are live during that capture.
+        // User CSS must therefore not key real (non-pseudo) styles off them.
+        if let preset = options.presetName { _ = root?.setAttribute?("data-swui-vt", preset) }
+        if let direction = options.direction {
+            _ = root?.setAttribute?("data-swui-nav", direction.rawValue)
+        }
+
+        let callback = JSOneshotClosure { _ in
+            update()
+            return .undefined
+        }
+        vtUpdateClosures.append(callback)
+        guard let transition = jsDocument.startViewTransition(callback).object else {
+            // Threw or returned nothing: run the commit inline rather than
+            // stranding it. The Runtime's `ran` guard makes a late platform
+            // call harmless. `callback` never reached the JS engine here, so
+            // it must be released explicitly or it leaks its host-func box.
+            update()
+            clearTransitionAttributes(generation: generation)
+            releaseTransitionClosures()
+            return
+        }
+        activeTransition = transition
+
+        // `ready` rejects on EVERY skip — duplicate names, hidden tab
+        // (InvalidStateError), superseded by a newer transition (AbortError).
+        // Without this, ordinary double-clicks log unhandled rejections.
+        let onReadyRejected = JSOneshotClosure { _ in .undefined }
+        _ = transition.ready.object?.catch?(onReadyRejected)
+        vtUpdateClosures.append(onReadyRejected)
+
+        // `finished` RESOLVES on a skip but REJECTS when the update callback
+        // rejects, so both branches must clean up.
+        let cleanup = JSOneshotClosure { [weak self] _ in
+            self?.finishTransition(generation: generation)
+            return .undefined
+        }
+        let cleanupRejected = JSOneshotClosure { [weak self] _ in
+            self?.finishTransition(generation: generation)
+            return .undefined
+        }
+        _ = transition.finished.object?.then?(cleanup, cleanupRejected)
+        vtUpdateClosures.append(cleanup)
+        vtUpdateClosures.append(cleanupRejected)
+
+        // Watchdog for the one case the platform does not guarantee: the update
+        // callback is scheduled, never synchronous, so a document torn down
+        // inside the capture window never delivers it. Idempotent thanks to the
+        // Runtime's `ran` guard.
+        let watchdog = JSOneshotClosure { _ in
+            update()
+            return .undefined
+        }
+        _ = JSObject.global.setTimeout?(watchdog, options.durationMS + 1000)
+        vtUpdateClosures.append(watchdog)
+    }
+
+    private func finishTransition(generation: Int) {
+        clearTransitionAttributes(generation: generation)
+        if generation == vtGeneration { activeTransition = nil }
+        releaseTransitionClosures()
+    }
+
+    /// Deterministically frees every host-func box in `vtUpdateClosures`,
+    /// whichever fired or not — same discipline as DOMAnimationToken.settleOnce
+    /// (`animate` above). `release()` is an idempotent dict removal, so
+    /// releasing an already-self-released (invoked) closure again is harmless.
+    /// Without this, the losing ready/finished branch on every single
+    /// transition would leak its host-func box permanently: dropping the
+    /// Swift-side array reference does not free it, since JSOneshotClosure's
+    /// own static registry independently retains it until `release()` runs.
+    private func releaseTransitionClosures() {
+        for c in vtUpdateClosures { c.release() }
+        vtUpdateClosures.removeAll()
+    }
+
+    /// Generation-tokened: a newer transition may already have written its own
+    /// attributes (a second navigation aborts the first mid-animation), and an
+    /// untokened cleanup would wipe them.
+    private func clearTransitionAttributes(generation: Int) {
+        guard generation == vtGeneration, let root = jsDocument.documentElement.object else { return }
+        _ = root.removeAttribute?("data-swui-vt")
+        _ = root.removeAttribute?("data-swui-nav")
+    }
+
+    private func installPageHideSkipIfNeeded() {
+        guard pageHideClosure == nil else { return }
+        let closure = JSClosure { [weak self] _ in
+            _ = self?.activeTransition?.skipTransition?()
+            return .undefined
+        }
+        _ = JSObject.global.window.object?.addEventListener?("pagehide", closure)
+        pageHideClosure = closure      // retained for the backend's lifetime, like the others
+    }
+
+    /// Task 6 replaces this with the real FLIP path.
+    private func performFlipTransition(_ options: ViewTransitionOptions,
+                                       update: @escaping () -> Void) {
+        update()
     }
 
     // MARK: Web storage (phase 8a)
