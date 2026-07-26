@@ -88,8 +88,7 @@ extension PageTransition {
             body += "\(scope)[data-swui-nav=\"pop\"]::view-transition-old(root) { animation-name: \(outRev.cssName) }\n"
             body += "\(scope)[data-swui-nav=\"pop\"]::view-transition-new(root) { animation-name: \(inRev.cssName) }"
         case .zoom(let sourceID):
-            body = ViewTransitionCSS.zoomRules(scope: scope, name: sourceID,
-                                               duration: duration, easing: easing)
+            body = ViewTransitionCSS.zoomRules(scope: scope, name: sourceID)
         case .custom(let old, let new):
             registry.registerRaw(old.ruleText)
             registry.registerRaw(new.ruleText)
@@ -147,12 +146,17 @@ extension ViewTransitionCSS {
         return (out, into, outRev, inRev)
     }
 
-    /// The zoom's shape comes from the UA's own group morph (source rect → page
-    /// rect), which is why nothing here touches the group. These rules only
-    /// interpolate the corner treatment so a rounded card unrolls into a
-    /// square-cornered page instead of popping.
-    static func zoomRules(scope: String, name: String,
-                          duration: String, easing: String) -> String {
+    /// The zoom's shape (source rect → page rect) comes from the UA's own
+    /// group morph; nothing here touches the group. `border-radius: inherit`
+    /// does NOT by itself unroll a rounded card into square corners:
+    /// `border-radius` is not an inherited property, and no ancestor
+    /// pseudo-element sets one, so on its own this resolves to the initial
+    /// value (0). What it does is give the app a hook — once the app also
+    /// sets `::view-transition-group(name) { border-radius: … }` (matching
+    /// the source element's own radius), these rules propagate that value
+    /// down to the old/new snapshots so the corner treatment is preserved
+    /// during the morph instead of snapping to square at the first frame.
+    static func zoomRules(scope: String, name: String) -> String {
         """
         \(scope)::view-transition-old(\(name)) { border-radius: inherit; overflow: clip }
         \(scope)::view-transition-new(\(name)) { border-radius: inherit; overflow: clip }

@@ -222,9 +222,12 @@ public final class Runtime<Backend: RendererBackend> {
         // `if !scheduled` gate stops queueing microtasks for good.
         if vtInFlight { scheduled = false; return }
         scheduled = false
-        // Consumed unconditionally by any flush, even one that early-returns on
-        // empty dirt — the contract is "cleared after that flush", not "after
-        // the next flush that renders" (Task 9).
+        // Not necessarily consumed by the very next flush: one that bounces
+        // off the `vtInFlight` guard above returns before reaching this line,
+        // so the flag survives a flush that lands inside a transition's
+        // capture window. It IS consumed unconditionally by the first flush
+        // that gets past that guard — even one that then early-returns on
+        // empty dirt below, without rendering anything (Task 9).
         let suppressOnce = _suppressTransitionsOnce
         _suppressTransitionsOnce = false
         guard !dirty.isEmpty else {

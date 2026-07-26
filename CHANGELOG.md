@@ -24,6 +24,36 @@ Notable changes to SwiftWUI. Format loosely follows
   keyframes dedupe and two values sharing a name cannot overwrite each other. Distinct from the
   WAAPI `animation(_:value:)`, which stays the right tool for state-driven transitions.
 
+- **View transitions** — opt-in, SwiftUI-flavored animated navigation and in-page transitions
+  built on the browser's native View Transitions API:
+
+  ```swift
+  Router { /* … */ }.pageTransition(.fade)
+
+  SearchForm().matchedTransition(id: "search-form")   // same id on the destination page
+  ```
+
+  Also `Route(transition:)` (destination-declared), `navigate(to:transition:)` (call-site
+  explicit), and `withViewTransition { }` (in-page state changes — tabs, filters, expanding a
+  card). Presets: `.fade`, `.slide(edge:)`, `.zoom(sourceID:)`, `.custom(old:new:)` (built from
+  `Keyframes`). No behavior change for apps that don't opt in. See <doc:ViewTransitions> for
+  the full precedence order, caveats, and fallback behavior.
+- `NavigateAction` gained a second, additive initializer carrying the new ambient-transition
+  channel, and `navigate(to:replace:transition:)` gained a `transition:` parameter; existing
+  `NavigateAction { path, replace in … }` call sites still compile unchanged.
+- `@Environment(\.navigate)` picks up the nearest ambient `.pageTransition` automatically;
+  `@Dependency(\.navigate)` cannot (deliberately not render-tree-bound) and therefore only
+  animates a navigation when called with an explicit `transition:` argument.
+- A FLIP-based fallback (`element.animate`) runs in browsers without the View Transitions API,
+  forceable with `?swui-vt=flip` for manual testing; it is deliberately partial — only named
+  elements travel, a name nested inside another name rides its ancestor's morph instead of
+  animating independently, and sizing is faked with `scale` — see <doc:ViewTransitions> for the
+  full list of degradations.
+- **Behavior change:** the hydration SPI `_suppressTransitionsOnce` — which already suppressed
+  enter transitions on the first flush after adopting prerendered HTML — now also suppresses
+  exit transitions on that same flush, so a removed element can't leave behind an inert ghost
+  still carrying its `view-transition-name`.
+
 ## [0.6.0] - 2026-07-20
 
 ### Added
