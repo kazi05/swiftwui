@@ -156,7 +156,6 @@ public final class Runtime<Backend: RendererBackend> {
         for face in fontFaces { styleRegistry.registerRaw(face.ruleText) }
         for theme in themes { styleRegistry.registerRaw(theme.ruleText) }
         for rule in globalStyles { rule.register(into: styleRegistry, scope: nil) }
-        styleRegistry.registerRaw(ViewTransitionCSS.baseRuleText)
         renderPass()
     }
 
@@ -287,6 +286,11 @@ public final class Runtime<Backend: RendererBackend> {
               !(signals.reduceMotion && t.respectsReducedMotion),
               !signals.dragSession.isActive,
               isNavigation || !pendingViewTransitionIsNavigation else { return }
+        // Lazy, not in mount(): an app that never arms a transition must see
+        // no `::view-transition` rule at all (no behavior change for apps
+        // that don't opt in). Both calls dedupe by text hash, so registering
+        // per arm is free.
+        styleRegistry.registerRaw(ViewTransitionCSS.baseRuleText)
         t.register(into: styleRegistry)
         pendingViewTransition = t.options(direction: direction)
         if isNavigation { pendingViewTransitionIsNavigation = true }

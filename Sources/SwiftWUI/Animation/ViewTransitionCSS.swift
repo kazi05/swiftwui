@@ -106,11 +106,17 @@ extension PageTransition {
                 ? "@media (prefers-reduced-motion: no-preference) {\n\(body)\n}"
                 : body)
         }
-        // Kill switch for a setting that flips mid-transition: the
-        // `no-preference` rules stop matching and the UA cross-fade would take
-        // over, which is motion where an instant swap was promised. This is the
-        // one sanctioned place that sets `animation` on a group.
-        registry.registerRaw("@media (prefers-reduced-motion: reduce) { html[data-swui-vt]::view-transition-group(*) { animation: none } }")
+        if reducedMotionRespected {
+            // Kill switch for a setting that flips mid-transition: the
+            // `no-preference` rules stop matching and the UA cross-fade would
+            // take over, which is motion where an instant swap was promised.
+            // This is the one sanctioned place that sets `animation` on a
+            // group. Scoped to THIS preset's own attribute value, not the bare
+            // `[data-swui-vt]` presence check — a `.respectsReducedMotion(false)`
+            // preset is deliberately armed under reduce and must keep
+            // animating, so it must never match this selector.
+            registry.registerRaw("@media (prefers-reduced-motion: reduce) { \(scope)::view-transition-group(*) { animation: none } }")
+        }
     }
 }
 

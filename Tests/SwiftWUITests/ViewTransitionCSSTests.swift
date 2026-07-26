@@ -53,8 +53,10 @@ import Testing
         PageTransition.slide().register(into: registry)
         PageTransition.fade.register(into: registry)
         for line in registry.text.split(separator: "\n") where line.contains("view-transition-group") {
-            // The reduced-motion kill switch is the ONE sanctioned exception.
-            guard !line.contains("animation: none") else { continue }
+            // The reduced-motion kill switch is the ONE sanctioned exception —
+            // and only the `prefers-reduced-motion: reduce` line, not any
+            // group-timing line, may contain it.
+            if line.contains("prefers-reduced-motion: reduce"), line.contains("animation: none") { continue }
             #expect(!line.contains("animation-name"))
             #expect(!line.contains("animation:"))
         }
@@ -67,6 +69,35 @@ import Testing
         let respecting = StyleRegistry()
         PageTransition.slide().register(into: respecting)
         #expect(respecting.text.contains("prefers-reduced-motion: no-preference"))
+    }
+
+    @Test func optedOutTransitionNeverEmitsTheReduceKillSwitch() {
+        // The opt-out's whole point is to keep animating under reduced
+        // motion — the kill switch would silently defeat it.
+        let registry = StyleRegistry()
+        PageTransition.slide().respectsReducedMotion(false).register(into: registry)
+        #expect(!registry.text.contains("animation: none"))
+        #expect(!registry.text.contains("prefers-reduced-motion: reduce"))
+    }
+
+    @Test func reduceKillSwitchIsScopedToItsOwnPresetAttribute() {
+        // Not the bare `[data-swui-vt]` presence check — that would also
+        // match (and kill) a sibling opted-out preset's own selector.
+        let t = PageTransition.slide()
+        let registry = StyleRegistry()
+        t.register(into: registry)
+        let scoped = "html[data-swui-vt=\"\(t.cssAttributeValue)\"]::view-transition-group(*) { animation: none }"
+        #expect(registry.text.contains("@media (prefers-reduced-motion: reduce) { \(scoped) }"))
+    }
+
+    @Test func mountWithoutArmingRegistersNoViewTransitionRule() {
+        struct PlainRoot: Tag { var body: some Tag { Div { Text("x") } } }
+        let backend = MockBackend()
+        let sched = TestScheduler()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: PlainRoot(), scheduleMicrotask: sched.schedule)
+        runtime.mount()   // no `withViewTransition` / transition ever armed
+        #expect(!runtime._registryText.contains("::view-transition"))
     }
 
     @Test func attributeValueSeparatesConfigurationsAndDedupes() {
