@@ -78,3 +78,30 @@ extension _StyledTag {
         return copy
     }
 }
+
+/// `.pageTransition(_:)` wrapper. NOT `.environment(_:_:)`: the value's CSS must
+/// be registered when the modifier resolves, and `_EnvironmentWriter` has no
+/// registration step.
+struct _PageTransitionTag<Content: Tag>: Tag, _PrimitiveTag {
+    typealias Body = Never
+    let transition: PageTransition?
+    let content: Content
+    @MainActor func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
+        _TypeNameRegistry.register(Self.self)   // canonical snapshot keys need the name
+        if ctx.collectedRoutes == nil { transition?.register(into: ctx.registry) }
+        let saved = ctx.environment
+        ctx.environment.pageTransition = transition
+        let nodes = resolve(content, path: path.appending(.type(ObjectIdentifier(Self.self))), ctx: &ctx)
+        ctx.environment = saved
+        return nodes
+    }
+}
+
+extension Tag {
+    /// Ambient transition for navigations made from this subtree: put it on the
+    /// `Router` for an app-wide default, on a `Link` for one destination, or on
+    /// any subtree in between. `nil` disables.
+    public func pageTransition(_ t: PageTransition?) -> some Tag {
+        _PageTransitionTag(transition: t, content: self)
+    }
+}

@@ -21,6 +21,12 @@ public struct Router: Tag, _PrimitiveTag {
     @MainActor public func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
         ctx.routerCount += 1
         assert(ctx.routerCount == 1, "SwiftWUI supports one Router per app (spec D9)")  // release: both Routers resolve (documented degrade); debug traps
+        ctx.routerTransitionDefault = ctx.environment.pageTransition
+        ctx.routeTransitions = routes.map { ($0.pattern, $0.transition) }
+        if ctx.collectedRoutes == nil {            // never touch live registries in a collect pass
+            for route in routes { route.transition?.register(into: ctx.registry) }
+            ctx.environment.pageTransition?.register(into: ctx.registry)
+        }
         ctx.collectedRoutes?.append(contentsOf: routes.map(\.pattern))
         let info = ctx.environment.routeInfo
         for route in routes {

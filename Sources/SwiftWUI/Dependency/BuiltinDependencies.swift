@@ -128,8 +128,12 @@ extension Runtime {
     /// would pollute the shared store (the `WebSession.shared` rule).
     public func bootstrapDependencies() {
         prepareDependencies { deps in
-            deps.navigate = NavigateAction { [weak self] path, replace in
-                self?.navigate(to: path, replace: replace)
+            // NOTE: @Dependency(\.navigate) is not render-tree-bound (CLAUDE.md),
+            // so it has no ambient \.pageTransition: it animates only when the
+            // caller passes `transition:` explicitly. @Environment(\.navigate)
+            // picks the ambient up.
+            deps.navigate = NavigateAction { [weak self] path, replace, transition, ambient in
+                self?.navigate(to: path, replace: replace, transition: transition, ambient: ambient)
             }
             deps.webStorage = WebStorage(store: _storage)
             if let session = _webSession { deps.webSession = session }

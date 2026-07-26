@@ -11,23 +11,50 @@ public struct RouteInfo: Equatable {
     }
 }
 
-/// `navigate("/x")` / `navigate("/x", replace: true)` (spec §7).
+/// `navigate("/x")` / `navigate("/x", replace: true)` /
+/// `navigate("/x", transition: .zoom(sourceID: "card"))` (spec §7, §4).
+///
+/// The call-site `transition` and the ambient `\.pageTransition` travel in
+/// SEPARATE channels on purpose: if the ambient value arrived as the explicit
+/// argument, every `Link` click would look explicit and silently outrank the
+/// destination `Route(transition:)`.
 public struct NavigateAction {
-    let handler: (String, Bool) -> Void
-    public init(handler: @escaping (String, Bool) -> Void) { self.handler = handler }
-    public func callAsFunction(_ path: String, replace: Bool = false) {
-        handler(path, replace)
+    /// (path, replace, explicit transition, ambient transition)
+    let handler: (String, Bool, PageTransition?, PageTransition?) -> Void
+    let ambient: PageTransition?
+
+    /// Kept for source compatibility: `withDependencies` overrides and
+    /// `.environment(\.navigate, fake)` construct this form.
+    public init(handler: @escaping (String, Bool) -> Void) {
+        self.handler = { path, replace, _, _ in handler(path, replace) }
+        self.ambient = nil
+    }
+    public init(ambient: PageTransition? = nil,
+                handler: @escaping (String, Bool, PageTransition?, PageTransition?) -> Void) {
+        self.handler = handler
+        self.ambient = ambient
+    }
+    /// Rebinds the ambient value; the computed `\.navigate` key calls this per node.
+    func withAmbient(_ t: PageTransition?) -> NavigateAction {
+        NavigateAction(ambient: t, handler: handler)
+    }
+    public func callAsFunction(_ path: String, replace: Bool = false,
+                              transition: PageTransition? = nil) {
+        handler(path, replace, transition, ambient)
     }
 }
 
 private struct RouteInfoKey: EnvironmentKey {
     static let defaultValue = RouteInfo()
 }
-private struct NavigateKey: EnvironmentKey {
+private struct NavigateBaseKey: EnvironmentKey {
     static let defaultValue = NavigateAction { _, _ in }
 }
 private struct BackKey: EnvironmentKey {
     static let defaultValue: () -> Void = {}
+}
+private struct PageTransitionKey: EnvironmentKey {
+    static let defaultValue: PageTransition? = nil
 }
 
 extension EnvironmentValues {
@@ -37,14 +64,22 @@ extension EnvironmentValues {
         get { self[RouteInfoKey.self] }
         set { self[RouteInfoKey.self] = newValue }
     }
-    /// SPA navigation action; no-op default outside a runtime.
+    /// SPA navigation bound to the current ambient `\.pageTransition`; no-op
+    /// default outside a runtime.
     public var navigate: NavigateAction {
-        get { self[NavigateKey.self] }
-        set { self[NavigateKey.self] = newValue }
+        get { self[NavigateBaseKey.self].withAmbient(pageTransition) }
+        set { self[NavigateBaseKey.self] = newValue }
     }
     /// history.back(); no-op default outside a runtime.
     public var back: () -> Void {
         get { self[BackKey.self] }
         set { self[BackKey.self] = newValue }
+    }
+    /// Ambient page transition for navigations made from this subtree.
+    /// `.pageTransition(nil)` disables — "explicitly none" and "never set" are
+    /// the same state, so there is no double optional anywhere.
+    public var pageTransition: PageTransition? {
+        get { self[PageTransitionKey.self] }
+        set { self[PageTransitionKey.self] = newValue }
     }
 }

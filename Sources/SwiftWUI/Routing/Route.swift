@@ -14,23 +14,26 @@ public enum RouteGuardResult {
 /// ```
 public struct Route {
     let pattern: RoutePattern
+    let transition: PageTransition?
     let guardClosure: (() -> RouteGuardResult)?
     let builder: ([String: String]) -> AnyTag
 
     /// Route without parameters in the content closure.
-    public init<C: Tag>(_ path: String,
+    public init<C: Tag>(_ path: String, transition: PageTransition? = nil,
                         guard guardClosure: (() -> RouteGuardResult)? = nil,
                         @TagBuilder content: @escaping () -> C) {
         self.pattern = RoutePattern(path)
+        self.transition = transition
         self.guardClosure = guardClosure
         self.builder = { _ in AnyTag(content()) }
     }
 
     /// Route receiving captured `:param` values (catch-all tail under "*").
-    public init<C: Tag>(_ path: String,
+    public init<C: Tag>(_ path: String, transition: PageTransition? = nil,
                         guard guardClosure: (() -> RouteGuardResult)? = nil,
                         @TagBuilder content: @escaping ([String: String]) -> C) {
         self.pattern = RoutePattern(path)
+        self.transition = transition
         self.guardClosure = guardClosure
         self.builder = { AnyTag(content($0)) }
     }

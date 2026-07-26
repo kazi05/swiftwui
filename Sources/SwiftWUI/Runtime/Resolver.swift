@@ -33,6 +33,14 @@ public struct ResolveContext {
     var pageHead: PageHead? = nil
     /// Routers resolved this pass — asserted ≤ 1 (spec D9).
     var routerCount = 0
+    /// Ambient page transition seen by the Router (spec §4); nil = none.
+    var routerTransitionDefault: PageTransition? = nil
+    /// ALL routes in declaration order with their declared transition (nil
+    /// included). Ordered and complete because the Runtime must reproduce
+    /// Router's first-match-wins: a dictionary is unordered and would omit
+    /// transition-less patterns, so `/todo/new` before `/todo/:id` could resolve
+    /// to a different route than the one that renders.
+    var routeTransitions: [(RoutePattern, PageTransition?)] = []
     /// Non-nil during a `Runtime._collectRoutes()` pass: every Router appends
     /// its patterns here (spec §5, SSG route enumeration).
     var collectedRoutes: [RoutePattern]? = nil

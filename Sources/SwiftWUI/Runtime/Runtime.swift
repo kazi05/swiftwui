@@ -51,7 +51,21 @@ public final class Runtime<Backend: RendererBackend> {
     /// a `navigate(transition:)` call can't clobber its direction/preset with
     /// a directionless ambient one.
     private var pendingViewTransitionIsNavigation = false
+    /// This flush's navigation direction (push/pop, nil for a redirect),
+    /// recorded unconditionally by every `navigate`/`handlePopState` arm — even
+    /// one that resolves no transition of its own. Without this, an ambient
+    /// `withViewTransition(.fade) { navigate(to: "/x") }` on a transition-less
+    /// route would arm via `markDirty`'s ambient path (which always passes
+    /// `direction: nil`) and the push/pop CSS could never fire. Cleared on the
+    /// same paths as `pendingViewTransitionIsNavigation`.
+    private var pendingNavigationDirection: NavDirection?
     private var vtInFlight = false
+    // Routing transitions (spec §4): refreshed only by a pass that actually saw
+    // a Router — a subtree pass builds a fresh context rooted at a component and
+    // usually never runs Router._resolve, so an unconditional write would blank
+    // the table on the first @State write anywhere.
+    private var routerTransitionDefault: PageTransition?
+    private var routeTransitions: [(RoutePattern, PageTransition?)] = []
     /// Set by build drivers (SSG/HTMLRenderer) BEFORE mount: a build reads
     /// `_currentTree`/`_locationPath` as settled truth and must never defer a commit.
     public var _disableViewTransitions = false
@@ -172,7 +186,8 @@ public final class Runtime<Backend: RendererBackend> {
     /// SPA navigation (spec §7): update location → pushState/replaceState →
     /// full pass. Same path+query → no-op (prevents self-redirect loops).
     public func navigate(to url: String, replace: Bool = false,
-                         transition: PageTransition? = nil) {
+                         transition: PageTransition? = nil,
+                         ambient: PageTransition? = nil) {
         assert(!RouteURL.isExternal(url),
                "navigate() expects an app-internal path, got '\(url)' — use a plain A/Link for external URLs")
         let (rawPath, query, search) = RouteURL.split(url)
@@ -182,10 +197,12 @@ public final class Runtime<Backend: RendererBackend> {
         let full = search.isEmpty ? path : path + "?" + search
         if replace { applier.backend.replaceState(path: full) }
         else { applier.backend.pushState(path: full) }
-        // A guard redirect must not animate a hop the user never asked for; an
-        // explicit transition on a replace call still wins (spec §4).
-        armViewTransition(transition ?? (replace ? nil : routeDeclaredTransition(for: path)),
-                          direction: replace ? nil : .push, isNavigation: true)
+        // Precedence (spec §4): explicit call site → destination Route →
+        // nearest ambient `.pageTransition` → the Router's ambient default.
+        // A redirect (`replace: true`) animates only when asked explicitly.
+        let resolved = transition
+            ?? (replace ? nil : (routeDeclaredTransition(for: path) ?? ambient ?? routerTransitionDefault))
+        armViewTransition(resolved, direction: replace ? nil : .push, isNavigation: true)
         markDirty(.root)
     }
 
@@ -194,7 +211,8 @@ public final class Runtime<Backend: RendererBackend> {
         let (rawPath, query, _) = RouteURL.split(url)
         currentPath = RouteURL.normalizePath(rawPath)
         currentQuery = query
-        armViewTransition(routeDeclaredTransition(for: currentPath), direction: .pop, isNavigation: true)
+        armViewTransition(routeDeclaredTransition(for: currentPath) ?? routerTransitionDefault,
+                          direction: .pop, isNavigation: true)
         markDirty(.root)
     }
 
@@ -210,7 +228,8 @@ public final class Runtime<Backend: RendererBackend> {
         let suppressOnce = _suppressTransitionsOnce
         _suppressTransitionsOnce = false
         guard !dirty.isEmpty else {
-            pendingViewTransition = nil; pendingViewTransitionIsNavigation = false; return
+            pendingViewTransition = nil; pendingViewTransitionIsNavigation = false
+            pendingNavigationDirection = nil; return
         }
         let ids = dirty
         dirty.removeAll()
@@ -227,6 +246,7 @@ public final class Runtime<Backend: RendererBackend> {
         }
         pendingViewTransition = nil
         pendingViewTransitionIsNavigation = false
+        pendingNavigationDirection = nil
         vtInFlight = true
         var ran = false
         let body: () -> Void = { [weak self] in
@@ -282,6 +302,12 @@ public final class Runtime<Backend: RendererBackend> {
     /// flush still last-wins, same as before.
     private func armViewTransition(_ t: PageTransition?, direction: NavDirection?,
                                    isNavigation: Bool = false) {
+        // Recorded unconditionally — even when `t` is nil — so an ambient arm
+        // made later in the SAME flush (always `direction: nil`, see below)
+        // still gets the right push/pop direction (residual gap from Task 1's
+        // review, routed here because this task owns direction wiring).
+        if isNavigation { pendingNavigationDirection = direction }
+        let effectiveDirection = isNavigation ? direction : (pendingNavigationDirection ?? direction)
         guard let t, !vtInFlight, !_disableViewTransitions,
               !(signals.reduceMotion && t.respectsReducedMotion),
               !signals.dragSession.isActive,
@@ -292,14 +318,20 @@ public final class Runtime<Backend: RendererBackend> {
         // per arm is free.
         styleRegistry.registerRaw(ViewTransitionCSS.baseRuleText)
         t.register(into: styleRegistry)
-        pendingViewTransition = t.options(direction: direction)
+        pendingViewTransition = t.options(direction: effectiveDirection)
         if isNavigation { pendingViewTransitionIsNavigation = true }
     }
 
-    /// The transition declared by the `Route` that will match `path`.
-    /// Task 3 fills this in from the Router-published table; until then only
-    /// explicit call-site transitions arm.
-    private func routeDeclaredTransition(for path: String) -> PageTransition? { nil }
+    /// The transition declared by the route that will actually render `path`.
+    /// First match wins in declaration order, INCLUDING a nil entry: a route
+    /// that declares nothing still consumes the match and must not fall through
+    /// to a later pattern's transition.
+    private func routeDeclaredTransition(for path: String) -> PageTransition? {
+        for (pattern, transition) in routeTransitions where pattern.match(path) != nil {
+            return transition
+        }
+        return nil
+    }
 
     /// Drops ids that are descendants of other dirty ids (spec §2.2).
     func minimalCover(_ ids: Set<NodeIdentity>) -> [NodeIdentity] {
@@ -389,6 +421,10 @@ public final class Runtime<Backend: RendererBackend> {
         let callbacks = effects.reconcile(ctx.effects, under: id)
         for cb in callbacks { cb() }
         commitRouteEffects(ctx)
+        if ctx.routerCount > 0 {
+            routerTransitionDefault = ctx.routerTransitionDefault
+            routeTransitions = ctx.routeTransitions
+        }
     }
 
     /// Applies Router by-products after a pass (spec §5, §9): head writes when
@@ -429,8 +465,8 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.environment._storageStore = storage
         ctx.environment._webSessionOptional = _webSession
         ctx.environment.routeInfo = RouteInfo(path: currentPath, query: currentQuery)
-        ctx.environment.navigate = NavigateAction { [weak self] path, replace in
-            self?.navigate(to: path, replace: replace)
+        ctx.environment.navigate = NavigateAction { [weak self] path, replace, transition, ambient in
+            self?.navigate(to: path, replace: replace, transition: transition, ambient: ambient)
         }
         ctx.environment.back = { [weak self] in self?.applier.backend.historyBack() }
         ctx.environment.reloadToUpdate = { [weak self] in self?.applier.backend.reloadForUpdate() }
@@ -479,6 +515,10 @@ public final class Runtime<Backend: RendererBackend> {
         let callbacks = effects.reconcile(ctx.effects, under: .root)
         for cb in callbacks { cb() }
         commitRouteEffects(ctx)
+        if ctx.routerCount > 0 {
+            routerTransitionDefault = ctx.routerTransitionDefault
+            routeTransitions = ctx.routeTransitions
+        }
     }
 
     #if DEBUG
