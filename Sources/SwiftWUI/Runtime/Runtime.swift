@@ -451,7 +451,17 @@ public final class Runtime<Backend: RendererBackend> {
     /// Applies Router by-products after a pass (spec §5, §9): head writes when
     /// the snapshot changed, then at most one redirect hop (capped at 10).
     private func commitRouteEffects(_ ctx: ResolveContext) {
-        if let head = ctx.pageHead, head != lastPageHead {
+        // Head baseline (spec §5.1). A pass where the Router ran may have
+        // CHANGED route, so the baseline must come from this pass — folding a
+        // patch over `lastPageHead` would ship the previous page's title on a
+        // route whose content conforms to no `Page`.
+        let empty = PageHead(title: "", meta: [], links: [])
+        let baseline: PageHead? = ctx.routerCount > 0 ? ctx.pageHead : lastPageHead
+        var head: PageHead? = baseline
+        if let patch = ctx.pageHeadPatch {
+            head = patch.folded(over: baseline ?? empty)
+        }
+        if let head, head != lastPageHead {
             lastPageHead = head
             applier.backend.setTitle(head.title)
             applier.backend.setMetaTags(head.meta)
