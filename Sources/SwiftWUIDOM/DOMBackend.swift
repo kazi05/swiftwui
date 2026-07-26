@@ -103,7 +103,16 @@ public final class DOMBackend: RendererBackend {
     // callback, the losing ready/finished branch, and the watchdog when the
     // transition already settled are all one-shots that may never fire.
     // Retained here, released deterministically in releaseTransitionClosures.
-    private var vtUpdateClosures: [JSOneshotClosure] = []
+    // Keyed by generation (NOT one shared array): transition A's promises can
+    // settle after transition B has already started (a second navigation
+    // aborts the first mid-animation, but A's `finished` still resolves
+    // asynchronously afterward) — a shared array would let A's settle release
+    // B's still-pending closures out from under it.
+    private var vtClosuresByGeneration: [Int: [JSOneshotClosure]] = [:]
+    // The watchdog's setTimeout id, same per-generation keying, so a normal
+    // settle can cancel it before releasing its closure — an already-fired
+    // timer invoking a released host function is a hard crash, not a no-op.
+    private var vtTimeoutIDByGeneration: [Int: JSValue] = [:]
     private var pageHideClosure: JSClosure?      // retained for the backend's lifetime, like the others
     /// `?swui-vt=flip` forces the FLIP path in a supporting browser — without it
     /// nobody would ever exercise that code by hand.
@@ -140,14 +149,18 @@ public final class DOMBackend: RendererBackend {
     public func setStyleProperty(_ node: JSObject, name: String, value: String) {
         _ = node.style.object?.setProperty?(name, value)
         if name == "view-transition-name" {
-            if value == "none" { namedHosts[value] = nil } else { namedHosts[value] = node }
+            purgeNamedHost(node)   // drop whatever name this node had before (rename or → "none")
+            if value != "none" { namedHosts[value] = node }
         }
     }
     public func removeStyleProperty(_ node: JSObject, name: String) {
         _ = node.style.object?.removeProperty?(name)
-        if name == "view-transition-name" {
-            for (key, host) in namedHosts where host == node { namedHosts[key] = nil }
-        }
+        if name == "view-transition-name" { purgeNamedHost(node) }
+    }
+    /// Removes every entry pointing at `node`, regardless of key. `JSObject`'s
+    /// `==` compares the underlying JS object id, so this is exact.
+    private func purgeNamedHost(_ node: JSObject) {
+        for (key, host) in namedHosts where host == node { namedHosts[key] = nil }
     }
     public func setProperty(_ node: JSObject, name: String, value: PropertyValue) {
         if name.hasPrefix("swui:cmd:") {
@@ -389,6 +402,13 @@ public final class DOMBackend: RendererBackend {
     }
     public func remove(_ child: JSObject, from parent: JSObject) {
         try! SWNode(unsafelyWrapping: parent).removeChild(SWNode(unsafelyWrapping: child))
+        // Unmount, not a declaration change: removeStyleProperty never fires for
+        // a host torn out with its inline style intact, so without this a
+        // long-lived SPA with interpolated names (e.g. a ForEach row's id)
+        // accumulates namedHosts entries — and the JSObject references in
+        // them — for the page's lifetime. Guarded so the hot path (no view
+        // transition ever used) costs nothing.
+        if !namedHosts.isEmpty { purgeNamedHost(child) }
     }
 
     private func closureKey(_ node: JSObject, _ event: String) -> String {
@@ -895,7 +915,7 @@ public final class DOMBackend: RendererBackend {
             update()
             return .undefined
         }
-        vtUpdateClosures.append(callback)
+        vtClosuresByGeneration[generation, default: []].append(callback)
         guard let transition = jsDocument.startViewTransition(callback).object else {
             // Threw or returned nothing: run the commit inline rather than
             // stranding it. The Runtime's `ran` guard makes a late platform
@@ -903,7 +923,7 @@ public final class DOMBackend: RendererBackend {
             // it must be released explicitly or it leaks its host-func box.
             update()
             clearTransitionAttributes(generation: generation)
-            releaseTransitionClosures()
+            releaseTransitionClosures(generation: generation)
             return
         }
         activeTransition = transition
@@ -913,7 +933,7 @@ public final class DOMBackend: RendererBackend {
         // Without this, ordinary double-clicks log unhandled rejections.
         let onReadyRejected = JSOneshotClosure { _ in .undefined }
         _ = transition.ready.object?.catch?(onReadyRejected)
-        vtUpdateClosures.append(onReadyRejected)
+        vtClosuresByGeneration[generation, default: []].append(onReadyRejected)
 
         // `finished` RESOLVES on a skip but REJECTS when the update callback
         // rejects, so both branches must clean up.
@@ -926,38 +946,52 @@ public final class DOMBackend: RendererBackend {
             return .undefined
         }
         _ = transition.finished.object?.then?(cleanup, cleanupRejected)
-        vtUpdateClosures.append(cleanup)
-        vtUpdateClosures.append(cleanupRejected)
+        vtClosuresByGeneration[generation, default: []].append(cleanup)
+        vtClosuresByGeneration[generation, default: []].append(cleanupRejected)
 
         // Watchdog for the one case the platform does not guarantee: the update
         // callback is scheduled, never synchronous, so a document torn down
         // inside the capture window never delivers it. Idempotent thanks to the
-        // Runtime's `ran` guard.
+        // Runtime's `ran` guard. The timer id is kept so a normal settle can
+        // cancel it first (see finishTransition) — an already-fired setTimeout
+        // invoking a released host function is a hard crash, not a no-op.
         let watchdog = JSOneshotClosure { _ in
             update()
             return .undefined
         }
-        _ = JSObject.global.setTimeout?(watchdog, options.durationMS + 1000)
-        vtUpdateClosures.append(watchdog)
+        if let timeoutID = JSObject.global.setTimeout?(watchdog, options.durationMS + 1000) {
+            vtTimeoutIDByGeneration[generation] = timeoutID
+        }
+        vtClosuresByGeneration[generation, default: []].append(watchdog)
     }
 
     private func finishTransition(generation: Int) {
         clearTransitionAttributes(generation: generation)
         if generation == vtGeneration { activeTransition = nil }
-        releaseTransitionClosures()
+        // Cancel the watchdog BEFORE releasing its closure: clearTimeout makes
+        // the pending timer inert, so releasing right after can never race an
+        // in-flight firing that would call into a released host function.
+        if let timeoutID = vtTimeoutIDByGeneration.removeValue(forKey: generation) {
+            _ = JSObject.global.clearTimeout?(timeoutID)
+        }
+        releaseTransitionClosures(generation: generation)
     }
 
-    /// Deterministically frees every host-func box in `vtUpdateClosures`,
-    /// whichever fired or not — same discipline as DOMAnimationToken.settleOnce
-    /// (`animate` above). `release()` is an idempotent dict removal, so
-    /// releasing an already-self-released (invoked) closure again is harmless.
-    /// Without this, the losing ready/finished branch on every single
-    /// transition would leak its host-func box permanently: dropping the
-    /// Swift-side array reference does not free it, since JSOneshotClosure's
-    /// own static registry independently retains it until `release()` runs.
-    private func releaseTransitionClosures() {
-        for c in vtUpdateClosures { c.release() }
-        vtUpdateClosures.removeAll()
+    /// Deterministically frees every host-func box retained for ONE
+    /// generation — same discipline as DOMAnimationToken.settleOnce
+    /// (`animate` above), but scoped per-transition: a superseded transition's
+    /// promises can settle after a newer one has already started, and a
+    /// shared retention pool would let that stale settle release the newer
+    /// transition's still-pending closures out from under it. `release()` is
+    /// an idempotent dict removal, so releasing an already-self-released
+    /// (invoked) closure again is harmless. Without this call, the losing
+    /// ready/finished branch on every single transition would leak its
+    /// host-func box permanently: dropping the Swift-side array reference
+    /// does not free it, since JSOneshotClosure's own static registry
+    /// independently retains it until `release()` runs.
+    private func releaseTransitionClosures(generation: Int) {
+        guard let closures = vtClosuresByGeneration.removeValue(forKey: generation) else { return }
+        for c in closures { c.release() }
     }
 
     /// Generation-tokened: a newer transition may already have written its own
