@@ -17,6 +17,25 @@ struct _OnChangeEffect<V: Equatable, Content: Tag>: Tag, _PrimitiveTag {
     }
 }
 
+struct _RouteChangeEffect<Content: Tag>: Tag, _PrimitiveTag {
+    typealias Body = Never
+    let initial: Bool
+    let action: (RouteInfo) -> Void
+    let content: Content
+    @MainActor func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
+        _TypeNameRegistry.register(Self.self)
+        let id = path.appending(.type(ObjectIdentifier(Self.self)))
+        let info = ctx.environment.routeInfo
+        let act = action
+        ctx.effects.append(.onChange(
+            id: id, newValue: info,
+            isEqual: { ($0 as? RouteInfo) == ($1 as? RouteInfo) },
+            initial: initial,
+            action: { _, new in act(new as! RouteInfo) }))
+        return resolve(content, path: id, ctx: &ctx)
+    }
+}
+
 struct _TaskEffect<Content: Tag>: Tag, _PrimitiveTag {
     typealias Body = Never
     let taskID: AnyHashable?
@@ -66,6 +85,19 @@ extension Tag {
     /// runs like a normal task.
     public func staticTask(_ action: @escaping () async -> Void) -> some Tag {
         _TaskEffect(taskID: nil, policy: .build, action: action, content: self)
+    }
+    /// Build-time loader keyed by `id` — the `staticTask` counterpart of
+    /// `task(id:)`. A changed id re-runs the loader within one runtime.
+    public func staticTask<ID: Hashable>(id: ID,
+                                         _ action: @escaping () async -> Void) -> some Tag {
+        _TaskEffect(taskID: AnyHashable(id), policy: .build, action: action, content: self)
+    }
+    /// Pushes the current path/query/params into a model on mount and on every
+    /// route change (spec §6). The model stays framework-agnostic: a class has
+    /// no position in the tree, so values are pushed to it rather than injected.
+    public func onRouteChange(initial: Bool = false,
+                              _ action: @escaping (RouteInfo) -> Void) -> some Tag {
+        _RouteChangeEffect(initial: initial, action: action, content: self)
     }
     public func onAppear(_ action: @escaping () -> Void) -> some Tag {
         _AppearEffect(onAppear: action, onDisappear: nil, content: self)
