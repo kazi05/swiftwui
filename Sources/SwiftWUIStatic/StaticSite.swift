@@ -270,14 +270,37 @@ public enum StaticSite {
         // Same relative path the write loop derives its output file from
         // (requestedPath is already query-stripped, see above).
         let relFile = requestedPath == "/" ? "index.html" : String(requestedPath.dropFirst()) + "/index.html"
+        let head = CanonicalSynthesis.apply(to: runtime._pageHead,
+                                            path: requestedPath,
+                                            siteURL: config.siteURL,
+                                            enabled: config.synthesizeCanonical)
         let doc = DocumentSerializer.render(.init(
             bodyHTML: body,
             css: config.cssFile ? nil : css,
             cssHref: config.cssFile ? cssHref(forPageFile: relFile) : nil,
-            head: runtime._pageHead,
+            head: head,
             snapshotJSON: snapshot,
             importMapJSON: importMap,
             wasmScriptPath: wasmPath))
         return (doc, css, nil)
+    }
+}
+
+/// Adds `<link rel="canonical">` when a page declares none (spec §5.2).
+/// Across tens of thousands of generated pages "the author remembered" is not
+/// a property that holds, and query-decorated inbound links otherwise serve the
+/// same body with no canonical signal.
+public enum CanonicalSynthesis {
+    public static func apply(to head: PageHead?, path: String,
+                             siteURL: String?, enabled: Bool) -> PageHead? {
+        // No origin, no synthesis: a relative canonical buys little, and sites
+        // that predate this feature set no siteURL — their output must not move.
+        guard enabled, let siteURL, !siteURL.isEmpty else { return head }
+        var out = head ?? PageHead(title: "", meta: [], links: [])
+        if out.links.contains(where: { $0.attributes["rel"] == "canonical" }) { return out }
+        var origin = siteURL
+        while origin.hasSuffix("/") { origin.removeLast() }
+        out.links.append(.canonical(origin + RouteURL._normalize(path)))
+        return out
     }
 }
