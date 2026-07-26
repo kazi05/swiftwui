@@ -92,6 +92,14 @@ public protocol RendererBackend: AnyObject {
     func cancelAnimation(_ token: AnimationToken)
     /// Settles with `.forced` and jumps straight to the end value.
     func finishAnimation(_ token: AnimationToken)
+
+    // MARK: View transitions (spec 2026-07-26)
+    /// Runs `update` inside a platform view transition when one is available.
+    /// Backends without support MUST call `update()` synchronously before
+    /// returning; backends with support call it from the platform's update
+    /// callback. The CALLER makes the call idempotent and self-healing (spec
+    /// §3.2), so dropping or deferring `update` cannot brick the renderer.
+    func performViewTransition(_ options: ViewTransitionOptions, update: @escaping () -> Void)
 }
 
 extension RendererBackend {
@@ -112,4 +120,7 @@ extension RendererBackend {
                          onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? { nil }
     public func cancelAnimation(_ token: AnimationToken) {}
     public func finishAnimation(_ token: AnimationToken) {}
+    public func performViewTransition(_ options: ViewTransitionOptions, update: @escaping () -> Void) {
+        update()
+    }
 }

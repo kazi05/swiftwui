@@ -25,6 +25,18 @@ public enum CSSDuration: Equatable, CSSValueConvertible {
     }
 }
 
+extension CSSDuration {
+    /// Numeric milliseconds. Needed by the view-transition FLIP fallback, which
+    /// drives WAAPI rather than CSS. Internal: the `_` prefix in this codebase
+    /// marks cross-module SPI, which this is not.
+    var milliseconds: Double {
+        switch self {
+        case .s(let v): return v * 1000
+        case .ms(let v): return v
+        }
+    }
+}
+
 /// `steps()` jump-position keyword.
 public enum StepPosition: String, CSSValueConvertible {
     case start, end

@@ -165,6 +165,7 @@ public enum StaticSite {
                               globalStyles: A.globalStyles, themes: A.themes, fontFaces: A.fontFaces)
         runtime._webSession = session
         runtime._effects._buildMode = true
+        runtime._disableViewTransitions = true    // a build reads the tree as settled truth
         runtime.mount()
         pump()                                     // guards/redirect hops settle here
 

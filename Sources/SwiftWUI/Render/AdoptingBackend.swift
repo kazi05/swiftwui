@@ -156,6 +156,13 @@ where Base.HostNode: AnyObject {
     public func setAttribute(_ node: HostNode, name: String, value: String) { base.setAttribute(node, name: name, value: value) }
     public func removeAttribute(_ node: HostNode, name: String) { base.removeAttribute(node, name: name) }
     public func setStyleProperty(_ node: HostNode, name: String, value: String) { base.setStyleProperty(node, name: name, value: value) }
+    // Must forward: this wrapper stays the runtime's backend for the app's
+    // whole lifetime after a successful adoption (DOMRuntime.mount), so
+    // inheriting the inline default would silently disable transitions on
+    // every prerendered page while cold-mounted dev builds worked.
+    public func performViewTransition(_ options: ViewTransitionOptions, update: @escaping () -> Void) {
+        base.performViewTransition(options, update: update)
+    }
     public func removeStyleProperty(_ node: HostNode, name: String) { base.removeStyleProperty(node, name: name) }
     public func setProperty(_ node: HostNode, name: String, value: PropertyValue) { base.setProperty(node, name: name, value: value) }
     public func setEventListener(_ node: HostNode, event: String, id: ListenerID) { base.setEventListener(node, event: event, id: id) }

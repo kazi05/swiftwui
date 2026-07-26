@@ -191,6 +191,32 @@ public final class MockBackend: RendererBackend {
         settleAnimation(at: index, reason: .forced)
     }
 
+    // MARK: View transitions (spec 2026-07-26)
+    public private(set) var viewTransitions: [ViewTransitionOptions] = []
+    /// Opt-in PER INSTANCE (default off, so the SSG and hydration suites that
+    /// share this backend are unaffected): hold the update closure to simulate
+    /// the browser's async capture window, then release it with
+    /// `runPendingViewTransition()`.
+    public var deferViewTransition = false
+    private var pendingViewTransitionUpdate: (() -> Void)?
+
+    public func performViewTransition(_ options: ViewTransitionOptions, update: @escaping () -> Void) {
+        bump("performViewTransition")
+        viewTransitions.append(options)
+        if deferViewTransition { pendingViewTransitionUpdate = update } else { update() }
+    }
+    /// Releases a held update closure. False when nothing was pending.
+    @discardableResult
+    public func runPendingViewTransition() -> Bool {
+        guard let update = pendingViewTransitionUpdate else { return false }
+        pendingViewTransitionUpdate = nil
+        update()
+        return true
+    }
+    /// Simulates a backend that never delivers the callback (document torn down
+    /// inside the capture window).
+    public func dropPendingViewTransition() { pendingViewTransitionUpdate = nil }
+
     /// Same rules as HTMLRenderer: escaped text/attrs, sorted attrs, void set.
     public func serializeHTML(_ node: MockNode? = nil) -> String {
         let n = node ?? container

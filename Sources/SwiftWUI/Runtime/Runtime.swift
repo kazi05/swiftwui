@@ -42,6 +42,13 @@ public final class Runtime<Backend: RendererBackend> {
     private var pendingTransactions: [NodeIdentity: Transaction] = [:]
     var _pendingCompletionGroups: [CompletionGroup] = []                 // armed post-flush
     var _lastEffectiveTransactions: [NodeIdentity: Transaction] = [:]    // test hook (Task 4): union of this flush's passes
+    // MARK: View transitions (spec 2026-07-26 §3.2)
+    private var pendingViewTransition: ViewTransitionOptions?
+    private var vtInFlight = false
+    /// Set by build drivers (SSG/HTMLRenderer) BEFORE mount: a build reads
+    /// `_currentTree`/`_locationPath` as settled truth and must never defer a commit.
+    public var _disableViewTransitions = false
+    var _viewTransitionInFlight: Bool { vtInFlight }      // test hook
     var _animationRegistry: AnimationRegistry { applier.animationRegistry }   // test hook (Task 7)
     var _exitingCount: Int { applier.exiting.count }   // test hook (Task 10): ghost-leak assertions
     var _transitionRegistry: TransitionRegistry { transitions }   // test hook (Task 8)
@@ -118,6 +125,7 @@ public final class Runtime<Backend: RendererBackend> {
                 _pendingCompletionGroups.append(g)
             }
         }
+        if let vt = ViewTransitionScope._active { armViewTransition(vt, direction: nil) }
         if !scheduled {
             scheduled = true
             scheduleMicrotask { [weak self] in self?.flush() }
@@ -153,7 +161,8 @@ public final class Runtime<Backend: RendererBackend> {
 
     /// SPA navigation (spec §7): update location → pushState/replaceState →
     /// full pass. Same path+query → no-op (prevents self-redirect loops).
-    public func navigate(to url: String, replace: Bool = false) {
+    public func navigate(to url: String, replace: Bool = false,
+                         transition: PageTransition? = nil) {
         assert(!RouteURL.isExternal(url),
                "navigate() expects an app-internal path, got '\(url)' — use a plain A/Link for external URLs")
         let (rawPath, query, search) = RouteURL.split(url)
@@ -163,6 +172,10 @@ public final class Runtime<Backend: RendererBackend> {
         let full = search.isEmpty ? path : path + "?" + search
         if replace { applier.backend.replaceState(path: full) }
         else { applier.backend.pushState(path: full) }
+        // A guard redirect must not animate a hop the user never asked for; an
+        // explicit transition on a replace call still wins (spec §4).
+        armViewTransition(transition ?? (replace ? nil : routeDeclaredTransition(for: path)),
+                          direction: replace ? nil : .push)
         markDirty(.root)
     }
 
@@ -171,17 +184,22 @@ public final class Runtime<Backend: RendererBackend> {
         let (rawPath, query, _) = RouteURL.split(url)
         currentPath = RouteURL.normalizePath(rawPath)
         currentQuery = query
+        armViewTransition(routeDeclaredTransition(for: currentPath), direction: .pop)
         markDirty(.root)
     }
 
     public func flush() {
+        // A transition's update callback owns the next pass; a flush that lands
+        // in the capture window must ALSO clear `scheduled`, or markDirty's
+        // `if !scheduled` gate stops queueing microtasks for good.
+        if vtInFlight { scheduled = false; return }
         scheduled = false
         // Consumed unconditionally by any flush, even one that early-returns on
         // empty dirt — the contract is "cleared after that flush", not "after
         // the next flush that renders" (Task 9).
         let suppressOnce = _suppressTransitionsOnce
         _suppressTransitionsOnce = false
-        guard !dirty.isEmpty else { return }
+        guard !dirty.isEmpty else { pendingViewTransition = nil; return }
         let ids = dirty
         dirty.removeAll()
         let drained = pendingTransactions
@@ -189,18 +207,71 @@ public final class Runtime<Backend: RendererBackend> {
         let drainedGroups = _pendingCompletionGroups
         _pendingCompletionGroups.removeAll()
         _lastEffectiveTransactions.removeAll()
+
+        guard let vt = pendingViewTransition else {
+            runPasses(ids, transactionOverrides: drained, groups: drainedGroups,
+                      suppressTransitions: suppressOnce)
+            return
+        }
+        pendingViewTransition = nil
+        vtInFlight = true
+        var ran = false
+        let body: () -> Void = { [weak self] in
+            guard let self, !ran else { return }   // idempotent: at most one commit per transition
+            ran = true
+            // Clearing the flag and scheduling the follow-up from a `defer`
+            // keeps both correct if `runPasses` exits abnormally. Order matters:
+            // clear first, THEN schedule — an immediate scheduler (SSG, tests)
+            // runs the follow-up synchronously and would otherwise bounce off
+            // the guard and swallow the owed flush.
+            defer {
+                self.vtInFlight = false
+                self.scheduleMicrotask { [weak self] in self?.flush() }
+            }
+            // Enter/exit transitions are suppressed: an exit ghost keeps its
+            // view-transition-name in the DOM and would duplicate a name in the
+            // new frame, which makes the browser skip the whole transition.
+            self.runPasses(ids, transactionOverrides: drained, groups: drainedGroups,
+                           suppressTransitions: true)
+        }
+        applier.backend.performViewTransition(vt, update: body)
+    }
+
+    /// Pass dispatch + completion-group arming, lifted out of `flush` so a view
+    /// transition can run it from inside the backend's update callback.
+    private func runPasses(_ ids: Set<NodeIdentity>,
+                           transactionOverrides drained: [NodeIdentity: Transaction],
+                           groups: [CompletionGroup],
+                           suppressTransitions: Bool) {
         if current == nil || _forceFullPasses || ids.contains(.root) {
-            renderPass(transactionOverrides: drained, suppressTransitionsOnce: suppressOnce)
+            renderPass(transactionOverrides: drained, suppressTransitionsOnce: suppressTransitions)
         } else {
             for id in minimalCover(ids) {
                 guard let row = store.retainedRow(at: id) else { continue }   // removed this flush
-                subtreePass(id, row, transactionOverrides: drained, suppressTransitionsOnce: suppressOnce)
+                subtreePass(id, row, transactionOverrides: drained,
+                            suppressTransitionsOnce: suppressTransitions)
             }
         }
         // Armed AFTER all of this flush's passes: an empty group (nothing yet
         // registered against it) fires on the next microtask (anim spec §7.4).
-        for g in drainedGroups { g.arm(schedule: scheduleMicrotask) }
+        for g in groups { g.arm(schedule: scheduleMicrotask) }
     }
+
+    /// Arms `t` for the next flush unless something forbids a transition
+    /// (spec §3.2, §4). Never arms while one is in flight: the in-flight
+    /// transition already renders the newest path, and a nested
+    /// `startViewTransition` would abort it and reorder callbacks.
+    private func armViewTransition(_ t: PageTransition?, direction: NavDirection?) {
+        guard let t, !vtInFlight, !_disableViewTransitions,
+              !(signals.reduceMotion && t.respectsReducedMotion),
+              !signals.dragSession.isActive else { return }
+        pendingViewTransition = t.options(direction: direction)
+    }
+
+    /// The transition declared by the `Route` that will match `path`.
+    /// Task 3 fills this in from the Router-published table; until then only
+    /// explicit call-site transitions arm.
+    private func routeDeclaredTransition(for path: String) -> PageTransition? { nil }
 
     /// Drops ids that are descendants of other dirty ids (spec §2.2).
     func minimalCover(_ ids: Set<NodeIdentity>) -> [NodeIdentity] {
