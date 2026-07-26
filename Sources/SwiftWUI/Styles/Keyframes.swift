@@ -64,9 +64,12 @@ public struct KeyframeStops {
     public mutating func from(_ build: (inout StyleProxy) -> Void) { add("from", build) }
     public mutating func to(_ build: (inout StyleProxy) -> Void) { add("to", build) }
     /// `percent` is clamped to 0…100 and machine-formatted — no user string
-    /// reaches the stop key.
+    /// reaches the stop key. NaN is not ordered by `min`/`max` (both propagate
+    /// it), so it is special-cased before the clamp — otherwise it would reach
+    /// `cssNumber` and emit an invalid `nan%` selector that browsers drop.
     public mutating func at(_ percent: Double, _ build: (inout StyleProxy) -> Void) {
-        add(cssNumber(min(max(percent, 0), 100)) + "%", build)
+        let clamped = percent.isNaN ? 0 : min(max(percent, 0), 100)
+        add(cssNumber(clamped) + "%", build)
     }
 }
 

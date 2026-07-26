@@ -32,6 +32,12 @@ import Testing
         #expect(!kf.ruleText.contains("180%"))
     }
 
+    @Test func nanPercentClampsToZero() {
+        let kf = Keyframes { $0.at(.nan) { $0.opacity(0) } }
+        #expect(kf.ruleText.contains("0% { opacity: 0 }"))
+        #expect(!kf.ruleText.contains("nan"))
+    }
+
     @Test func identicalBodiesShareName() {
         let a = Keyframes("spin") { $0.to { $0.opacity(0) } }
         let b = Keyframes("spin") { $0.to { $0.opacity(0) } }
@@ -57,6 +63,8 @@ import Testing
         #expect(kf.isEmpty)
         let onlyEmptyStop = Keyframes("noop") { $0.from { _ in } }
         #expect(onlyEmptyStop.isEmpty)
+        let hasStop = Keyframes("noop") { $0.to { $0.opacity(0) } }
+        #expect(!hasStop.isEmpty)
     }
 
     @Test func invalidNameFallsBackAndCannotBreakOutOfThePrelude() {
