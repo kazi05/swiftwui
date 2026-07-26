@@ -69,6 +69,14 @@ private struct VTCounter: Tag {
         let button = findFirst(backend.container, tag: "button")!
         withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
         sched.pump()
+        // A write arrives WHILE the update callback is still outstanding, so
+        // this flush must actually hit the `vtInFlight` guard branch — that's
+        // the branch under test (fix round 1, Finding 2: the original test let
+        // `_forceClearViewTransitionForTests()` run first, so the guard branch
+        // was never exercised and could regress silently).
+        runtime.dispatch(button.events["click"]!)
+        sched.pump()
+        #expect(backend.serializeHTML().contains("<span>0</span>"))   // nothing committed yet
         backend.dropPendingViewTransition()                 // document torn down mid-window
         backend.deferViewTransition = false
         // The watchdog is a DOM-backend concern; on the native side the guard
@@ -143,6 +151,48 @@ private struct VTCounter: Tag {
         withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
         sched.pump()
         #expect(backend.viewTransitions.isEmpty)
+    }
+
+    // Regression (fix round 1, Finding 1): an enclosing ambient scope must not
+    // clobber a navigation's own arm. `navigate`'s resolved transition carries
+    // a duration the ambient `.fade` default (220ms) doesn't, so a passing
+    // `durationMS` assertion proves the NAVIGATION's PageTransition landed —
+    // not just that `direction` survived.
+    @Test func navigationArmWinsOverEnclosingAmbientScope() {
+        let (runtime, backend, sched) = makeRuntime(VTCounter())
+        withViewTransition(.fade) {
+            runtime.navigate(to: "/x", transition: .fade.duration(.ms(500)))
+        }
+        sched.pump()
+        #expect(backend.viewTransitions.count == 1)
+        #expect(backend.viewTransitions[0].direction == .push)
+        #expect(backend.viewTransitions[0].durationMS == 500)
+    }
+
+    // Guard: with no navigation in the mix, plain ambient arming still works
+    // exactly as before (this is also covered by
+    // `withViewTransitionArmsExactlyOneTransition`, kept here as an explicit
+    // guard next to the navigation-wins fix so the two behaviors read
+    // side-by-side).
+    @Test func ambientScopeStillArmsWithNoDirectionWhenNothingNavigates() {
+        let (runtime, backend, sched) = makeRuntime(VTCounter())
+        let button = findFirst(backend.container, tag: "button")!
+        withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
+        sched.pump()
+        #expect(backend.viewTransitions.count == 1)
+        #expect(backend.viewTransitions[0].direction == nil)
+    }
+
+    // Guard: two ambient (non-navigation) arms in the same flush still
+    // last-wins — the navigation-wins fix must not make the FIRST arm sticky.
+    @Test func twoAmbientScopesInOneFlushLastWins() {
+        let (runtime, backend, sched) = makeRuntime(VTCounter())
+        let button = findFirst(backend.container, tag: "button")!
+        withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
+        withViewTransition(.fade.duration(.ms(500))) { runtime.dispatch(button.events["click"]!) }
+        sched.pump()
+        #expect(backend.viewTransitions.count == 1)
+        #expect(backend.viewTransitions[0].durationMS == 500)
     }
 
     @Test func transitionFlushCreatesNoExitGhost() {

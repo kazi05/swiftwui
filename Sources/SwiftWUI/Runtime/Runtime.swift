@@ -44,6 +44,13 @@ public final class Runtime<Backend: RendererBackend> {
     var _lastEffectiveTransactions: [NodeIdentity: Transaction] = [:]    // test hook (Task 4): union of this flush's passes
     // MARK: View transitions (spec 2026-07-26 §3.2)
     private var pendingViewTransition: ViewTransitionOptions?
+    /// True once this flush's arm came from `navigate`/`handlePopState`, which
+    /// already resolved the full precedence chain (explicit → Route → ambient).
+    /// A navigation wins: the ambient `markDirty` path may only arm when
+    /// nothing armed yet this flush, so a `withViewTransition` scope wrapping
+    /// a `navigate(transition:)` call can't clobber its direction/preset with
+    /// a directionless ambient one.
+    private var pendingViewTransitionIsNavigation = false
     private var vtInFlight = false
     /// Set by build drivers (SSG/HTMLRenderer) BEFORE mount: a build reads
     /// `_currentTree`/`_locationPath` as settled truth and must never defer a commit.
@@ -178,7 +185,7 @@ public final class Runtime<Backend: RendererBackend> {
         // A guard redirect must not animate a hop the user never asked for; an
         // explicit transition on a replace call still wins (spec §4).
         armViewTransition(transition ?? (replace ? nil : routeDeclaredTransition(for: path)),
-                          direction: replace ? nil : .push)
+                          direction: replace ? nil : .push, isNavigation: true)
         markDirty(.root)
     }
 
@@ -187,7 +194,7 @@ public final class Runtime<Backend: RendererBackend> {
         let (rawPath, query, _) = RouteURL.split(url)
         currentPath = RouteURL.normalizePath(rawPath)
         currentQuery = query
-        armViewTransition(routeDeclaredTransition(for: currentPath), direction: .pop)
+        armViewTransition(routeDeclaredTransition(for: currentPath), direction: .pop, isNavigation: true)
         markDirty(.root)
     }
 
@@ -202,7 +209,9 @@ public final class Runtime<Backend: RendererBackend> {
         // the next flush that renders" (Task 9).
         let suppressOnce = _suppressTransitionsOnce
         _suppressTransitionsOnce = false
-        guard !dirty.isEmpty else { pendingViewTransition = nil; return }
+        guard !dirty.isEmpty else {
+            pendingViewTransition = nil; pendingViewTransitionIsNavigation = false; return
+        }
         let ids = dirty
         dirty.removeAll()
         let drained = pendingTransactions
@@ -217,6 +226,7 @@ public final class Runtime<Backend: RendererBackend> {
             return
         }
         pendingViewTransition = nil
+        pendingViewTransitionIsNavigation = false
         vtInFlight = true
         var ran = false
         let body: () -> Void = { [weak self] in
@@ -264,11 +274,20 @@ public final class Runtime<Backend: RendererBackend> {
     /// (spec §3.2, §4). Never arms while one is in flight: the in-flight
     /// transition already renders the newest path, and a nested
     /// `startViewTransition` would abort it and reorder callbacks.
-    private func armViewTransition(_ t: PageTransition?, direction: NavDirection?) {
+    ///
+    /// `isNavigation` is true only for `navigate`/`handlePopState`, which have
+    /// already resolved the full precedence chain (explicit → Route →
+    /// ambient) — that arm wins over an enclosing `withViewTransition` scope's
+    /// ambient arm for the rest of this flush. Two ambient arms in the same
+    /// flush still last-wins, same as before.
+    private func armViewTransition(_ t: PageTransition?, direction: NavDirection?,
+                                   isNavigation: Bool = false) {
         guard let t, !vtInFlight, !_disableViewTransitions,
               !(signals.reduceMotion && t.respectsReducedMotion),
-              !signals.dragSession.isActive else { return }
+              !signals.dragSession.isActive,
+              isNavigation || !pendingViewTransitionIsNavigation else { return }
         pendingViewTransition = t.options(direction: direction)
+        if isNavigation { pendingViewTransitionIsNavigation = true }
     }
 
     /// The transition declared by the `Route` that will match `path`.
