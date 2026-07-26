@@ -897,7 +897,7 @@ public final class DOMBackend: RendererBackend {
                                       update: @escaping () -> Void) {
         guard !forceFlipFallback,
               jsDocument.startViewTransition.function != nil else {
-            performFlipTransition(options, update: update)   // Task 6; until then: update()
+            performFlipTransition(options, update: update)
             return
         }
         installPageHideSkipIfNeeded()
@@ -1015,10 +1015,93 @@ public final class DOMBackend: RendererBackend {
         pageHideClosure = closure      // retained for the backend's lifetime, like the others
     }
 
-    /// Task 6 replaces this with the real FLIP path.
+    private struct FlipRect {
+        let left: Double, top: Double, width: Double, height: Double
+    }
+
+    /// Fallback for browsers without the View Transitions API (and for
+    /// `?swui-vt=flip`). Deliberately partial — §7 of the spec lists every
+    /// degradation, and they are documented in the DocC article too.
     private func performFlipTransition(_ options: ViewTransitionOptions,
                                        update: @escaping () -> Void) {
+        let before = measureNamedHosts()
         update()
+        let after = measureNamedHosts()
+
+        // Outermost-first, subtracting the nearest named ancestor's delta:
+        // native VT flattens nested names into sibling overlay groups, so
+        // applying a child's translate on top of its parent's would double the
+        // motion (the hero + form case in the spec's own example).
+        var applied: [(host: JSObject, dx: Double, dy: Double)] = []
+        for (name, newRect) in after.sorted(by: { depth(of: $0.value.host) < depth(of: $1.value.host) }) {
+            guard let old = before[name] else { continue }
+            var dx = old.rect.left - newRect.rect.left
+            var dy = old.rect.top - newRect.rect.top
+            if let ancestor = applied.last(where: { isAncestor($0.host, of: newRect.host) }) {
+                dx -= ancestor.dx; dy -= ancestor.dy
+            }
+            let sx = newRect.rect.width > 0 ? old.rect.width / newRect.rect.width : 1
+            let sy = newRect.rect.height > 0 ? old.rect.height / newRect.rect.height : 1
+            guard dx != 0 || dy != 0 || sx != 1 || sy != 1 else { continue }
+            animateFlip(newRect.host, dx: dx, dy: dy, sx: sx, sy: sy, durationMS: options.durationMS)
+            applied.append((newRect.host, dx, dy))
+        }
+    }
+
+    /// Document coordinates, not viewport: the two measurements straddle a full
+    /// subtree replacement that can change document height, clamp `scrollTop`,
+    /// or trip scroll anchoring, and an uncompensated delta would carry the
+    /// scroll difference into every element.
+    private func measureNamedHosts() -> [String: (rect: FlipRect, host: JSObject)] {
+        let scrollX = JSObject.global.window.scrollX.number ?? 0
+        let scrollY = JSObject.global.window.scrollY.number ?? 0
+        var out: [String: (FlipRect, JSObject)] = [:]
+        for (name, host) in namedHosts {
+            guard host.isConnected.boolean == true,
+                  let r = host.getBoundingClientRect?().object else { continue }
+            let rect = FlipRect(left: (r.left.number ?? 0) + scrollX,
+                                top: (r.top.number ?? 0) + scrollY,
+                                width: r.width.number ?? 0,
+                                height: r.height.number ?? 0)
+            out[name] = (rect, host)
+        }
+        return out
+    }
+
+    /// Local copy of `SwiftWUI.cssNumber` — that one is internal to the
+    /// `SwiftWUI` module and not visible here (task scope is `SwiftWUIDOM`
+    /// only). Integer-valued doubles render without a trailing ".0".
+    private func cssNumber(_ d: Double) -> String {
+        if d == d.rounded(), abs(d) < 1e15 { return String(Int(d)) }
+        return String(d)
+    }
+
+    private func animateFlip(_ host: JSObject, dx: Double, dy: Double,
+                             sx: Double, sy: Double, durationMS: Double) {
+        let from: [String: JSValue] = [
+            "translate": .string("\(cssNumber(dx))px \(cssNumber(dy))px"),
+            "scale": .string("\(cssNumber(sx)) \(cssNumber(sy))"),
+        ]
+        let to: [String: JSValue] = ["translate": .string("none"), "scale": .string("none")]
+        let options = JSObject.global.Object.function!.new()
+        options.duration = .number(durationMS)
+        options.easing = .string("ease")
+        // `backwards`, not `none`: an effect with no delay applies from its
+        // start time on the NEXT frame, so `none` lets the element paint one
+        // frame at its final position.
+        options.fill = .string("backwards")
+        _ = host.animate?([from, to].jsValue, options.jsValue)
+    }
+
+    private func depth(of node: JSObject) -> Int {
+        var n = 0
+        var current = node.parentElement.object
+        while let c = current { n += 1; current = c.parentElement.object }
+        return n
+    }
+
+    private func isAncestor(_ candidate: JSObject, of node: JSObject) -> Bool {
+        candidate.contains?(node).boolean == true && candidate != node
     }
 
     // MARK: Web storage (phase 8a)
