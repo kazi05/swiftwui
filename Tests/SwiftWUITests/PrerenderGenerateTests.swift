@@ -73,6 +73,25 @@ private func tmpDir() -> String {
                                                    config: .init(outDir: out, mode: .staticOnly))
         #expect(report.pages == ["/opted-in"])
     }
+
+    @Test func providerPathNotMatchingPatternGoesToUnmatched() async throws {
+        let out = tmpDir()
+        let report = try await StaticSite.generate(MismatchedProviderApp.self,
+                                                   config: .init(outDir: out, mode: .staticOnly))
+        #expect(report.pages == ["/routes/mcx/mow"])
+        #expect(!report.pages.contains("/oops"))
+        #expect(report.unmatchedPaths.contains("/oops"))
+    }
+}
+
+private struct MismatchedProviderApp: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/routes/:from/:to") { p in Text("\(p["from"] ?? "")→\(p["to"] ?? "")") }
+                .prerender(.paths { ["/routes/mcx/mow", "/oops"] })
+        }
+    }
 }
 
 private struct AppNeverApp: App {

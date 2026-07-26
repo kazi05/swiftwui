@@ -88,6 +88,7 @@ public enum StaticSite {
         var pagePaths: [String] = []
         var skipped: [String] = []
         var onDemand: [String] = []
+        var providerUnmatched: [String] = []
         var claimed = Set<String>()
 
         for route in collected {
@@ -105,7 +106,7 @@ public enum StaticSite {
             if let provider = policy?._pathProvider {
                 let produced = try await provider()
                 for path in produced where !claimed.contains(RouteURL._normalize(path)) {
-                    guard pattern.match(path) != nil else { continue }   // reported below
+                    guard pattern.match(path) != nil else { providerUnmatched.append(path); continue }
                     pagePaths.append(path)
                     claimed.insert(RouteURL._normalize(path))
                 }
@@ -128,7 +129,7 @@ public enum StaticSite {
                 }
             }
         }
-        let unmatched = config.paths.filter { !claimed.contains(RouteURL._normalize($0)) }   // M2
+        let unmatched = config.paths.filter { !claimed.contains(RouteURL._normalize($0)) } + providerUnmatched   // M2
 
         // --- render each page ---
         var report = StaticSiteReport(pages: [], redirects: [:], skippedPatterns: skipped,
