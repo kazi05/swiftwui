@@ -155,6 +155,29 @@ import Testing
         }
     }
 
+    @Test func zoomRejectsAnUnsafeSourceIDAndFallsBackToFade() {
+        // `sourceID` reaches `ViewTransitionCSS.zoomRules` as raw rule text
+        // (`StyleRegistry.registerRaw`'s caller-guarantees-safety sink), unlike
+        // every sibling path which validates through
+        // `StyleDeclaration.viewTransitionName`. Before the fix this closed
+        // the `<style>` element in SSG output / injected arbitrary CSS.
+        let unsafe = PageTransition.zoom(sourceID: "x) {} </style><script>evil()</script>")
+        #expect(unsafe == .fade)   // degrades rather than emitting broken CSS
+        let registry = StyleRegistry()
+        unsafe.register(into: registry)
+        #expect(!registry.text.contains("</style"))
+        #expect(!registry.text.contains("::view-transition-old("))
+    }
+
+    @Test func zoomAcceptsAValidSourceIDAndStillEmitsZoomRules() {
+        let valid = PageTransition.zoom(sourceID: "card-7")
+        #expect(valid != .fade)
+        let registry = StyleRegistry()
+        valid.register(into: registry)
+        #expect(registry.text.contains("::view-transition-old(card-7)"))
+        #expect(registry.text.contains("::view-transition-new(card-7)"))
+    }
+
     @Test func sugarResolvesToTheSameNameOnBothSides() {
         let ns = TransitionNamespace("hotels")
         let backend = MockBackend()

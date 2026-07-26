@@ -33,8 +33,19 @@ public struct PageTransition: Equatable {
     public static func slide(edge: Edge = .trailing) -> PageTransition {
         PageTransition(kind: .slide(edge))
     }
+    /// Validated at construction, same as every other name that reaches
+    /// `StyleRegistry.registerRaw` (`matchedTransition`'s
+    /// `StyleDeclaration.viewTransitionName`, `TransitionNamespace`'s prefix):
+    /// `sourceID` is interpolated into raw rule text in `ViewTransitionCSS`,
+    /// which is a caller-guarantees-safety sink, not a sanitizing one. An
+    /// unvalidated id (e.g. built from user/DB data) could otherwise close the
+    /// `<style>` element in SSG output or inject arbitrary rules into the live
+    /// stylesheet. A bad id degrades to `.fade` — animated but nameless —
+    /// rather than trapping or silently emitting broken CSS.
     public static func zoom(sourceID: String, in namespace: TransitionNamespace? = nil) -> PageTransition {
-        PageTransition(kind: .zoom(sourceID: namespace?.qualify(sourceID) ?? sourceID))
+        let name = namespace?.qualify(sourceID) ?? sourceID
+        guard StyleDeclaration.viewTransitionName(name) != nil else { return .fade }
+        return PageTransition(kind: .zoom(sourceID: name))
     }
     public static func custom(old: Keyframes, new: Keyframes) -> PageTransition {
         PageTransition(kind: .custom(old: old, new: new))
