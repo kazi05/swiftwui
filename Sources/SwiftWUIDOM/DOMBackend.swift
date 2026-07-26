@@ -402,13 +402,15 @@ public final class DOMBackend: RendererBackend {
     }
     public func remove(_ child: JSObject, from parent: JSObject) {
         try! SWNode(unsafelyWrapping: parent).removeChild(SWNode(unsafelyWrapping: child))
-        // Unmount, not a declaration change: removeStyleProperty never fires for
-        // a host torn out with its inline style intact, so without this a
-        // long-lived SPA with interpolated names (e.g. a ForEach row's id)
-        // accumulates namedHosts entries — and the JSObject references in
-        // them — for the page's lifetime. Guarded so the hot path (no view
-        // transition ever used) costs nothing.
-        if !namedHosts.isEmpty { purgeNamedHost(child) }
+        // Liveness-based, not node-based: removeStyleProperty never fires for a
+        // host torn out with its inline style intact, and a named element
+        // nested inside `child`'s subtree detaches here too (removeChild
+        // cascades natively) without ever getting its own `remove` call.
+        // isConnected is exact for both cases. Guarded so the hot path (no
+        // view transition ever used) costs nothing.
+        if !namedHosts.isEmpty {
+            for (key, host) in namedHosts where host.isConnected.boolean != true { namedHosts[key] = nil }
+        }
     }
 
     private func closureKey(_ node: JSObject, _ event: String) -> String {
