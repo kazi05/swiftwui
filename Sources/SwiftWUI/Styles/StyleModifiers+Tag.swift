@@ -316,6 +316,17 @@ extension Tag {
     /// Gated on `@media (prefers-reduced-motion: no-preference)` by default —
     /// pass `respectsReducedMotion: false` for an animation that carries
     /// information rather than decoration.
+    ///
+    /// Do not animate the same CSS property with both this and state-driven
+    /// styles — a running CSS animation outranks inline declarations, so the
+    /// WAAPI engine's value never takes effect while this animation is live.
+    ///
+    /// With `fillMode: .forwards`, don't rely on the animation to reach a
+    /// visible end state; the reduced-motion gate suppresses the rule
+    /// entirely.
+    ///
+    /// The animation lands in a generated class, so an inline
+    /// `.style("animation", …)` on the same element wins over it.
     public func animation(_ keyframes: Keyframes, duration: CSSDuration,
                           timingFunction: TimingFunction = .ease,
                           delay: CSSDuration = .ms(0),
