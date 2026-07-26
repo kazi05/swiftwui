@@ -1,26 +1,45 @@
 import Foundation
 import SwiftWUI
 
-public enum StaticSiteMode {
+public enum StaticSiteMode: Sendable {
     case hydrate(wasmScriptPath: String)
     case staticOnly
 }
 
-public struct StaticSiteConfig {
+public struct StaticSiteConfig: Sendable {
     public var outDir: String
     public var mode: StaticSiteMode
     public var paths: [String]
     public var cssFile: Bool
     /// JSON for a <script type="importmap"> emitted before the wasm module script
     /// (hydrate mode only). Default matches the swiftwui CLI dist layout; nil = no map.
-    public var importMapJSON: String? = #"{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}"#
+    public var importMapJSON: String?
+    /// Absolute site origin, e.g. "https://example.com". Required for sitemap
+    /// generation and for absolute canonical synthesis; nil = relative canonicals,
+    /// no sitemap (spec §5.2, §10).
+    public var siteURL: String?
+    /// Site-wide policy for routes and apps that declare none (spec §4.3).
+    public var defaultPrerender: Prerender?
+    /// Kill-switch. false = render nothing; the shell still ships.
+    public var prerenderEnabled: Bool
+    /// Synthesize <link rel="canonical"> when a page sets none (spec §5.2).
+    public var synthesizeCanonical: Bool
+
     public init(outDir: String, mode: StaticSiteMode, paths: [String] = [], cssFile: Bool = false,
-                importMapJSON: String? = #"{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}"#) {
+                importMapJSON: String? = #"{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}"#,
+                siteURL: String? = nil,
+                defaultPrerender: Prerender? = nil,
+                prerenderEnabled: Bool = true,
+                synthesizeCanonical: Bool = true) {
         self.outDir = outDir
         self.mode = mode
         self.paths = paths
         self.cssFile = cssFile
         self.importMapJSON = importMapJSON
+        self.siteURL = siteURL
+        self.defaultPrerender = defaultPrerender
+        self.prerenderEnabled = prerenderEnabled
+        self.synthesizeCanonical = synthesizeCanonical
     }
 }
 
