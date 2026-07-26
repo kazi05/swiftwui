@@ -98,6 +98,12 @@ extension StaticSite {
 }
 
 public enum StaticSite {
+    /// Build-task loop's cap (spec §6, D5). The loop checks this right after
+    /// incrementing, so it always fails at exactly `buildTaskIterationCap + 1`
+    /// — generate()'s error reconstruction derives its count from here rather
+    /// than a second hardcoded literal, so the two can't drift apart.
+    private static let buildTaskIterationCap = 10
+
     /// Renders one page per enumerated path (spec §5): a fresh native
     /// Runtime<MockBackend> per page — guards, redirects, effects and state
     /// behave exactly as in the browser.
@@ -181,8 +187,10 @@ public enum StaticSite {
                 documents.append((path, redirectStub(to: target)))
             case .error:
                 // generate() keeps its existing throwing contract; only the
-                // server (Phase B) treats a render failure as a 503.
-                throw StaticSiteError.buildTaskOverflow(page: path, iterations: 10)
+                // server (Phase B) treats a render failure as a 503. The cap
+                // (not a re-guessed literal) reproduces the same iteration
+                // count renderPage's own guard failed at (review finding 1).
+                throw StaticSiteError.buildTaskOverflow(page: path, iterations: buildTaskIterationCap + 1)
             case .notFound, .page:
                 report.pages.append(path)
                 if config.cssFile, !rendered.css.isEmpty, cssSeen.insert(rendered.css).inserted {
@@ -260,7 +268,7 @@ public enum StaticSite {
             let hadPending = await runtime._effects._drainBuildTasks(store: runtime._store)
             if !hadPending { break }
             iterations += 1
-            guard iterations <= 10 else {
+            guard iterations <= buildTaskIterationCap else {
                 return RenderedPage(html: "", css: "", head: nil,
                                     outcome: .error("page '\(path)' never quiesced after \(iterations) build-task iterations"))
             }
@@ -277,7 +285,7 @@ public enum StaticSite {
                                 outcome: .redirect(to: settled, permanent: false))
         }
 
-        guard case .component(let rootComponent)? = runtime._currentTree, runtime._routeMatched else {
+        guard case .component(let rootComponent)? = runtime._currentTree else {
             return RenderedPage(html: "", css: runtime._registryText, head: nil, outcome: .notFound)
         }
         let body = HTMLRenderer._render(rootComponent.children)
@@ -322,7 +330,11 @@ public enum StaticSite {
             snapshotJSON: snapshot,
             importMapJSON: importMap,
             wasmScriptPath: wasmPath))
-        return RenderedPage(html: doc, css: css, head: head, outcome: .page)
+        // A Router fallthrough to notFound still resolves real content (its
+        // notFound: closure, or nothing if the app declared none) — render it
+        // like any other page and only flag the outcome (review finding 2).
+        let outcome: RenderedPage.Outcome = runtime._routeMatched ? .page : .notFound
+        return RenderedPage(html: doc, css: css, head: head, outcome: outcome)
     }
 }
 

@@ -25,6 +25,7 @@ private struct OutcomeApp: App {
         let r = try await StaticSite.render(OutcomeApp.self, path: "/missing",
                                             config: .init(outDir: "unused", mode: .staticOnly))
         #expect(r.outcome == .notFound)
+        #expect(r.html.contains("nope"))
     }
 
     @Test func reportsRedirect() async throws {
