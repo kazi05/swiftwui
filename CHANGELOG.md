@@ -4,6 +4,26 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
+## [Unreleased]
+
+### Added
+
+- **CSS `@keyframes`** — declare a keyframe animation as a value and attach it with a typed modifier:
+
+  ```swift
+  let spin = Keyframes("spin") {
+      $0.from { $0.transform(.rotate(.deg(0))) }
+      $0.to { $0.transform(.rotate(.deg(360))) }
+  }
+
+  Div().animation(spin, duration: .s(1), timingFunction: .linear, iterations: .infinite)
+  ```
+
+  The rule is emitted inside `@media (prefers-reduced-motion: no-preference)` by default; pass
+  `respectsReducedMotion: false` to opt out. The emitted CSS name is hash-suffixed, so identical
+  keyframes dedupe and two values sharing a name cannot overwrite each other. Distinct from the
+  WAAPI `animation(_:value:)`, which stays the right tool for state-driven transitions.
+
 ## [0.6.0] - 2026-07-20
 
 ### Added

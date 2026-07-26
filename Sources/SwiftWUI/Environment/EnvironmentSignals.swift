@@ -72,10 +72,10 @@ extension EnvironmentValues {
     public var appUpdateAvailable: Bool { _signals?.appUpdateAvailable ?? false }
     /// `prefers-reduced-motion: reduce` (anim spec §9). Gates the animation
     /// engine automatically (Runtime reads this into `AnimationPassContext`).
-    /// Any decorative `@keyframes` registered directly through Styled/keyframes
-    /// (not the withAnimation/.transition engine) should be authored inside
-    /// `@media (prefers-reduced-motion: no-preference) { ... }` — the engine
-    /// gate doesn't reach hand-written CSS keyframes. `false` outside a live runtime.
+    /// CSS keyframe loops go through `.animation(_:duration:…)`, which applies
+    /// this gate itself; hand-written `.style("animation", …)` still needs a
+    /// manual `@media (prefers-reduced-motion: no-preference)` wrapper.
+    /// `false` outside a live runtime.
     public var accessibilityReduceMotion: Bool { _signals?.reduceMotion ?? false }
     /// Live drag-over-window state — build overlay "drop anywhere" zones the
     /// moment files enter the window. `.none` outside a live runtime.
