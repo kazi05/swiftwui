@@ -15,11 +15,15 @@ import Testing
             let head = PageHead(title: p, meta: [.description(p)], links: [.canonical(p)])
             let doc = DocumentSerializer.render(.init(bodyHTML: "", head: head))
             #expect(!doc.contains("<script>alert(1)</script>"))
-            // Substring check, not "onerror=alert(1)" alone: that fragment survives
-            // escaping harmlessly as inert text (`onerror=alert(1)` has no chars
-            // HTMLEscaping.text touches) once its surrounding `<`/`>` are entities —
-            // it is never a live attribute. The unescaped tag IS the exploit surface.
-            #expect(!doc.contains("<img src=x onerror=alert(1)>"))
+            // Positive: the value must not silently vanish — a channel that DROPPED
+            // the payload instead of escaping it would also pass a purely negative
+            // check, and that's a bug too. Negative: skip when escaping is a no-op
+            // for this payload (e.g. "javascript:alert(1)" has no HTML metacharacters)
+            // — there's nothing to distinguish there, and raw presence is expected.
+            #expect(doc.contains(HTMLEscaping.text(p)))
+            if p != HTMLEscaping.text(p) {
+                #expect(!doc.contains(p))
+            }
         }
     }
 
