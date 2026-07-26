@@ -195,6 +195,27 @@ private struct VTCounter: Tag {
         #expect(backend.viewTransitions[0].durationMS == 500)
     }
 
+    @Test func performViewTransitionForwardsThroughAdoptingBackend() {
+        // Mirrors AppUpdateTests.reloadToUpdateForwardsThroughAdoptingBackend.
+        // `RendererBackend`'s protocol extension supplies a default
+        // `performViewTransition` that just calls `update()` inline — deleting
+        // `AdoptingBackend`'s override compiles and every other suite stays
+        // green, but it would silently disable view transitions on every
+        // prerendered+hydrated app while `swiftwui dev` (cold-mounted, no
+        // AdoptingBackend) keeps animating. Nothing else exercised this
+        // forwarding path.
+        let base = MockBackend()
+        let adopting = AdoptingBackend(base: base, container: base.container)
+        let sched = TestScheduler()
+        let runtime = Runtime(backend: adopting, container: base.container,
+                              root: VTCounter(), scheduleMicrotask: sched.schedule)
+        runtime.mount()
+        let button = findFirst(base.container, tag: "button")!
+        withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
+        sched.pump()
+        #expect(base.viewTransitions.count == 1)
+    }
+
     @Test func transitionFlushCreatesNoExitGhost() {
         let (runtime, backend, sched) = makeRuntime(VTExiting())
         let button = findFirst(backend.container, tag: "button")!

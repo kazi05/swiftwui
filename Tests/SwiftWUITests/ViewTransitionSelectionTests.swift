@@ -39,12 +39,36 @@ private struct SelectionApp: Tag {
     }
 
     @Test func ambientAppliesWhenTheRouteDeclaresNothing() {
+        // Dispatched through the `/plain` Link (not a direct `runtime.navigate`
+        // call) on purpose: after fix 2 dropped the Router-default fourth term
+        // from `navigate`'s precedence chain, a *direct* call with no ambient
+        // argument no longer falls back to it. A `Link`, though, still does —
+        // `\.navigate` binds the nearest ambient `.pageTransition` wherever
+        // it's read, and this Link sits inside the Router's own
+        // `.pageTransition(.fade)` subtree with nothing closer overriding it.
         let (runtime, backend, sched) = makeRuntime()
-        runtime.navigate(to: "/plain")
+        let link = findLink(backend.container, href: "/plain")!
+        runtime.dispatch(link.events["click"]!)
         sched.pump()
         #expect(backend.viewTransitions.count == 1)
         #expect(backend.viewTransitions[0].presetName == PageTransition.fade.cssAttributeValue)
         #expect(backend.viewTransitions[0].direction == .push)
+    }
+
+    @Test func explicitNilPageTransitionDisablesEvenUnderARouterDefault() {
+        // Fix 2: "explicitly nil" and "never set" must be the same state
+        // end-to-end. Before the fix, `navigate`'s precedence chain ended in
+        // `?? routerTransitionDefault`, so a subtree wrapped in
+        // `.pageTransition(nil)` still inherited the Router's `.fade` default
+        // — this fixture's `NilAmbientNavigator` is exactly that subtree.
+        let backend = MockBackend()
+        let sched = TestScheduler()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: NilAmbientApp(), scheduleMicrotask: sched.schedule)
+        runtime.mount()
+        runtime.dispatch(findFirst(backend.container, tag: "button")!.events["click"]!)
+        sched.pump()
+        #expect(backend.viewTransitions.isEmpty)
     }
 
     @Test func destinationRouteBeatsAmbient() {
@@ -99,12 +123,16 @@ private struct SelectionApp: Tag {
         let runtime = Runtime(backend: backend, container: backend.container,
                               root: OrderedApp(), scheduleMicrotask: sched.schedule)
         runtime.mount()
-        runtime.navigate(to: "/todo/new")
+        // `OrderedApp` has no Link to dispatch through, and fix 2 dropped the
+        // Router-default fallback from a direct `navigate` call — pass
+        // `ambient:` explicitly here (what a Link in this subtree would
+        // supply) so the test still exercises the thing it's actually about:
+        // /todo/new falling back past its own (nil) declaration to the
+        // ambient, NOT to /todo/:id's `.slide()`, which it shadows.
+        runtime.navigate(to: "/todo/new", ambient: .fade)
         sched.pump()
-        // /todo/new declares nothing, so it falls back to the Router ambient —
-        // NOT to /todo/:id's slide, which it shadows.
         #expect(backend.viewTransitions[0].presetName == PageTransition.fade.cssAttributeValue)
-        runtime.navigate(to: "/todo/7")
+        runtime.navigate(to: "/todo/7", ambient: .fade)
         sched.pump()
         #expect(backend.viewTransitions[1].presetName == PageTransition.slide().cssAttributeValue)
     }
@@ -138,8 +166,13 @@ private struct SelectionApp: Tag {
         runtime.mount()
         runtime.dispatch(findFirst(backend.container, tag: "button")!.events["click"]!)
         sched.pump()
-        // First hop: the Router default, because /admin was not in the table yet.
-        #expect(backend.viewTransitions.last?.presetName == PageTransition.fade.cssAttributeValue)
+        // First hop: `navigate` here is read on `ConditionalRouteApp`'s own
+        // Button, a SIBLING of `Router` — outside its `.pageTransition(.fade)`
+        // subtree, not inside it. After fix 2 dropped the Router-default
+        // fourth term, a call with no ambient channel and no route entry yet
+        // for `/admin` resolves no transition at all (previously it fell back
+        // to the Router default; that's exactly the documented cost of fix 2).
+        #expect(backend.viewTransitions.isEmpty)
         runtime.navigate(to: "/")
         sched.pump()
         runtime.navigate(to: "/admin")
@@ -313,6 +346,19 @@ private struct SubtreeAmbientApp: Tag {
                     .pageTransition(.slide().duration(.ms(300)))   // beats the Router default
             }
             Route("/plain") { Div { Text("plain") } }              // declares nothing
+        }
+        .pageTransition(.fade)
+    }
+}
+
+private struct NilAmbientApp: Tag {
+    var body: some Tag {
+        Router {
+            Route("/") {
+                SubtreeNavigator()
+                    .pageTransition(nil)   // explicitly disables, even under the Router default below
+            }
+            Route("/plain") { Div { Text("plain") } }   // declares nothing
         }
         .pageTransition(.fade)
     }

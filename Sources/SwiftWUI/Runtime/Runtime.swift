@@ -198,10 +198,24 @@ public final class Runtime<Backend: RendererBackend> {
         if replace { applier.backend.replaceState(path: full) }
         else { applier.backend.pushState(path: full) }
         // Precedence (spec §4): explicit call site → destination Route →
-        // nearest ambient `.pageTransition` → the Router's ambient default.
+        // nearest ambient `.pageTransition`. No Router-default fourth term:
+        // "explicitly nil" and "never set" must stay the same state end to
+        // end (`.pageTransition(nil)` disables, RouteEnvironment.swift), and a
+        // fourth term folded into this optional chain could never tell the
+        // two apart, so a subtree wrapped in `.pageTransition(nil)` would
+        // still inherit the Router's default. A `Link` rendered INSIDE the
+        // Router's own subtree is unaffected: `\.navigate` binds whatever
+        // `.pageTransition` is nearest wherever it's read
+        // (RouteEnvironment.swift), and that's the Router's own value when
+        // nothing closer overrides it. The cost: a `navigate` call made
+        // OUTSIDE the Router's subtree (e.g. a sibling nav bar) no longer
+        // inherits the Router's default — move `.pageTransition` to a common
+        // ancestor if that's needed. `handlePopState` below keeps the old
+        // fourth term: it has no call site and therefore no ambient channel,
+        // so the Router's default is its only fallback.
         // A redirect (`replace: true`) animates only when asked explicitly.
         let resolved = transition
-            ?? (replace ? nil : (routeDeclaredTransition(for: path) ?? ambient ?? routerTransitionDefault))
+            ?? (replace ? nil : (routeDeclaredTransition(for: path) ?? ambient))
         armViewTransition(resolved, direction: replace ? nil : .push, isNavigation: true)
         markDirty(.root)
     }

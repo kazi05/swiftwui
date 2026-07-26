@@ -911,6 +911,11 @@ public final class DOMBackend: RendererBackend {
         if let preset = options.presetName { _ = root?.setAttribute?("data-swui-vt", preset) }
         if let direction = options.direction {
             _ = root?.setAttribute?("data-swui-nav", direction.rawValue)
+        } else {
+            // A directionless transition (e.g. `withViewTransition`, no
+            // navigation) must not inherit a PREVIOUS transition's attribute —
+            // otherwise it plays that transition's reversed `pop` variant.
+            _ = root?.removeAttribute?("data-swui-nav")
         }
 
         let callback = JSOneshotClosure { _ in
@@ -1083,11 +1088,18 @@ public final class DOMBackend: RendererBackend {
 
     private func animateFlip(_ host: JSObject, dx: Double, dy: Double,
                              sx: Double, sy: Double, durationMS: Double) {
+        // `transform-origin` defaults to `50% 50%`, so `scale` happens about
+        // the center while `dx`/`dy` were computed from top-left corners —
+        // without pinning it to `0 0` on both keyframes, the first frame is
+        // off by half the size delta on each axis whenever the element
+        // resizes (the exact case this fallback exists for).
         let from: [String: JSValue] = [
             "translate": .string("\(cssNumber(dx))px \(cssNumber(dy))px"),
             "scale": .string("\(cssNumber(sx)) \(cssNumber(sy))"),
+            "transform-origin": .string("0 0"),
         ]
-        let to: [String: JSValue] = ["translate": .string("none"), "scale": .string("none")]
+        let to: [String: JSValue] = ["translate": .string("none"), "scale": .string("none"),
+                                     "transform-origin": .string("0 0")]
         let options = JSObject.global.Object.function!.new()
         options.duration = .number(durationMS)
         options.easing = .string("ease")
