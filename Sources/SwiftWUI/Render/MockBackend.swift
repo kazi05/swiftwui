@@ -161,9 +161,13 @@ public final class MockBackend: RendererBackend {
     public func preferredLanguages() -> [String] { bump("preferredLanguages"); return preferred }
 
     public var cookies: [String: String] = [:]             // pre-seedable by tests
+    /// Full calls, not just the jar: `Secure` and the TTL are contract, and a
+    /// jar-only record makes them untestable.
+    public private(set) var cookieWrites: [(name: String, value: String, maxAgeDays: Int, secure: Bool)] = []
     public func readCookie(_ name: String) -> String? { bump("readCookie"); return cookies[name] }
     public func writeCookie(_ name: String, value: String, maxAgeDays: Int, secure: Bool) {
         bump("writeCookie"); cookies[name] = value
+        cookieWrites.append((name, value, maxAgeDays, secure))
     }
 
     public private(set) var windowEventSink: ((WindowEventKind, Any) -> Void)?

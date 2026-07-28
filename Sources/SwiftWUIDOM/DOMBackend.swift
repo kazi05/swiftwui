@@ -1205,8 +1205,11 @@ public final class DOMBackend: RendererBackend {
 
     public func writeCookie(_ name: String, value: String, maxAgeDays: Int, secure: Bool) {
         // Values are validated locale tags; refuse anything else rather than
-        // letting a stray ';' forge cookie attributes.
-        guard value.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }) else { return }
+        // letting a stray ';' forge cookie attributes. Empty is refused too: a
+        // bare `swiftwui_locale=` reads back as "" — a jar entry that says a
+        // locale was chosen while carrying no tag.
+        guard !value.isEmpty,
+              value.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }) else { return }
         var cookie = "\(name)=\(value); path=/; max-age=\(maxAgeDays * 86_400); SameSite=Lax"
         if secure { cookie += "; Secure" }
         jsDocument.cookie = .string(cookie)

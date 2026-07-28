@@ -20,7 +20,7 @@ private struct Show: Tag {
 
     private func boot(_ strategy: LocaleStrategy?, path: String = "/",
                       persisted: String? = nil, preferred: [String] = [],
-                      servedLang: String? = nil) -> (Runtime<MockBackend>, MockBackend) {
+                      servedLang: String? = nil, secureContext: Bool = false) -> (Runtime<MockBackend>, MockBackend) {
         let backend = MockBackend(); let sched = Sched()
         if let persisted { backend.localStorage["__swiftwui.locale"] = persisted }
         backend.preferred = preferred
@@ -28,6 +28,7 @@ private struct Show: Tag {
                               initialPath: path, scheduleMicrotask: sched.schedule,
                               localization: strategy.map(l10n))
         runtime._servedLanguage = servedLang
+        runtime._isSecureContext = secureContext
         runtime.mount(); sched.drain()
         return (runtime, backend)
     }
@@ -82,6 +83,17 @@ private struct Show: Tag {
         let (runtime, backend) = boot(.negotiated, persisted: "ru", servedLang: "en")
         #expect(runtime._signals.locale == LocaleID("ru")!)
         #expect(backend.cookies["swiftwui_locale"] == "ru")
+    }
+
+    /// The cookie the edge reads back is the whole point of `.negotiated`, so
+    /// its attributes are part of the contract, not an implementation detail:
+    /// `Secure` on https and a year of TTL (Task 6 review carry).
+    @Test func negotiatedCookieIsSecureAndYearLongOnHTTPS() {
+        let (_, backend) = boot(.negotiated, persisted: "ru", servedLang: "en", secureContext: true)
+        #expect(backend.cookieWrites.count == 1)
+        #expect(backend.cookieWrites.last?.name == "swiftwui_locale")
+        #expect(backend.cookieWrites.last?.secure == true)
+        #expect(backend.cookieWrites.last?.maxAgeDays == 365)
     }
 
     // MARK: storage-vs-URL precedence (Task 9 carry)

@@ -30,5 +30,15 @@ struct SSG: ParsableCommand {
             let s = try ReleaseArtifacts.compress(distDir: outDir, runner: runner)
             print("refreshed \(s.gzipped) precompressed file(s) after ssg")
         }
+        // `.negotiated` is the one strategy a plain static host cannot serve —
+        // say so here, where the folders were just written, not in the docs only.
+        if let site = LocaleNegotiation.read(distDir: outDir), site.isNegotiated {
+            try ReleaseArtifacts.writeNginxConf(distDir: outDir, site: site)
+            print("""
+            NOTE: this site uses the .negotiated locale strategy — clean URLs with \
+            per-locale folders. It requires a host that can rewrite by cookie/Accept-Language. \
+            Wrote \(out)/nginx.conf; on GitHub Pages or bare S3 only '\(site.defaultLocale)' will be reachable.
+            """)
+        }
     }
 }

@@ -232,23 +232,49 @@ public final class HTTPServer: @unchecked Sendable {   // guarded by `lock`
 public enum StaticFiles {
     /// Serve files under `root` for URLs starting with `urlPrefix`.
     /// Directory / extensionless resolution: exact file → `<path>/index.html` →
-    /// (spaFallback) `<root>/index.html` → nil (fall through).
-    public static func handler(urlPrefix: String, root: String, spaFallback: Bool = false) -> HTTPHandler {
+    /// (spaFallback) `<root>/index.html` → nil (fall through). A `.negotiated`
+    /// `localeSite` inserts `<root>/<locale>/<path>` and `<root>/<locale>/index.html`
+    /// ahead of all of that, matching only real files at the root before them.
+    ///
+    /// `localeSite` gives the dev server the same rule the generated nginx.conf
+    /// deploys: a `.negotiated` dist keeps clean URLs and puts the locale in the
+    /// folder, so `/about` has to become `<root>/ru/about/index.html` here too —
+    /// otherwise `swiftwui serve` 404s on every page the edge would serve.
+    public static func handler(urlPrefix: String, root: String, spaFallback: Bool = false,
+                               localeSite: LocaleNegotiation.Site? = nil) -> HTTPHandler {
         let rootResolved = URL(fileURLWithPath: root).standardizedFileURL.path
         return { request in
             guard request.path.hasPrefix(urlPrefix) else { return nil }
             let rel = String(request.path.dropFirst(urlPrefix.count))
-            func fileResponse(_ fsPath: String) -> HTTPResponse? {
+            func fileResponse(_ fsPath: String, directoryIndex: Bool = true) -> HTTPResponse? {
                 let resolved = URL(fileURLWithPath: fsPath).standardizedFileURL.path
                 guard resolved == rootResolved || resolved.hasPrefix(rootResolved + "/") else { return nil }   // traversal guard (incl. sibling-prefix)
                 var isDir: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: resolved, isDirectory: &isDir) else { return nil }
-                if isDir.boolValue { return fileResponse(resolved + "/index.html") }
+                if isDir.boolValue { return directoryIndex ? fileResponse(resolved + "/index.html") : nil }
                 guard let data = FileManager.default.contents(atPath: resolved) else { return nil }
                 return .file(bytes: Array(data), mime: MIME.type(forPath: resolved))
             }
             let candidate = rootResolved + "/" + rel
-            if let r = fileResponse(candidate) { return r }
+            if let site = localeSite, site.isNegotiated {
+                // Same candidate order as the generated `try_files $uri
+                // /$locale$uri/index.html /$locale/index.html /index.html`:
+                // `$uri` matches a FILE (root-level assets), never a directory,
+                // so the locale folder owns every document — including "/", which
+                // otherwise resolves to the build's root SPA shell here while
+                // nginx serves the prerendered per-locale page.
+                if let r = fileResponse(candidate, directoryIndex: false) { return r }
+                let dir = rootResolved + "/" + LocaleNegotiation.pick(cookie: request.headers["cookie"],
+                                                                      acceptLanguage: request.headers["accept-language"],
+                                                                      site: site)
+                var hit = fileResponse(dir + "/" + rel)
+                if hit == nil, spaFallback, !rel.contains(".") { hit = fileResponse(dir + "/index.html") }
+                if var r = hit {
+                    r.headers["Vary"] = "Accept-Language, Cookie"
+                    return r
+                }
+            }
+            if let r = fileResponse(candidate) { return r }            // assets stay at the root
             if !rel.contains(".") , let r = fileResponse(candidate + "/index.html") { return r }
             if spaFallback, !rel.contains("."), let r = fileResponse(rootResolved + "/index.html") { return r }
             return nil

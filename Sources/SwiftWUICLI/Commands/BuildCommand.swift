@@ -42,7 +42,7 @@ struct Build: ParsableCommand {
         }
         if config == "release" {
             let s = try ReleaseArtifacts.compress(distDir: outDir, runner: runner)
-            try ReleaseArtifacts.writeNginxConf(distDir: outDir)
+            try ReleaseArtifacts.writeNginxConf(distDir: outDir, site: LocaleNegotiation.read(distDir: outDir))
             print("precompressed \(s.gzipped) file(s) (\(s.brotliAvailable ? "gzip + brotli" : "gzip only")); wrote nginx.conf")
         } else {
             try ReleaseArtifacts.clean(distDir: outDir)
