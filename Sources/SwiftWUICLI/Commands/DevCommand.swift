@@ -40,6 +40,10 @@ struct Dev: ParsableCommand {
                 _ = watcher.changed()                   // absorb the debounce window
                 print("change detected — rebuilding…")
                 session.rebuildAndNotify()
+                // Not redundant: the rebuild regenerates Generated/L10n.swift,
+                // a watched .swift file. Without this the next poll sees the
+                // generator's own write and reloads the browser a second time.
+                _ = watcher.changed()
             }
         }
     }

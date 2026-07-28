@@ -70,6 +70,11 @@ import SwiftWUI
         #expect(throws: L10nGeneratorError.self) {
             _ = try L10nGenerator.addLocale(projectDir: root, tag: "../evil", target: nil)
         }
+        // `--target` reaches the same path join: one component, or nothing.
+        #expect(L10nGenerator.localesOwner(projectDir: root, target: "../../elsewhere") == nil)
+        #expect(throws: L10nGeneratorError.self) {
+            _ = try L10nGenerator.addLocale(projectDir: root, tag: "fr", target: "../../elsewhere")
+        }
     }
 
     /// The seeded catalog keeps every placeholder, so it passes `validate`'s
@@ -80,6 +85,18 @@ import SwiftWUI
         let outcome = try #require(try L10nGenerator.generate(projectDir: root))
         let text = try String(contentsOfFile: outcome.path, encoding: .utf8)
         #expect(text.contains(#"case "de": return _l_de()"#))
+    }
+
+    /// `changed()` consumes what it reports. The dev loop's `_ = watcher.changed()`
+    /// after a rebuild relies on that to absorb the generator's own write —
+    /// `Generated/L10n.swift` is itself a watched `.swift` file, so without the
+    /// absorb every catalog edit reloads the browser twice.
+    @Test func absorbingTheGeneratorsOwnWriteResetsTheBaseline() throws {
+        let root = try makeProject(["en": #"{"a":"A"}"#])
+        let watcher = FileWatcher(root: root)
+        _ = try #require(try L10nGenerator.generate(projectDir: root))
+        #expect(watcher.changed())      // Generated/L10n.swift appeared
+        #expect(!watcher.changed())     // …and one read absorbs it
     }
 
     @Test func tagValidationMatchesLocaleID() {

@@ -30,6 +30,10 @@ public enum L10nGenerator {
         let sources = projectDir + "/Sources"
         let fm = FileManager.default
         if let target {
+            // `target` is joined into a path that `addLocale` then writes into, so
+            // it is a trust boundary: one component, no traversal, no separators.
+            guard !target.isEmpty, !target.contains("/"), !target.contains("\\"),
+                  !target.contains("..") else { return nil }
             let dir = sources + "/" + target
             return fm.fileExists(atPath: dir + "/Locales") ? dir : nil
         }
