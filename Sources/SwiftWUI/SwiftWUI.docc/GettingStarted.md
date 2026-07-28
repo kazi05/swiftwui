@@ -36,17 +36,25 @@ cd MyApp
 swiftwui dev          # http://127.0.0.1:8080, rebuilds on save
 ```
 
-`init` accepts `--template basic|mvvm|tca`. The scaffold contains
-`Package.swift`, `Sources/main.swift`, `index.html`, a Dockerfile, and a
-vendored wasi-shim, so it builds offline and in containers.
+`init` accepts `--template basic|mvvm|tca`, and `--pwa` to also scaffold a
+manifest, icons, and a service worker (see <doc:PWA>). The scaffold contains
+`Package.swift`, `Sources/main.swift`, `index.html`, `nginx.conf`, two
+Dockerfiles, and a vendored wasi-shim, so it builds offline and in
+containers. Its `Package.swift` depends on the published
+`https://github.com/kazi05/swiftwui.git`; pass `--swiftwui-path <dir>` to
+point at a local checkout instead.
 
 ### Static assets
 
 Files in `public/` are served from the site root: `public/favicon.svg`
 is `/favicon.svg`, `public/fonts/Inter.woff2` is `/fonts/Inter.woff2`.
 `swiftwui dev` serves them directly; `swiftwui build` and `swiftwui ssg`
-copy them into `dist/`. The names `app`, `vendor`, `index.html`,
-`styles.css`, and `__swiftwui` are reserved at the top level of `public/`.
+copy them into `dist/`. Seven names are reserved at the top level of
+`public/`, because they would shadow the framework's own `dist/` layout:
+`app`, `vendor`, `index.html`, `styles.css`, `__swiftwui`, `sw-assets.js`,
+and `nginx.conf`. A collision is a hard error from `build` and `ssg`, not a
+silent overwrite; nested paths like `public/assets/index.html` are fine,
+since only the first path component competes.
 
 Reference assets with plain URLs — `Img(src: "/images/hero.webp", alt: "…",
 width: 1200, height: 630)` — declare fonts with
@@ -80,10 +88,15 @@ swiftwui serve dist   # preview the built site
 ```
 
 Prerendered pages hydrate in the browser: the wasm app adopts the existing
-DOM instead of re-creating it.
+DOM instead of re-creating it. `build` defaults to the release
+configuration, which also writes `.gz`/`.br` siblings and a `dist/nginx.conf`
+— see <doc:Deployment> for what a server has to provide, and
+<doc:Prerendering> for choosing which routes get prerendered.
 
 ### Learn more
 
-The repository ships two example apps — `Examples/Counter` (minimal) and
-`Examples/TodoMVC` (routing, themes, bindings, SSG) — and a 12-chapter
-interactive tutorial under `Sites/Tutorial`, itself built with SwiftWUI.
+The repository ships three example apps — `Examples/Counter` (minimal),
+`Examples/TodoMVC` (routing, themes, bindings, SSG), and
+`Examples/DragDrop` (drag sources, drop zones, file import) — and a
+19-chapter interactive tutorial under `Sites/Tutorial`, itself built with
+SwiftWUI.

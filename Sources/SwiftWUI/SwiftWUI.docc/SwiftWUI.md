@@ -55,9 +55,20 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 - ``EnvironmentKey``
 - ``EnvironmentValues``
 
+### Dependency injection
+
+- <doc:Dependencies>
+- ``Dependency``
+- ``DependencyKey``
+- ``DependencyValues``
+- ``WebStorage``
+- ``Logger``
+- ``LogLevel``
+
 ### HTML elements and events
 
 - ``HTMLTag``
+- ``Img``
 - ``EventName``
 - ``ClickEvent``
 - ``InputEvent``
@@ -71,13 +82,70 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 
 - ``Style``
 - ``StyleProxy``
+- ``StyleDeclaration``
 - ``Rule``
 - ``RulesBuilder``
-- ``MediaQuery``
 - ``ThemeDefinition``
 - ``StyleToken``
+- ``FontFace``
+
+### Responsive styling
+
+- <doc:ResponsiveStyling>
+- ``MediaQuery``
+- ``Breakpoint``
+- ``Responsive``
+- ``MediaProxy``
+- ``ContainerType``
+
+### CSS value types
+
+- ``CSSValueConvertible``
 - ``CSSColor``
 - ``CSSLength``
+- ``CSSAngle``
+- ``CSSDuration``
+- ``TimingFunction``
+- ``Shadow``
+- ``BorderRadius``
+- ``FilterFunction``
+- ``TransformFunction``
+- ``CSSBackgroundImage``
+- ``CSSGradientStop``
+- ``BlendMode``
+- ``GridLine``
+- ``AspectRatio``
+- ``ObjectPosition``
+- ``BackgroundPosition``
+- ``BackgroundSize``
+- ``JustifyItems``
+- ``JustifySelf``
+- ``AlignContent``
+
+### Animation and motion
+
+- <doc:Animations>
+- <doc:Keyframes>
+- ``Animation``
+- ``Transaction``
+- ``AnyTransition``
+- ``Edge``
+- ``Keyframes``
+- ``KeyframeStops``
+- ``AnimationDirection``
+- ``AnimationFillMode``
+- ``AnimationIterations``
+
+### Drag and drop
+
+- <doc:DragAndDrop>
+- ``DragPayload``
+- ``FileType``
+- ``DragSessionInfo``
+- ``DropLocation``
+- ``SortAxis``
+- ``DragEvent``
+- ``DropEvent``
 
 ### Routing
 
@@ -88,11 +156,18 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 - ``Link``
 - ``Page``
 - ``MetaTag``
+- ``LinkTag``
+- ``PreloadKind``
 - ``RouteInfo``
 - ``NavigateAction``
 - ``QueryParam``
 - ``RouteParam``
+- ``Prerender``
 - <doc:ViewTransitions>
+- ``PageTransition``
+- ``NavigationTransition``
+- ``TransitionNamespace``
+- ``ViewTransitionOptions``
 - <doc:Prerendering>
 
 ### Effects
@@ -103,6 +178,7 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 
 - <doc:BrowserAPIs>
 - <doc:Modifiers>
+- ``TagModifier``
 - ``ColorScheme``
 - ``AppStorage``
 - ``SceneStorage``
@@ -118,6 +194,10 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 ### PWA
 
 - <doc:PWA>
+
+### Building and deploying
+
+- <doc:Deployment>
 
 ### Rendering and advanced
 
