@@ -64,6 +64,46 @@ extension Tag {
     }
 }
 
+/// The localized twin of `_PageMetaTag`. It exists because `PageHeadPatch.title`
+/// is a plain `String` built at call time, before the locale is known — only
+/// `_resolve` can turn the `LocalizedText` into one.
+struct _LocalizedPageMetaTag<Content: Tag>: Tag, _PrimitiveTag {
+    typealias Body = Never
+    let title: LocalizedText
+    let patch: PageHeadPatch
+    let content: Content
+
+    @MainActor func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
+        _TypeNameRegistry.register(Self.self)
+        let id = path.appending(.type(ObjectIdentifier(Self.self)))
+        var resolved = patch
+        resolved.title = title.resolved(for: ctx.environment.locale,
+                                        fallback: ctx.environment._signals?.defaultLocale)
+        ctx.pageHeadPatch = resolved      // deepest/last resolve wins
+        return resolve(content, path: id, ctx: &ctx)
+    }
+}
+
+extension Tag {
+    /// Localized document title; other head fields keep their String form.
+    public func pageMeta(title: LocalizedText,
+                         meta: [MetaTag]? = nil,
+                         links: [LinkTag]? = nil,
+                         structuredData: [String]? = nil) -> some Tag {
+        #if DEBUG
+        for block in structuredData ?? [] {
+            if !_JSONWellFormed.check(block) {
+                assertionFailure("pageMeta: structuredData block is not valid JSON: \(block.prefix(80))")
+            }
+        }
+        #endif
+        return _LocalizedPageMetaTag(title: title,
+                                     patch: PageHeadPatch(title: nil, meta: meta, links: links,
+                                                          structuredData: structuredData),
+                                     content: self)
+    }
+}
+
 enum _JSONWellFormed {
     /// Cheap structural check: balanced braces/brackets outside strings, and a
     /// non-empty trimmed body. DEBUG-only authoring aid, not a parser.

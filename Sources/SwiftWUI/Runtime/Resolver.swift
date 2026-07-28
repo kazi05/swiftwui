@@ -167,6 +167,13 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
         observers[kind] = lid
     }
     var effectiveBag = bag
+    if !bag.localized.isEmpty {
+        let locale = ctx.environment.locale
+        let fallback = ctx.environment._signals?.defaultLocale
+        for (name, text) in bag.localized {
+            effectiveBag.set(name, text.resolved(for: locale, fallback: fallback))
+        }
+    }
     for rule in bag.pendingRules {
         if let kf = rule.keyframes { ctx.registry.registerRaw(kf.ruleText) }
         if let raw = rule.rawText { ctx.registry.registerRaw(raw); continue }

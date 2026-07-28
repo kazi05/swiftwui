@@ -7,9 +7,17 @@ public struct EmptyTag: Tag, _PrimitiveTag {
 public struct Text: Tag, _PrimitiveTag {
     public typealias Body = Never
     public var content: String
-    public init(_ content: String) { self.content = content }
+    let localized: LocalizedText?
+    public init(_ content: String) { self.content = content; self.localized = nil }
+    /// Resolution is deferred to `_resolve`, where the locale is known.
+    public init(_ localized: LocalizedText) {
+        self.content = localized.key
+        self.localized = localized
+    }
     @MainActor public func _resolve(path: NodeIdentity, ctx: inout ResolveContext) -> [Node] {
-        [.text(content)]
+        guard let localized else { return [.text(content)] }
+        return [.text(localized.resolved(for: ctx.environment.locale,
+                                         fallback: ctx.environment._signals?.defaultLocale))]
     }
 }
 

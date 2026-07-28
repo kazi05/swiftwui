@@ -24,6 +24,7 @@ public struct _AttributeBag {
     private(set) var observers: [(kind: ObserverKind, action: (Any?) -> Void)] = []
     private(set) var styles: [StyleDeclaration] = []
     private(set) var pendingRules: [PendingStyleRule] = []
+    private(set) var localized: [(name: String, value: LocalizedText)] = []
     mutating func addPendingRule(_ r: PendingStyleRule) { pendingRules.append(r) }
 
     init(id: String? = nil, class classes: String? = nil) {
@@ -38,6 +39,17 @@ public struct _AttributeBag {
             return
         }
         pairs.append((name, value))
+    }
+
+    /// Deferred attribute value: resolved in `resolveElement`, where the
+    /// locale is known. Last-wins with plain attributes of the same name,
+    /// because these are appended after them.
+    mutating func set(_ name: String, localized value: LocalizedText) {
+        guard Self.isValidName(name) else {
+            assertionFailure("invalid attribute name: \(name)")
+            return
+        }
+        localized.append((name, value))
     }
 
     mutating func setProperty(_ name: String, _ value: PropertyValue) { properties.append((name, value)) }
