@@ -194,6 +194,12 @@ where Base.HostNode: AnyObject {
     public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {
         base.beginStorageObservation(onExternalChange: onExternalChange)
     }
+    public func setDocumentLanguage(_ lang: String, dir: String?) { base.setDocumentLanguage(lang, dir: dir) }
+    public func preferredLanguages() -> [String] { base.preferredLanguages() }
+    public func readCookie(_ name: String) -> String? { base.readCookie(name) }
+    public func writeCookie(_ name: String, value: String, maxAgeDays: Int, secure: Bool) {
+        base.writeCookie(name, value: value, maxAgeDays: maxAgeDays, secure: secure)
+    }
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
         base.beginWindowEventObservation(sink)
     }

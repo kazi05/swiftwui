@@ -62,6 +62,16 @@ public protocol RendererBackend: AnyObject {
     /// The backend retains the callback for its lifetime.
     func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void)
 
+    // MARK: Localization (spec 2026-07-28)
+    /// `<html lang>` and `<html dir>`. `dir == nil` removes the attribute.
+    func setDocumentLanguage(_ lang: String, dir: String?)
+    /// `navigator.languages`, most-preferred first. Empty off-browser.
+    func preferredLanguages() -> [String]
+    /// The locale cookie is the only channel an edge can read on the NEXT
+    /// request; no general-purpose cookie API is exposed to applications.
+    func readCookie(_ name: String) -> String?
+    func writeCookie(_ name: String, value: String, maxAgeDays: Int, secure: Bool)
+
     // MARK: PWA (spec 2026-07-12)
     /// Activate a waiting service worker and reload the page. No-op default
     /// for non-browser backends.

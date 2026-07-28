@@ -1174,6 +1174,44 @@ public final class DOMBackend: RendererBackend {
         storageClosure = closure
     }
 
+    // MARK: Localization (spec 2026-07-28)
+    public func setDocumentLanguage(_ lang: String, dir: String?) {
+        guard let root = jsDocument.documentElement.object else { return }
+        _ = root.setAttribute?("lang", lang)
+        if let dir { _ = root.setAttribute?("dir", dir) }
+        else { _ = root.removeAttribute?("dir") }
+    }
+
+    public func preferredLanguages() -> [String] {
+        guard let nav = JSObject.global.navigator.object else { return [] }
+        if let list = nav.languages.object {
+            let count = Int(list.length.number ?? 0)
+            return (0..<count).compactMap { list[$0].string }
+        }
+        return [nav.language.string].compactMap { $0 }
+    }
+
+    public func readCookie(_ name: String) -> String? {
+        guard let jar = jsDocument.cookie.string else { return nil }
+        for pair in jar.split(separator: ";") {
+            let trimmed = pair.drop(while: { $0 == " " })
+            guard let eq = trimmed.firstIndex(of: "=") else { continue }
+            if trimmed[trimmed.startIndex..<eq] == name {
+                return String(trimmed[trimmed.index(after: eq)...])
+            }
+        }
+        return nil
+    }
+
+    public func writeCookie(_ name: String, value: String, maxAgeDays: Int, secure: Bool) {
+        // Values are validated locale tags; refuse anything else rather than
+        // letting a stray ';' forge cookie attributes.
+        guard value.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }) else { return }
+        var cookie = "\(name)=\(value); path=/; max-age=\(maxAgeDays * 86_400); SameSite=Lax"
+        if secure { cookie += "; Secure" }
+        jsDocument.cookie = .string(cookie)
+    }
+
     // MARK: Hydration read API (phase 5, spec §10)
     public func childCount(of node: JSObject) -> Int {
         Int(node.childNodes.length.number ?? 0)

@@ -152,6 +152,20 @@ public final class MockBackend: RendererBackend {
         storageObserver?(kind, key, value)
     }
 
+    public private(set) var documentLanguage: (lang: String, dir: String?)?
+    public func setDocumentLanguage(_ lang: String, dir: String?) {
+        bump("setDocumentLanguage"); documentLanguage = (lang, dir)
+    }
+
+    public var preferred: [String] = []                    // pre-seedable by tests
+    public func preferredLanguages() -> [String] { bump("preferredLanguages"); return preferred }
+
+    public var cookies: [String: String] = [:]             // pre-seedable by tests
+    public func readCookie(_ name: String) -> String? { bump("readCookie"); return cookies[name] }
+    public func writeCookie(_ name: String, value: String, maxAgeDays: Int, secure: Bool) {
+        bump("writeCookie"); cookies[name] = value
+    }
+
     public private(set) var windowEventSink: ((WindowEventKind, Any) -> Void)?
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
         bump("beginWindowEventObservation"); windowEventSink = sink
