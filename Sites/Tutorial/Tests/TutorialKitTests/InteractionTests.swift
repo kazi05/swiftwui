@@ -6,10 +6,14 @@ import SwiftWUI
     @Test func menuListsAllEntriesGroupedByTrack() {
         let html = HTMLRenderer.render(ChapterMenu(currentSlug: "hello-swiftwui"))
         for ch in Curriculum.chapters { #expect(html.contains(ch.title)) }
-        for label in ["WELCOME", "EXPLORE SWIFTWUI", "STYLES", "ROUTING", "SHIP"] {
-            #expect(html.contains(label))
+        // Group labels are kicker rows now — a lowercased source comment, so
+        // the track name is rendered verbatim and the caps live in CSS.
+        for track in Track.allCases {
+            #expect(html.contains("<span class=\"tut-kicker-slash\">//</span> \(track.rawValue)"),
+                    "missing group \(track.rawValue)")
         }
         #expect(html.contains("tut-menu-item-active"))
+        #expect(html.contains("aria-current=\"page\""))   // the current entry, for AT
     }
 
     @Test func chapterDropdownTogglesOverlay() {
@@ -18,19 +22,25 @@ import SwiftWUI
         rt.mount()
         // prerendered state: closed
         #expect(findFirst(backend.container, class: "tut-menu-open") == nil)
-        let toggle = findAll(backend.container, tag: "button")[0]
+        let toggle = findFirst(backend.container, class: "tut-dropdown")!
+        #expect(toggle.attrs["aria-expanded"] == "false")
         rt.dispatch(toggle.events["click"]!)
         sched.pump()
         #expect(findFirst(backend.container, class: "tut-menu-open") != nil)
+        #expect(toggle.attrs["aria-expanded"] == "true")
         rt.dispatch(toggle.events["click"]!)
         sched.pump()
+        // The sheet leaves on an exit transition: it stays in the DOM until
+        // its animation settles, which only the mock's clock can do.
+        settleAnimations(backend, sched)
         #expect(findFirst(backend.container, class: "tut-menu-open") == nil)
+        #expect(toggle.attrs["aria-expanded"] == "false")
     }
 
     @Test func sectionDropdownHiddenWithoutSections() {
         let wrapUp = Curriculum.chapter(slug: "wrap-up-ship")!   // stub: no sections
         let html = HTMLRenderer.render(ChapterBar(chapter: wrapUp))
-        #expect(!html.contains("Sections ▾"))
+        #expect(!html.contains("tut-pill"))   // no pill at all, not merely no label
     }
 
     @Test func menuClosesAcrossParamOnlyNavigation() {
@@ -41,29 +51,39 @@ import SwiftWUI
         rt.navigate(to: "/tutorials/hello-swiftwui")
         sched.pump()
         let bar = findFirst(backend.container, class: "tut-chapterbar")!
-        let toggle = findAll(bar, tag: "button")[0]
+        let toggle = findFirst(bar, class: "tut-dropdown")!
         rt.dispatch(toggle.events["click"]!)
         sched.pump()
         #expect(findFirst(backend.container, class: "tut-menu-open") != nil)
         rt.navigate(to: "/tutorials/style-in-swift")
         sched.pump()
+        settleAnimations(backend, sched)
         #expect(findFirst(backend.container, class: "tut-menu-open") == nil)
     }
 
     @Test func sectionDropdownListsAnchorsAndReverseMutualExclusion() {
         let ch = Curriculum.chapter(slug: "hello-swiftwui")!
-        let html = HTMLRenderer.render(ChapterBar(chapter: ch))
-        #expect(html.contains("Sections ▾"))
-        for anchor in ["#toolchain", "#core-api", "#state"] { #expect(html.contains(anchor)) }
-
         let (rt, backend, sched) = makeRuntime(ChapterBar(chapter: ch))
         rt.mount()
-        let buttons = findAll(backend.container, tag: "button")
-        rt.dispatch(buttons[1].events["click"]!)   // open sections dropdown
+        let sections = findFirst(backend.container, class: "tut-pill")!
+        let chapters = findFirst(backend.container, class: "tut-dropdown")!
+        #expect(sections.attrs["aria-expanded"] == "false")
+
+        // The sheet is rendered only while open, so the anchors arrive on click.
+        rt.dispatch(sections.events["click"]!)
         sched.pump()
-        rt.dispatch(buttons[0].events["click"]!)   // open chapter dropdown
+        #expect(sections.attrs["aria-expanded"] == "true")
+        let hrefs = findAll(backend.container, tag: "a").compactMap { $0.attrs["href"] }
+        for anchor in ["#toolchain", "#core-api", "#state"] {
+            #expect(hrefs.contains(anchor), "missing \(anchor)")
+        }
+
+        rt.dispatch(chapters.events["click"]!)   // open chapter dropdown
         sched.pump()
+        settleAnimations(backend, sched)
         #expect(findAll(backend.container, class: "tut-menu-open").count == 1)
+        #expect(sections.attrs["aria-expanded"] == "false")
+        #expect(chapters.attrs["aria-expanded"] == "true")
     }
 }
 
@@ -95,6 +115,12 @@ import SwiftWUI
         #expect(html.contains("tut-step-active"))
         #expect(html.contains("id=\"state-step-0\""))
         #expect(html.contains("id=\"state-step-2\""))
+        // the rail: a fill running down to the active step, badges carrying
+        // exactly one skin class each
+        #expect(html.contains("<div class=\"tut-rail\">"))
+        #expect(html.contains("tut-rail-fill"))
+        #expect(html.contains("tut-step-badge tut-step-badge-active"))
+        #expect(html.contains("tut-step-badge tut-step-badge-rest"))
         // step 0 carries an override → prerendered panel is the CODE card, not the browser mock
         #expect(html.contains("tut-card-dark"))
         #expect(!html.contains("tut-browser"))
@@ -121,12 +147,23 @@ import SwiftWUI
         ])
     }
 
+    /// Options are `<button>`s too now, so the Check/Next control can no longer
+    /// be addressed as "the first button" — it is the one carrying the submit class.
+    private func submit(_ backend: MockBackend) -> MockNode? {
+        findFirst(backend.container, class: "tut-quiz-submit")
+    }
+
     @Test func prerenderedStateIsQuestionOneUnchecked() {
         let html = HTMLRenderer.render(QuizCard(quiz: quiz))
-        #expect(html.contains("Question 1 of 3"))
+        #expect(html.contains("question 1 of 3"))
         #expect(html.contains("Check answer"))
         #expect(!html.contains("tut-option-selected"))
         #expect(!html.contains("tut-explain"))
+        // Every option is a real button announcing its own state: keyboard
+        // reachable without JS, which no amount of CSS can retrofit.
+        #expect(html.contains(
+            "<button aria-pressed=\"false\" class=\"tut-option tut-option-rest\" type=\"button\">"))
+        #expect(!html.contains("aria-pressed=\"true\""))
         #expect(html == HTMLRenderer.render(QuizCard(quiz: quiz)))   // deterministic
     }
 
@@ -136,22 +173,27 @@ import SwiftWUI
 
         // select the correct option (index 1)
         let options = findAll(backend.container, class: "tut-option")
+        #expect(options.allSatisfy { $0.tag == "button" })
         rt.dispatch(options[1].events["click"]!)
         sched.pump()
         #expect(findFirst(backend.container, class: "tut-option-selected") != nil)
+        #expect(options[1].attrs["aria-pressed"] == "true")
+        #expect(options[0].attrs["aria-pressed"] == "false")
 
         // check → correct highlight + explanation + Next
-        let check = findAll(backend.container, tag: "button")[0]
-        rt.dispatch(check.events["click"]!)
+        rt.dispatch(submit(backend)!.events["click"]!)
         sched.pump()
-        #expect(findFirst(backend.container, class: "tut-option-correct") != nil)
+        let correct = findFirst(backend.container, class: "tut-option-correct")
+        #expect(correct != nil)
         #expect(findFirst(backend.container, class: "tut-explain-ok") != nil)
+        // The verdict is never carried by the tint alone: glyph + word.
+        #expect(textContent(correct!).contains("✓"))
+        #expect(textContent(correct!).contains("correct"))
 
         // next question resets selection
-        let next = findAll(backend.container, tag: "button")[0]
-        rt.dispatch(next.events["click"]!)
+        rt.dispatch(submit(backend)!.events["click"]!)
         sched.pump()
-        #expect(textContent(backend.container).contains("Question 2 of 3"))
+        #expect(textContent(backend.container).contains("question 2 of 3"))
         #expect(findFirst(backend.container, class: "tut-option-selected") == nil)
     }
 
@@ -161,17 +203,20 @@ import SwiftWUI
         let options = findAll(backend.container, class: "tut-option")
         rt.dispatch(options[0].events["click"]!)   // wrong (correct is 1)
         sched.pump()
-        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!)
+        rt.dispatch(submit(backend)!.events["click"]!)
         sched.pump()
-        #expect(findFirst(backend.container, class: "tut-option-wrong") != nil)
+        let wrong = findFirst(backend.container, class: "tut-option-wrong")
+        #expect(wrong != nil)
         #expect(findFirst(backend.container, class: "tut-option-correct") != nil)
         #expect(findFirst(backend.container, class: "tut-explain-no") != nil)
+        #expect(textContent(wrong!).contains("✕"))
+        #expect(textContent(wrong!).contains("not this one"))
     }
 
     @Test func checkWithoutSelectionIsInert() {
         let (rt, backend, sched) = makeRuntime(QuizCard(quiz: quiz))
         rt.mount()
-        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!)
+        rt.dispatch(submit(backend)!.events["click"]!)
         sched.pump()
         #expect(findFirst(backend.container, class: "tut-explain") == nil)
     }
@@ -181,17 +226,18 @@ import SwiftWUI
         rt.mount()
         // answer Q1 (correct = index 1) and advance
         rt.dispatch(findAll(backend.container, class: "tut-option")[1].events["click"]!); sched.pump()
-        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Check
-        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Next → Q2
+        rt.dispatch(submit(backend)!.events["click"]!); sched.pump()   // Check
+        rt.dispatch(submit(backend)!.events["click"]!); sched.pump()   // Next → Q2
         // answer Q2 (correct = index 0) and advance
         rt.dispatch(findAll(backend.container, class: "tut-option")[0].events["click"]!); sched.pump()
-        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Check
-        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Next → Q3
-        #expect(textContent(backend.container).contains("Question 3 of 3"))
+        rt.dispatch(submit(backend)!.events["click"]!); sched.pump()   // Check
+        rt.dispatch(submit(backend)!.events["click"]!); sched.pump()   // Next → Q3
+        #expect(textContent(backend.container).contains("question 3 of 3"))
         // answer Q3 (correct = index 1) and check — NO Next button may remain
         rt.dispatch(findAll(backend.container, class: "tut-option")[1].events["click"]!); sched.pump()
-        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Check
-        #expect(findAll(backend.container, tag: "button").isEmpty)
+        rt.dispatch(submit(backend)!.events["click"]!); sched.pump()   // Check
+        #expect(submit(backend) == nil)
+        #expect(!textContent(backend.container).contains("Next question"))
         #expect(findFirst(backend.container, class: "tut-explain-ok") != nil)
     }
 
@@ -199,8 +245,9 @@ import SwiftWUI
         let (rt, backend, sched) = makeRuntime(QuizCard(quiz: quiz))
         rt.mount()
         rt.dispatch(findAll(backend.container, class: "tut-option")[1].events["click"]!); sched.pump()
-        rt.dispatch(findAll(backend.container, tag: "button")[0].events["click"]!); sched.pump()   // Check
+        rt.dispatch(submit(backend)!.events["click"]!); sched.pump()   // Check
         let before = findAll(backend.container, class: "tut-option-correct").count
+        #expect(before == 1)
         // click a different option after checking — must be inert
         rt.dispatch(findAll(backend.container, class: "tut-option")[0].events["click"]!); sched.pump()
         #expect(findAll(backend.container, class: "tut-option-correct").count == before)

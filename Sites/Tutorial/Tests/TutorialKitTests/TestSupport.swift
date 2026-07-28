@@ -63,6 +63,20 @@ func textContent(_ node: MockNode) -> String {
     return out
 }
 
+/// Runs the mock's animation clock to the end. A tag that leaves under a
+/// `.transition` stays in the DOM (inert) until its exit animation settles —
+/// MockBackend never settles on its own, so anything asserting that a
+/// transitioned surface is GONE has to call this first.
+@MainActor
+func settleAnimations(_ backend: MockBackend, _ sched: TestScheduler) {
+    var i = 0
+    while i < backend.animations.count {   // settling can enqueue more
+        backend.settleAnimation(at: i)
+        i += 1
+    }
+    sched.pump()
+}
+
 @MainActor
 func makeRuntime(_ root: some Tag) -> (Runtime<MockBackend>, MockBackend, TestScheduler) {
     let backend = MockBackend()

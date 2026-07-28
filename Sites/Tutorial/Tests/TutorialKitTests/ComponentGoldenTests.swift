@@ -29,7 +29,9 @@ import SwiftWUI
                                                  panel: .terminal(title: "x", lines: []))])
         let html = HTMLRenderer.render(HeroView(chapter: fixture) { Div(class: "panel-probe") { Text("P") } })
         #expect(html.contains("tut-hero-grid"))
-        #expect(html.contains("GETTING STARTED · 25 MIN"))
+        // the kicker is a source comment now; the caps live in CSS, not here
+        #expect(html.contains("<span class=\"tut-kicker-slash\">//</span> GETTING STARTED · 25 min"))
+        #expect(html.contains("tut-kicker-rule"))
         #expect(html.contains("Start the tutorial"))
         #expect(html.contains("#toolchain"))
         #expect(html.contains("panel-probe"))
@@ -46,7 +48,7 @@ import SwiftWUI
     @Test func ctaTargetsNextChapterAndLastWrapsToOverview() {
         let styles = Curriculum.chapter(slug: "hello-swiftwui")!
         let html = HTMLRenderer.render(NextChapterCTA(chapter: styles))
-        #expect(html.contains("NEXT CHAPTER"))
+        #expect(html.contains("<span class=\"tut-kicker-slash\">//</span> next chapter"))
         #expect(html.contains("/tutorials/wrap-up-explore"))
 
         let last = Curriculum.chapters.last!

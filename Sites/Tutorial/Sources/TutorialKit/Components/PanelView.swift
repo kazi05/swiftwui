@@ -1,15 +1,26 @@
 import SwiftWUI
 
-/// Mac-window chrome row: three dots + title (Figma 3:28).
-struct ChromeBar: Tag {
-    let title: String
+/// The glass file bar (spec §7, signature moment 2): a language chip and the
+/// filename, sticky over the listing that scrolls beneath it. It replaces the
+/// three fake mac-window dots, which are deleted from both panels.
+struct PanelBar: Tag {
+    let language: String
+    let file: String
     var body: some Tag {
-        Div(class: "tut-chrome") {
-            Span(class: "tut-dot tut-dot-r")
-            Span(class: "tut-dot tut-dot-y")
-            Span(class: "tut-dot tut-dot-g")
-            Span(class: "tut-chrome-title") { Text(title) }
+        Div(class: "tut-panel-bar") {
+            Span(class: "tut-lang-chip") { Text(language) }
+            Span(class: "tut-panel-file") { Text(file) }
         }
+    }
+}
+
+/// The chip vocabulary is exactly three words. Anything that is not Swift and
+/// not a web asset — Dockerfile, shell scripts, config — reads as `sh`.
+private func chipLanguage(forFile file: String) -> String {
+    switch file.split(separator: ".").last?.lowercased() {
+    case "swift": "swift"
+    case "html", "css", "js": "web"
+    default: "sh"
     }
 }
 
@@ -47,12 +58,17 @@ public struct PanelView: Tag {
         switch panel {
         case .code(let card):
             Div(class: "tut-card-dark") {
-                ChromeBar(title: card.file)
+                PanelBar(language: chipLanguage(forFile: card.file), file: card.file)
                 CodeView(code: card.code)
             }
+            // Also declared in the .tut-card-dark rule; kept here so the compact
+            // code variant cannot silently stop matching (spec risk 7).
+            .containerType(.inlineSize)
         case .terminal(let title, let lines):
             Div(class: "tut-card-dark") {
-                ChromeBar(title: title)
+                PanelBar(language: "sh", file: title)
+                // Terminal lines live inside .tut-code so they inherit its font,
+                // feature settings and compact-container step.
                 Div(class: "tut-code") {
                     ForEach(Array(lines.enumerated()), id: \.offset) { item in
                         Div(class: "tut-term-line") {
@@ -69,15 +85,15 @@ public struct PanelView: Tag {
                     }
                 }
             }
+            .containerType(.inlineSize)
         case .browser(let url, let screenshot):
             Div(class: "tut-browser") {
                 Div(class: "tut-browser-chrome") {
-                    Span(class: "tut-dot tut-dot-r")
-                    Span(class: "tut-dot tut-dot-y")
-                    Span(class: "tut-dot tut-dot-g")
                     Div(class: "tut-url") { Text(url) }
                 }
-                Img(src: "/assets/\(screenshot)", alt: "App preview at \(url)", class: "tut-shot")
+                Div(class: "tut-shot-frame") {
+                    Img(src: "/assets/\(screenshot)", alt: "App preview at \(url)", class: "tut-shot")
+                }
             }
         }
     }

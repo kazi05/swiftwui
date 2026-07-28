@@ -4,7 +4,14 @@ public struct TutorialApp: App {
     public init() {}
 
     public static var globalStyles: [Rule] { return TutorialStyles.rules }
-    public static var themes: [ThemeDefinition] { [TutorialTheme.definition] }
+    /// Default (`:root`) plus the two named themes the nav toggle cycles
+    /// through. Named themes land on the mount container — a descendant of
+    /// `body` — so a manual choice beats the dark media rule by inheritance
+    /// depth, with no `!important` and no specificity fight.
+    public static var themes: [ThemeDefinition] {
+        [TutorialTheme.definition, TutorialTheme.lightTheme, TutorialTheme.darkTheme]
+    }
+    public static var fontFaces: [FontFace] { TutorialTheme.fontFaces }
 
     public var body: some Tag {
         Router(notFound: { NotFoundPage() }) {
@@ -13,6 +20,10 @@ public struct TutorialApp: App {
                 routedChapterContent(slug: params["slug"] ?? "")
             }
         }
+        // The site is the framework's own proof: chapter-to-chapter navigation
+        // uses the view-transition engine chapter 17 teaches. Browsers without
+        // the API fall back to the FLIP path; nothing here is load-bearing.
+        .pageTransition(.slide(edge: .trailing))
     }
 }
 

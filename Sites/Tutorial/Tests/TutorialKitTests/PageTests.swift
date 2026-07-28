@@ -55,9 +55,10 @@ import SwiftWUI
                             Question(prompt: "P3", options: ["a", "b"], correctIndex: 0, explanation: "E"),
                         ]))
         let html = HTMLRenderer.render(ChapterPage(chapter: ch))
-        for marker in ["tut-nav", "tut-chapterbar", "tut-hero", "tut-section",
-                       "tut-step-active", "tut-quiz", "tut-cta-card", "tut-footer",
-                       "id=\"one-step-0\"", "CHECK YOUR UNDERSTANDING"] {
+        for marker in ["tut-nav", "tut-theme-toggle", "tut-chapterbar", "tut-hero", "tut-section",
+                       "tut-rail-fill", "tut-step-active", "tut-panel-bar", "tut-lang-chip",
+                       "tut-quiz", "tut-cta-card", "tut-footer",
+                       "id=\"one-step-0\"", "check your understanding"] {
             #expect(html.contains(marker), "missing \(marker)")
         }
     }
