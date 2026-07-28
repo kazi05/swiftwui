@@ -98,15 +98,24 @@ public final class StyleRegistry {
     }
 
     /// The number following `<feature>:` in a media condition, ignoring its unit.
+    // Foundation-free: no `range(of:)` — the core module builds for wasm, where
+    // importing Foundation is not on the table.
     private static func firstLength(after feature: String, in condition: String) -> Double? {
-        guard let r = condition.range(of: feature + ":") else { return nil }
-        var digits = ""
-        for ch in condition[r.upperBound...] {
-            if ch.isNumber || ch == "." { digits.append(ch) }
-            else if ch == " " && digits.isEmpty { continue }
-            else { break }
+        let hay = Array(condition.utf8), needle = Array((feature + ":").utf8)
+        guard hay.count > needle.count else { return nil }
+        for start in 0...(hay.count - needle.count) where Array(hay[start..<(start + needle.count)]) == needle {
+            var i = start + needle.count
+            var digits = ""
+            while i < hay.count {
+                let b = hay[i]
+                if (b >= 0x30 && b <= 0x39) || b == 0x2E { digits.append(Character(UnicodeScalar(b))) }
+                else if b == 0x20 && digits.isEmpty { i += 1; continue }
+                else { break }
+                i += 1
+            }
+            return Double(digits)
         }
-        return Double(digits)
+        return nil
     }
 
     /// Canonical order: (media width semantics, media string, container, hash) —
