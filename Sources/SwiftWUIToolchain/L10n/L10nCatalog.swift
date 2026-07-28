@@ -36,6 +36,8 @@ public enum L10nError: Error, CustomStringConvertible {
     case unusableKey(key: String, symbol: String)
     case unusablePlaceholder(name: String, key: String)
     case unsupportedPluralLanguage(language: String, locale: String)
+    case invalidLocaleTag(tag: String)
+    case duplicateLocale(first: String, second: String, canonical: String)
 
     public var description: String {
         switch self {
@@ -55,6 +57,8 @@ public enum L10nError: Error, CustomStringConvertible {
         case .unusableKey(let k, let s): return "key '\(k)' generates '\(s)', which is not a Swift identifier — rename the key"
         case .unusablePlaceholder(let n, let k): return "'\(k)' uses placeholder '\(n)', which cannot be a Swift parameter name"
         case .unsupportedPluralLanguage(let lang, let l): return "Locales/\(l).json uses a plural, but language '\(lang)' has no built-in CLDR rule"
+        case .invalidLocaleTag(let t): return "'\(t)' is not a locale tag — expected language[-Script][-Region], e.g. 'en', 'pt-BR', 'zh-Hans-CN'"
+        case .duplicateLocale(let a, let b, let c): return "Locales/\(a).json and Locales/\(b).json both describe locale '\(c)'"
         }
     }
 }
