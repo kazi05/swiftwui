@@ -51,6 +51,31 @@ import SwiftWUI
         #expect(!FileManager.default.fileExists(atPath: root + "/Sources/App/Generated/L10n.swift"))
     }
 
+    /// `swiftwui init` templates set `path: "Sources"`, so a scaffolded project
+    /// has no `Sources/<Target>/` level at all and its catalogs sit at
+    /// `Sources/Locales`. The generated file has to land at
+    /// `Sources/Generated/L10n.swift` — inside that target, or the templates
+    /// would not compile it.
+    @Test func flatLayoutGeneratesIntoTheSourcesTarget() throws {
+        let root = NSTemporaryDirectory() + "swiftwui-flat-" + UUID().uuidString
+        let locales = root + "/Sources/Locales"
+        try FileManager.default.createDirectory(atPath: locales, withIntermediateDirectories: true)
+        try #"{"a":"A"}"#.write(toFile: locales + "/en.json", atomically: true, encoding: .utf8)
+
+        #expect(L10nGenerator.localesOwner(projectDir: root, target: nil) == root + "/Sources")
+        let outcome = try #require(try L10nGenerator.generate(projectDir: root))
+        #expect(outcome.path == root + "/Sources/Generated/L10n.swift")
+        #expect(try String(contentsOfFile: outcome.path, encoding: .utf8).contains("public enum L10n"))
+    }
+
+    /// The nested layout still wins, so no existing project changes owner.
+    @Test func nestedLayoutBeatsAStrayFlatOne() throws {
+        let root = try makeProject(["en": #"{"a":"A"}"#])
+        try FileManager.default.createDirectory(atPath: root + "/Sources/Locales",
+                                                withIntermediateDirectories: true)
+        #expect(L10nGenerator.localesOwner(projectDir: root, target: nil) == root + "/Sources/App")
+    }
+
     @Test func inertWithoutLocalesDirectory() throws {
         let root = NSTemporaryDirectory() + "swiftwui-plain-" + UUID().uuidString
         try FileManager.default.createDirectory(atPath: root + "/Sources/App",

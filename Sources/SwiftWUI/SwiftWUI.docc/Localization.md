@@ -32,9 +32,13 @@ A complete worked example — language switcher, plurals, RTL — lives in
 
 ## Catalogs
 
-Catalogs live at `Sources/<Target>/Locales/<tag>.json`, exactly one directory
-below `Sources`. The set of files **is** the set of declared locales — there
-is no config file and no list to keep in sync.
+Catalogs live in a `Locales/` folder inside the target that owns them — either
+`Sources/<Target>/Locales/<tag>.json` for the default SwiftPM layout, or
+`Sources/Locales/<tag>.json` for a target declared with `path: "Sources"`,
+which is what every `swiftwui init` template does. Generation writes
+`Generated/L10n.swift` next to `Locales/` either way, so it always lands
+inside the target that will compile it. The set of files **is** the set of
+declared locales — there is no config file and no list to keep in sync.
 
 ```json
 {
@@ -86,11 +90,9 @@ that, and warns about "unhandled" files unless you say so:
 `Generated/L10n.swift`, which lands next to `Locales/`, is a Swift file and
 is compiled normally.
 
-Projects scaffolded by `swiftwui init` set `path: "Sources"`, which makes the
-target directory `Sources/` itself. Catalogs still have to sit one level
-below `Sources`, so put them in `Sources/<AnyName>/Locales/` — a bare
-`Sources/Locales/` is not found, and `swiftwui l10n generate` reports "no
-Locales/ directory — nothing to generate" rather than failing.
+In a scaffolded project the same line reads `exclude: ["Locales"]` too — the
+target's path is `Sources`, so the catalogs are at `Sources/Locales` and the
+generated file at `Sources/Generated/L10n.swift`.
 
 ### There is no escape for a literal `{` or `#`
 
@@ -142,11 +144,13 @@ triggers the same regenerate → rebuild → reload path as editing code.
 ### Target detection
 
 With no `--target`, the generator scans `Sources/*` in alphabetical order and
-takes the **first** directory that owns a `Locales/` folder. That is silent
-and it is a first-match, not a uniqueness check — a package with two such
-targets always picks the same one and never mentions the other. `--target
-<name>` is the escape hatch, and it takes a single path component: no
-separators, no `..`.
+takes the **first** directory that owns a `Locales/` folder, and only if none
+does, falls back to a flat `Sources/Locales`. That is silent and it is a
+first-match, not a uniqueness check — a package with two such targets always
+picks the same one and never mentions the other. `--target <name>` is the
+escape hatch. It takes a single path component (no separators, no `..`) and
+selects `Sources/<name>/Locales`, so it addresses the nested layout only; a
+flat project has no target directory to name and does not need one.
 
 ### The generated file needs `MainActor` default isolation
 

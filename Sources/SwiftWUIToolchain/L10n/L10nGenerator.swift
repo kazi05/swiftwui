@@ -41,7 +41,13 @@ public enum L10nGenerator {
         for name in names.sorted() where fm.fileExists(atPath: sources + "/" + name + "/Locales") {
             return sources + "/" + name
         }
-        return nil
+        // Flat layout, checked only after the nested one so existing projects
+        // cannot change owner: every `swiftwui init` template sets
+        // `path: "Sources"`, which makes Sources itself the target directory —
+        // so its catalogs live at Sources/Locales and Generated/ belongs beside
+        // them. Without this, the path a scaffolded project would use is
+        // silently ignored with the same message an unlocalized project gets.
+        return fm.fileExists(atPath: sources + "/Locales") ? sources : nil
     }
 
     /// Locale tags must be safe as filenames and URL segments before they are
