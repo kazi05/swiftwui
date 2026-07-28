@@ -62,11 +62,26 @@ private struct PrefixApp: Tag {
     }
 
     @Test func popstateAdoptsTheUrlLocale() {
-        let (runtime, _, sched) = make(initialPath: "/")
+        let (runtime, backend, sched) = make(initialPath: "/")
         runtime.handlePopState(url: "/ru/about")
         sched.pump()
         #expect(runtime._locationPath == "/about")
         #expect(runtime._signals.locale == LocaleID("ru")!)
+        #expect(backend.documentLanguage?.lang == "ru")
+        // Back to an unprefixed entry restores the DEFAULT locale — it must not
+        // leave a Russian page sitting at an English URL.
+        runtime.handlePopState(url: "/")
+        sched.pump()
+        #expect(runtime._signals.locale == LocaleID("en")!)
+        #expect(backend.documentLanguage?.lang == "en")
         _ = runtime
+    }
+
+    @Test func setLocaleRealignsTheUrlKeepingTheQuery() {
+        let (runtime, backend, sched) = make(initialPath: "/ru/about?x=1")
+        runtime.setLocale(LocaleID("en")!)
+        sched.pump()
+        #expect(backend.replacedStates.last == "/about?x=1")
+        #expect(runtime._locationPath == "/about")      // routing never saw either prefix
     }
 }

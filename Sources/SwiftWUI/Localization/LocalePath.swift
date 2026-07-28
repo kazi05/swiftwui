@@ -5,15 +5,16 @@
 /// about locales. Prefixes are applied at three output boundaries only:
 /// history writes, `Link` hrefs, and URLs built by SSG.
 public enum LocalePath {
-    /// Splits a leading locale segment off a URL. Unknown segments are left
-    /// alone — `/de/about` in an app that never declared `de` stays a route.
+    /// Splits a leading locale segment off a PATH — call it after
+    /// `RouteURL.split`, a query string is not stripped here. Unknown segments
+    /// are left alone — `/de/about` in an app that never declared `de` stays a route.
     ///
     /// Matches the segment against `supported` directly, NOT through
     /// `Localization.validated`: that one reduces the request to its primary
     /// language, so an app declaring only `["en-US"]` would accept `/en/…` and
     /// then rewrite the path under a locale the URL never named.
-    public static func internalize(_ url: String, supported: [LocaleID]) -> (path: String, locale: LocaleID?) {
-        let normalized = RouteURL._normalize(url)
+    public static func internalize(_ path: String, supported: [LocaleID]) -> (path: String, locale: LocaleID?) {
+        let normalized = RouteURL._normalize(path)
         let body = normalized.dropFirst()                       // _normalize guarantees the leading "/"
         let head = String(body.prefix { $0 != "/" })
         guard let candidate = LocaleID(head), supported.contains(candidate) else {

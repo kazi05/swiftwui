@@ -217,6 +217,14 @@ public final class Runtime<Backend: RendererBackend> {
                "navigate() expects an app-internal path, got '\(url)' — use a plain A/Link for external URLs")
         let (rawPath, query, search) = RouteURL.split(url)
         let path = RouteURL.normalizePath(rawPath)
+        #if DEBUG
+        // Otherwise this is a blank page with no diagnostic: the prefix becomes
+        // part of the path, no route matches, and the URL gets it twice.
+        if let l10n = _localization, l10n.strategy.usesURLPrefix,
+           LocalePath.internalize(path, supported: l10n.supported).locale != nil {
+            print("SwiftWUI: navigate('\(path)') carries a locale prefix — pass the locale-free path, prefixes are added on output")
+        }
+        #endif
         guard path != currentPath || query != currentQuery else { redirectHops = 0; return }  // arriving at the current location ends any redirect chain
         currentPath = path; currentQuery = query; _currentSearch = search
         let externalPath = _externalPath(path)
@@ -253,10 +261,16 @@ public final class Runtime<Backend: RendererBackend> {
         if let localization = _localization, localization.strategy.usesURLPrefix {
             let (internalPath, urlLocale) = LocalePath.internalize(rawPath, supported: localization.supported)
             currentPath = internalPath
-            if let urlLocale, urlLocale != signals.locale {
-                signals._setLocale(urlLocale)
-                applier.backend.setDocumentLanguage(urlLocale.identifier,
-                                                    dir: urlLocale.isRTL ? "rtl" : nil)
+            // No prefix means the DEFAULT locale, not "keep the current one":
+            // under .pathPrefix every history entry was written by `_externalPath`,
+            // so an unprefixed one cannot stand for a non-default locale. Without
+            // this, Back from /ru/contact to /about leaves a Russian page at an
+            // English URL and every later href carries a /ru the address bar lacks.
+            let target = urlLocale ?? localization.default
+            if target != signals.locale {
+                signals._setLocale(target)
+                applier.backend.setDocumentLanguage(target.identifier,
+                                                    dir: target.isRTL ? "rtl" : nil)
             }
         } else {
             currentPath = RouteURL.normalizePath(rawPath)
@@ -305,8 +319,7 @@ public final class Runtime<Backend: RendererBackend> {
         // Same route, new prefix: `currentPath` stays locale-free, only the
         // browser-visible URL moves (replace, not push — it is the same page).
         if localization.strategy.usesURLPrefix {
-            let external = LocalePath.externalize(currentPath, locale: locale,
-                                                  default: localization.default)
+            let external = _externalPath(currentPath)      // reads the signal written above
             applier.backend.replaceState(path: _currentSearch.isEmpty ? external
                                                                       : external + "?" + _currentSearch)
         }
