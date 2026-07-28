@@ -32,6 +32,10 @@ public enum L10nError: Error, CustomStringConvertible {
     case missingKey(key: String, locale: String)
     case signatureMismatch(key: String, locales: [String])
     case nameCollision(first: String, second: String, symbol: String)
+    case duplicatePluralCategory(category: String, key: String, locale: String)
+    case unusableKey(key: String, symbol: String)
+    case unusablePlaceholder(name: String, key: String)
+    case unsupportedPluralLanguage(language: String, locale: String)
 
     public var description: String {
         switch self {
@@ -47,6 +51,10 @@ public enum L10nError: Error, CustomStringConvertible {
         case .missingKey(let k, let l): return "key '\(k)' is missing from Locales/\(l).json (use --allow-missing to downgrade to a warning)"
         case .signatureMismatch(let k, let ls): return "key '\(k)' has different placeholders across locales \(ls.sorted())"
         case .nameCollision(let a, let b, let s): return "keys '\(a)' and '\(b)' both generate '\(s)'"
+        case .duplicatePluralCategory(let c, let k, let l): return "Locales/\(l).json: '\(k)' repeats the plural category '\(c)'"
+        case .unusableKey(let k, let s): return "key '\(k)' generates '\(s)', which is not a Swift identifier — rename the key"
+        case .unusablePlaceholder(let n, let k): return "'\(k)' uses placeholder '\(n)', which cannot be a Swift parameter name"
+        case .unsupportedPluralLanguage(let lang, let l): return "Locales/\(l).json uses a plural, but language '\(lang)' has no built-in CLDR rule"
         }
     }
 }
@@ -60,7 +68,9 @@ public enum L10nCatalog {
         else { throw L10nError.notAnObject(locale: locale) }
 
         var out: [String: L10nTemplate] = [:]
-        for (key, value) in object {
+        // Sorted so a bad catalog always names the same offending key.
+        for key in object.keys.sorted() {
+            let value = object[key]!
             guard isValidKey(key) else { throw L10nError.invalidKey(key: key, locale: locale) }
             guard let string = value as? String else { throw L10nError.nonStringValue(key: key, locale: locale) }
             out[key] = L10nTemplate(parts: try parseParts(Array(string), key: key, locale: locale, insidePlural: false))
@@ -73,6 +83,8 @@ public enum L10nCatalog {
     }
 
     static func isIdentifier(_ name: String) -> Bool {
+        // `_` is a legal ASCII identifier but an unusable parameter name.
+        guard name != "_" else { return false }
         guard let first = name.first, first.isASCII, first.isLetter || first == "_" else { return false }
         return name.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") }
     }
@@ -134,16 +146,19 @@ public enum L10nCatalog {
         var branches: [(category: String, parts: [L10nPart])] = []
         var i = 0
         while i < chars.count {
-            while i < chars.count, chars[i] == " " { i += 1 }
+            while i < chars.count, chars[i].isWhitespace { i += 1 }
             guard i < chars.count else { break }
             var name = ""
-            while i < chars.count, chars[i] != " ", chars[i] != "{" { name.append(chars[i]); i += 1 }
-            while i < chars.count, chars[i] == " " { i += 1 }
+            while i < chars.count, !chars[i].isWhitespace, chars[i] != "{" { name.append(chars[i]); i += 1 }
+            while i < chars.count, chars[i].isWhitespace { i += 1 }
             guard i < chars.count, chars[i] == "{", let close = matchingBrace(chars, from: i) else {
                 throw L10nError.unterminated(key: key, locale: locale)
             }
             guard categories.contains(name) else {
                 throw L10nError.unknownPluralCategory(category: name, key: key, locale: locale)
+            }
+            guard !branches.contains(where: { $0.category == name }) else {
+                throw L10nError.duplicatePluralCategory(category: name, key: key, locale: locale)
             }
             let body = Array(chars[(i + 1)..<close])
             branches.append((name, try parseParts(body, key: key, locale: locale, insidePlural: true)))
@@ -192,7 +207,7 @@ public enum L10nCatalog {
         let allKeys = Set(catalogs.values.flatMap(\.keys)).sorted()
         for key in allKeys {
             var signatures: [String: L10nSignature] = [:]
-            for (locale, entries) in catalogs {
+            for (locale, entries) in catalogs.sorted(by: { $0.key < $1.key }) {
                 guard let template = entries[key] else {
                     if allowMissing { warnings.append("key '\(key)' missing from Locales/\(locale).json — falls back to the default locale") ; continue }
                     throw L10nError.missingKey(key: key, locale: locale)

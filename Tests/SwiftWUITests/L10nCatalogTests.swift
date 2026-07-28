@@ -32,6 +32,15 @@ import Testing
         #expect(throws: L10nError.self) { try L10nCatalog.parse(json: #"{"k":"{n, plural, xx {a} other {b}}"}"#, locale: "en") }
         #expect(throws: L10nError.self) { try L10nCatalog.parse(json: #"{"k":"{a, plural, other {{b, plural, other {x}}}}"}"#, locale: "en") }
         #expect(throws: L10nError.self) { try L10nCatalog.parse(json: #"{"k":"unclosed {name"}"#, locale: "en") }
+        #expect(throws: L10nError.self) { try L10nCatalog.parse(json: #"{"k":"{n, plural, other {a} other {b}}"}"#, locale: "en") }
+        #expect(throws: L10nError.self) { try L10nCatalog.parse(json: #"{"k":"{_}"}"#, locale: "en") }
+    }
+
+    @Test func toleratesWhitespaceBetweenBranches() throws {
+        let json = "{\"n\":\"{count, plural,\\n  one {# item}\\n  other {# items}}\"}"
+        let t = try L10nCatalog.parse(json: json, locale: "en")["n"]!
+        guard case .plural(_, let branches) = t.parts[0] else { Issue.record("plural"); return }
+        #expect(branches.map(\.category) == ["one", "other"])
     }
 
     @Test func validateCatchesMissingAndMismatched() throws {
