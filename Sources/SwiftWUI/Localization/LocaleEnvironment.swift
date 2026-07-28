@@ -34,3 +34,16 @@ extension EnvironmentValues {
         set { self[SetLocaleKey.self] = newValue }
     }
 }
+
+private struct ExternalizePathKey: EnvironmentKey {
+    static let defaultValue: (String) -> String = { $0 }
+}
+
+extension EnvironmentValues {
+    /// Runtime-provided mapping from an internal route path to the URL the
+    /// browser should show. Identity unless the strategy uses prefixes.
+    public var _externalizePath: (String) -> String {
+        get { self[ExternalizePathKey.self] }
+        set { self[ExternalizePathKey.self] = newValue }
+    }
+}

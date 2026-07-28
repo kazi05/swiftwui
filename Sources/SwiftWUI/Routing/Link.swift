@@ -4,6 +4,7 @@
 /// scheme-sanitized by `A` itself.
 public struct Link<Content: Tag>: Tag {
     @Environment(\.navigate) private var navigate
+    @Environment(\._externalizePath) private var externalize
     let destination: String
     let target: LinkTarget?
     let content: Content
@@ -26,11 +27,11 @@ public struct Link<Content: Tag>: Tag {
         } else {
             let _ = assert(dest.hasPrefix("/"),
                            "Link destination must be root-relative ('/docs/intro'), got '\(dest)' — relative paths resolve against the SSG file location, not the route")
-            A(href: dest) { content }
+            A(href: externalize(dest)) { content }     // locale prefix lives in the href only
                 .attribute("data-swui-link", "")
                 .onClickEvent { e in
                     guard e?.isModified != true else { return }   // browser: new tab etc.
-                    nav(dest)
+                    nav(dest)                                     // …navigate still takes the INTERNAL path
                 }
         }
     }

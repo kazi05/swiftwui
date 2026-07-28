@@ -32,6 +32,9 @@ public final class Runtime<Backend: RendererBackend> {
     // Routing (spec §7): the runtime owns the current location.
     private var currentPath: String
     private var currentQuery: [String: String]
+    /// The raw query string of the current location, kept verbatim so a locale
+    /// switch can rewrite the path without re-encoding the query.
+    private var _currentSearch: String
     private var lastPageHead: PageHead?
     private var redirectHops = 0
     private var routeMatched = true
@@ -121,9 +124,17 @@ public final class Runtime<Backend: RendererBackend> {
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void,
                 globalStyles: [Rule] = [], themes: [ThemeDefinition] = [], fontFaces: [FontFace] = [],
                 localization: Localization? = nil) {
-        let (path, query, _) = RouteURL.split(initialPath)
-        currentPath = RouteURL.normalizePath(path)
+        // Routing never sees the locale segment: it is split off here and
+        // re-applied only at the output boundaries (`_externalPath`).
+        let (rawPath, query, search) = RouteURL.split(initialPath)
+        var internalPath = RouteURL.normalizePath(rawPath)
+        var urlLocale: LocaleID?
+        if let localization, localization.strategy.usesURLPrefix {
+            (internalPath, urlLocale) = LocalePath.internalize(rawPath, supported: localization.supported)
+        }
+        currentPath = internalPath
         currentQuery = query
+        _currentSearch = search
         applier = TreeApplier(backend: backend, container: container)
         applier.transitionsRef = transitions
         rootTag = AnyTag(root)
@@ -134,7 +145,7 @@ public final class Runtime<Backend: RendererBackend> {
         self._localization = localization
         if let localization {
             signals._setDefaultLocale(localization.default)
-            signals._setLocale(localization.default)
+            signals._setLocale(urlLocale ?? localization.default)   // the URL wins over the default
         }
         effects._windowHub = windowEvents
         effects._onDropGuardChange = { [weak self] enabled in
@@ -207,8 +218,9 @@ public final class Runtime<Backend: RendererBackend> {
         let (rawPath, query, search) = RouteURL.split(url)
         let path = RouteURL.normalizePath(rawPath)
         guard path != currentPath || query != currentQuery else { redirectHops = 0; return }  // arriving at the current location ends any redirect chain
-        currentPath = path; currentQuery = query
-        let full = search.isEmpty ? path : path + "?" + search
+        currentPath = path; currentQuery = query; _currentSearch = search
+        let externalPath = _externalPath(path)
+        let full = search.isEmpty ? externalPath : externalPath + "?" + search
         if replace { applier.backend.replaceState(path: full) }
         else { applier.backend.pushState(path: full) }
         // Precedence (spec §4): explicit call site → destination Route →
@@ -235,18 +247,39 @@ public final class Runtime<Backend: RendererBackend> {
     }
 
     /// Browser back/forward: the location already changed — no pushState.
+    /// A back/forward step across locale prefixes also adopts the URL's locale.
     public func handlePopState(url: String) {
-        let (rawPath, query, _) = RouteURL.split(url)
-        currentPath = RouteURL.normalizePath(rawPath)
+        let (rawPath, query, search) = RouteURL.split(url)
+        if let localization = _localization, localization.strategy.usesURLPrefix {
+            let (internalPath, urlLocale) = LocalePath.internalize(rawPath, supported: localization.supported)
+            currentPath = internalPath
+            if let urlLocale, urlLocale != signals.locale {
+                signals._setLocale(urlLocale)
+                applier.backend.setDocumentLanguage(urlLocale.identifier,
+                                                    dir: urlLocale.isRTL ? "rtl" : nil)
+            }
+        } else {
+            currentPath = RouteURL.normalizePath(rawPath)
+        }
         currentQuery = query
+        _currentSearch = search
         armViewTransition(routeDeclaredTransition(for: currentPath) ?? routerTransitionDefault,
                           direction: .pop, isNavigation: true)
         markDirty(.root)
     }
 
+    /// Internal route path → browser-visible path. The single place that
+    /// decides what history and `Link` hrefs show; identity-ish (normalize
+    /// only) for monolingual apps and prefix-less strategies.
+    func _externalPath(_ path: String) -> String {
+        guard let localization = _localization, localization.strategy.usesURLPrefix else {
+            return RouteURL._normalize(path)
+        }
+        return LocalePath.externalize(path, locale: signals.locale, default: localization.default)
+    }
+
     /// Switches the active locale (spec §3.2). Validation → signal → persistence
-    /// → `<html lang>`/`dir` → full re-render. URL alignment for `.pathPrefix`
-    /// is added in Task 9, once `LocalePath` exists.
+    /// → `<html lang>`/`dir` → URL alignment for `.pathPrefix` → full re-render.
     ///
     /// `markDirty(.root)` rather than a targeted invalidation: `Text` resolves
     /// the locale inside `_resolve`, outside the Observation window, so a write
@@ -269,6 +302,14 @@ public final class Runtime<Backend: RendererBackend> {
         }
         applier.backend.setDocumentLanguage(locale.identifier,
                                             dir: locale.isRTL ? "rtl" : nil)
+        // Same route, new prefix: `currentPath` stays locale-free, only the
+        // browser-visible URL moves (replace, not push — it is the same page).
+        if localization.strategy.usesURLPrefix {
+            let external = LocalePath.externalize(currentPath, locale: locale,
+                                                  default: localization.default)
+            applier.backend.replaceState(path: _currentSearch.isEmpty ? external
+                                                                      : external + "?" + _currentSearch)
+        }
         markDirty(.root)
     }
 
@@ -548,6 +589,7 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.environment.back = { [weak self] in self?.applier.backend.historyBack() }
         ctx.environment.reloadToUpdate = { [weak self] in self?.applier.backend.reloadForUpdate() }
         ctx.environment.setLocale = SetLocaleAction { [weak self] locale in self?.setLocale(locale) }
+        ctx.environment._externalizePath = { [weak self] path in self?._externalPath(path) ?? path }
         ctx.environment.availableLocales = _localization?.supported ?? []
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
