@@ -76,6 +76,16 @@ import Testing
                                         headers: ["accept-language": "ru"]))
         #expect(asset != nil)
 
+        // The bare root. `.negotiated` writes NO dist/index.html — every locale,
+        // the default included, gets a folder — so "/" has to resolve inside the
+        // negotiated folder both with a header and without one, and a fixture
+        // with no root index.html (as above) is the only honest way to pin it.
+        let rootRU = handler(HTTPRequest(method: "GET", path: "/", headers: ["accept-language": "ru"]))
+        #expect(String(decoding: rootRU!.body, as: UTF8.self).contains("Главная-root"))
+        #expect(rootRU?.headers["Vary"] == "Accept-Language, Cookie")
+        let rootDefault = handler(HTTPRequest(method: "GET", path: "/", headers: [:]))
+        #expect(String(decoding: rootDefault!.body, as: UTF8.self).contains("Home-root"))
+
         // A non-localized site keeps today's behaviour: no folder lookup, no Vary.
         let plain = StaticFiles.handler(urlPrefix: "/", root: root)
         #expect(plain(HTTPRequest(method: "GET", path: "/about", headers: ["accept-language": "ru"])) == nil)
