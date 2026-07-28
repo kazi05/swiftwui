@@ -35,16 +35,13 @@ struct Dev: ParsableCommand {
         let watcher = FileWatcher(root: cwd)
         while true {                                    // main thread IS the watch loop
             Thread.sleep(forTimeInterval: 0.5)          // poll interval (spec §6)
-            if watcher.changed() {
-                Thread.sleep(forTimeInterval: 0.2)      // debounce: let the editor finish writing
-                _ = watcher.changed()                   // absorb the debounce window
-                print("change detected — rebuilding…")
-                session.rebuildAndNotify()
-                // Not redundant: the rebuild regenerates Generated/L10n.swift,
-                // a watched .swift file. Without this the next poll sees the
-                // generator's own write and reloads the browser a second time.
-                _ = watcher.changed()
-            }
+            watcher.pollAndRebuild(
+                projectDir: cwd,
+                debounce: { Thread.sleep(forTimeInterval: 0.2) },   // let the editor finish writing
+                rebuild: {
+                    print("change detected — rebuilding…")
+                    session.rebuildAndNotify()
+                })
         }
     }
 }

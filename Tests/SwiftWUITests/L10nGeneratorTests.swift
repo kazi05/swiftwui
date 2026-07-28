@@ -70,10 +70,15 @@ import SwiftWUI
         #expect(throws: L10nGeneratorError.self) {
             _ = try L10nGenerator.addLocale(projectDir: root, tag: "../evil", target: nil)
         }
-        // `--target` reaches the same path join: one component, or nothing.
-        #expect(L10nGenerator.localesOwner(projectDir: root, target: "../../elsewhere") == nil)
+        // `--target` reaches the same path join, so it is the same trust boundary.
+        // The escape target has to EXIST for the assertion to mean anything:
+        // without the guard, `root/Sources/../elsewhere/Locales` resolves and
+        // `addLocale` writes a catalog outside the project.
+        try FileManager.default.createDirectory(atPath: root + "/elsewhere/Locales",
+                                                withIntermediateDirectories: true)
+        #expect(L10nGenerator.localesOwner(projectDir: root, target: "../elsewhere") == nil)
         #expect(throws: L10nGeneratorError.self) {
-            _ = try L10nGenerator.addLocale(projectDir: root, tag: "fr", target: "../../elsewhere")
+            _ = try L10nGenerator.addLocale(projectDir: root, tag: "fr", target: "../elsewhere")
         }
     }
 
@@ -87,16 +92,40 @@ import SwiftWUI
         #expect(text.contains(#"case "de": return _l_de()"#))
     }
 
-    /// `changed()` consumes what it reports. The dev loop's `_ = watcher.changed()`
-    /// after a rebuild relies on that to absorb the generator's own write —
-    /// `Generated/L10n.swift` is itself a watched `.swift` file, so without the
-    /// absorb every catalog edit reloads the browser twice.
-    @Test func absorbingTheGeneratorsOwnWriteResetsTheBaseline() throws {
+    /// The dev loop, both halves of it. `Generated/L10n.swift` is itself a watched
+    /// `.swift` file, so the generator's own write must not start a second cycle
+    /// (a visible double reload) — and the absorb that achieves that must not
+    /// extend over `rebuild`, which in production is a wasm build lasting tens of
+    /// seconds during which the user keeps saving files.
+    ///
+    /// Every write here creates a new file rather than touching an existing one,
+    /// so the assertions do not depend on filesystem mtime granularity.
+    @Test func devLoopAbsorbsItsOwnWriteButNotConcurrentEdits() throws {
         let root = try makeProject(["en": #"{"a":"A"}"#])
         let watcher = FileWatcher(root: root)
-        _ = try #require(try L10nGenerator.generate(projectDir: root))
-        #expect(watcher.changed())      // Generated/L10n.swift appeared
-        #expect(!watcher.changed())     // …and one read absorbs it
+        var rebuilds = 0
+        let quiet = { rebuilds += 1 }
+        // A rebuild takes a while, and the user saves a source file while it runs.
+        let interrupted = {
+            rebuilds += 1
+            try? "// edit".write(toFile: root + "/Sources/App/edit\(rebuilds).swift",
+                                 atomically: true, encoding: .utf8)
+        }
+
+        try #"{"a":"A"}"#.write(toFile: root + "/Sources/App/Locales/de.json",
+                                atomically: true, encoding: .utf8)
+        watcher.pollAndRebuild(projectDir: root, debounce: {}, rebuild: quiet)
+        #expect(rebuilds == 1)
+        #expect(FileManager.default.fileExists(atPath: root + "/Sources/App/Generated/L10n.swift"))
+        watcher.pollAndRebuild(projectDir: root, debounce: {}, rebuild: quiet)
+        #expect(rebuilds == 1)          // the generated file's write was absorbed
+
+        try #"{"a":"A"}"#.write(toFile: root + "/Sources/App/Locales/fr.json",
+                                atomically: true, encoding: .utf8)
+        watcher.pollAndRebuild(projectDir: root, debounce: {}, rebuild: interrupted)
+        #expect(rebuilds == 2)
+        watcher.pollAndRebuild(projectDir: root, debounce: {}, rebuild: quiet)
+        #expect(rebuilds == 3)          // the edit made during the rebuild still builds
     }
 
     @Test func tagValidationMatchesLocaleID() {

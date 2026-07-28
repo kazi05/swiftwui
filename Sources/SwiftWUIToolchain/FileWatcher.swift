@@ -36,4 +36,22 @@ public final class FileWatcher {
         defer { baseline = now }
         return now != baseline
     }
+
+    /// One cycle of the `swiftwui dev` watch loop, extracted so it can be tested
+    /// without a real wasm build (`rebuild` is the seam).
+    ///
+    /// Ordering is the whole point: code generation runs BEFORE the debounce
+    /// absorb, so its write to `Generated/L10n.swift` — itself a watched `.swift`
+    /// file — is swallowed by the absorb that already exists. Absorbing after
+    /// `rebuild` instead would swallow the entire build window, silently dropping
+    /// every edit the user makes while the build runs.
+    public func pollAndRebuild(projectDir: String, debounce: () -> Void, rebuild: () -> Void) {
+        guard changed() else { return }
+        debounce()
+        // Errors are ignored here: `rebuild` runs the generator again and reports
+        // a bad catalog the way it reports any other build failure.
+        _ = try? L10nGenerator.generate(projectDir: projectDir)
+        _ = changed()
+        rebuild()
+    }
 }
