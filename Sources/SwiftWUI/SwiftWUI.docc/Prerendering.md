@@ -264,7 +264,9 @@ current answer to "render this one path without a full site build." A
 `RenderedPage.outcome` is explicit about what happened — `.page`,
 `.redirect(to:permanent:)`, `.notFound`, or `.error(_:)` (render failed;
 transient, never map it to a 404 — repeated 404s deindex a URL, and an
-upstream outage during a build is routine, not permanent).
+upstream outage during a build is routine, not permanent). A redirect's
+target is browser-visible, so in a localized app it carries the locale
+prefix — send it to a `Location:` header or a meta-refresh as-is.
 
 **`render(path:)`/`ssg --path` does not consult per-route `.prerender`
 policy.** It's a manual primitive: it renders whatever `path` you name,

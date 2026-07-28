@@ -79,10 +79,22 @@ public struct RenderedPage: Sendable {
     public var css: String
     public var head: PageHead?
     public var outcome: Outcome
+    /// Browser-visible path of this document — the locale prefix included, and
+    /// the same string its canonical, snapshot and `Link` hrefs agree on.
+    /// `generate()` writes and reports under this rather than re-deriving it,
+    /// because the locale a page SETTLES on need not be the one it was asked
+    /// for (a `.staticTask` may call `setLocale`).
+    /// No default on purpose: every construction site must say where its
+    /// document goes, or a forgotten one silently writes to the site root.
+    public var path: String
+    /// Output folder for this document, relative to outDir: `.negotiated`'s
+    /// locale directory, "" under every other strategy.
+    public var subdir: String
 
     public enum Outcome: Sendable, Equatable {
         case page
-        /// The runtime settled on a different location (guard redirect).
+        /// The runtime settled on a different location (guard redirect). The
+        /// value is the browser-visible target — locale prefix included.
         case redirect(to: String, permanent: Bool)
         /// No route matched, or the Router fell through to notFound.
         case notFound
@@ -109,7 +121,8 @@ extension StaticSite {
                                       locale: LocaleID? = nil) async throws -> RenderedPage {
         guard config.prerenderEnabled else {
             return RenderedPage(html: "", css: "", head: nil,
-                                outcome: .error("prerendering disabled (kill-switch)"))
+                                outcome: .error("prerendering disabled (kill-switch)"),
+                                path: path, subdir: "")
         }
         let session = WebSession(transport: URLSessionTransport())
         WebSession.bootstrap(session)
@@ -214,20 +227,15 @@ public enum StaticSite {
         report.locales = renderLocales
 
         for locale in (renderLocales.isEmpty ? [nil] : renderLocales.map { Optional($0) }) {
-            // Under .pathPrefix the locale lives in the URL, so the file path is
-            // derived from it; under .negotiated the URL stays clean and the
-            // locale becomes an output folder instead.
-            var subdir = ""
-            if let locale, let localization, case .negotiated = localization.strategy {
-                subdir = locale.identifier
-            }
             for path in pagePaths {
                 let rendered = try await renderPage(A.self, path: path, config: config,
                                                     session: session, locale: locale)
-                let outputPath: String = {
-                    guard let locale, let localization, localization.strategy.usesURLPrefix else { return path }
-                    return LocalePath.externalize(path, locale: locale, default: localization.default)
-                }()
+                // Where this document goes and what its URL is were both decided
+                // by the render, from the locale it actually settled on. Never
+                // re-derived here: a `.staticTask` calling `setLocale` would put
+                // the file and its canonical in different languages.
+                let outputPath = rendered.path
+                let subdir = rendered.subdir
                 switch rendered.outcome {
                 case .redirect(let target, _):
                     report.redirects[outputPath] = target
@@ -257,10 +265,7 @@ public enum StaticSite {
         // --- write files ---
         for (path, subdir, html) in documents {
             try writeDocument(html, path: path, outDir: config.outDir, subdir: subdir)
-            let clean = path.firstIndex(of: "?").map { String(path[..<$0]) } ?? path
-            let file = (clean == "/" ? "" : clean.hasPrefix("/") ? String(clean.dropFirst()) : clean)
-            report.writtenFiles.append(([subdir, file].filter { !$0.isEmpty } + ["index.html"])
-                .joined(separator: "/"))
+            report.writtenFiles.append(outputFile(path: path, subdir: subdir))
         }
         try SiteDescriptor.write(localization: localization, outDir: config.outDir)
         if config.cssFile {
@@ -292,15 +297,23 @@ public enum StaticSite {
     /// while every URL inside it stays clean, and the edge picks the folder.
     public static func writeDocument(_ html: String, path: String, outDir: String,
                                      subdir: String = "") throws {
-        let cleanPath = path.firstIndex(of: "?").map { String(path[..<$0]) } ?? path
-        let base = subdir.isEmpty ? outDir : outDir + "/" + subdir
-        let dir = cleanPath == "/" ? base : base + cleanPath
+        let dir = outDir + "/" + outputFile(path: path, subdir: subdir)
+            .dropLast("/index.html".count)
         do {
             try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
             try html.write(toFile: dir + "/index.html", atomically: true, encoding: .utf8)
         } catch {
             throw StaticSiteError.io(path: dir + "/index.html", underlying: "\(error)")
         }
+    }
+
+    /// The one place "which folder" and "which URL" are joined into a path on
+    /// disk, relative to outDir. Query strings are stripped here, so every
+    /// caller agrees on where a query-variant page collapses to.
+    static func outputFile(path: String, subdir: String) -> String {
+        let clean = path.firstIndex(of: "?").map { String(path[..<$0]) } ?? path
+        let dir = clean == "/" ? "" : String(clean.dropFirst())
+        return ([subdir, dir].filter { !$0.isEmpty } + ["index.html"]).joined(separator: "/")
     }
 
     /// Meta-refresh stub for guard-redirected pages (spec D4).
@@ -373,7 +386,8 @@ public enum StaticSite {
             iterations += 1
             guard iterations <= buildTaskIterationCap else {
                 return RenderedPage(html: "", css: "", head: nil,
-                                    outcome: .error("page '\(path)' never quiesced after \(iterations) build-task iterations"))
+                                    outcome: .error("page '\(path)' never quiesced after \(iterations) build-task iterations"),
+                                    path: path, subdir: "")
             }
             pump()                                 // state writes → re-render → possibly new tasks
         }
@@ -386,28 +400,41 @@ public enum StaticSite {
         // `Runtime._externalPath` applies to history and `Link` hrefs. Identity
         // for monolingual apps and prefix-less strategies, so their output is
         // byte-for-byte what it was before this existed.
+        // The locale the page SETTLED on — not the one it was asked for: a
+        // `.staticTask` may call `setLocale`, and the file, the canonical, the
+        // snapshot and the stylesheet href must all follow the same one.
         let renderLocale = runtime._signals.locale
         func externalize(_ internalPath: String) -> String {
             guard let localization, localization.strategy.usesURLPrefix else { return internalPath }
             return LocalePath.externalize(internalPath, locale: renderLocale, default: localization.default)
         }
+        // `.negotiated` keeps the URL clean and puts the locale in the output
+        // folder instead; every other strategy has one folder per URL.
+        let subdir: String = {
+            guard let localization, case .negotiated = localization.strategy else { return "" }
+            return renderLocale.identifier
+        }()
+        // What the browser will show in the address bar for this document — and
+        // therefore what the snapshot must record: the hydration boot compares
+        // it to `location.pathname` byte-for-byte. Built from the REQUESTED
+        // path, not `settled`: on a redirect those differ, and the stub is
+        // written at the URL that was asked for, not at the one it points to.
+        let externalPath = externalize(RouteURL._normalize(requestedPath))
         if settled != RouteURL._normalize(requestedPath) {
             // The stub's target is a URL a browser will follow, so it carries
             // the prefix: a guard redirect out of /ru/admin must not drop the
             // visitor into the English site.
             return RenderedPage(html: "", css: "", head: nil,
-                                outcome: .redirect(to: externalize(settled), permanent: false))
+                                outcome: .redirect(to: externalize(settled), permanent: false),
+                                path: externalPath, subdir: subdir)
         }
 
         guard case .component(let rootComponent)? = runtime._currentTree else {
-            return RenderedPage(html: "", css: runtime._registryText, head: nil, outcome: .notFound)
+            return RenderedPage(html: "", css: runtime._registryText, head: nil, outcome: .notFound,
+                                path: externalPath, subdir: subdir)
         }
         let body = HTMLRenderer._render(rootComponent.children)
         let css = runtime._registryText
-        // What the browser will show in the address bar for this document — and
-        // therefore what the snapshot must record: the hydration boot compares
-        // it to `location.pathname` byte-for-byte.
-        let externalPath = externalize(settled)
         var snapshot: String? = nil
         if case .hydrate = config.mode {
             let rows = runtime._store._encodeSnapshotRows(SnapshotJSON.encodeSlot)
@@ -433,22 +460,9 @@ public enum StaticSite {
         var wasmPath: String? = nil
         if case .hydrate(let p) = config.mode { wasmPath = p }
         let importMap: String? = wasmPath != nil ? config.importMapJSON : nil
-        // Same relative path the write loop derives its output file from
-        // (requestedPath is already query-stripped, see above). The stylesheet
-        // href is relative to that FILE, not to the URL, and a localized build
-        // nests the file one level deeper: under `.pathPrefix` the locale is
-        // already part of the path, under `.negotiated` it is the output folder
-        // the clean URL deliberately does not mention.
-        let localeSegment: String? = {
-            guard let localization else { return nil }
-            switch localization.strategy {
-            case .pathPrefix: return renderLocale == localization.default ? nil : renderLocale.identifier
-            case .negotiated: return renderLocale.identifier
-            case .client:     return nil
-            }
-        }()
-        let pageFile = requestedPath == "/" ? "index.html" : String(requestedPath.dropFirst()) + "/index.html"
-        let relFile = localeSegment.map { $0 + "/" + pageFile } ?? pageFile
+        // The stylesheet href is relative to the output FILE, not to the URL —
+        // the very file the write loop derives from the same two values.
+        let relFile = outputFile(path: externalPath, subdir: subdir)
         var head = CanonicalSynthesis.apply(to: runtime._pageHead,
                                             path: externalPath,
                                             siteURL: config.siteURL,
@@ -478,7 +492,8 @@ public enum StaticSite {
         // notFound: closure, or nothing if the app declared none) — render it
         // like any other page and only flag the outcome (review finding 2).
         let outcome: RenderedPage.Outcome = runtime._routeMatched ? .page : .notFound
-        return RenderedPage(html: doc, css: css, head: head, outcome: outcome)
+        return RenderedPage(html: doc, css: css, head: head, outcome: outcome,
+                            path: externalPath, subdir: subdir)
     }
 }
 

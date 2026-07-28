@@ -117,6 +117,7 @@ import Foundation
     // 7. nginx.conf reserved; public/nginx.conf collides.
     @Test func nginxConfIsReservedPublicName() throws {
         #expect(DistLayout.reservedNames.contains("nginx.conf"))
+        #expect(DistLayout.reservedNames.contains("swiftwui-site.json"))   // SSG writes it into dist
         let root = try scratchDist()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try FileManager.default.createDirectory(atPath: root + "/public", withIntermediateDirectories: true)

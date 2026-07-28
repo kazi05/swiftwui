@@ -88,6 +88,10 @@ import Testing
         #expect(v1 != v2)
     }
 
+    @Test func buildDescriptorIsNeverPrecached() {
+        #expect(PWAAssets.isExcluded(relPath: "swiftwui-site.json"))
+    }
+
     @Test func swAssetsIsReservedPublicName() {
         #expect(DistLayout.reservedNames.contains("sw-assets.js"))
         #expect(!DistLayout.reservedNames.contains("sw.js"))   // user-owned, must stay allowed
