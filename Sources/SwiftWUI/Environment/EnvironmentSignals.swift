@@ -21,6 +21,12 @@ public final class EnvironmentSignals {
     /// Window-level drag state (DnD spec §3.4). Equality-guarded: repeated
     /// identical writes (child dragenters bubble to window) don't invalidate.
     public private(set) var dragSession: DragSessionInfo = .none
+    /// Active locale. Unlike the other signals this is NOT auto-tracked where
+    /// it matters most: `Text` resolves it inside `_resolve`, outside the
+    /// Observation window — locale changes invalidate via `markDirty(.root)`.
+    public private(set) var locale: LocaleID = LocaleID("en")!
+    /// The app's default locale — the fallback leg of `LocalizedText.resolved`.
+    public private(set) var defaultLocale: LocaleID = LocaleID("en")!
     public init() {}
 
     func _setColorScheme(_ v: ColorScheme) { colorScheme = v }
@@ -28,6 +34,8 @@ public final class EnvironmentSignals {
     func _setAppUpdateAvailable(_ v: Bool) { appUpdateAvailable = v }
     func _setReduceMotion(_ v: Bool) { reduceMotion = v }
     func _setDragSession(_ v: DragSessionInfo) { if dragSession != v { dragSession = v } }
+    func _setLocale(_ v: LocaleID) { if locale != v { locale = v } }
+    func _setDefaultLocale(_ v: LocaleID) { defaultLocale = v }
 
     /// Cross-module write surface: setters stay core-private; backends receive
     /// closures via `RendererBackend.beginEnvironmentObservation`.
@@ -44,13 +52,15 @@ public final class EnvironmentSignals {
         public let setAppUpdateAvailable: (Bool) -> Void
         public let setReduceMotion: (Bool) -> Void
         public let setDragSession: (DragSessionInfo) -> Void
+        public let setLocale: (LocaleID) -> Void
     }
     var writer: Writer {
         Writer(setColorScheme: { [weak self] in self?._setColorScheme($0) },
                setOnline: { [weak self] in self?._setOnline($0) },
                setAppUpdateAvailable: { [weak self] in self?._setAppUpdateAvailable($0) },
                setReduceMotion: { [weak self] in self?._setReduceMotion($0) },
-               setDragSession: { [weak self] in self?._setDragSession($0) })
+               setDragSession: { [weak self] in self?._setDragSession($0) },
+               setLocale: { [weak self] in self?._setLocale($0) })
     }
 }
 

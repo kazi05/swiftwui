@@ -24,6 +24,11 @@ public final class Runtime<Backend: RendererBackend> {
     private let styleRegistry = StyleRegistry()
     private var flushedStyleVersion = 0
     private let globalStyles: [Rule]
+    /// The app's localization declaration, `nil` for monolingual apps.
+    public let _localization: Localization?
+    /// https pages get `Secure` cookies; dev over http must still be able to
+    /// persist. Set by DOMRuntime at boot; false in tests and SSG.
+    public var _isSecureContext = false
     // Routing (spec §7): the runtime owns the current location.
     private var currentPath: String
     private var currentQuery: [String: String]
@@ -114,7 +119,8 @@ public final class Runtime<Backend: RendererBackend> {
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
                 initialPath: String = "/",
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void,
-                globalStyles: [Rule] = [], themes: [ThemeDefinition] = [], fontFaces: [FontFace] = []) {
+                globalStyles: [Rule] = [], themes: [ThemeDefinition] = [], fontFaces: [FontFace] = [],
+                localization: Localization? = nil) {
         let (path, query, _) = RouteURL.split(initialPath)
         currentPath = RouteURL.normalizePath(path)
         currentQuery = query
@@ -125,6 +131,11 @@ public final class Runtime<Backend: RendererBackend> {
         self.globalStyles = globalStyles
         self.themes = themes
         self.fontFaces = fontFaces
+        self._localization = localization
+        if let localization {
+            signals._setDefaultLocale(localization.default)
+            signals._setLocale(localization.default)
+        }
         effects._windowHub = windowEvents
         effects._onDropGuardChange = { [weak self] enabled in
             self?.applier.backend.setDropNavigationGuard(enabled)
@@ -230,6 +241,34 @@ public final class Runtime<Backend: RendererBackend> {
         currentQuery = query
         armViewTransition(routeDeclaredTransition(for: currentPath) ?? routerTransitionDefault,
                           direction: .pop, isNavigation: true)
+        markDirty(.root)
+    }
+
+    /// Switches the active locale (spec §3.2). Validation → signal → persistence
+    /// → `<html lang>`/`dir` → full re-render. URL alignment for `.pathPrefix`
+    /// is added in Task 9, once `LocalePath` exists.
+    ///
+    /// `markDirty(.root)` rather than a targeted invalidation: `Text` resolves
+    /// the locale inside `_resolve`, outside the Observation window, so a write
+    /// to `signals.locale` would not invalidate the components displaying
+    /// translated text.
+    public func setLocale(_ locale: LocaleID) {
+        guard let localization = _localization else { return }
+        guard localization.supported.contains(locale) else {
+            #if DEBUG
+            print("SwiftWUI: setLocale('\(locale)') is not in the declared locales \(localization.supported) — ignored")
+            #endif
+            return
+        }
+        guard locale != signals.locale else { return }
+        signals._setLocale(locale)
+        applier.backend.storageWrite(kind: .local, key: "__swiftwui.locale", value: locale.identifier)
+        if case .negotiated = localization.strategy {
+            applier.backend.writeCookie("swiftwui_locale", value: locale.identifier,
+                                        maxAgeDays: 365, secure: _isSecureContext)
+        }
+        applier.backend.setDocumentLanguage(locale.identifier,
+                                            dir: locale.isRTL ? "rtl" : nil)
         markDirty(.root)
     }
 
@@ -508,6 +547,8 @@ public final class Runtime<Backend: RendererBackend> {
         }
         ctx.environment.back = { [weak self] in self?.applier.backend.historyBack() }
         ctx.environment.reloadToUpdate = { [weak self] in self?.applier.backend.reloadForUpdate() }
+        ctx.environment.setLocale = SetLocaleAction { [weak self] locale in self?.setLocale(locale) }
+        ctx.environment.availableLocales = _localization?.supported ?? []
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
         isRendering = false
