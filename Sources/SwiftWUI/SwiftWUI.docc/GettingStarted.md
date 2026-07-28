@@ -49,10 +49,10 @@ point at a local checkout instead.
 Files in `public/` are served from the site root: `public/favicon.svg`
 is `/favicon.svg`, `public/fonts/Inter.woff2` is `/fonts/Inter.woff2`.
 `swiftwui dev` serves them directly; `swiftwui build` and `swiftwui ssg`
-copy them into `dist/`. Seven names are reserved at the top level of
+copy them into `dist/`. Eight names are reserved at the top level of
 `public/`, because they would shadow the framework's own `dist/` layout:
 `app`, `vendor`, `index.html`, `styles.css`, `__swiftwui`, `sw-assets.js`,
-and `nginx.conf`. A collision is a hard error from `build` and `ssg`, not a
+`nginx.conf` and `swiftwui-site.json`. A collision is a hard error from `build` and `ssg`, not a
 silent overwrite; nested paths like `public/assets/index.html` are fine,
 since only the first path component competes.
 

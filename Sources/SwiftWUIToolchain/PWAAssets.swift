@@ -10,6 +10,7 @@ public enum PWAAssets {
     static func isExcluded(relPath: String) -> Bool {
         if relPath == "sw.js" || relPath == "sw-assets.js" { return true }
         if relPath == "nginx.conf" { return true }
+        if relPath == "swiftwui-site.json" { return true }   // build descriptor, read by the toolchain
         if relPath.hasSuffix("/index.html") { return true }
         if relPath == "sitemap.xml" { return true }
         if relPath.hasPrefix("sitemap-") && relPath.hasSuffix(".xml") { return true }

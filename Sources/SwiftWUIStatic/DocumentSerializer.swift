@@ -14,18 +14,21 @@ public enum DocumentSerializer {
         public var importMapJSON: String?    // hydrate mode only
         public var wasmScriptPath: String?   // hydrate mode only
         public var lang: String
+        public var dir: String?              // "rtl" for right-to-left locales; nil = omit
         public init(bodyHTML: String, css: String? = nil, cssHref: String? = nil,
                     head: PageHead? = nil, snapshotJSON: String? = nil, importMapJSON: String? = nil,
-                    wasmScriptPath: String? = nil, lang: String = "en") {
+                    wasmScriptPath: String? = nil, lang: String = "en", dir: String? = nil) {
             self.bodyHTML = bodyHTML; self.css = css; self.cssHref = cssHref
             self.head = head; self.snapshotJSON = snapshotJSON
             self.importMapJSON = importMapJSON
-            self.wasmScriptPath = wasmScriptPath; self.lang = lang
+            self.wasmScriptPath = wasmScriptPath; self.lang = lang; self.dir = dir
         }
     }
 
     public static func render(_ input: Input) -> String {
-        var out = "<!doctype html>\n<html lang=\"" + HTMLEscaping.text(input.lang) + "\">\n<head>\n"
+        var out = "<!doctype html>\n<html lang=\"" + HTMLEscaping.text(input.lang) + "\""
+        if let dir = input.dir { out += " dir=\"" + HTMLEscaping.text(dir) + "\"" }
+        out += ">\n<head>\n"
         out += "<meta charset=\"utf-8\">\n"
         let metas = input.head?.meta ?? []
         let hasViewport = metas.contains { $0.attributes["name"] == "viewport" }

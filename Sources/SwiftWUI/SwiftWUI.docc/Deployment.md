@@ -121,7 +121,7 @@ Top-level entries of `public/` land at the `dist/` root, so a handful of
 names would shadow the framework's own layout. These are rejected:
 
 `app`, `vendor`, `index.html`, `styles.css`, `__swiftwui`, `sw-assets.js`,
-`nginx.conf`
+`nginx.conf`, `swiftwui-site.json`
 
 A collision is a hard error from both `build` and `ssg`, with the offending
 names listed — it fails rather than silently overwriting the bundle
@@ -220,6 +220,7 @@ uses no `SharedArrayBuffer`.
 When a project opted into PWA mode, `build` and `ssg` regenerate
 `dist/sw-assets.js` — a SHA-256 precache manifest of the deployed files. It
 deliberately excludes `sw.js` and `sw-assets.js` themselves, `nginx.conf`,
+`swiftwui-site.json`,
 generated `sitemap.xml` / `sitemap-N.xml`, dotfiles, framework-owned
 `.gz`/`.br` siblings, and every `index.html` below the root. Per-route
 prerenders are an SEO artifact served over HTTP, not an offline artifact, and
