@@ -1,6 +1,24 @@
 import Testing
 @testable import SwiftWUI
 
+private struct PlainApp: App {
+    init() {}
+    var body: some Tag { P { Text("plain") } }
+}
+
+private struct LocalizedApp: App {
+    init() {}
+    var body: some Tag { P { Text("localized") } }
+    static var localization: Localization? {
+        Localization(supported: [LocaleID("en")!, LocaleID("ru")!], default: LocaleID("ru")!)
+    }
+}
+
+/// Reads the knob the way the SSG and the DOM boot do — through a generic
+/// parameter. Declaring `localization` in a protocol extension instead of as an
+/// `App` requirement makes this return nil for `LocalizedApp`.
+private func declaredLocalization<A: App>(_: A.Type) -> Localization? { A.localization }
+
 @Suite struct LocalizedTextTests {
     private let text = LocalizedText(key: "greeting") { locale in
         switch locale.identifier {
@@ -41,6 +59,14 @@ import Testing
         #expect(l.validated("../ru") == nil)
         #expect(l.validated(nil) == nil)
         #expect(l.validated("ru-RU") == LocaleID("ru")!)   // regional request maps to a supported language
+    }
+
+    @Test func appLocalizationIsVisibleThroughGenerics() {
+        #expect(declaredLocalization(PlainApp.self) == nil)
+        let declared = declaredLocalization(LocalizedApp.self)
+        #expect(declared != nil)
+        #expect(declared?.default == LocaleID("ru")!)
+        #expect(declared?.supported == [LocaleID("en")!, LocaleID("ru")!])
     }
 
     @Test func strategyFlags() {

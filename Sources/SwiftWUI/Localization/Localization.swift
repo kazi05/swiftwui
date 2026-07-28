@@ -67,8 +67,3 @@ public struct Localization {
         return supported.first { $0.identifier == parsed.language }
     }
 }
-
-extension App {
-    /// Declared by localized apps: `Localization(catalog: L10n.self, default: .ru)`.
-    public static var localization: Localization? { nil }
-}

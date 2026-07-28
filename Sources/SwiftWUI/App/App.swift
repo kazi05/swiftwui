@@ -15,6 +15,9 @@ public protocol App {
     /// nil = "said nothing" — resolution falls through to
     /// `StaticSiteConfig.defaultPrerender`, then to phase-5 behaviour.
     static var prerender: Prerender? { get }
+    /// Declared by localized apps: `Localization(catalog: L10n.self, default: .ru)`.
+    /// nil (the default) keeps every localization branch inert.
+    static var localization: Localization? { get }
 }
 
 extension App {
@@ -22,4 +25,5 @@ extension App {
     public static var themes: [ThemeDefinition] { [] }
     public static var fontFaces: [FontFace] { [] }
     public static var prerender: Prerender? { nil }
+    public static var localization: Localization? { nil }
 }
