@@ -107,7 +107,10 @@ import SwiftWUIStatic
                                                                  prerenderEnabled: prerenderEnabled))
             switch page.outcome {
             case .page:
-                try StaticSite.writeDocument(page.html, path: onlyPath, outDir: out)
+                // `page.path`/`page.subdir`, not `onlyPath`: the render decides
+                // where the document goes, and in a localized app they differ.
+                try StaticSite.writeDocument(page.html, path: page.path, outDir: out,
+                                             subdir: page.subdir)
                 print("rendered \(onlyPath)")
             case .redirect(let target, _): print("\(onlyPath) redirects to \(target); nothing written")
             case .notFound: print("\(onlyPath) matched no route; nothing written")

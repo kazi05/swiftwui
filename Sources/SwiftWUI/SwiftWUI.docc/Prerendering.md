@@ -249,7 +249,10 @@ if let onlyPath {
                                                          prerenderEnabled: prerenderEnabled))
     switch page.outcome {
     case .page:
-        try StaticSite.writeDocument(page.html, path: onlyPath, outDir: out)
+        // `page.path`/`page.subdir`, not `onlyPath`: the render decides where
+        // the document goes, and under a localized app the two differ.
+        try StaticSite.writeDocument(page.html, path: page.path, outDir: out,
+                                     subdir: page.subdir)
     case .redirect(let target, _): print("\(onlyPath) redirects to \(target); nothing written")
     case .notFound: print("\(onlyPath) matched no route; nothing written")
     case .error(let m): print("render failed: \(m)")

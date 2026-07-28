@@ -1,0 +1,14 @@
+{
+  "about.body": "Every string is resolved during the render pass, so switching language never reloads the page and never refetches anything.",
+  "about.title": "About",
+  "add.item": "Add item",
+  "cart.empty": "Your cart is empty.",
+  "direction.note": "This paragraph follows the writing direction of the active locale.",
+  "items.count": "{count, plural, one {# item} other {# items}}",
+  "logo.alt": "SwiftWUI logo",
+  "nav.about": "About",
+  "nav.home": "Home",
+  "reset": "Reset",
+  "search.placeholder": "Search items",
+  "welcome.title": "Hello, {name}!"
+}

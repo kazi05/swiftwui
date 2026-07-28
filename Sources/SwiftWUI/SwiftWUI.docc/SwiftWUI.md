@@ -170,6 +170,19 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 - ``ViewTransitionOptions``
 - <doc:Prerendering>
 
+### Localization
+
+- <doc:Localization>
+- ``Localization``
+- ``LocaleStrategy``
+- ``LocaleID``
+- ``LayoutDirection``
+- ``LocalizedText``
+- ``LocalizationCatalog``
+- ``LocalePath``
+- ``LocaleResolution``
+- ``SetLocaleAction``
+
 ### Effects
 
 - ``TaskPolicy``

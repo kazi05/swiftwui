@@ -4,8 +4,8 @@ Build websites in pure Swift. SwiftWUI is a SwiftUI-inspired declarative UI
 framework that compiles to WebAssembly: value-type components, `@State`
 reactivity, typed CSS with breakpoints and container queries, client-side
 routing, spring-based animations, view transitions, drag and drop, dependency
-injection, and prerendering with hydration — without writing a line of
-JavaScript.
+injection, localization, and prerendering with hydration — without writing a
+line of JavaScript.
 
 ```swift
 import SwiftWUI
@@ -93,6 +93,8 @@ swiftwui serve dist    # static preview of the built site
 | `swiftwui build [-c release] [--out dist]` | Build the wasm bundle and assemble `dist/` |
 | `swiftwui ssg [--out dist]` | Prerender pages via the app's native `<App> ssg` entry |
 | `swiftwui serve [dist] [--port 8080]` | Preview a built site (SPA fallback, no watcher) |
+| `swiftwui l10n generate [--check] [--target <name>]` | Regenerate `Generated/L10n.swift` from `Locales/*.json`; `--check` is the CI gate |
+| `swiftwui l10n add <tag>` | Seed a new `Locales/<tag>.json` from an existing catalog, values marked `TODO` |
 
 Templates: `basic` (counter + two routes + `.staticTask`), `mvvm`
 (`@Observable` view model via a custom environment key), `tca`
@@ -113,6 +115,10 @@ Templates: `basic` (counter + two routes + `.staticTask`), `mvvm`
   params, `@Observable` store through the environment, typed
   styles with light/dark themes, controlled inputs with bindings, per-page
   `<head>` metadata, and SSG (`swift run TodoMVC ssg --out dist`).
+
+- **[Examples/Localized](Examples/Localized)** — localization end to end: JSON
+  catalogs for `en`/`ru`/`ar`, generated type-safe `L10n`, a language switcher
+  built from `@Environment(\.availableLocales)`, ICU plurals, and an RTL demo.
 
 - **[Sites/Tutorial](Sites/Tutorial)** — "Hello, SwiftWUI": a 19-chapter
   interactive tutorial covering the `Tag` API, `@State`, styling and

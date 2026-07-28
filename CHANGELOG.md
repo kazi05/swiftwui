@@ -6,6 +6,50 @@ Notable changes to SwiftWUI. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+
+- **Localization.** Translations live in `Sources/<Target>/Locales/<tag>.json` — flat keys,
+  `{name}` placeholders and ICU cardinal plurals — and `swiftwui l10n generate` compiles them
+  into a committed `Generated/L10n.swift`: one function per key, parameters typed from the
+  placeholders, CLDR plural rules emitted as Swift so wasm and native SSG agree without
+  `Intl.PluralRules`. Declare the app's locales with one static property:
+
+  ```swift
+  static var localization: Localization? {
+      Localization(catalog: L10n.self, default: .en, strategy: .pathPrefix())
+  }
+  ```
+
+  `Text`, `Button`, `Img(alt:)`, `Input(placeholder:)`, `Textarea(placeholder:)`,
+  `.attribute(_:_:)` and `.pageMeta(title:)` take a `LocalizedText` directly; everything else
+  resolves through `@Environment(\.locale)` and `resolved(for:)`. Switching is
+  `@Environment(\.setLocale)`, with `\.availableLocales` and `\.layoutDirection` alongside it.
+  Resolution is exact tag → primary language → the app's default → the key, and every
+  untrusted locale string (URL prefix, `localStorage`, cookie, `navigator.languages`) is
+  validated against the declared set before it can reach a path, a URL or `<html lang>`.
+
+  Three strategies decide how the locale is carried. `.pathPrefix()` puts every non-default
+  locale under its tag (`/ru/about/`), prerenders one tree per locale and emits `hreflang`
+  plus `x-default`. `.negotiated` keeps clean URLs and puts the locale in the output folder,
+  with the edge choosing by cookie then `Accept-Language` — `ssg` writes
+  `dist/swiftwui-site.json` and a matching `dist/nginx.conf`, `swiftwui serve` reproduces the
+  rule locally, and a host that cannot rewrite (GitHub Pages, bare S3) reaches only the
+  default locale. `.client` ships a single default-locale tree and switches after boot.
+  An app that declares no `localization` is unaffected: every branch is inert and SSG output
+  is byte-for-byte unchanged.
+
+  New CLI: `swiftwui l10n generate [--check] [--allow-missing] [--target <name>]` and
+  `swiftwui l10n add <tag>`. `build` and `ssg` regenerate first; `dev` watches
+  `Locales/*.json`. `--check` is the CI gate. See <doc:Localization> and `Examples/Localized`.
+
+### Fixed
+
+- **`ssg --path` wrote to the wrong folder in a localized app.** The scaffold templates and
+  the <doc:Prerendering> example passed the requested path to `StaticSite.writeDocument`,
+  discarding `RenderedPage.path` and `.subdir` — the two values that say where the render
+  actually decided the document goes. Under `.negotiated` that is a different directory, and
+  a `.staticTask` calling `setLocale` can move it under any strategy.
+
 ## [0.7.0] - 2026-07-28
 
 ### Fixed

@@ -51,6 +51,37 @@ private struct Sinks: Tag {
         #expect(!ru.contains("Hello"))
     }
 
+    // Documented in Localization.md: a localized attribute is resolved after
+    // every plain attribute of the same name, so it wins whichever order the
+    // modifiers were written in — the opposite of the usual last-modifier-wins
+    // reading. Pinned here because the docs promise it.
+    @Test func localizedAttributeBeatsAPlainOneInBothOrders() {
+        struct Both: Tag {
+            let localizedFirst: Bool
+            var body: some Tag {
+                if localizedFirst {
+                    P { Text("x") }.attribute("title", hello).attribute("title", "plain")
+                } else {
+                    P { Text("x") }.attribute("title", "plain").attribute("title", hello)
+                }
+            }
+        }
+        for localizedFirst in [true, false] {
+            let backend = MockBackend(); let sched = Sched()
+            let l10n = Localization(supported: [LocaleID("en")!, LocaleID("ru")!],
+                                    default: LocaleID("en")!, strategy: .client)
+            let runtime = Runtime(backend: backend, container: backend.container,
+                                  root: Both(localizedFirst: localizedFirst),
+                                  scheduleMicrotask: sched.schedule, localization: l10n)
+            runtime.mount(); sched.drain()
+            runtime.setLocale(LocaleID("ru")!); sched.drain()
+            let html = backend.serializeHTML()
+            #expect(html.contains(#"title="Привет""#))
+            #expect(!html.contains(#"title="plain""#))
+            _ = runtime
+        }
+    }
+
     @Test func attributeAppearsExactlyOnce() {
         let ru = render("ru")
         let occurrences = ru.components(separatedBy: "alt=").count - 1
