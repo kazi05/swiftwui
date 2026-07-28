@@ -74,7 +74,10 @@ private struct LocaleReader: Tag {
         sched.drain()
         #expect(backend.serializeHTML().contains("en/ltr"))
         #expect(backend.localStorage["__swiftwui.locale"] == nil)
-        #expect(backend.documentLanguage == nil)   // fires if the guard ever moves below setDocumentLanguage
+        // Boot resolution already wrote the initial language, so this is "still
+        // the booted one", not "never written" — it fires all the same if the
+        // guard ever moves below setDocumentLanguage.
+        #expect(backend.documentLanguage?.lang == "en")
         #expect(backend.cookies.isEmpty)
     }
 

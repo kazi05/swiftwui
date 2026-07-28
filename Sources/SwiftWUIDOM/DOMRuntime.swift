@@ -39,12 +39,18 @@ public enum DOMRuntime {
 
     private static func makeRuntime<B: RendererBackend>(
         root: some Tag, backend: B, container: B.HostNode, initialPath: String,
-        globalStyles: [Rule], themes: [ThemeDefinition], fontFaces: [FontFace]
+        globalStyles: [Rule], themes: [ThemeDefinition], fontFaces: [FontFace],
+        localization: Localization?
     ) -> Runtime<B> {
         let runtime = Runtime(backend: backend, container: container, root: root,
                               initialPath: initialPath, scheduleMicrotask: jsMicrotask,
-                              globalStyles: globalStyles, themes: themes, fontFaces: fontFaces)
+                              globalStyles: globalStyles, themes: themes, fontFaces: fontFaces,
+                              localization: localization)
         runtime._webSession = WebSession(transport: FetchJSTransport())
+        // Boot inputs for the locale chain, read before mount() runs it.
+        runtime._servedLanguage = JSObject.global.document.object?.documentElement.object?
+            .getAttribute?("lang").string
+        runtime._isSecureContext = (JSObject.global.location.protocol.string ?? "") == "https:"
         return runtime
     }
 
@@ -94,7 +100,7 @@ public enum DOMRuntime {
 
     public static func mount(_ root: some Tag, selector: String = "body",
                              globalStyles: [Rule] = [], themes: [ThemeDefinition] = [],
-                             fontFaces: [FontFace] = []) {
+                             fontFaces: [FontFace] = [], localization: Localization? = nil) {
         JavaScriptEventLoop.installGlobalExecutor()
         assertReflectionAlive()
         assertBridgeJSAlive()
@@ -115,7 +121,8 @@ public enum DOMRuntime {
             let adopting = AdoptingBackend(base: raw, container: container)
             let runtime = makeRuntime(root: root, backend: adopting, container: container,
                                       initialPath: initialPath,
-                                      globalStyles: globalStyles, themes: themes, fontFaces: fontFaces)
+                                      globalStyles: globalStyles, themes: themes, fontFaces: fontFaces,
+                                      localization: localization)
             seed(runtime, with: payload)
             runtime.mount()
             if adopting.finishAdoption() {
@@ -158,7 +165,8 @@ public enum DOMRuntime {
         let (raw, box) = makeBackend()
         let runtime = makeRuntime(root: root, backend: raw, container: container,
                                   initialPath: initialPath,
-                                  globalStyles: globalStyles, themes: themes, fontFaces: fontFaces)
+                                  globalStyles: globalStyles, themes: themes, fontFaces: fontFaces,
+                                  localization: localization)
         if let payload = fallbackPayload { seed(runtime, with: payload) }
         runtime.mount()
         finishMount(runtime: runtime, box: box, raw: raw, container: container, hydrated: false)
@@ -168,7 +176,7 @@ public enum DOMRuntime {
 extension App {
     @MainActor public static func main() {
         DOMRuntime.mount(Self().body, globalStyles: Self.globalStyles, themes: Self.themes,
-                        fontFaces: Self.fontFaces)
+                        fontFaces: Self.fontFaces, localization: Self.localization)
     }
 }
 #else

@@ -29,6 +29,13 @@ public final class Runtime<Backend: RendererBackend> {
     /// https pages get `Secure` cookies; dev over http must still be able to
     /// persist. Set by DOMRuntime at boot; false in tests and SSG.
     public var _isSecureContext = false
+    /// `<html lang>` of the document the server delivered (`.negotiated`), set
+    /// by DOMRuntime before mount(). nil off-browser.
+    public var _servedLanguage: String?
+    /// The locale the initial URL EXPLICITLY named — nil when it carried no
+    /// prefix. `signals.locale` cannot answer this: `init` already collapsed
+    /// "no prefix" into the app default.
+    private let initialURLLocale: LocaleID?
     // Routing (spec §7): the runtime owns the current location.
     private var currentPath: String
     private var currentQuery: [String: String]
@@ -135,6 +142,7 @@ public final class Runtime<Backend: RendererBackend> {
         currentPath = internalPath
         currentQuery = query
         _currentSearch = search
+        self.initialURLLocale = urlLocale
         applier = TreeApplier(backend: backend, container: container)
         applier.transitionsRef = transitions
         rootTag = AnyTag(root)
@@ -183,6 +191,7 @@ public final class Runtime<Backend: RendererBackend> {
 
     public func mount() {
         applier.backend.beginEnvironmentObservation(signals.writer)
+        _resolveInitialLocale()
         storage.readBacking = { [weak self] kind, key in
             self?.applier.backend.storageRead(kind: kind, key: key)
         }
@@ -269,6 +278,14 @@ public final class Runtime<Backend: RendererBackend> {
             let target = urlLocale ?? localization.default
             if target != signals.locale {
                 signals._setLocale(target)
+                // Persist, like `setLocale` does. Every entry under this
+                // strategy was written by this runtime from a choice or a
+                // detection, so the URL is as explicit as the stored value —
+                // and if the two are allowed to drift, a reload after Back
+                // resurrects the locale the user just navigated away from
+                // (boot's detection chain reads this key for unprefixed paths).
+                applier.backend.storageWrite(kind: .local, key: "__swiftwui.locale",
+                                             value: target.identifier)
                 applier.backend.setDocumentLanguage(target.identifier,
                                                     dir: target.isRTL ? "rtl" : nil)
             }
@@ -290,6 +307,53 @@ public final class Runtime<Backend: RendererBackend> {
             return RouteURL._normalize(path)
         }
         return LocalePath.externalize(path, locale: signals.locale, default: localization.default)
+    }
+
+    /// Runs the detection chain once, before the first pass, and makes the
+    /// document agree with the result: `<html lang>`/`dir`, the negotiation
+    /// cookie, and — under `.pathPrefix` — the URL itself.
+    ///
+    /// Deliberately does NOT persist: `__swiftwui.locale` records CHOICES
+    /// (`setLocale`, and the history entries those choices wrote), not
+    /// detections. Persisting here would freeze the first navigator reading
+    /// forever, so a visitor who changes their browser language would keep
+    /// getting the old one.
+    private func _resolveInitialLocale() {
+        guard let localization = _localization else { return }
+        // `.pathPrefix(.urlOnly)` decides from the URL alone — don't even read
+        // the origin-writable sources it is not allowed to consult.
+        let detects = localization.strategy.allowsClientDetection
+        let inputs = LocaleResolution.Inputs(
+            urlLocale: localization.strategy.usesURLPrefix ? initialURLLocale : nil,
+            servedLang: _servedLanguage,
+            persisted: detects ? applier.backend.storageRead(kind: .local, key: "__swiftwui.locale") : nil,
+            preferred: detects ? applier.backend.preferredLanguages() : [])
+        let resolved = LocaleResolution.initial(inputs, localization: localization)
+        signals._setLocale(resolved)
+        applier.backend.setDocumentLanguage(resolved.identifier, dir: resolved.isRTL ? "rtl" : nil)
+
+        // The edge serves by cookie first, `Accept-Language` second: leave a
+        // cookie whenever the client corrected what was served, so the next
+        // request arrives in the right locale instead of flipping again.
+        if case .negotiated = localization.strategy,
+           localization.validated(_servedLanguage) != resolved {
+            applier.backend.writeCookie("swiftwui_locale", value: resolved.identifier,
+                                        maxAgeDays: 365, secure: _isSecureContext)
+        }
+        // Task 9's invariant: under `.pathPrefix` every history entry is written
+        // by this runtime, so an unprefixed one means the default locale. When
+        // detection picked something the URL did not name, the URL has to move
+        // before the first pass — otherwise `handlePopState` would later read
+        // that untouched entry as "default" and fight the rendered page.
+        // `urlLocale ?? default`, not `urlLocale`: an unprefixed path IS the
+        // default locale's canonical URL, so resolving to the default there
+        // must not fire a replaceState onto the very same path.
+        if localization.strategy.usesURLPrefix, resolved != (initialURLLocale ?? localization.default) {
+            let external = LocalePath.externalize(currentPath, locale: resolved,
+                                                  default: localization.default)
+            applier.backend.replaceState(path: _currentSearch.isEmpty ? external
+                                                                      : external + "?" + _currentSearch)
+        }
     }
 
     /// Switches the active locale (spec §3.2). Validation → signal → persistence
