@@ -14,6 +14,11 @@ public final class DevSession: @unchecked Sendable {   // lastError guarded by `
     /// One watcher-triggered cycle: rebuild, then `reload` or `build-error` (spec §6).
     public func rebuildAndNotify() {
         do {
+            // Before the compiler sees them: the watcher wakes on Locales/*.json,
+            // so a catalog edit has to reach L10n.swift or the rebuild is a no-op.
+            // A bad catalog throws here and lands in the browser overlay like any
+            // other build error.
+            _ = try L10nGenerator.generate(projectDir: builder.projectDir)
             _ = try builder.build(configuration: "debug")
             lock.lock(); _lastError = nil; lock.unlock()
             hub.broadcast(event: "reload", data: "{}")

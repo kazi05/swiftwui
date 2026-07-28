@@ -8,6 +8,10 @@ public enum PluralRules {
     ]
 
     /// Body of `static func <lang>(_ value: Int) -> _PluralCategory`.
+    ///
+    /// CLDR's `n` is the absolute value, but `abs(Int.min)` traps — and this code
+    /// runs inside the user's app, so the trap would be theirs. `magnitude` is the
+    /// unsigned absolute value and is total; every other input agrees with `abs`.
     public static func swiftBody(language: String) -> String? {
         switch language {
         case "ja", "zh", "ko":
@@ -18,7 +22,7 @@ public enum PluralRules {
             return "        return (value == 0 || value == 1) ? .one : .other"
         case "ru", "uk":
             return """
-                    let n = abs(value)
+                    let n = value.magnitude
                     let mod10 = n % 10, mod100 = n % 100
                     if mod10 == 1 && mod100 != 11 { return .one }
                     if (2...4).contains(mod10) && !(12...14).contains(mod100) { return .few }
@@ -26,7 +30,7 @@ public enum PluralRules {
             """
         case "pl":
             return """
-                    let n = abs(value)
+                    let n = value.magnitude
                     let mod10 = n % 10, mod100 = n % 100
                     if n == 1 { return .one }
                     if (2...4).contains(mod10) && !(12...14).contains(mod100) { return .few }
@@ -34,14 +38,14 @@ public enum PluralRules {
             """
         case "cs", "sk":
             return """
-                    let n = abs(value)
+                    let n = value.magnitude
                     if n == 1 { return .one }
                     if (2...4).contains(n) { return .few }
                     return .other
             """
         case "ar":
             return """
-                    let n = abs(value)
+                    let n = value.magnitude
                     if n == 0 { return .zero }
                     if n == 1 { return .one }
                     if n == 2 { return .two }

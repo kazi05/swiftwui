@@ -16,6 +16,9 @@ struct Build: ParsableCommand {
     func run() throws {
         let runner = FoundationProcessRunner()
         let cwd = FileManager.default.currentDirectoryPath
+        if let l10n = try L10nGenerator.generate(projectDir: cwd), l10n.changed {
+            print("regenerated \(l10n.path)")
+        }
         let sdk = try swiftSdk ?? WasmSDK.detect(runner: runner)
         if config == "release" && !ReleaseArtifacts.toolAvailable("wasm-opt", runner: runner) {
             print("""

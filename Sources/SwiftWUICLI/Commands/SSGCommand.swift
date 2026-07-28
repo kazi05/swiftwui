@@ -13,6 +13,9 @@ struct SSG: ParsableCommand {
     func run() throws {
         let runner = FoundationProcessRunner()
         let cwd = FileManager.default.currentDirectoryPath
+        if let l10n = try L10nGenerator.generate(projectDir: cwd), l10n.changed {
+            print("regenerated \(l10n.path)")
+        }
         let name = try product ?? PackageInfo.executableProduct(in: cwd, runner: runner)
         let r = try runner.run("swift", ["run", name, "ssg", "--out", out], cwd: cwd, streamOutput: true)
         guard r.exitCode == 0 else { throw ExitCode(r.exitCode) }

@@ -95,7 +95,7 @@ import SwiftWUI
                 return value == 1 ? .one : .other
             }
             nonisolated static func ru(_ value: Int) -> _PluralCategory {
-                let n = abs(value)
+                let n = value.magnitude
                 let mod10 = n % 10, mod100 = n % 100
                 if mod10 == 1 && mod100 != 11 { return .one }
                 if (2...4).contains(mod10) && !(12...14).contains(mod100) { return .few }
@@ -251,5 +251,22 @@ import SwiftWUI
         // A language in `supported` with no body would emit a call to a
         // `_SWUIPlural` member that is never defined.
         #expect(PluralRules.supported.allSatisfy { PluralRules.swiftBody(language: $0) != nil })
+    }
+
+    /// `abs(Int.min)` traps, and these bodies run inside the user's app.
+    /// `value.magnitude` is total and agrees with `abs` everywhere else.
+    @Test func pluralRulesNeverTrapOnIntMin() {
+        for language in PluralRules.supported {
+            #expect(!PluralRules.swiftBody(language: language)!.contains("abs("),
+                    "\(language) uses abs()")
+        }
+    }
+
+    /// `is` (Icelandic) and `as` (Assamese) are real subtags and Swift keywords;
+    /// today neither is in `supported`, so only the escaper itself can be tested.
+    @Test func pluralFunctionNamesEscapeKeywords() {
+        #expect(L10nEmitter.escaped("is") == "`is`")
+        #expect(L10nEmitter.escaped("as") == "`as`")
+        #expect(L10nEmitter.escaped("ru") == "ru")
     }
 }

@@ -20,7 +20,10 @@ public final class FileWatcher {
         stat(root + "/Package.swift")
         stat(root + "/index.html")
         if let e = fm.enumerator(atPath: root + "/Sources") {
-            for case let rel as String in e where rel.hasSuffix(".swift") {
+            // Catalogs too: editing Locales/*.json regenerates L10n.swift, so it
+            // has to trigger a rebuild exactly like editing a source file.
+            for case let rel as String in e
+            where rel.hasSuffix(".swift") || (rel.hasSuffix(".json") && rel.contains("/Locales/")) {
                 stat(root + "/Sources/" + rel)
             }
         }

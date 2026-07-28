@@ -79,9 +79,9 @@ public enum L10nEmitter {
         return segments.joined(separator: "-")
     }
 
-    public static func symbolName(forTag tag: String) throws -> String {
-        let name = identifier(forCanonicalTag: try canonicalTag(tag))
-        return swiftKeywords.contains(name) ? "`\(name)`" : name
+    /// An identifier that is safe in a declaration: Swift keywords need backticks.
+    static func escaped(_ name: String) -> String {
+        swiftKeywords.contains(name) ? "`\(name)`" : name
     }
 
     /// `"en-US"` -> `"enUS"`. Always a plain identifier: the canonical grammar
@@ -152,7 +152,10 @@ public enum L10nEmitter {
                 guard let body = PluralRules.swiftBody(language: language) else { continue }
                 // `nonisolated`: app targets build with `.defaultIsolation(MainActor.self)`,
                 // and these run inside `LocalizedText`'s nonisolated render closure.
-                out += "    nonisolated static func \(language)(_ value: Int) -> _PluralCategory {\n\(body)\n    }\n"
+                // `escaped`: `is` (Icelandic) and `as` (Assamese) are real language
+                // subtags, so a future entry in `PluralRules.supported` must not be
+                // able to emit a function named after a Swift keyword.
+                out += "    nonisolated static func \(escaped(language))(_ value: Int) -> _PluralCategory {\n\(body)\n    }\n"
             }
             out += "}\n"
         }
@@ -232,7 +235,7 @@ public enum L10nEmitter {
             let prefix = Array(template.parts[..<index])
             let suffix = Array(template.parts[(index + 1)...])
             let parameter = try parameterName(variable, key: key)
-            var out = "\(indent)switch _SWUIPlural.\(language)(\(parameter)) {\n"
+            var out = "\(indent)switch _SWUIPlural.\(escaped(language))(\(parameter)) {\n"
             for branch in branches where branch.category != "other" {
                 out += "\(indent)case .\(branch.category): return "
                 out += try concat(prefix + branch.parts + suffix, pluralVariable: variable, key: key) + "\n"
