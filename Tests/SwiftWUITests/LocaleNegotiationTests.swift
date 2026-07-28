@@ -31,6 +31,27 @@ import Testing
         #expect(LocaleNegotiation.pick(cookie: nil, acceptLanguage: "../ru", site: site) == "en")
     }
 
+    /// Degenerate splits, not hostile ones: each of these used to trap on an
+    /// out-of-range index, and the handler runs on the dev server's connection
+    /// thread with no trap recovery — one request would abort `swiftwui serve`.
+    /// The empty cookie is the value this commit stopped `DOMBackend` from
+    /// writing, so any browser holding one from a pre-fix build is a trigger.
+    @Test func degenerateInputsDoNotTrap() {
+        #expect(LocaleNegotiation.pick(cookie: nil, acceptLanguage: "en,;,ru", site: site) == "en")
+        #expect(LocaleNegotiation.pick(cookie: "swiftwui_locale=", acceptLanguage: "ru", site: site) == "ru")
+        #expect(LocaleNegotiation.pick(cookie: nil, acceptLanguage: "-", site: site) == "en")
+        #expect(LocaleNegotiation.match("", supported: site.locales) == nil)
+        #expect(LocaleNegotiation.match("-", supported: site.locales) == nil)
+    }
+
+    /// A hand-edited descriptor's `default` reaches a filesystem path like any
+    /// other tag, so it is validated like one. `Localization.init` clamps the
+    /// default into `supported`, so this only fires on a corrupt dist.
+    @Test func aMalformedDefaultDoesNotReachAPath() {
+        let broken = LocaleNegotiation.Site(strategy: "negotiated", locales: ["en"], defaultLocale: "../etc")
+        #expect(LocaleNegotiation.pick(cookie: nil, acceptLanguage: "fr", site: broken) == "")
+    }
+
     @Test func matchesCoreResolution() {
         // Drift guard: the toolchain matcher (used by the local server) and the
         // core matcher (used in the browser) must agree — Package.swift keeps

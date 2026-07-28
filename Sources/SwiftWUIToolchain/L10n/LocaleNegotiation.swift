@@ -39,7 +39,10 @@ public enum LocaleNegotiation {
         var scored: [(tag: String, q: Double, index: Int)] = []
         for (index, piece) in header.split(separator: ",").enumerated() {
             let parts = piece.split(separator: ";")
-            let tag = parts[0].trimmingCharacters(in: .whitespaces)
+            // `first`, not `[0]`: a piece of nothing but ';' splits to nothing
+            // ("en,;,ru"), and this runs on the dev server's connection thread
+            // where a trap takes the whole process down.
+            let tag = parts.first?.trimmingCharacters(in: .whitespaces) ?? ""
             guard !tag.isEmpty, tag != "*" else { continue }
             var q = 1.0
             for parameter in parts.dropFirst() {
@@ -54,9 +57,13 @@ public enum LocaleNegotiation {
     /// Exact tag, then primary subtag. Anything not in `supported` is nil —
     /// the same validation rule the runtime applies before touching a path.
     public static func match(_ tag: String, supported: [String]) -> String? {
-        guard tag.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }) else { return nil }
+        // The charset check is vacuously true for "", and "-" splits to nothing:
+        // both used to trap below. An empty tag is what a bare `swiftwui_locale=`
+        // cookie delivers, so it is a request-shaped input, not a hostile one.
+        guard !tag.isEmpty,
+              tag.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }) else { return nil }
         if supported.contains(tag) { return tag }
-        let primary = String(tag.split(separator: "-")[0]).lowercased()
+        guard let primary = tag.split(separator: "-").first?.lowercased() else { return nil }
         return supported.first { $0.lowercased() == primary }
     }
 
@@ -72,7 +79,10 @@ public enum LocaleNegotiation {
         for tag in parseAcceptLanguage(acceptLanguage ?? "") {
             if let matched = match(tag, supported: site.locales) { return matched }
         }
-        return site.defaultLocale
+        // The default reaches a filesystem path like every other tag, so it is
+        // validated like one — a hand-edited descriptor is untrusted input too.
+        // "" degrades a corrupt dist to the non-localized lookup.
+        return match(site.defaultLocale, supported: site.locales) ?? ""
     }
 
     /// Locales longest first, declaration order breaking ties (`sorted` is not
