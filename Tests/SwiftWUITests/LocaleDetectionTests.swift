@@ -67,6 +67,15 @@ private struct Show: Tag {
         let (runtime, backend) = boot(.negotiated, preferred: ["ru"], servedLang: "de")
         #expect(runtime._signals.locale == LocaleID("de")!)
         #expect(backend.replacedStates.isEmpty)          // clean URLs are never rewritten
+        #expect(backend.cookies.isEmpty)                 // nothing to correct, nothing to write
+    }
+
+    /// A document served as a region variant of a declared locale is already
+    /// right — no redundant Set-Cookie on every load.
+    @Test func negotiatedWritesNoCookieForARegionVariantOfTheServedLocale() {
+        let (runtime, backend) = boot(.negotiated, servedLang: "de-DE")
+        #expect(runtime._signals.locale == LocaleID("de")!)
+        #expect(backend.cookies.isEmpty)
     }
 
     @Test func negotiatedPersistedChoiceWritesTheCookie() {
@@ -101,6 +110,29 @@ private struct Show: Tag {
                                                persisted: backend.localStorage["__swiftwui.locale"])
         #expect(reloaded._signals.locale == LocaleID("en")!)
         #expect(reloadedBackend.replacedStates.isEmpty)
+    }
+
+    /// The gate is only observable on an unprefixed path: with a prefix present
+    /// the chain returns before it would have read anything anyway.
+    @Test func urlOnlyReadsNoClientSources() {
+        let (runtime, backend) = boot(.pathPrefix(detection: .urlOnly), path: "/about",
+                                      persisted: "ru", preferred: ["de"])
+        #expect(runtime._signals.locale == LocaleID("en")!)
+        #expect(backend.counts["storageRead"] == nil)
+        #expect(backend.counts["preferredLanguages"] == nil)
+        #expect(backend.replacedStates.isEmpty)
+    }
+
+    @Test func navigatorAloneAlignsTheUrl() {
+        let (runtime, backend) = boot(.pathPrefix(detection: .full), path: "/about",
+                                      preferred: ["ru-RU"])
+        #expect(runtime._signals.locale == LocaleID("ru")!)
+        #expect(backend.replacedStates.last == "/ru/about")
+    }
+
+    @Test func bootAlignmentKeepsTheQueryString() {
+        let (_, backend) = boot(.pathPrefix(detection: .full), path: "/about?q=1", persisted: "ru")
+        #expect(backend.replacedStates.last == "/ru/about?q=1")
     }
 
     /// Detection never persists: only an explicit choice (`setLocale`) and a
