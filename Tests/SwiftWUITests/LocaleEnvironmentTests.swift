@@ -42,6 +42,19 @@ private struct LocaleReader: Tag {
         let (runtime, backend, _) = makeRuntime()
         #expect(backend.serializeHTML().contains("en/ltr"))
         #expect(runtime._signals.defaultLocale == LocaleID("en")!)
+
+        // A default OTHER than the signal's hardcoded "en" fallback: without the
+        // seeding block in `Runtime.init` these three fail, the two above don't.
+        let ruBackend = MockBackend(); let ruSched = Sched()
+        let ruRuntime = Runtime(backend: ruBackend, container: ruBackend.container, root: LocaleReader(),
+                                scheduleMicrotask: ruSched.schedule,
+                                localization: Localization(supported: [LocaleID("en")!, LocaleID("ru")!, LocaleID("ar")!],
+                                                           default: LocaleID("ru")!,
+                                                           strategy: .client))
+        ruRuntime.mount(); ruSched.drain()
+        #expect(ruRuntime._signals.locale == LocaleID("ru")!)
+        #expect(ruRuntime._signals.defaultLocale == LocaleID("ru")!)
+        #expect(ruBackend.serializeHTML().contains("ru/ltr"))
     }
 
     @Test func setLocaleRerendersPersistsAndSetsLang() {
@@ -61,6 +74,19 @@ private struct LocaleReader: Tag {
         sched.drain()
         #expect(backend.serializeHTML().contains("en/ltr"))
         #expect(backend.localStorage["__swiftwui.locale"] == nil)
+        #expect(backend.documentLanguage == nil)   // fires if the guard ever moves below setDocumentLanguage
+        #expect(backend.cookies.isEmpty)
+    }
+
+    @Test func monolingualRuntimeIgnoresSetLocale() {
+        let backend = MockBackend(); let sched = Sched()
+        let runtime = Runtime(backend: backend, container: backend.container, root: LocaleReader(),
+                              scheduleMicrotask: sched.schedule)
+        runtime.mount(); sched.drain()
+        runtime.setLocale(LocaleID("ru")!)
+        sched.drain()
+        #expect(backend.localStorage.isEmpty)
+        #expect(backend.documentLanguage == nil)
     }
 
     @Test func availableLocalesReachTheBody() {
