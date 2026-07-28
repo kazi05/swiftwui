@@ -73,11 +73,50 @@ public final class StyleRegistry {
         _ = insert(media: "", container: "", text: text, seed: "raw|" + text)
     }
 
-    /// Canonical order: (media, container, hash) — deterministic regardless of which
-    /// pass registered first (spec §7: scoped ≡ full byte-identical text).
+    /// Sort key that makes a mobile-first stack cascade the way its author meant.
+    ///
+    /// Ordering a condition by its raw STRING puts `(min-width: 1024px)` before
+    /// `(min-width: 640px)` — '0' < '6' — so at a wide viewport, where every
+    /// min-width block matches, the smallest breakpoint emitted last and won on
+    /// source order. Breakpoint stacks were silently inverted.
+    ///
+    /// The key instead sorts min-width ascending, then max-width descending
+    /// (narrower ranges last), so the block that should win is emitted last.
+    /// Conditions with no width component (orientation, prefers-color-scheme)
+    /// sort after every width block, so they can override one.
+    ///
+    /// ponytail: numeric comparison assumes px, which is what every framework-
+    /// generated condition uses. A hand-written `.custom("(min-width: 40rem)")`
+    /// compares its bare number against pixels — mixing units in one stack is
+    /// the caller's to avoid.
+    static func mediaOrderKey(_ condition: String) -> (Double, Double) {
+        guard !condition.isEmpty else { return (-.infinity, 0) }   // unconditional rules first
+        let minW = firstLength(after: "min-width", in: condition)
+        let maxW = firstLength(after: "max-width", in: condition)
+        guard minW != nil || maxW != nil else { return (.infinity, 0) }
+        return (minW ?? 0, -(maxW ?? .infinity))
+    }
+
+    /// The number following `<feature>:` in a media condition, ignoring its unit.
+    private static func firstLength(after feature: String, in condition: String) -> Double? {
+        guard let r = condition.range(of: feature + ":") else { return nil }
+        var digits = ""
+        for ch in condition[r.upperBound...] {
+            if ch.isNumber || ch == "." { digits.append(ch) }
+            else if ch == " " && digits.isEmpty { continue }
+            else { break }
+        }
+        return Double(digits)
+    }
+
+    /// Canonical order: (media width semantics, media string, container, hash) —
+    /// deterministic regardless of which pass registered first (spec §7: scoped ≡
+    /// full byte-identical text).
     public var text: String {
         let sorted = byHash.values.sorted {
-            ($0.media, $0.container, $0.hash) < ($1.media, $1.container, $1.hash)
+            let a = Self.mediaOrderKey($0.media), b = Self.mediaOrderKey($1.media)
+            if a != b { return a < b }
+            return ($0.media, $0.container, $0.hash) < ($1.media, $1.container, $1.hash)
         }
         return sorted.map { e in
             if !e.container.isEmpty { return "@container \(e.container) { \(e.text) }" }

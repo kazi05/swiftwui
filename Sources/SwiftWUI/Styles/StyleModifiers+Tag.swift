@@ -34,6 +34,7 @@ extension Tag {
     }
     public func hover(_ body: (inout StyleProxy) -> Void) -> _StyledTag<Self>  { _styledRule(pseudo: ":hover", media: nil, body) }
     public func focus(_ body: (inout StyleProxy) -> Void) -> _StyledTag<Self>  { _styledRule(pseudo: ":focus", media: nil, body) }
+    public func focusVisible(_ body: (inout StyleProxy) -> Void) -> _StyledTag<Self> { _styledRule(pseudo: ":focus-visible", media: nil, body) }
     public func active(_ body: (inout StyleProxy) -> Void) -> _StyledTag<Self> { _styledRule(pseudo: ":active", media: nil, body) }
     public func media(_ query: MediaQuery, _ body: (inout StyleProxy) -> Void) -> _StyledTag<Self> {
         _styledRule(pseudo: nil, media: query.condition, body)
@@ -455,6 +456,7 @@ extension _StyledTag {
     }
     public func hover(_ body: (inout StyleProxy) -> Void) -> Self  { _styledRule(pseudo: ":hover", media: nil, body) }
     public func focus(_ body: (inout StyleProxy) -> Void) -> Self  { _styledRule(pseudo: ":focus", media: nil, body) }
+    public func focusVisible(_ body: (inout StyleProxy) -> Void) -> Self { _styledRule(pseudo: ":focus-visible", media: nil, body) }
     public func active(_ body: (inout StyleProxy) -> Void) -> Self { _styledRule(pseudo: ":active", media: nil, body) }
     public func media(_ query: MediaQuery, _ body: (inout StyleProxy) -> Void) -> Self {
         _styledRule(pseudo: nil, media: query.condition, body)

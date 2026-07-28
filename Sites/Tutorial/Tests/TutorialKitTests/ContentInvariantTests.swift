@@ -13,11 +13,19 @@ import Testing
     }
 
     @Test func curriculumShape() {
-        #expect(Curriculum.chapters.count == 13)
+        #expect(Curriculum.chapters.count == 19)
         #expect(Curriculum.chapters[0].kind == .overview)
         #expect(Curriculum.chapters.filter { $0.kind == .wrapUp }.count == 4)
-        #expect(Curriculum.ssgPaths.count == 12)
+        #expect(Curriculum.ssgPaths.count == 18)
         #expect(Curriculum.ssgPaths.allSatisfy { $0.hasPrefix("/tutorials/") })
+    }
+
+    /// The overview groups by `Track.allCases`, so a chapter order that jumps
+    /// back to an earlier track would render the curriculum out of sequence.
+    @Test func chapterOrderFollowsTrackOrder() {
+        let order = Track.allCases.enumerated().reduce(into: [Track: Int]()) { $0[$1.element] = $1.offset }
+        let seen = Curriculum.chapters.map { order[$0.track]! }
+        #expect(seen == seen.sorted(), "chapters must be grouped in Track.allCases order: \(seen)")
     }
 
     @Test func nextChainResolves() {

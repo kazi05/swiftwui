@@ -59,7 +59,7 @@ struct MotionStatus: Tag {
 """#
 
     public static let chapter = Chapter(
-        slug: "animations", track: .ship, kicker: "CHAPTER · SHIP",
+        slug: "animations", track: .motion, kicker: "CHAPTER · MOTION",
         title: "Animations",
         tagline: "Spring-based motion for state changes and structural transitions — interruptible and accessible by default.",
         minutes: 20, kind: .chapter,

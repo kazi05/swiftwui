@@ -26,6 +26,10 @@ public struct StyleProxy {
     }
     public mutating func hover(_ body: (inout StyleProxy) -> Void)  { _pseudo(":hover", body) }
     public mutating func focus(_ body: (inout StyleProxy) -> Void)  { _pseudo(":focus", body) }
+    /// Focus ring only when the browser judges it warranted — keyboard and
+    /// programmatic focus, not a mouse click. Prefer this over `focus` for
+    /// rings; `focus` is still right for a persistent field-active treatment.
+    public mutating func focusVisible(_ body: (inout StyleProxy) -> Void) { _pseudo(":focus-visible", body) }
     public mutating func active(_ body: (inout StyleProxy) -> Void) { _pseudo(":active", body) }
 
     /// Media block collector for `Style` bundles (spec §10 promises media in

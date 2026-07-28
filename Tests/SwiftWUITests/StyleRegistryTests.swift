@@ -2,6 +2,48 @@ import Testing
 @testable import SwiftWUI
 
 @Suite struct StyleRegistryTests {
+    /// Regression: the canonical order used to be a lexicographic sort of the
+    /// media STRING, which put "(min-width: 1024px)" before "(min-width: 640px)"
+    /// ('0' < '6'). At a wide viewport every min-width block matches, so the
+    /// smallest breakpoint emitted last and won on source order — mobile-first
+    /// stacks cascaded backwards.
+    @Test func minWidthBlocksEmitAscending() {
+        let r = StyleRegistry()
+        for (bp, pad) in [(Breakpoint.xl, 20), (.sm, 8), (.lg, 16), (.md, 12)] {
+            r.registerSelector(base: ".box", scope: nil, pseudo: nil,
+                               media: MediaQuery.up(bp).condition,
+                               declarations: [.padding(.px(Double(pad)))])
+        }
+        r.registerSelector(base: ".box", scope: nil, pseudo: nil, media: nil,
+                           declarations: [.padding(.px(4))])
+        let widths = r.text.split(separator: "\n").compactMap { line -> Int? in
+            guard let lo = line.range(of: "min-width: "), let hi = line.range(of: "px)") else { return nil }
+            return Int(line[lo.upperBound..<hi.lowerBound])
+        }
+        #expect(widths == [640, 768, 1024, 1280])
+        #expect(r.text.hasPrefix(".box { padding: 4px }"))   // unconditional rules still lead
+    }
+
+    /// max-width is the mirror image: the narrowest query must win, so it goes last.
+    /// Conditions with no width at all sort after every width block.
+    @Test func maxWidthDescendsAndNonWidthQueriesGoLast() {
+        let r = StyleRegistry()
+        r.registerSelector(base: ".b", scope: nil, pseudo: nil,
+                           media: MediaQuery.prefersColorScheme(.dark).condition,
+                           declarations: [.color(.hex("#fff"))])
+        r.registerSelector(base: ".b", scope: nil, pseudo: nil,
+                           media: MediaQuery.down(.sm).condition,
+                           declarations: [.color(.hex("#111"))])
+        r.registerSelector(base: ".b", scope: nil, pseudo: nil,
+                           media: MediaQuery.down(.lg).condition,
+                           declarations: [.color(.hex("#222"))])
+        let lines = r.text.split(separator: "\n").map(String.init)
+        #expect(lines.count == 3)
+        #expect(lines[0].contains("max-width: 1023.98px"))
+        #expect(lines[1].contains("max-width: 639.98px"))
+        #expect(lines[2].contains("prefers-color-scheme: dark"))
+    }
+
     @Test func anonymousRuleDedup() {
         let r = StyleRegistry()
         let a = r.registerAnonymous(pseudo: ":hover", media: nil,

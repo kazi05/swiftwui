@@ -1,10 +1,15 @@
 /// Content model for the tutorial site (spec §5). Pure data — no Tag imports.
 
+/// Curriculum tracks, in reading order — `allCases` drives the overview's
+/// grouping, so the declaration order IS the site's order.
 public enum Track: String, CaseIterable, Sendable {
     case welcome = "Welcome"
     case explore = "Explore SwiftWUI"
     case styles = "Styles"
+    case interact = "Interact"
     case routing = "Routing"
+    case motion = "Motion"
+    case data = "Data"
     case ship = "Ship"
 }
 

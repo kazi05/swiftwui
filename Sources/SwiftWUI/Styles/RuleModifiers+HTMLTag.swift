@@ -10,6 +10,7 @@ extension HTMLTag {
     }
     public func hover(_ body: (inout StyleProxy) -> Void) -> Self  { _pendingRule(pseudo: ":hover", media: nil, body) }
     public func focus(_ body: (inout StyleProxy) -> Void) -> Self  { _pendingRule(pseudo: ":focus", media: nil, body) }
+    public func focusVisible(_ body: (inout StyleProxy) -> Void) -> Self { _pendingRule(pseudo: ":focus-visible", media: nil, body) }
     public func active(_ body: (inout StyleProxy) -> Void) -> Self { _pendingRule(pseudo: ":active", media: nil, body) }
     public func media(_ query: MediaQuery, _ body: (inout StyleProxy) -> Void) -> Self {
         _pendingRule(pseudo: nil, media: query.condition, body)

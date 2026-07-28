@@ -4,9 +4,10 @@ import SwiftWUI
 
 @Suite @MainActor struct PageTests {
     @Test func ssgPathListMatchesCurriculum() {
-        // spec §9.5: 12 dynamic paths + static root == 13 pages
+        // spec §9.5: every chapter but the overview is a dynamic path, and the
+        // overview is the static root — so paths + 1 == chapters, with no dupes.
         #expect(Curriculum.ssgPaths.count + 1 == Curriculum.chapters.count)
-        #expect(Set(Curriculum.ssgPaths).count == 12)
+        #expect(Set(Curriculum.ssgPaths).count == Curriculum.ssgPaths.count)
     }
 
     @Test func routerServesAllCurriculumPages() {

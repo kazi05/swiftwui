@@ -3,12 +3,13 @@ public enum Ch07 {
     public static let chapter = Chapter(
         slug: "wrap-up-styles", track: .styles, kicker: "WRAP-UP · STYLES",
         title: "Wrap-up: Styles",
-        tagline: "Modifiers, rules, and themes — recapped.",
+        tagline: "Modifiers, rules, themes, and breakpoints — recapped.",
         minutes: 5, kind: .wrapUp,
         recap: [
             "Type-safe modifiers collapse into one inline style attribute per element.",
             "Rule(class:) in globalStyles emits a real stylesheet with pseudo and media support.",
             "ColorToken + ThemeDefinition give CSS-variable theming; switching themes is one attribute write.",
+            "One media vocabulary spans five surfaces: \\.media for structure, Breakpoint and Responsive for styling, container queries for context, Rule(media:) for the stylesheet.",
             ".style(\"property\", \"value\") covers what the DSL doesn’t — values are validated, never escaped into selectors.",
         ],
         quiz: Quiz(questions: [

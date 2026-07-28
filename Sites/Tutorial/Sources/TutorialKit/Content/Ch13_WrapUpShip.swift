@@ -3,14 +3,16 @@ public enum Ch13 {
     public static let chapter = Chapter(
         slug: "wrap-up-ship", track: .ship, kicker: "WRAP-UP · SHIP",
         title: "Wrap-up: Ship",
-        tagline: "SSG, hydration, animations, and deployment — recapped.",
+        tagline: "SSG, prerender policies, hydration, and deployment — recapped.",
         minutes: 5, kind: .wrapUp,
         recap: [
             "Dual entry: wasm runs the app, native runs StaticSite.generate.",
             "build first, ssg last — prerendered pages must win in dist.",
             "Hydration adopts the prerendered DOM and restores the state snapshot; any mismatch falls back to a cold render.",
-            "withAnimation and .transition give SwiftUI-style motion; reduced motion is handled automatically.",
-            "Docker: build + prerender in stage one, a FROM-scratch export stage emits dist/ — pending a published package.",
+            "Prerender policy is per route and resolves most-specific-first; the SWIFTWUI_PRERENDER kill switch beats all of it and fails closed.",
+            ".pageMeta writes the head from loaded data, which Page.title cannot; siteURL turns on canonicals and sitemap.xml.",
+            "Docker: build + prerender in stage one, a FROM-scratch export stage emits dist/.",
+            "PWA is opt-in and hands you the manifest and service worker to own.",
         ],
         quiz: Quiz(questions: [
             Question(prompt: "In what order do build and ssg run?",
