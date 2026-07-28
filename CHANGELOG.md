@@ -6,7 +6,41 @@ Notable changes to SwiftWUI. Format loosely follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-28
+
+### Fixed
+
+- **Breakpoint stacks cascaded backwards.** `StyleRegistry` ordered `@media` blocks by a
+  lexicographic sort of the condition string, so `(min-width: 1024px)` was emitted before
+  `(min-width: 640px)` — `'0'` sorts before `'6'`. At a wide viewport every `min-width` block
+  matches, and since same-specificity class rules are decided by source order, the *smallest*
+  breakpoint won. Any hand-written mobile-first stack built with `.media(.up(_:))` or
+  `Rule(class:media:)` has been inverted since v0.3.0.
+
+  Blocks are now ordered by width semantics: `min-width` ascending, then `max-width`
+  descending, with non-width conditions (`orientation`, `prefers-color-scheme`) last so they
+  can override a width rule. `Responsive<Value>` was never affected — it desugars to
+  non-overlapping ranges, so only one ever matches.
+
 ### Added
+
+- **`:focus-visible`** joins `hover`/`focus`/`active` on all three pseudo-class surfaces —
+  `StyleProxy.focusVisible { }` inside a `Rule` or `Style` bundle, and `.focusVisible { }`
+  chained on an `HTMLTag` or a `Tag`. Prefer it over `.focus` for focus rings: `:focus` also
+  fires on a mouse click, which is why rings on clicked buttons read as a bug.
+
+- **DocC articles for four releases that shipped without one** — <doc:Animations>,
+  <doc:ResponsiveStyling> (both v0.3.0), <doc:DragAndDrop> (v0.5.0), <doc:Dependencies>
+  (v0.6.0), plus <doc:Keyframes> and <doc:Deployment>. The catalog's Topics index was audited
+  against the actual public surface and regrouped; `GettingStarted` had a stale reserved-names
+  list and still implied a local path dependency was required.
+
+- **The tutorial site grew from 13 chapters to 19** and was rebuilt on a new visual identity.
+  New chapters cover responsive styling, bindings and the event vocabulary, drag and drop,
+  keyframes and view transitions, data and dependency injection, and prerender policies —
+  the feature areas the tutorial had never caught up with. It ships a real light/dark theme,
+  a keyboard-operable quiz, WCAG-AA contrast throughout, and a phone layout that works;
+  the previous one broke below the `1fr 460px` hero grid.
 
 - **CSS `@keyframes`** — declare a keyframe animation as a value and attach it with a typed modifier:
 

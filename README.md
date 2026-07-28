@@ -2,9 +2,10 @@
 
 Build websites in pure Swift. SwiftWUI is a SwiftUI-inspired declarative UI
 framework that compiles to WebAssembly: value-type components, `@State`
-reactivity, typed CSS, client-side routing, spring-based animations and
-transitions, and static prerendering with hydration — without writing a
-line of JavaScript.
+reactivity, typed CSS with breakpoints and container queries, client-side
+routing, spring-based animations, view transitions, drag and drop, dependency
+injection, and prerendering with hydration — without writing a line of
+JavaScript.
 
 ```swift
 import SwiftWUI
@@ -113,9 +114,11 @@ Templates: `basic` (counter + two routes + `.staticTask`), `mvvm`
   styles with light/dark themes, controlled inputs with bindings, per-page
   `<head>` metadata, and SSG (`swift run TodoMVC ssg --out dist`).
 
-- **[Sites/Tutorial](Sites/Tutorial)** — "Hello, SwiftWUI": a 13-chapter
-  interactive tutorial covering the `Tag` API, `@State`, styling, routing,
-  animations, and prerender + hydrate. Built with SwiftWUI itself.
+- **[Sites/Tutorial](Sites/Tutorial)** — "Hello, SwiftWUI": a 19-chapter
+  interactive tutorial covering the `Tag` API, `@State`, styling and
+  responsive design, bindings and events, drag and drop, routing, animation
+  and view transitions, data and dependency injection, and prerendering.
+  Built with SwiftWUI itself.
 
 ## Documentation
 
@@ -138,5 +141,5 @@ a getting-started guide.
 swift test
 ```
 
-294 native tests (Swift Testing) — the renderer and reconciler are
+886 native tests (Swift Testing) — the renderer and reconciler are
 exercised through a mock backend, so no browser or WASM toolchain is needed.
