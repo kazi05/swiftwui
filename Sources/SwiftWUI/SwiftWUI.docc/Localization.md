@@ -61,10 +61,13 @@ key, and any number or date formatting. Every locale of a given key must
 agree on its placeholder set and its plural variable name, or generation
 fails with `signatureMismatch`.
 
-### Creating the first catalog by hand
+### The first catalog
 
-`swiftwui l10n add <tag>` seeds a new catalog from an existing one, so it
-cannot create the first. Write `Locales/en.json` yourself:
+`swiftwui init` scaffolds one for you at `Sources/Locales/en.json`, so on a new
+project you go straight to `swiftwui l10n add ru`.
+
+In an existing project you write the first one by hand: `l10n add` seeds a new
+catalog from an existing one, so it cannot create the first.
 
 ```bash
 mkdir -p Sources/MyApp/Locales
@@ -90,9 +93,12 @@ that, and warns about "unhandled" files unless you say so:
 `Generated/L10n.swift`, which lands next to `Locales/`, is a Swift file and
 is compiled normally.
 
-In a scaffolded project the same line reads `exclude: ["Locales"]` too — the
-target's path is `Sources`, so the catalogs are at `Sources/Locales` and the
-generated file at `Sources/Generated/L10n.swift`.
+A scaffolded project already carries that line — its target's path is
+`Sources`, so the catalogs are at `Sources/Locales` and the generated file at
+`Sources/Generated/L10n.swift`. Note what the entry file is *not* called:
+`main.swift` is top-level code, which cannot coexist with the `@main` type the
+templates use, so a scaffold that gained a second source file — the generated
+one — would stop compiling. The templates ship `Sources/Entry.swift`.
 
 ### There is no escape for a literal `{` or `#`
 
@@ -328,11 +334,19 @@ A bare `pt` does not find `pt-BR`. If you support only regional variants, a
 visitor whose browser reports the bare language gets the default locale.
 Declaring a region-less catalog is the fix.
 
-`Localization.validated(_:)` applies the same exact-then-language rule to
-every untrusted locale *string* — the URL prefix, `localStorage`, the cookie,
-`navigator.languages` — before any of them can reach a filesystem path, a URL
-or `<html lang>`. It fails closed: an unparseable or undeclared tag returns
-`nil` and the chain moves on, never out.
+`Localization.validated(_:)` applies that exact-then-language rule to the
+three untrusted locale *strings* the runtime reads: the persisted value in
+`localStorage`, the served `<html lang>`, and each tag of
+`navigator.languages`. It fails closed — an unparseable or undeclared tag
+returns `nil` and the chain moves on, never out.
+
+Two inputs deliberately do not go through it. A URL prefix is matched against
+`supported` **exactly**, by `LocalePath`: reducing it to its primary language
+would let `/en/about` be accepted by an app that declares only `en-US` and
+then rewrite the path under a locale the URL never named. And the
+`swiftwui_locale` cookie is never read by the runtime at all — it is written
+for the edge, and `swiftwui serve` / the generated nginx `map` are what read
+it back.
 
 ## Choosing a strategy
 
@@ -417,9 +431,9 @@ add_header Vary "Accept-Language, Cookie";
 location / { try_files $uri /$swui_locale$uri/index.html /$swui_locale/index.html /index.html; }
 ```
 
-`$uri` is tried first, so root-level assets (`main.wasm`, `styles.css`,
-anything from `public/`) are never locale-prefixed — locale folders hold
-documents only. `$swui_locale` comes from two `map` blocks written above it:
+`$uri` is tried first, so assets (`styles.css`, everything under `app/` — the
+wasm bundle and its loader — and anything from `public/`) are never
+locale-prefixed; locale folders hold documents only. `$swui_locale` comes from two `map` blocks written above it:
 the cookie wins, then the first matching tag of `Accept-Language`, then the
 default. nginx `map` regexes are first-match, which approximates `q`-value
 ordering; the cookie, written after any explicit user choice, is exact.

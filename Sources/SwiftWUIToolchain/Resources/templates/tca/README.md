@@ -37,7 +37,9 @@ locally built dist/ via nginx.
 
 ## Layout
 
-- `Sources/main.swift` — the app; dual entry (wasm mount / native `ssg` subcommand)
+- `Sources/Entry.swift` — the app; dual entry (wasm mount / native `ssg` subcommand)
 - `index.html` — dev/prod entry; import map resolves the vendored WASI shim
+- `Sources/Locales/en.json` — the starter translation catalog; `swiftwui l10n add <tag>`
+  seeds more from it, and `build`/`ssg`/`dev` regenerate `Sources/Generated/L10n.swift`
 - `public/` — static assets served from the site root (favicon, images, fonts)
 - `vendor/wasi-shim/` — @bjorn3/browser_wasi_shim 0.3.0 (MIT/Apache-2.0), checked in

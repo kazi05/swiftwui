@@ -238,7 +238,7 @@ and starts a new one.
 
 The `swiftwui` CLI's own `ssg` subcommand only takes `--out`/`--product` — it
 just wraps `swift run <App> ssg --out <dir>`. `--path` is a flag each
-generated app template's `main.swift` parses itself, on top of the public
+generated app template's `Entry.swift` parses itself, on top of the public
 `StaticSite.render` primitive, invoked directly as `swift run <App> ssg
 --path <path> [--out <dir>]`:
 

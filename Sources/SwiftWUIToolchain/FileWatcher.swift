@@ -21,9 +21,11 @@ public final class FileWatcher {
         stat(root + "/index.html")
         if let e = fm.enumerator(atPath: root + "/Sources") {
             // Catalogs too: editing Locales/*.json regenerates L10n.swift, so it
-            // has to trigger a rebuild exactly like editing a source file.
+            // has to trigger a rebuild exactly like editing a source file. The
+            // leading "/" matters: the enumerator yields paths relative to
+            // Sources, so the flat layout arrives as "Locales/en.json".
             for case let rel as String in e
-            where rel.hasSuffix(".swift") || (rel.hasSuffix(".json") && rel.contains("/Locales/")) {
+            where rel.hasSuffix(".swift") || (rel.hasSuffix(".json") && ("/" + rel).contains("/Locales/")) {
                 stat(root + "/Sources/" + rel)
             }
         }

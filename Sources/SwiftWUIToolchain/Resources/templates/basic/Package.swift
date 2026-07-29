@@ -15,6 +15,9 @@ let package = Package(
             .product(name: "JavaScriptKit", package: "JavaScriptKit"),
             .product(name: "SwiftWUIStatic", package: "SwiftWUI",
                      condition: .when(platforms: [.macOS, .linux])),
-        ], path: "Sources", swiftSettings: [.defaultIsolation(MainActor.self)]),
+        ], path: "Sources",
+        // Catalogs are codegen input, not a bundled resource.
+        exclude: ["Locales"],
+        swiftSettings: [.defaultIsolation(MainActor.self)]),
     ]
 )

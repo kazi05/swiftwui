@@ -1,0 +1,5 @@
+{
+  "app.title": "{{NAME}}",
+  "counter.clicks": "{count, plural, one {# click} other {# clicks}}",
+  "greeting": "Hello, {name}!"
+}

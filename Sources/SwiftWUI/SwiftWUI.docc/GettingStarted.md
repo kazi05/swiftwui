@@ -38,7 +38,7 @@ swiftwui dev          # http://127.0.0.1:8080, rebuilds on save
 
 `init` accepts `--template basic|mvvm|tca`, and `--pwa` to also scaffold a
 manifest, icons, and a service worker (see <doc:PWA>). The scaffold contains
-`Package.swift`, `Sources/main.swift`, `index.html`, `nginx.conf`, two
+`Package.swift`, `Sources/Entry.swift`, `index.html`, `nginx.conf`, two
 Dockerfiles, and a vendored wasi-shim, so it builds offline and in
 containers. Its `Package.swift` depends on the published
 `https://github.com/kazi05/swiftwui.git`; pass `--swiftwui-path <dir>` to

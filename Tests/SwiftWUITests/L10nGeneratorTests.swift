@@ -184,4 +184,23 @@ import SwiftWUI
                                 atomically: true, encoding: .utf8)
         #expect(watcher.changed())
     }
+
+    /// The flat layout every `swiftwui init` scaffold uses. The enumerator yields
+    /// paths relative to `Sources`, so this catalog arrives as `Locales/en.json`
+    /// with no leading slash — a `contains("/Locales/")` filter misses it and
+    /// `swiftwui dev` then ignores every translation edit.
+    @Test func watcherSeesFlatLayoutCatalogEdits() throws {
+        let root = NSTemporaryDirectory() + "swiftwui-flatwatch-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        try FileManager.default.createDirectory(atPath: root + "/Sources/Locales",
+                                                withIntermediateDirectories: true)
+        try "// app".write(toFile: root + "/Sources/Entry.swift", atomically: true, encoding: .utf8)
+        try #"{"a":"A"}"#.write(toFile: root + "/Sources/Locales/en.json",
+                                atomically: true, encoding: .utf8)
+        let watcher = FileWatcher(root: root)
+        #expect(!watcher.changed())
+        try #"{"a":"B"}"#.write(toFile: root + "/Sources/Locales/de.json",
+                                atomically: true, encoding: .utf8)
+        #expect(watcher.changed())
+    }
 }

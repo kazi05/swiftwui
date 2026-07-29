@@ -49,7 +49,7 @@ struct Hello: Tag {
                     panel: .terminal(title: "zsh — counter", lines: [
                         TermLine(.command, "swiftwui init counter"),
                         TermLine(.output, "  created counter/Package.swift"),
-                        TermLine(.output, "  created counter/Sources/App/main.swift"),
+                        TermLine(.output, "  created counter/Sources/Entry.swift"),
                         TermLine(.output, "  created counter/Dockerfile"),
                         TermLine(.command, "cd counter"),
                         TermLine(.command, "swiftwui dev"),
