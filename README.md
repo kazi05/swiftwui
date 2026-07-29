@@ -150,5 +150,5 @@ a getting-started guide.
 swift test
 ```
 
-886 native tests (Swift Testing) — the renderer and reconciler are
+1011 native tests (Swift Testing) — the renderer and reconciler are
 exercised through a mock backend, so no browser or WASM toolchain is needed.
