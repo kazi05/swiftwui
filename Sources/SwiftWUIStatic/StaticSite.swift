@@ -463,26 +463,37 @@ public enum StaticSite {
         // The stylesheet href is relative to the output FILE, not to the URL —
         // the very file the write loop derives from the same two values.
         let relFile = outputFile(path: externalPath, subdir: subdir)
-        var head = CanonicalSynthesis.apply(to: runtime._pageHead,
-                                            path: externalPath,
-                                            siteURL: config.siteURL,
-                                            enabled: config.synthesizeCanonical)
+        // Kept apart from the app's own head: these describe the URL, not the
+        // page, so the client — which can recompute neither — must not sweep
+        // them on the first hydrated commit (DocumentSerializer emits them under
+        // `data-swiftwui-ssg`).
+        let appHead = runtime._pageHead
+        var prerenderedLinks: [LinkTag] = []
+        if let canonical = CanonicalSynthesis.synthesized(for: appHead, path: externalPath,
+                                                          siteURL: config.siteURL,
+                                                          enabled: config.synthesizeCanonical) {
+            prerenderedLinks.append(canonical)
+        }
         if let localization {
             // A page that declared no head at all still needs its alternates —
             // hreflang is a property of the URL set, not of the page's metadata.
-            let alternates = HreflangLinks.links(internalPath: settled,
-                                                 localization: localization, siteURL: config.siteURL)
-            if !alternates.isEmpty {
-                var merged = head ?? PageHead(title: "", meta: [], links: [])
-                merged.links += alternates
-                head = merged
-            }
+            prerenderedLinks += HreflangLinks.links(internalPath: settled,
+                                                    localization: localization, siteURL: config.siteURL)
+        }
+        // `RenderedPage.head` stays the full set — callers read it as "what this
+        // page's head contains", and that is unchanged by where the markers go.
+        var head = appHead
+        if !prerenderedLinks.isEmpty {
+            var merged = head ?? PageHead(title: "", meta: [], links: [])
+            merged.links += prerenderedLinks
+            head = merged
         }
         let doc = DocumentSerializer.render(.init(
             bodyHTML: body,
             css: config.cssFile ? nil : css,
             cssHref: config.cssFile ? cssHref(forPageFile: relFile) : nil,
-            head: head,
+            head: appHead,
+            prerenderedLinks: prerenderedLinks,
             snapshotJSON: snapshot,
             importMapJSON: importMap,
             wasmScriptPath: wasmPath,
@@ -502,16 +513,24 @@ public enum StaticSite {
 /// a property that holds, and query-decorated inbound links otherwise serve the
 /// same body with no canonical signal.
 public enum CanonicalSynthesis {
-    public static func apply(to head: PageHead?, path: String,
-                             siteURL: String?, enabled: Bool) -> PageHead? {
+    /// The canonical this page is missing, or nil when none is warranted.
+    public static func synthesized(for head: PageHead?, path: String,
+                                   siteURL: String?, enabled: Bool) -> LinkTag? {
         // No origin, no synthesis: a relative canonical buys little, and sites
         // that predate this feature set no siteURL — their output must not move.
-        guard enabled, let siteURL, !siteURL.isEmpty else { return head }
-        var out = head ?? PageHead(title: "", meta: [], links: [])
-        if out.links.contains(where: { $0.attributes["rel"] == "canonical" }) { return out }
+        guard enabled, let siteURL, !siteURL.isEmpty else { return nil }
+        let declared = head?.links ?? []
+        if declared.contains(where: { $0.attributes["rel"] == "canonical" }) { return nil }
         var origin = siteURL
         while origin.hasSuffix("/") { origin.removeLast() }
-        out.links.append(.canonical(origin + RouteURL._normalize(path)))
+        return .canonical(origin + RouteURL._normalize(path))
+    }
+    public static func apply(to head: PageHead?, path: String,
+                             siteURL: String?, enabled: Bool) -> PageHead? {
+        guard let link = synthesized(for: head, path: path, siteURL: siteURL,
+                                     enabled: enabled) else { return head }
+        var out = head ?? PageHead(title: "", meta: [], links: [])
+        out.links.append(link)
         return out
     }
 }

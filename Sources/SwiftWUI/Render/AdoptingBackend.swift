@@ -178,6 +178,7 @@ where Base.HostNode: AnyObject {
     public func setMetaTags(_ tags: [MetaTag]) { base.setMetaTags(tags) }
     public func setLinks(_ links: [LinkTag]) { base.setLinks(links) }
     public func setStructuredData(_ blocks: [String]) { base.setStructuredData(blocks) }
+    public func dropPrerenderedHeadLinks() { base.dropPrerenderedHeadLinks() }
     public func reloadForUpdate() { base.reloadForUpdate() }
     public func childCount(of node: HostNode) -> Int { base.childCount(of: node) }
     public func child(of node: HostNode, at index: Int) -> HostNode { base.child(of: node, at: index) }

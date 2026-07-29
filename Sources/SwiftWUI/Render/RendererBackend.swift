@@ -40,6 +40,12 @@ public protocol RendererBackend: AnyObject {
     func setLinks(_ links: [LinkTag])
     /// Replaces the document's MANAGED JSON-LD set (marked data-swiftwui).
     func setStructuredData(_ blocks: [String])
+    /// Removes the prerender-only head links (marked data-swiftwui-ssg: the
+    /// synthesized canonical and the hreflang set). They describe the URL the
+    /// document was SERVED at, and the client can recompute neither, so they
+    /// survive the hydration `setLinks` sweep and are dropped here instead —
+    /// at every client-side URL move, where they stop being true.
+    func dropPrerenderedHeadLinks()
 
     // MARK: Hydration read API (phase 5, spec §10)
     /// Minimal DOM reads for the adopting walk. Text nodes count as children.
@@ -128,6 +134,7 @@ extension RendererBackend {
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {}
     public func setDropNavigationGuard(_ enabled: Bool) {}
     public func setStructuredData(_ blocks: [String]) {}
+    public func dropPrerenderedHeadLinks() {}
     @discardableResult
     public func animate(_ node: HostNode, request: AnimationRequest,
                          onSettle: @escaping (AnimationSettle) -> Void) -> AnimationToken? { nil }

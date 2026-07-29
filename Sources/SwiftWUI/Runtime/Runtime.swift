@@ -238,8 +238,7 @@ public final class Runtime<Backend: RendererBackend> {
         currentPath = path; currentQuery = query; _currentSearch = search
         let externalPath = _externalPath(path)
         let full = search.isEmpty ? externalPath : externalPath + "?" + search
-        if replace { applier.backend.replaceState(path: full) }
-        else { applier.backend.pushState(path: full) }
+        moveURL(to: full, replace: replace)
         // Precedence (spec §4): explicit call site → destination Route →
         // nearest ambient `.pageTransition`. No Router-default fourth term:
         // "explicitly nil" and "never set" must stay the same state end to
@@ -263,9 +262,32 @@ public final class Runtime<Backend: RendererBackend> {
         markDirty(.root)
     }
 
+    /// The single client-side URL move. Everything the prerender wrote about
+    /// THIS url — the synthesized canonical, the hreflang set — stops being
+    /// true here, and the client can rebuild none of it (both live in
+    /// SwiftWUIStatic, and neither `siteURL` nor the locale list ships in the
+    /// snapshot). So the prerendered links are dropped, not rewritten: a
+    /// missing canonical is a non-signal, a stale one is a wrong signal. Real
+    /// crawlers never see the difference — they fetch every URL fresh and read
+    /// its own prerendered head; only an in-page SPA hop reaches this state.
+    ///
+    /// Assumption: locale changes that do NOT move the URL cannot strand a
+    /// stale link. True only because `HreflangLinks` bails unless
+    /// `usesURLPrefix` and `.negotiated`/`.client` prerender a locale-free
+    /// canonical. A per-locale canonical for `.negotiated`, or any future
+    /// strategy that encodes the locale off the path, has to call this (or drop
+    /// the links directly) from `setLocale` as well.
+    private func moveURL(to full: String, replace: Bool) {
+        applier.backend.dropPrerenderedHeadLinks()
+        if replace { applier.backend.replaceState(path: full) }
+        else { applier.backend.pushState(path: full) }
+    }
+
     /// Browser back/forward: the location already changed — no pushState.
     /// A back/forward step across locale prefixes also adopts the URL's locale.
     public func handlePopState(url: String) {
+        // The URL moved without going through `moveURL` (the browser did it).
+        applier.backend.dropPrerenderedHeadLinks()
         let (rawPath, query, search) = RouteURL.split(url)
         if let localization = _localization, localization.strategy.usesURLPrefix {
             let (internalPath, urlLocale) = LocalePath.internalize(rawPath, supported: localization.supported)
@@ -351,8 +373,8 @@ public final class Runtime<Backend: RendererBackend> {
         if localization.strategy.usesURLPrefix, resolved != (initialURLLocale ?? localization.default) {
             let external = LocalePath.externalize(currentPath, locale: resolved,
                                                   default: localization.default)
-            applier.backend.replaceState(path: _currentSearch.isEmpty ? external
-                                                                      : external + "?" + _currentSearch)
+            moveURL(to: _currentSearch.isEmpty ? external : external + "?" + _currentSearch,
+                    replace: true)
         }
     }
 
@@ -384,8 +406,8 @@ public final class Runtime<Backend: RendererBackend> {
         // browser-visible URL moves (replace, not push — it is the same page).
         if localization.strategy.usesURLPrefix {
             let external = _externalPath(currentPath)      // reads the signal written above
-            applier.backend.replaceState(path: _currentSearch.isEmpty ? external
-                                                                      : external + "?" + _currentSearch)
+            moveURL(to: _currentSearch.isEmpty ? external : external + "?" + _currentSearch,
+                    replace: true)
         }
         markDirty(.root)
     }

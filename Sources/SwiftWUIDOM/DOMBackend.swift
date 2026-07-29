@@ -446,6 +446,18 @@ public final class DOMBackend: RendererBackend {
     public func historyBack() {
         _ = JSObject.global.history.object!.back!()
     }
+    /// The prerender's own `link[data-swiftwui-ssg]` (synthesized canonical +
+    /// hreflang). `setLinks` deliberately does not sweep them — they belong to
+    /// the URL that was served and the client cannot rebuild them — so this is
+    /// the one place they go, called by Runtime on every client-side URL move.
+    /// Nothing to do after the first move: the selector then matches nothing.
+    public func dropPrerenderedHeadLinks() {
+        let old = jsDocument.querySelectorAll("link[data-swiftwui-ssg]").object
+        let n = Int(old?.length.number ?? 0)
+        for i in (0..<n).reversed() {
+            if let el = old?[i].object { _ = el.parentNode.object?.removeChild?(el) }
+        }
+    }
     public func setTitle(_ title: String) {
         jsDocument.title = .string(title)
     }
@@ -758,6 +770,11 @@ public final class DOMBackend: RendererBackend {
         // this backend has no cheap way to verify DOM state matches lastAppliedLinks
         // (nil) before that — a known, ledgered one-time churn.
         guard lastAppliedLinks != links else { return }
+        // A client-declared canonical beside the prerender's surviving one is two
+        // `rel=canonical` with different hrefs, which Google discards outright —
+        // worse than the missing canonical this whole split avoids. Same policy
+        // as a URL move: drop the prerender's set, never reconcile it.
+        if links.contains(where: { $0.attributes["rel"] == "canonical" }) { dropPrerenderedHeadLinks() }
         // Replace ONLY the managed set (spec §9): marked data-swiftwui.
         let old = jsDocument.querySelectorAll("link[data-swiftwui]").object
         let n = Int(old?.length.number ?? 0)

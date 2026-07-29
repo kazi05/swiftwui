@@ -98,6 +98,12 @@ public final class MockBackend: RendererBackend {
     public func setStructuredData(_ blocks: [String]) {
         bump("setStructuredData"); structuredData = blocks
     }
+    /// Stands in for the `link[data-swiftwui-ssg]` nodes a real document carries
+    /// after a prerender; starts true so a test can watch them go.
+    public private(set) var hasPrerenderedHeadLinks = true
+    public func dropPrerenderedHeadLinks() {
+        bump("dropPrerenderedHeadLinks"); hasPrerenderedHeadLinks = false
+    }
 
     public func childCount(of node: MockNode) -> Int { node.children.count }
     public func child(of node: MockNode, at index: Int) -> MockNode { node.children[index] }

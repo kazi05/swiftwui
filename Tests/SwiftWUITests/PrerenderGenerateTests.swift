@@ -117,7 +117,9 @@ private func tmpDir() -> String {
             outDir: out, mode: .staticOnly, siteURL: "https://x.test"))
         let html = try String(contentsOfFile: out + "/items/42/index.html", encoding: .utf8)
         #expect(html.contains("<title>Item 42 — 100 ₽</title>"))
-        #expect(html.contains("<link href=\"https://x.test/items/42\" rel=\"canonical\" data-swiftwui>"))
+        // Prerender-only marker: the client cannot recompute a canonical, so it
+        // must survive hydration's `link[data-swiftwui]` sweep.
+        #expect(html.contains("<link href=\"https://x.test/items/42\" rel=\"canonical\" data-swiftwui-ssg>"))
     }
 }
 

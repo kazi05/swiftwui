@@ -10,16 +10,22 @@ public enum DocumentSerializer {
         public var css: String?              // inline <style> (default path)
         public var cssHref: String?          // <link rel="stylesheet"> instead
         public var head: PageHead?
+        /// Links only the prerender can compute — the synthesized canonical and
+        /// the hreflang set. Emitted under `data-swiftwui-ssg`, NOT the managed
+        /// marker; see the loop below for why.
+        public var prerenderedLinks: [LinkTag]
         public var snapshotJSON: String?     // hydrate mode only
         public var importMapJSON: String?    // hydrate mode only
         public var wasmScriptPath: String?   // hydrate mode only
         public var lang: String
         public var dir: String?              // "rtl" for right-to-left locales; nil = omit
         public init(bodyHTML: String, css: String? = nil, cssHref: String? = nil,
-                    head: PageHead? = nil, snapshotJSON: String? = nil, importMapJSON: String? = nil,
+                    head: PageHead? = nil, prerenderedLinks: [LinkTag] = [],
+                    snapshotJSON: String? = nil, importMapJSON: String? = nil,
                     wasmScriptPath: String? = nil, lang: String = "en", dir: String? = nil) {
             self.bodyHTML = bodyHTML; self.css = css; self.cssHref = cssHref
-            self.head = head; self.snapshotJSON = snapshotJSON
+            self.head = head; self.prerenderedLinks = prerenderedLinks
+            self.snapshotJSON = snapshotJSON
             self.importMapJSON = importMapJSON
             self.wasmScriptPath = wasmScriptPath; self.lang = lang; self.dir = dir
         }
@@ -50,6 +56,25 @@ public enum DocumentSerializer {
                 out += " \(name)=\"\(HTMLEscaping.text(link.attributes[name]!))\""
             }
             out += " data-swiftwui>\n"       // managed set marker (same as meta)
+        }
+        // Prerender-only links get their OWN marker, so the hydration re-apply
+        // (`setLinks` sweeps `link[data-swiftwui]`, an exact attribute-NAME
+        // match) leaves them standing. Neither CanonicalSynthesis nor
+        // HreflangLinks exists client-side, and the client has neither siteURL
+        // nor the locale set, so anything swept here is gone for good.
+        //
+        // They describe THE URL THAT WAS SERVED. The moment the client moves the
+        // URL — SPA navigation, back/forward, a `.pathPrefix` locale switch —
+        // they stop describing it, so the runtime drops them there
+        // (`Runtime.moveURL` / `handlePopState` → `dropPrerenderedHeadLinks`).
+        // Dropping beats keeping a stale canonical, and costs nothing: crawlers
+        // fetch each URL fresh and read its own prerendered head.
+        for link in input.prerenderedLinks {
+            out += "<link"
+            for name in link.attributes.keys.sorted() {
+                out += " \(name)=\"\(HTMLEscaping.text(link.attributes[name]!))\""
+            }
+            out += " data-swiftwui-ssg>\n"
         }
         for block in input.head?.structuredData ?? [] {
             // Raw-text sink: same audited helper the state snapshot uses.
