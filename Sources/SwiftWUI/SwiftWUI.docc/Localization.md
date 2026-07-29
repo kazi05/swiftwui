@@ -28,7 +28,10 @@ struct MyApp: App {
 ```
 
 A complete worked example — language switcher, plurals, RTL — lives in
-`Examples/Localized`.
+`Examples/Localized`. It also prerenders itself:
+`swift run Localized ssg --out dist` writes one tree per declared locale, and
+`swift build -Xswiftc -DNEGOTIATED` switches it from `.pathPrefix` to
+`.negotiated` so you can compare the two dist layouts.
 
 ## Catalogs
 

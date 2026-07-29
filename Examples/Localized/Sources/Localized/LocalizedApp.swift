@@ -78,10 +78,18 @@ struct DirectionDemo: Tag {
     }
 }
 
-@main
 struct LocalizedApp: App {
+    // The strategy is a build-time choice, not a runtime one: it decides URL
+    // shape and dist layout, so it has to be fixed before anything renders.
+    //   swift build                                   -> /about, /ru/about
+    //   swift build -Xswiftc -DNEGOTIATED             -> /about for every locale,
+    //                                                    dist/en/, dist/ru/, dist/ar/
     static var localization: Localization? {
+        #if NEGOTIATED
+        Localization(catalog: L10n.self, default: .en, strategy: .negotiated)
+        #else
         Localization(catalog: L10n.self, default: .en, strategy: .pathPrefix())
+        #endif
     }
 
     var body: some Tag {
@@ -94,3 +102,46 @@ struct LocalizedApp: App {
         }
     }
 }
+
+// Dual entry, like Examples/TodoMVC: wasm mounts the app, the native build
+// prerenders it. `generate` renders the whole tree once per declared locale.
+#if canImport(SwiftWUIStatic)
+import SwiftWUIStatic
+
+@main enum Entry {
+    static func main() async throws {
+        var args = Array(CommandLine.arguments.dropFirst())
+        guard args.first == "ssg" else {
+            print("usage: Localized ssg --out <dir> [--static]")
+            return
+        }
+        args.removeFirst()
+        var out = "dist"
+        var mode = StaticSiteMode.hydrate(wasmScriptPath: "/index.js")
+        var i = 0
+        while i < args.count {
+            switch args[i] {
+            case "--out":
+                guard i + 1 < args.count else {
+                    print("usage: Localized ssg --out <dir> [--static]")
+                    return
+                }
+                i += 1; out = args[i]
+            case "--static": mode = .staticOnly
+            default: print("unknown arg \(args[i])")
+            }
+            i += 1
+        }
+        // siteURL is what turns on the two URL-set artefacts: absolute
+        // `<link rel="alternate" hreflang>` per locale, and sitemap.xml.
+        let report = try await StaticSite.generate(LocalizedApp.self,
+                                                   config: .init(outDir: out, mode: mode,
+                                                                 siteURL: "https://localized.example"))
+        print("generated \(report.pages.count) pages, \(report.redirects.count) redirects")
+    }
+}
+#else
+@main enum Entry {
+    static func main() { LocalizedApp.main() }
+}
+#endif

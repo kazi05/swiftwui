@@ -15,6 +15,8 @@ let package = Package(
             .product(name: "SwiftWUI", package: "SwiftWUI"),
             .product(name: "SwiftWUIDOM", package: "SwiftWUI"),
             .product(name: "JavaScriptKit", package: "JavaScriptKit"),
+            .product(name: "SwiftWUIStatic", package: "SwiftWUI",
+                     condition: .when(platforms: [.macOS, .linux])),
         ], exclude: ["Locales"], swiftSettings: [.defaultIsolation(MainActor.self)]),
     ]
 )
