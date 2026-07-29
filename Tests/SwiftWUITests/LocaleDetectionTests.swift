@@ -96,6 +96,25 @@ private struct Show: Tag {
         #expect(backend.cookieWrites.last?.maxAgeDays == 365)
     }
 
+    /// `.negotiated` has clean URLs, so the cookie is the only thing that tells
+    /// the edge about an explicit switch — without it the next request comes
+    /// back in the served language and the choice is lost on reload.
+    @Test func setLocaleWritesTheNegotiationCookie() {
+        let (runtime, backend) = boot(.negotiated, servedLang: "en", secureContext: true)
+        #expect(backend.cookieWrites.isEmpty)          // boot agreed with what was served
+        runtime.setLocale(LocaleID("ru")!)
+        #expect(backend.cookies["swiftwui_locale"] == "ru")
+        #expect(backend.cookieWrites.last?.secure == true)
+        #expect(backend.cookieWrites.last?.maxAgeDays == 365)
+
+        // Same clean URLs, no server in the loop: `.client` persists the choice
+        // and writes no cookie — nobody would read it.
+        let (client, clientBackend) = boot(.client, servedLang: "en")
+        client.setLocale(LocaleID("ru")!)
+        #expect(clientBackend.localStorage["__swiftwui.locale"] == "ru")
+        #expect(clientBackend.cookies.isEmpty)
+    }
+
     // MARK: storage-vs-URL precedence (Task 9 carry)
 
     /// A prefix in the URL is either a link somebody deliberately shared or a

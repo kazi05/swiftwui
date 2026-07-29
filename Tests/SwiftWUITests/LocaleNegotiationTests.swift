@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import SwiftWUI
+@testable import SwiftWUIStatic
 @testable import SwiftWUIToolchain
 
 @Suite struct LocaleNegotiationTests {
@@ -182,6 +183,62 @@ import Testing
                 location / { try_files $uri $uri/ /index.html; }
             }
             """))
+    }
+
+    /// The two halves of `swiftwui-site.json` live in modules that cannot see
+    /// each other — `SwiftWUIStatic` writes it, `SwiftWUIToolchain` reads it —
+    /// so the key names are a contract, not an implementation detail. Renaming
+    /// one on either side breaks the edge silently, never the build.
+    @Test func theWrittenDescriptorRoundTrips() throws {
+        let dist = NSTemporaryDirectory() + "swiftwui-roundtrip-" + UUID().uuidString
+        defer { try? FileManager.default.removeItem(atPath: dist) }
+        let locales = [LocaleID("en")!, LocaleID("ru")!, LocaleID("pt-BR")!]
+        for (strategy, name) in [(LocaleStrategy.negotiated, "negotiated"),
+                                 (.pathPrefix(), "pathPrefix"),
+                                 (.client, "client")] {
+            try SiteDescriptor.write(localization: Localization(supported: locales,
+                                                                default: LocaleID("ru")!,
+                                                                strategy: strategy),
+                                     outDir: dist)
+            #expect(LocaleNegotiation.read(distDir: dist)
+                    == LocaleNegotiation.Site(strategy: name,
+                                              locales: ["en", "ru", "pt-BR"],
+                                              defaultLocale: "ru"),
+                    "descriptor round-trip broke for \(name)")
+        }
+        // And the file the reader looks for is the file the writer writes.
+        #expect(SiteDescriptor.fileName == LocaleNegotiation.descriptorName)
+    }
+
+    /// The generated cookie regex is anchored on both sides, and `pick` applies
+    /// the same rule: a cookie whose name merely ENDS with ours
+    /// (`mysite_swiftwui_locale=de`) and a value that merely STARTS with a
+    /// locale (`=deutsch`) must both be ignored. The edge and the dev server
+    /// disagreeing about a jar is a bug nobody reproduces locally.
+    @Test func onlyAWholeCookieNameAndValueDecide() throws {
+        let dist = NSTemporaryDirectory() + "swiftwui-cookie-" + UUID().uuidString
+        defer { try? FileManager.default.removeItem(atPath: dist) }
+        try FileManager.default.createDirectory(atPath: dist, withIntermediateDirectories: true)
+        try ReleaseArtifacts.writeNginxConf(distDir: dist, site: site)
+        let conf = try String(contentsOfFile: dist + "/nginx.conf", encoding: .utf8)
+
+        // Lift the regex out of the generated config and run it: asserting that
+        // an anchor is present would pass on an anchor that is present but wrong.
+        let line = conf.split(separator: "\n").first { $0.contains(LocaleNegotiation.cookieName + "=") }!
+        let pattern = String(line[line.range(of: "\"~*")!.upperBound..<line.range(of: "\" $l;")!.lowerBound])
+        let regex = try NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+        func edgeMatches(_ jar: String) -> Bool {
+            regex.firstMatch(in: jar, range: NSRange(jar.startIndex..., in: jar)) != nil
+        }
+        #expect(edgeMatches("swiftwui_locale=de"))
+        #expect(edgeMatches("a=1; swiftwui_locale=de"))
+        #expect(!edgeMatches("mysite_swiftwui_locale=de"))
+        #expect(!edgeMatches("swiftwui_locale=deutsch"))
+
+        #expect(LocaleNegotiation.pick(cookie: "mysite_swiftwui_locale=de",
+                                       acceptLanguage: "ru", site: site) == "ru")
+        #expect(LocaleNegotiation.pick(cookie: "swiftwui_locale=deutsch",
+                                       acceptLanguage: "ru", site: site) == "ru")
     }
 
     @Test func readsTheDescriptorTask11Writes() throws {

@@ -9,6 +9,11 @@ public enum PluralRules {
 
     /// Body of `static func <lang>(_ value: Int) -> _PluralCategory`.
     ///
+    /// Known ceiling: rules are picked by PRIMARY subtag, and pt-PT is the one
+    /// regional variant among the 23 that disagrees with its base (CLDR: pt 0 →
+    /// one, pt-PT 0 → other). A `Locales/pt-PT.json` catalog therefore renders
+    /// pt's "one" branch at count 0. Region-aware bodies if that ever bites.
+    ///
     /// CLDR's `n` is the absolute value, but `abs(Int.min)` traps — and this code
     /// runs inside the user's app, so the trap would be theirs. `magnitude` is the
     /// unsigned absolute value and is total; every other input agrees with `abs`.
@@ -16,10 +21,25 @@ public enum PluralRules {
         switch language {
         case "ja", "zh", "ko":
             return "        return .other"
-        case "en", "de", "it", "es", "nl", "sv", "da", "nb", "fi", "el", "hu", "tr":
+        case "en", "de", "nl", "sv", "da", "nb", "fi", "el", "hu", "tr":
             return "        return value == 1 ? .one : .other"
+        // CLDR 38+ gave the Romance four a `many` for exact millions
+        // (`i != 0 and i % 1000000 = 0`, integers only). `magnitude % 1_000_000`
+        // is total — `Int.min` has no `abs`, but it does have a magnitude.
+        case "es", "it":
+            return """
+                    let n = value.magnitude
+                    if n == 1 { return .one }
+                    if n != 0 && n % 1_000_000 == 0 { return .many }
+                    return .other
+            """
         case "fr", "pt":
-            return "        return (value == 0 || value == 1) ? .one : .other"
+            return """
+                    let n = value.magnitude
+                    if n <= 1 { return .one }
+                    if n % 1_000_000 == 0 { return .many }
+                    return .other
+            """
         case "ru", "uk":
             return """
                     let n = value.magnitude

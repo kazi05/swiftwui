@@ -262,6 +262,26 @@ import SwiftWUI
         }
     }
 
+    /// Since CLDR 38 fr/es/it/pt have a `many` for exact millions
+    /// (`i != 0 and i % 1000000 = 0`): ICU answers many for 1000000 and 2000000,
+    /// other for 3000001. `L10nCatalog` accepts a `many` branch for every
+    /// language, so without the rule a French translator's "many {# millions}"
+    /// compiles into the generated switch and silently never renders.
+    @Test func romanceLanguagesGetManyForExactMillions() {
+        for language in ["fr", "es", "it", "pt"] {
+            let body = PluralRules.swiftBody(language: language)!
+            #expect(body.contains("% 1_000_000 == 0"), "\(language) has no exact-millions branch")
+            #expect(body.contains("return .many"), "\(language) never returns many")
+        }
+        // The other half of the rule: en/de/… have no `many` at all, and cs/sk's
+        // is fraction-only — unreachable from an `Int`. A `many` there would
+        // steal the branch from `other` and render the wrong text.
+        let withMany: Set<String> = ["fr", "es", "it", "pt", "ru", "uk", "pl", "ar"]
+        for language in PluralRules.supported.subtracting(withMany) {
+            #expect(!PluralRules.swiftBody(language: language)!.contains(".many"), "\(language) gained many")
+        }
+    }
+
     /// `is` (Icelandic) and `as` (Assamese) are real subtags and Swift keywords;
     /// today neither is in `supported`, so only the escaper itself can be tested.
     @Test func pluralFunctionNamesEscapeKeywords() {

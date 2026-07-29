@@ -34,6 +34,24 @@ private struct PrefixApp: Tag {
         #expect(LocalePath.internalize("/rutabaga", supported: supported).path == "/rutabaga")
     }
 
+    /// `internalize` matches the segment against `supported` EXACTLY, never
+    /// through `Localization.validated` — that one reduces a tag to its primary
+    /// language in both directions, so an `["en"]` app would answer `/en-US/…`
+    /// and then rewrite the URL to a locale the visitor never asked for, and an
+    /// `["en-US"]` app would adopt `/en/…`, a locale it never declared.
+    @Test func internalizeMatchesTheSegmentExactly() {
+        let regional = [LocaleID("en-US")!]
+        #expect(LocalePath.internalize("/en/about", supported: regional).path == "/en/about")
+        #expect(LocalePath.internalize("/en/about", supported: regional).locale == nil)
+        #expect(LocalePath.internalize("/en-US/about", supported: regional).locale == LocaleID("en-US")!)
+
+        let plain = [LocaleID("en")!]
+        #expect(LocalePath.internalize("/en-US/about", supported: plain).path == "/en-US/about")
+        #expect(LocalePath.internalize("/en-US/about", supported: plain).locale == nil)
+        // The validator this must never be routed through, for contrast.
+        #expect(Localization(supported: plain, default: plain[0]).validated("en-US") == plain[0])
+    }
+
     @Test func externalizeAddsPrefixExceptForDefault() {
         let en = LocaleID("en")!, ru = LocaleID("ru")!
         #expect(LocalePath.externalize("/about", locale: en, default: en) == "/about")
