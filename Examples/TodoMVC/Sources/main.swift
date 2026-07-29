@@ -199,7 +199,9 @@ import SwiftWUIStatic
         }
         args.removeFirst()
         var out = "dist"
-        var mode = StaticSiteMode.hydrate(wasmScriptPath: "/index.js")
+        // `swiftwui build` copies the wasm bundle to dist/app/ — a prerendered
+        // page pointing at a bare "/index.js" 404s and never hydrates.
+        var mode = StaticSiteMode.hydrate(wasmScriptPath: "/app/index.js")
         var cssFile = false
         var i = 0
         while i < args.count {
