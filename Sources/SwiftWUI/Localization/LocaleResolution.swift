@@ -1,8 +1,12 @@
 /// The boot-time locale decision (spec §3.3). Every input is untrusted — a URL
-/// prefix comes from a link somebody else wrote, `localStorage` and the cookie
-/// are writable by any script that ever ran on the origin, `navigator.languages`
-/// is user-controlled — so each one passes `Localization.validated`, which fails
-/// closed, before it can reach `<html lang>`, a path or a cookie.
+/// prefix comes from a link somebody else wrote, `localStorage` is writable by
+/// any script that ever ran on the origin, `navigator.languages` is
+/// user-controlled — so nothing reaches `<html lang>`, a path or a cookie
+/// unchecked. The persisted value, the served language and every preferred tag
+/// pass `Localization.validated`, which fails closed; the URL prefix is matched
+/// against `supported` EXACTLY, by `LocalePath`, because reducing it to its
+/// primary language would let `/en/…` be accepted by an app that declares only
+/// `en-US` and then rewrite the path under a locale the URL never named.
 public enum LocaleResolution {
     public struct Inputs {
         /// The locale the URL EXPLICITLY named, nil when the path carried no

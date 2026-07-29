@@ -88,7 +88,7 @@ swiftwui serve dist    # static preview of the built site
 
 | Command | What it does |
 |---|---|
-| `swiftwui init <name> [--template basic\|mvvm\|tca] [--swiftwui-path <path>]` | Scaffold a project (Package.swift, `Sources/main.swift`, index.html, Dockerfile, vendored wasi-shim). `--swiftwui-path` points the scaffold at a local checkout instead of the GitHub release. |
+| `swiftwui init <name> [--template basic\|mvvm\|tca] [--swiftwui-path <path>]` | Scaffold a project (Package.swift, `Sources/Entry.swift`, a starter `Sources/Locales/en.json`, index.html, Dockerfile, vendored wasi-shim). `--swiftwui-path` points the scaffold at a local checkout instead of the GitHub release. |
 | `swiftwui dev [--port 8080]` | Dev server with hot reload (watches `Sources/`) |
 | `swiftwui build [-c release] [--out dist]` | Build the wasm bundle and assemble `dist/` |
 | `swiftwui ssg [--out dist]` | Prerender pages via the app's native `<App> ssg` entry |
@@ -119,12 +119,15 @@ Templates: `basic` (counter + two routes + `.staticTask`), `mvvm`
 - **[Examples/Localized](Examples/Localized)** — localization end to end: JSON
   catalogs for `en`/`ru`/`ar`, generated type-safe `L10n`, a language switcher
   built from `@Environment(\.availableLocales)`, ICU plurals, and an RTL demo.
+  `swift run Localized ssg --out dist` prerenders one tree per locale;
+  `swift run -Xswiftc -DNEGOTIATED Localized ssg --out dist` switches the
+  strategy (the define has to be on `run` — a separate `build` gets recompiled).
 
-- **[Sites/Tutorial](Sites/Tutorial)** — "Hello, SwiftWUI": a 19-chapter
+- **[Sites/Tutorial](Sites/Tutorial)** — "Hello, SwiftWUI": a 20-chapter
   interactive tutorial covering the `Tag` API, `@State`, styling and
   responsive design, bindings and events, drag and drop, routing, animation
-  and view transitions, data and dependency injection, and prerendering.
-  Built with SwiftWUI itself.
+  and view transitions, data and dependency injection, prerendering and
+  localization. Built with SwiftWUI itself.
 
 ## Documentation
 

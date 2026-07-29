@@ -21,7 +21,11 @@ public enum Scaffolder {
             guard fm.fileExists(atPath: swiftwuiAbs + "/Package.swift") else {
                 throw ToolchainError.notAProject(swiftwuiAbs)
             }
-            swiftwuiDependency = ".package(path: \"\(swiftwuiAbs)\")"
+            // Explicit identity: a path dependency otherwise takes its package
+            // name from the directory, so a checkout in "swiftwui-main" or a git
+            // worktree fails resolution — every template names the package
+            // "SwiftWUI" in its product dependencies.
+            swiftwuiDependency = ".package(name: \"SwiftWUI\", path: \"\(swiftwuiAbs)\")"
         } else {
             swiftwuiDependency = ".package(url: \"https://github.com/kazi05/swiftwui.git\", from: \"\(SwiftWUIVersion.current)\")"
         }

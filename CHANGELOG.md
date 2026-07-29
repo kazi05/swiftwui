@@ -8,7 +8,9 @@ Notable changes to SwiftWUI. Format loosely follows
 
 ### Added
 
-- **Localization.** Translations live in `Sources/<Target>/Locales/<tag>.json` — flat keys,
+- **Localization.** Translations live in a `Locales/` folder inside the target that owns them —
+  `Sources/<Target>/Locales/<tag>.json`, or `Sources/Locales/<tag>.json` for the `path: "Sources"`
+  layout every `swiftwui init` template uses — with flat keys,
   `{name}` placeholders and ICU cardinal plurals — and `swiftwui l10n generate` compiles them
   into a committed `Generated/L10n.swift`: one function per key, parameters typed from the
   placeholders, CLDR plural rules emitted as Swift so wasm and native SSG agree without
@@ -24,9 +26,10 @@ Notable changes to SwiftWUI. Format loosely follows
   `.attribute(_:_:)` and `.pageMeta(title:)` take a `LocalizedText` directly; everything else
   resolves through `@Environment(\.locale)` and `resolved(for:)`. Switching is
   `@Environment(\.setLocale)`, with `\.availableLocales` and `\.layoutDirection` alongside it.
-  Resolution is exact tag → primary language → the app's default → the key, and every
-  untrusted locale string (URL prefix, `localStorage`, cookie, `navigator.languages`) is
-  validated against the declared set before it can reach a path, a URL or `<html lang>`.
+  Resolution is exact tag → primary language → the app's default → the key. Every untrusted
+  locale string the runtime reads — `localStorage`, the served `<html lang>`,
+  `navigator.languages` — is validated against the declared set first; a URL prefix is matched
+  against it exactly, and the `swiftwui_locale` cookie is read at the edge, never by the app.
 
   Three strategies decide how the locale is carried. `.pathPrefix()` puts every non-default
   locale under its tag (`/ru/about/`), prerenders one tree per locale and emits `hreflang`
@@ -40,7 +43,24 @@ Notable changes to SwiftWUI. Format loosely follows
 
   New CLI: `swiftwui l10n generate [--check] [--allow-missing] [--target <name>]` and
   `swiftwui l10n add <tag>`. `build` and `ssg` regenerate first; `dev` watches
-  `Locales/*.json`. `--check` is the CI gate. See <doc:Localization> and `Examples/Localized`.
+  `Locales/*.json`. `--check` is the CI gate. See <doc:Localization> and `Examples/Localized`,
+  which prerenders itself per locale and takes `-Xswiftc -DNEGOTIATED` to compare dist layouts.
+
+- **Tutorial chapter 20, "Speak every language."** Catalogs, codegen, `L10n` in a body, a
+  switcher built from the environment, the three strategies, and what one build writes per
+  locale.
+
+- **`swiftwui init` scaffolds a starter catalog** at `Sources/Locales/en.json`, with
+  `exclude: ["Locales"]` already declared. `swiftwui l10n add <tag>` seeds from an existing
+  catalog and cannot create the first, so a fresh project starts one step further along.
+
+### Changed
+
+- **The scaffold's entry file is now `Sources/Entry.swift`, not `Sources/main.swift`.** A file
+  named `main.swift` *is* top-level code, and `@main` cannot coexist with it — so a scaffolded
+  project stopped compiling the moment its target gained a second source file, which
+  `Generated/L10n.swift` is. Existing projects are unaffected; new ones get a target that can
+  grow. Only the file name changed.
 
 ### Fixed
 
@@ -49,6 +69,16 @@ Notable changes to SwiftWUI. Format loosely follows
   discarding `RenderedPage.path` and `.subdir` — the two values that say where the render
   actually decided the document goes. Under `.negotiated` that is a different directory, and
   a `.staticTask` calling `setLocale` can move it under any strategy.
+
+- **`swiftwui dev` ignored translation edits in a scaffolded project.** The watcher matched
+  catalogs with `contains("/Locales/")`, but the directory walk yields paths relative to
+  `Sources`, so a flat `Sources/Locales/en.json` arrived without the leading slash and never
+  matched. The first build was correct and every later edit was silently dropped.
+
+- **`.package(path: "../..")` broke every example and the tutorial site inside a git worktree.**
+  A path dependency takes its package name from the directory, so `.product(package: "SwiftWUI")`
+  named a package that did not exist and resolution failed before any source was read. The
+  dependency now declares `name: "SwiftWUI"` explicitly.
 
 ## [0.7.0] - 2026-07-28
 

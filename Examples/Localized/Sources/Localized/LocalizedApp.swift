@@ -81,9 +81,12 @@ struct DirectionDemo: Tag {
 struct LocalizedApp: App {
     // The strategy is a build-time choice, not a runtime one: it decides URL
     // shape and dist layout, so it has to be fixed before anything renders.
-    //   swift build                                   -> /about, /ru/about
-    //   swift build -Xswiftc -DNEGOTIATED             -> /about for every locale,
-    //                                                    dist/en/, dist/ru/, dist/ar/
+    // The define belongs on the command that builds the binary you then run —
+    // `swift run` recompiles, so a separate `swift build -D…` is discarded.
+    //   swift run Localized ssg --out dist                    -> /about, /ru/about
+    //   swift run -Xswiftc -DNEGOTIATED Localized ssg --out dist
+    //                                                         -> /about for every locale,
+    //                                                            dist/en/, dist/ru/, dist/ar/
     static var localization: Localization? {
         #if NEGOTIATED
         Localization(catalog: L10n.self, default: .en, strategy: .negotiated)

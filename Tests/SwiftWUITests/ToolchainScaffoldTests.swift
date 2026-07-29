@@ -116,7 +116,9 @@ import Foundation
         let dir = scratch()
         try Scaffolder.scaffold(template: "basic", name: "Local", swiftwuiPath: repoRoot, into: dir)
         let pkg = try String(contentsOfFile: dir + "/Package.swift", encoding: .utf8)
-        #expect(pkg.contains(".package(path: \""))
+        // The identity has to be explicit: SwiftPM otherwise names the package
+        // after the directory, and every template asks for `package: "SwiftWUI"`.
+        #expect(pkg.contains(".package(name: \"SwiftWUI\", path: \""))
         #expect(!pkg.contains("github.com/kazi05/swiftwui"))
         #expect(!pkg.contains("{{"))
     }

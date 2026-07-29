@@ -95,8 +95,9 @@ configuration, which also writes `.gz`/`.br` siblings and a `dist/nginx.conf`
 
 ### Learn more
 
-The repository ships three example apps — `Examples/Counter` (minimal),
-`Examples/TodoMVC` (routing, themes, bindings, SSG), and
-`Examples/DragDrop` (drag sources, drop zones, file import) — and a
-19-chapter interactive tutorial under `Sites/Tutorial`, itself built with
+The repository ships four example apps — `Examples/Counter` (minimal),
+`Examples/TodoMVC` (routing, themes, bindings, SSG),
+`Examples/DragDrop` (drag sources, drop zones, file import), and
+`Examples/Localized` (catalogs, plurals, RTL, per-locale SSG) — and a
+20-chapter interactive tutorial under `Sites/Tutorial`, itself built with
 SwiftWUI.

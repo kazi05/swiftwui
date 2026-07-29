@@ -52,8 +52,8 @@ struct AboutPage: Tag, Page {
                     title: "From routes to static pages",
                     intro: "The same app renders in the browser and at build time — one codebase, two entries.",
                     steps: [
-                        Step("Keep two entries in main.swift: wasm runs the app, native runs ssg.",
-                             detail: "#if canImport(SwiftWUIStatic) selects the entry per platform."),
+                        Step("Keep two entries in your app's entry file: wasm runs the app, native runs ssg.",
+                             detail: "#if canImport(SwiftWUIStatic) selects the entry per platform. A scaffolded project calls that file Sources/Entry.swift; the sample below is a single-file app, so its entry lives in main.swift."),
                         Step("StaticSite.generate renders one page per route with a fresh native runtime."),
                         Step("Dynamic patterns need explicit paths in the config — unmatched ones are reported, not guessed."),
                         Step("Order matters: swiftwui build assembles dist first, ssg writes pages last."),

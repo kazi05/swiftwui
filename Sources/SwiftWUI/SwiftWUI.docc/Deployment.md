@@ -106,6 +106,10 @@ module), a runtime `gzip` fallback, `Cache-Control: no-cache`, an explicit
 of the deployed root. Its `root` is a placeholder (`/var/www/app`) — set it
 before deploying.
 
+A localized site using `.negotiated` gets a different location block —
+`map` blocks that read the cookie and `Accept-Language`, a `Vary` header, and a
+`try_files` chain that looks inside the locale folders. See <doc:Localization>.
+
 `dist/` is build output. `dist/nginx.conf` is rewritten on every release
 build, so edits to it are lost; keep a customized copy outside `dist/`.
 

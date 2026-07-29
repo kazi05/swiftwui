@@ -29,9 +29,10 @@ struct MyApp: App {
 
 A complete worked example — language switcher, plurals, RTL — lives in
 `Examples/Localized`. It also prerenders itself:
-`swift run Localized ssg --out dist` writes one tree per declared locale, and
-`swift build -Xswiftc -DNEGOTIATED` switches it from `.pathPrefix` to
-`.negotiated` so you can compare the two dist layouts.
+`swift run Localized ssg --out dist` writes one tree per declared locale. Pass
+the define to `run` — not to a separate `build`, which `run` would recompile
+away — to compare the other layout:
+`swift run -Xswiftc -DNEGOTIATED Localized ssg --out dist`.
 
 ## Catalogs
 
@@ -436,18 +437,23 @@ location / { try_files $uri /$swui_locale$uri/index.html /$swui_locale/index.htm
 
 `$uri` is tried first, so assets (`styles.css`, everything under `app/` — the
 wasm bundle and its loader — and anything from `public/`) are never
-locale-prefixed; locale folders hold documents only. `$swui_locale` comes from two `map` blocks written above it:
-the cookie wins, then the first matching tag of `Accept-Language`, then the
-default. nginx `map` regexes are first-match, which approximates `q`-value
-ordering; the cookie, written after any explicit user choice, is exact.
+locale-prefixed; locale folders hold documents only. `$swui_locale` comes from
+the `map` blocks written above it: the cookie wins, then the first matching tag
+of `Accept-Language`, then the default. nginx `map` regexes are first-match,
+which approximates `q`-value ordering; the cookie, written after any explicit
+user choice, is exact.
 
 `Vary: Cookie` measurably reduces CDN cache efficiency. That is the cost of
 one URL per page.
 
-`swiftwui serve dist` reads the same descriptor and applies the same order,
-so you can check the behaviour locally before deploying. `swiftwui dev`
-does not: it serves the SPA shell with no per-locale prerenders, and the
-locale is resolved client-side — which is the intended dev behaviour.
+`swiftwui serve dist` reads the same descriptor and serves the same folders, so
+you can check the behaviour locally before deploying — with one difference
+worth knowing: it honours true `q` order, while the nginx `map` chain matches
+in file order. A header whose *first* tag is not its *highest-q* tag
+(`ru;q=0.1, en;q=0.9`) therefore resolves to `en` locally and to `ru` at the
+edge. Everything else, including the cookie rule, matches. `swiftwui dev` is
+different by design: it serves the SPA shell with no per-locale prerenders and
+resolves the locale client-side.
 
 ### A `build`-only dist does not negotiate yet
 
