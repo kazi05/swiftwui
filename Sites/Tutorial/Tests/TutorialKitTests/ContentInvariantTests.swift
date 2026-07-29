@@ -13,10 +13,10 @@ import Testing
     }
 
     @Test func curriculumShape() {
-        #expect(Curriculum.chapters.count == 19)
+        #expect(Curriculum.chapters.count == 20)
         #expect(Curriculum.chapters[0].kind == .overview)
         #expect(Curriculum.chapters.filter { $0.kind == .wrapUp }.count == 4)
-        #expect(Curriculum.ssgPaths.count == 18)
+        #expect(Curriculum.ssgPaths.count == 19)
         #expect(Curriculum.ssgPaths.allSatisfy { $0.hasPrefix("/tutorials/") })
     }
 

@@ -21,6 +21,7 @@ public enum Curriculum {
         Ch18.chapter,   // data
         Ch10.chapter,   // ship
         Ch19.chapter,
+        Ch20.chapter,
         Ch11.chapter,
         Ch13.chapter,
     ]
