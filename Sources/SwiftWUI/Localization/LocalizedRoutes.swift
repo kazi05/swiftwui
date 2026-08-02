@@ -13,6 +13,11 @@ public struct LocalizedRoutes {
         /// value is built during `static let` initialization, where a trap kills
         /// the process before any diagnostic can print. Surfaced by validation.
         let invalidTags: [String]
+        /// Raw tags that NORMALIZED to the same `LocaleID` — `["ru", "RU"]`.
+        /// `localized` keeps only the last of them, so the author silently gets
+        /// a mapping they did not write. Collected here for the same reason as
+        /// `invalidTags`, and reported by `_validate` (V15).
+        let collidingTags: [LocaleID: [String]]
     }
 
     /// Declaration order is load-bearing — resolution is first-match-wins,
@@ -45,13 +50,18 @@ extension LocalizedRoutes.Entry {
     public init(_ canonical: String, _ localized: [String: String]) {
         var parsed: [LocaleID: RoutePattern] = [:]
         var invalid: [String] = []
+        var rawTags: [LocaleID: [String]] = [:]
         for tag in localized.keys.sorted() {           // sorted: deterministic invalidTags
-            if let id = LocaleID(tag) { parsed[id] = RoutePattern(localized[tag]!) }
+            if let id = LocaleID(tag) {
+                parsed[id] = RoutePattern(localized[tag]!)
+                rawTags[id, default: []].append(tag)
+            }
             else { invalid.append(tag) }
         }
         self.canonical = RoutePattern(canonical)
         self.localized = parsed
         self.invalidTags = invalid
+        self.collidingTags = rawTags.filter { $0.value.count > 1 }
     }
 }
 
@@ -141,6 +151,11 @@ extension LocalizedRoutes {
     }
 
     /// The inverse: raw segments spliced into another pattern, by NAME.
+    ///
+    /// A name the caller did not supply splices in as EMPTY — `/dostavka//x`,
+    /// which `normalizePath` does not repair (it strips a trailing slash only).
+    /// V11 is what makes that unreachable; there is deliberately no guard here,
+    /// because a silent repair would hide the misdeclaration from the build.
     static func substituteRaw(_ params: [String: String], into pattern: RoutePattern) -> String {
         var out = ""
         for seg in pattern.segments {
@@ -153,5 +168,196 @@ extension LocalizedRoutes {
             }
         }
         return out.isEmpty ? "/" : out
+    }
+}
+
+extension LocalizedRoutes {
+    /// Table-only checks (spec §4: V1–V6, V10–V12, V15, plus the table half of
+    /// V7). Every one of these fails SILENTLY at runtime and looks like a
+    /// working site, so they are rejected at build time instead.
+    ///
+    /// A REPORTING pass, never a trap: the table is built during `static let`
+    /// initialization, where a trap kills the process before any diagnostic can
+    /// print — the same reason `invalidTags` is collected rather than asserted.
+    /// Task 9 wraps the result in a thrown error and adds the checks that need
+    /// the collected route set (V7's other half, V8, V9, V14) and `config`
+    /// (V13 — `siteURL` lives in SwiftWUIStatic and is not reachable here).
+    ///
+    /// Empty table → no checks, ever.
+    public func _validate(localization: Localization) -> [String] {
+        guard !isEmpty else { return [] }
+        var out: [String] = []
+
+        // V1 — under any other strategy the table is not an error, it is a
+        // total no-op: `usesURLPrefix` short-circuits before it is ever read.
+        if !localization.strategy.usesURLPrefix {
+            out.append("routePaths requires strategy .pathPrefix — under the declared strategy the table is silently ignored")
+        }
+
+        var seenCanonical: Set<String> = []
+        for entry in entries {
+            let canon = entry.canonical.raw
+
+            // V5
+            if !seenCanonical.insert(canon).inserted {
+                out.append("routePaths declares '\(canon)' twice — merge the locales into one entry")
+            }
+
+            // V3 (unparseable)
+            for tag in entry.invalidTags {
+                out.append("routePaths entry '\(canon)': '\(tag)' is not a locale tag")
+            }
+
+            // V15 — normalization collision. `localized` kept only the last of
+            // these, so the entry means something the author did not write.
+            for id in entry.collidingTags.keys.sorted(by: { $0.identifier < $1.identifier }) {
+                out.append("routePaths entry '\(canon)': locale tags \(entry.collidingTags[id]!) all normalize to '\(id.identifier)' — only one of them survives, keep a single spelling")
+            }
+
+            var seenSlug: [String: LocaleID] = [:]
+            for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
+                let pattern = entry.localized[locale]!
+
+                // V2
+                if locale == localization.default {
+                    out.append("routePaths entry '\(canon)' declares the default locale '\(locale.identifier)' — the canonical pattern already is that locale's path")
+                }
+                // V3 (unsupported). The table matches locales EXACTLY, while
+                // `Localization.validated` falls back region→language, so a
+                // near miss degrades silently: name both spellings.
+                if !localization.supported.contains(locale) {
+                    var message = "routePaths entry '\(canon)': locale '\(locale.identifier)' is not in supported \(localization.supported.map(\.identifier))"
+                    if let near = localization.supported.first(where: { $0.language == locale.language }) {
+                        message += " — the table matches locales exactly, so write it as '\(near.identifier)'"
+                    }
+                    out.append(message)
+                }
+                // V4
+                if let other = seenSlug.updateValue(locale, forKey: pattern.raw) {
+                    out.append("routePaths entry '\(canon)': '\(pattern.raw)' is declared for both '\(other.identifier)' and '\(locale.identifier)'")
+                }
+                // V12
+                if !pattern.raw.allSatisfy(Self.isSlugCharacter) {
+                    out.append("routePaths entry '\(canon)': localized slug '\(pattern.raw)' must be ASCII [A-Za-z0-9-._~/:*] — transliterate it")
+                }
+                // V11
+                let cn = Self.paramNames(entry.canonical), ln = Self.paramNames(pattern)
+                if cn != ln {
+                    out.append("routePaths entry '\(canon)': localized slug '\(pattern.raw)' has parameters \(ln.sorted()), expected \(cn.sorted())")
+                }
+                if Self.hasCatchAll(entry.canonical) != Self.hasCatchAll(pattern) {
+                    out.append("routePaths entry '\(canon)': localized slug '\(pattern.raw)' disagrees about the catch-all '*'")
+                }
+                // V16 — a slug starting with ':' or '*' matches a bare locale
+                // prefix by segment count alone, so internalize step 1 claims
+                // '/de' — the very URL externalize("/", de) produces — and
+                // answers with this entry's canonical. Step 1 cannot be
+                // narrowed the way step 2 was (LocalePath.swift:28) without
+                // breaking root-level canonical slugs, so the pattern is
+                // rejected here instead.
+                switch pattern.segments.first {
+                case .none, .some(.literal): break
+                case .some(.param), .some(.catchAll):
+                    out.append("routePaths entry '\(canon)': localized slug '\(pattern.raw)' must start with a literal segment — one starting with ':' or '*' also matches the locale prefix '/\(locale.identifier)'")
+                }
+                // V10 — the check that catches everything the others miss.
+                if let failure = Self.roundTripFailure(entry: entry, locale: locale) {
+                    out.append("routePaths entry '\(canon)': \(failure)")
+                }
+            }
+        }
+
+        // V6 + the table half of V7 — pairwise overlap over EVERY pattern the
+        // table declares, canonical and localized alike. All three degenerate
+        // shapes are one relation: a slug equal to its own canonical, a slug
+        // spelled as another entry's canonical, and two slugs that can match
+        // one path. Resolution is first-match-wins in declaration order, so
+        // each of them makes some page unreachable without any diagnostic.
+        // Tables are small (tens of entries); O(n²) is free.
+        var declared: [(label: String, pattern: RoutePattern)] = []
+        for entry in entries {
+            declared.append(("canonical '\(entry.canonical.raw)'", entry.canonical))
+            for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
+                let pattern = entry.localized[locale]!
+                declared.append(("the '\(locale.identifier)' slug '\(pattern.raw)' of '\(entry.canonical.raw)'", pattern))
+            }
+        }
+        for i in declared.indices {
+            for j in declared.indices where j > i {
+                if Self.overlap(declared[i].pattern, declared[j].pattern) {
+                    out.append("routePaths: \(declared[i].label) and \(declared[j].label) overlap — one path would match both and resolution is declaration-order, so a reordering would silently rewrite URLs")
+                }
+            }
+        }
+        return out
+    }
+
+    static func isSlugCharacter(_ c: Character) -> Bool {
+        guard c.isASCII else { return false }
+        return c.isLetter || c.isNumber || "-._~/:*".contains(c)
+    }
+
+    static func paramNames(_ p: RoutePattern) -> Set<String> {
+        var names: Set<String> = []
+        for seg in p.segments { if case .param(let n) = seg { names.insert(n) } }
+        return names
+    }
+
+    static func hasCatchAll(_ p: RoutePattern) -> Bool {
+        p.segments.contains { if case .catchAll = $0 { return true } else { return false } }
+    }
+
+    /// Two patterns overlap when some path could match both.
+    ///
+    /// A catch-all is always the last segment, so it sits at index `count - 1`
+    /// and matches every path with AT LEAST that many segments — the count is
+    /// free from there on, but the literals BEFORE it still have to agree.
+    /// Comparing only `min(count) - 1` positions instead would call `/about`
+    /// and `/docs/*` an overlap and refuse a perfectly legal table.
+    static func overlap(_ a: RoutePattern, _ b: RoutePattern) -> Bool {
+        let ka = hasCatchAll(a) ? a.segments.count - 1 : nil
+        let kb = hasCatchAll(b) ? b.segments.count - 1 : nil
+        switch (ka, kb) {
+        case (nil, nil):        guard a.segments.count == b.segments.count else { return false }
+        case (.some(let k), nil): guard b.segments.count >= k else { return false }
+        case (nil, .some(let k)): guard a.segments.count >= k else { return false }
+        case (.some, .some):    break
+        }
+        let fixed = min(ka ?? a.segments.count, kb ?? b.segments.count)
+        return (0..<fixed).allSatisfy { compatible(a.segments[$0], b.segments[$0]) }
+    }
+
+    private static func compatible(_ x: RoutePattern.Segment, _ y: RoutePattern.Segment) -> Bool {
+        switch (x, y) {
+        case (.literal(let l), .literal(let r)): return l == r
+        default: return true                      // a param or catch-all matches any literal
+        }
+    }
+
+    /// Spec §3.3: internalize(externalize(p)) == p, sampled with values that
+    /// have historically broken path handling. The poison set is FIXED — a
+    /// validation that fails on a different build than it passed on is worse
+    /// than no validation.
+    static func roundTripFailure(entry: Entry, locale: LocaleID) -> String? {
+        let poison = ["a%2Fb", "%25", "x y", "a+b"]
+        var params: [String: String] = [:]
+        var i = 0
+        for seg in entry.canonical.segments {
+            switch seg {
+            case .param(let name): params[name] = poison[i % poison.count]; i += 1
+            case .catchAll:        params["*"] = poison[i % poison.count]; i += 1
+            case .literal:         break
+            }
+        }
+        let canonicalPath = substituteRaw(params, into: entry.canonical)
+        let slug = substituteRaw(params, into: entry.localized[locale]!)
+        guard let back = matchRaw(slug, entry.localized[locale]!) else {
+            return "'\(slug)' does not match its own pattern '\(entry.localized[locale]!.raw)'"
+        }
+        let rebuilt = substituteRaw(back, into: entry.canonical)
+        guard rebuilt == canonicalPath else {
+            return "round-trip lost information: '\(canonicalPath)' → '\(slug)' → '\(rebuilt)'"
+        }
+        return nil
     }
 }

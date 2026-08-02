@@ -113,6 +113,11 @@ import Testing
     /// but is silent about `ru`: the scan must CONTINUE (stopping at the first
     /// pattern match would fall through to "/ru/about"). Entry 1 also declares
     /// `de`, as does entry 2 — the earlier one wins, like `Router`.
+    ///
+    /// The table is INTENTIONALLY V5-invalid (two entries, one canonical) — a
+    /// legal table can never reach the keep-scanning branch, because V5 and V6
+    /// together let at most one entry match a path. This pins the degraded
+    /// path, so `_validate` must stay a reporting pass and never trap.
     @Test func silentEntryKeepsScanningAndTheFirstMatchWins() {
         let mixed = LocalizedRoutes {
             LocalizedRoute("/about", ["de": "/ueber-uns"])
@@ -217,5 +222,227 @@ import Testing
         let u = LocalePath.internalize("/xx/about", supported: supported)
         #expect(u.path == "/xx/about")
         #expect(u.locale == nil)
+    }
+}
+
+@Suite struct LocalizedRoutesValidationTests {
+    private let en = LocaleID("en")!, ru = LocaleID("ru")!, de = LocaleID("de")!
+
+    private func l10n(_ strategy: LocaleStrategy = .pathPrefix(),
+                      _ table: LocalizedRoutes) -> Localization {
+        Localization(supported: [en, ru, de], default: en, strategy: strategy, routePaths: table)
+    }
+
+    private func problems(_ strategy: LocaleStrategy = .pathPrefix(),
+                          _ table: LocalizedRoutes) -> [String] {
+        table._validate(localization: l10n(strategy, table))
+    }
+
+    @Test func validTableHasNoProblems() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/delivery/:from/:to", ["ru": "/dostavka/:from/:to"])
+            LocalizedRoute("/about", ["ru": "/o-nas", "de": "/ueber-uns"])
+        }).isEmpty)
+    }
+
+    /// A catch-all only claims paths that reach it: `/docs/*` and `/about`
+    /// share nothing. Counting `min(count) - 1` positions instead would call
+    /// every short pattern an overlap and refuse this table.
+    @Test func aCatchAllDoesNotOverlapEveryShorterPattern() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/about", ["ru": "/o-nas"])
+            LocalizedRoute("/docs/*", ["ru": "/dokumenty/*"])
+        }).isEmpty)
+    }
+
+    @Test func aRootCatchAllStillOverlapsEverything() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/about", ["ru": "/o-nas"])
+            LocalizedRoute("/*", ["ru": "/vse/*"])
+        }).contains { $0.contains("overlap") })
+    }
+
+    @Test func emptyTableIsAlwaysValidEvenUnderNegotiated() {
+        #expect(problems(.negotiated, .none).isEmpty)
+    }
+
+    @Test func v1RejectsNonPathPrefixStrategies() {
+        let t = LocalizedRoutes { LocalizedRoute("/about", ["ru": "/o-nas"]) }
+        #expect(problems(.negotiated, t).contains { $0.contains(".pathPrefix") })
+        #expect(problems(.client, t).contains { $0.contains(".pathPrefix") })
+    }
+
+    @Test func v2RejectsTheDefaultLocale() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/about", ["en": "/about-us"])
+        }).contains { $0.contains("default locale") })
+    }
+
+    @Test func v3RejectsUnknownAndUnparseableTags() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/about", ["fr": "/a-propos"])
+        }).contains { $0.contains("fr") })
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/about", ["not a tag": "/x"])
+        }).contains { $0.contains("not a tag") })
+    }
+
+    /// Why V3 is not cosmetic: `internalize` step 1 hands back whatever locale
+    /// the table names, WITHOUT filtering it through `supported` — every other
+    /// exit does. An unsupported tag in the table therefore reaches `<html
+    /// lang>` and the persisted locale.
+    @Test func anUnsupportedTableLocaleReachesInternalizeUnfiltered() {
+        let t = LocalizedRoutes { LocalizedRoute("/about", ["fr": "/a-propos"]) }
+        let r = LocalePath.internalize("/a-propos", supported: [en, ru, de], routes: t)
+        #expect(r.path == "/about")
+        #expect(r.locale == LocaleID("fr")!)
+    }
+
+    /// The table matches locales EXACTLY; `Localization.validated` falls back
+    /// region→language. An app on `ru-RU` with a table written `"ru"` gets a
+    /// table that never fires, so the diagnostic must name both spellings.
+    @Test func v3RejectsALocaleThatOnlyMatchesByFallback() {
+        let ruRU = LocaleID("ru-RU")!
+        let t = LocalizedRoutes { LocalizedRoute("/about", ["ru": "/o-nas"]) }
+        let out = t._validate(localization: Localization(supported: [en, ruRU], default: en,
+                                                         routePaths: t))
+        #expect(out.contains { $0.contains("'ru'") && $0.contains("'ru-RU'") })
+        // and the reason it matters: the entry is dead for the only ru locale there is.
+        #expect(LocalePath.externalize("/about", locale: ruRU, default: en, routes: t) == "/ru-RU/about")
+    }
+
+    @Test func v4RejectsTwoLocalesSharingOneSlug() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/contact", ["ru": "/kontakt", "de": "/kontakt"])
+        }).contains { $0.contains("/kontakt") })
+    }
+
+    @Test func v5RejectsDuplicateCanonicalPatterns() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/about", ["ru": "/o-nas"])
+            LocalizedRoute("/about", ["de": "/ueber-uns"])
+        }).contains { $0.contains("/about") })
+    }
+
+    @Test func v6RejectsOverlappingCanonicalPatterns() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"])
+            LocalizedRoute("/blog/archive", ["ru": "/arkhiv"])
+        }).contains { $0.contains("overlap") })
+    }
+
+    @Test func v11RejectsParamNameMismatch() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/delivery/:from/:to", ["ru": "/dostavka/:from"])
+        }).contains { $0.contains("to") })
+    }
+
+    /// The specific mismatch V11 exists to make unreachable: a slug naming a
+    /// param the canonical never captures. Paired with the test below, which
+    /// pins what it would emit if it ever shipped.
+    @Test func v11RejectsASlugNamingAParamTheCanonicalDoesNotHave() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/delivery/:from", ["ru": "/dostavka/:via/:from"])
+        }).contains { $0.contains("via") })
+    }
+
+    /// Documented, not folklore: with a param missing, `substituteRaw` splices
+    /// in an empty segment and `normalizePath` does not repair it — only a
+    /// TRAILING slash is stripped. This "/" would reach hrefs, redirect
+    /// targets and `<link rel=canonical>`. V11 above is the only guard.
+    @Test func substituteRawWithAMissingParamProducesADoubleSlash() {
+        #expect(LocalizedRoutes.substituteRaw(["from": "a"],
+                                              into: RoutePattern("/dostavka/:via/:from")) == "/dostavka//a")
+    }
+
+    @Test func v11RejectsCatchAllMismatch() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/docs/*", ["ru": "/dokumenty/:page"])
+        }).contains { $0.contains("catch-all") })
+    }
+
+    @Test func v12RejectsNonASCIIAndUnsafeCharacters() {
+        let cyrillic = problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/about", ["ru": "/о-нас"])
+        })
+        #expect(cyrillic.contains { $0.contains("ASCII") })
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/about", ["ru": "/o-nas?x=1"])
+        }).contains { $0.contains("ASCII") })
+    }
+
+    @Test func v10RoundTripFailureIsReported() {
+        // A localized pattern that repeats a param cannot round-trip: the
+        // canonical rebuild has no way to know which copy was authoritative.
+        let out = problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/x/:a/:b", ["ru": "/y/:a/:a"])
+        })
+        #expect(!out.isEmpty)
+    }
+
+    /// V15: `LocaleID` lowercases the language and treats "_" like "-", so
+    /// these three tags are ONE key and only the last survives. Both offending
+    /// spellings must appear, or the author cannot find the line.
+    @Test func v15RejectsRawTagsThatNormalizeToTheSameLocale() {
+        let t = LocalizedRoutes { LocalizedRoute("/about", ["ru": "/a", "RU": "/b"]) }
+        #expect(t.entries[0].localized.count == 1)          // the collapse itself
+        let out = t._validate(localization: l10n(.pathPrefix(), t))
+        #expect(out.contains { $0.contains("\"ru\"") && $0.contains("\"RU\"") })
+    }
+
+    @Test func v15AlsoCatchesTheRegionAndSeparatorSpellings() {
+        let t = LocalizedRoutes { LocalizedRoute("/about", ["pt_br": "/a", "pt-BR": "/b"]) }
+        #expect(t._validate(localization: l10n(.pathPrefix(), t))
+                 .contains { $0.contains("\"pt-BR\"") && $0.contains("\"pt_br\"") })
+    }
+
+    /// Degenerate table (a): the slug IS its own canonical. `externalize`
+    /// returns the canonical unchanged while `internalize` claims that URL for
+    /// the locale — the default-locale page becomes the localized one.
+    @Test func v7RejectsASlugEqualToItsOwnCanonical() {
+        let t = LocalizedRoutes { LocalizedRoute("/about", ["ru": "/about"]) }
+        #expect(t._validate(localization: l10n(.pathPrefix(), t)).contains { $0.contains("overlap") })
+        // the behaviour it prevents:
+        #expect(LocalePath.internalize("/about", supported: [en, ru, de], routes: t).locale == ru)
+    }
+
+    /// Degenerate table (b): one entry's slug is spelled as another entry's
+    /// canonical. Step 1 beats step 2, so that second entry is unreachable.
+    @Test func v7RejectsASlugSpelledAsAnotherEntrysCanonical() {
+        let t = LocalizedRoutes {
+            LocalizedRoute("/history", ["ru": "/istoriya"])
+            LocalizedRoute("/team", ["ru": "/history"])
+        }
+        #expect(t._validate(localization: l10n(.pathPrefix(), t))
+                 .contains { $0.contains("/history") && $0.contains("overlap") })
+        #expect(LocalePath.internalize("/history", supported: [en, ru, de], routes: t).path == "/team")
+    }
+
+    /// Two entries whose SLUGS can match one path: same first-match-wins hazard
+    /// as V6, one step earlier.
+    @Test func v7RejectsTwoSlugsThatMatchOnePath() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/blog/:slug", ["ru": "/n/:slug"])
+            LocalizedRoute("/news/:slug", ["ru": "/n/:slug"])
+        }).contains { $0.contains("overlap") })
+    }
+
+    /// A slug whose first segment is a `:param` matches "/de" by segment count
+    /// alone — the exact URL `externalize("/", de)` produces — so step 1 would
+    /// answer every prefixed home page with this entry's canonical.
+    @Test func v16RejectsASlugStartingWithAParam() {
+        let t = LocalizedRoutes { LocalizedRoute("/products/:slug", ["ru": "/:slug"]) }
+        #expect(t._validate(localization: l10n(.pathPrefix(), t))
+                 .contains { $0.contains("literal segment") })
+        // the behaviour it prevents:
+        let hijacked = LocalePath.internalize("/de", supported: [en, ru, de], routes: t)
+        #expect(hijacked.path == "/products/de")
+        #expect(hijacked.locale == ru)
+    }
+
+    @Test func v16RejectsASlugStartingWithACatchAll() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/docs/*", ["ru": "/*"])
+        }).contains { $0.contains("literal segment") })
     }
 }
