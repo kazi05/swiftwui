@@ -61,3 +61,50 @@ import Testing
         #expect(LocalizedRoutes.substituteRaw([:], into: RoutePattern("/")) == "/")
     }
 }
+
+@Suite struct ExternalizeWithTableTests {
+    private let en = LocaleID("en")!
+    private let ru = LocaleID("ru")!
+    private let table = LocalizedRoutes {
+        LocalizedRoute("/delivery/:from/:to", ["ru": "/dostavka/:from/:to"])
+        LocalizedRoute("/about", ["ru": "/o-nas"])
+    }
+
+    @Test func translatedRouteGetsSlugAndNoPrefix() {
+        #expect(LocalePath.externalize("/delivery/moscow/paris", locale: ru, default: en,
+                                       routes: table) == "/dostavka/moscow/paris")
+    }
+
+    @Test func untranslatedRouteFallsBackToPrefix() {
+        #expect(LocalePath.externalize("/contact", locale: ru, default: en,
+                                       routes: table) == "/ru/contact")
+    }
+
+    @Test func defaultLocaleIsUnaffected() {
+        #expect(LocalePath.externalize("/about", locale: en, default: en,
+                                       routes: table) == "/about")
+    }
+
+    @Test func emptyTableIsCharacterForCharacterTodaysBehaviour() {
+        #expect(LocalePath.externalize("/about", locale: ru, default: en) == "/ru/about")
+        #expect(LocalePath.externalize("/", locale: ru, default: en) == "/ru")
+        #expect(LocalePath.externalize("/about", locale: ru, default: en,
+                                       routes: .none) == "/ru/about")
+    }
+
+    // Link hands its whole destination in, query and all (Link.swift:30).
+    @Test func querySurvivesTranslation() {
+        #expect(LocalePath.externalize("/about?tab=2", locale: ru, default: en,
+                                       routes: table) == "/o-nas?tab=2")
+    }
+
+    @Test func fragmentSurvivesTranslation() {
+        #expect(LocalePath.externalize("/about#top", locale: ru, default: en,
+                                       routes: table) == "/o-nas#top")
+    }
+
+    @Test func queryAlsoSurvivesTheFallbackPath() {
+        #expect(LocalePath.externalize("/contact?x=1", locale: ru, default: en,
+                                       routes: table) == "/ru/contact?x=1")
+    }
+}

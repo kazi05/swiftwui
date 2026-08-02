@@ -44,19 +44,28 @@ public struct Localization {
     public let supported: [LocaleID]
     public let `default`: LocaleID
     public let strategy: LocaleStrategy
+    /// Optional per-locale path patterns (spec 2026-08-02). Empty = today.
+    /// Lives here rather than on `App` because `Localization` is already
+    /// threaded through every signature `LocalePath` is reached from, so the
+    /// table travels with zero public signature changes elsewhere.
+    public let routePaths: LocalizedRoutes
 
     public init(supported: [LocaleID], default defaultLocale: LocaleID,
-                strategy: LocaleStrategy = .pathPrefix()) {
+                strategy: LocaleStrategy = .pathPrefix(),
+                routePaths: LocalizedRoutes = .none) {
         assert(supported.contains(defaultLocale),
                "Localization default '\(defaultLocale)' is not in supported \(supported)")
         self.supported = supported
         self.default = supported.contains(defaultLocale) ? defaultLocale : (supported.first ?? defaultLocale)
         self.strategy = strategy
+        self.routePaths = routePaths
     }
 
     public init<C: LocalizationCatalog>(catalog: C.Type, default defaultLocale: LocaleID,
-                                        strategy: LocaleStrategy = .pathPrefix()) {
-        self.init(supported: C.supportedLocales, default: defaultLocale, strategy: strategy)
+                                        strategy: LocaleStrategy = .pathPrefix(),
+                                        routePaths: LocalizedRoutes = .none) {
+        self.init(supported: C.supportedLocales, default: defaultLocale,
+                  strategy: strategy, routePaths: routePaths)
     }
 
     /// The one validator every untrusted locale string passes through:

@@ -25,10 +25,28 @@ public enum LocalePath {
     }
 
     /// Adds the locale segment for every locale except the default, which
-    /// lives at the site root (spec §4.2).
-    public static func externalize(_ path: String, locale: LocaleID, default defaultLocale: LocaleID) -> String {
+    /// lives at the site root (spec §4.2) — unless `routes` gives this path a
+    /// slug for `locale`, in which case the slug replaces the prefix entirely.
+    public static func externalize(_ path: String, locale: LocaleID, default defaultLocale: LocaleID,
+                                   routes: LocalizedRoutes = .none) -> String {
+        // Empty table: not one extra operation, and not one changed byte.
+        guard !routes.isEmpty else { return prefixed(path, locale: locale, default: defaultLocale) }
+        let (head, suffix) = _splitSuffix(path)
+        if let slug = routes._localizedPath(for: head, locale: locale) { return slug + suffix }
+        return prefixed(head, locale: locale, default: defaultLocale) + suffix
+    }
+
+    private static func prefixed(_ path: String, locale: LocaleID, default defaultLocale: LocaleID) -> String {
         let normalized = RouteURL._normalize(path)
         guard locale != defaultLocale else { return normalized }
         return normalized == "/" ? "/" + locale.identifier : "/" + locale.identifier + normalized
+    }
+
+    /// Splits at the first "?" or "#". NOT `RouteURL.split`, which discards the
+    /// fragment — `Link` hands its whole destination to `externalize`
+    /// (Link.swift:30) and a dropped "#top" is a silently broken anchor.
+    static func _splitSuffix(_ path: String) -> (head: String, suffix: String) {
+        guard let cut = path.firstIndex(where: { $0 == "?" || $0 == "#" }) else { return (path, "") }
+        return (String(path[..<cut]), String(path[cut...]))
     }
 }

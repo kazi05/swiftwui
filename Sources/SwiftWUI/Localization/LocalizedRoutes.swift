@@ -98,6 +98,18 @@ extension LocalizedRoutes {
         return i == parts.count ? params : nil
     }
 
+    /// Canonical path → this locale's slug, or nil when the table says nothing.
+    /// First entry whose canonical pattern matches AND that declares `locale`;
+    /// validation (V5/V6) guarantees at most one entry can match at all.
+    func _localizedPath(for path: String, locale: LocaleID) -> String? {
+        for entry in entries {
+            guard let pattern = entry.localized[locale],
+                  let params = Self.matchRaw(path, entry.canonical) else { continue }
+            return Self.substituteRaw(params, into: pattern)
+        }
+        return nil
+    }
+
     /// The inverse: raw segments spliced into another pattern, by NAME.
     static func substituteRaw(_ params: [String: String], into pattern: RoutePattern) -> String {
         var out = ""
