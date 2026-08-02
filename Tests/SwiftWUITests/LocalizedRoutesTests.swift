@@ -65,6 +65,7 @@ import Testing
 @Suite struct ExternalizeWithTableTests {
     private let en = LocaleID("en")!
     private let ru = LocaleID("ru")!
+    private let de = LocaleID("de")!
     private let table = LocalizedRoutes {
         LocalizedRoute("/delivery/:from/:to", ["ru": "/dostavka/:from/:to"])
         LocalizedRoute("/about", ["ru": "/o-nas"])
@@ -106,5 +107,18 @@ import Testing
     @Test func queryAlsoSurvivesTheFallbackPath() {
         #expect(LocalePath.externalize("/contact?x=1", locale: ru, default: en,
                                        routes: table) == "/ru/contact?x=1")
+    }
+
+    /// Both halves of the lookup guard, one fixture. Entry 1 matches "/about"
+    /// but is silent about `ru`: the scan must CONTINUE (stopping at the first
+    /// pattern match would fall through to "/ru/about"). Entry 1 also declares
+    /// `de`, as does entry 2 — the earlier one wins, like `Router`.
+    @Test func silentEntryKeepsScanningAndTheFirstMatchWins() {
+        let mixed = LocalizedRoutes {
+            LocalizedRoute("/about", ["de": "/ueber-uns"])
+            LocalizedRoute("/about", ["ru": "/o-nas", "de": "/about-de"])
+        }
+        #expect(LocalePath.externalize("/about", locale: ru, default: en, routes: mixed) == "/o-nas")
+        #expect(LocalePath.externalize("/about", locale: de, default: en, routes: mixed) == "/ueber-uns")
     }
 }
