@@ -314,14 +314,14 @@ import Testing
     @Test func v4RejectsTwoLocalesSharingOneSlug() {
         #expect(problems(.pathPrefix(), LocalizedRoutes {
             LocalizedRoute("/contact", ["ru": "/kontakt", "de": "/kontakt"])
-        }).contains { $0.contains("/kontakt") })
+        }).contains { $0.contains("declared for both") && $0.contains("/kontakt") })
     }
 
     @Test func v5RejectsDuplicateCanonicalPatterns() {
         #expect(problems(.pathPrefix(), LocalizedRoutes {
             LocalizedRoute("/about", ["ru": "/o-nas"])
             LocalizedRoute("/about", ["de": "/ueber-uns"])
-        }).contains { $0.contains("/about") })
+        }).contains { $0.contains("twice") && $0.contains("/about") })
     }
 
     @Test func v6RejectsOverlappingCanonicalPatterns() {
@@ -334,7 +334,7 @@ import Testing
     @Test func v11RejectsParamNameMismatch() {
         #expect(problems(.pathPrefix(), LocalizedRoutes {
             LocalizedRoute("/delivery/:from/:to", ["ru": "/dostavka/:from"])
-        }).contains { $0.contains("to") })
+        }).contains { $0.contains("has parameters") && $0.contains("\"to\"") })
     }
 
     /// The specific mismatch V11 exists to make unreachable: a slug naming a
@@ -343,7 +343,7 @@ import Testing
     @Test func v11RejectsASlugNamingAParamTheCanonicalDoesNotHave() {
         #expect(problems(.pathPrefix(), LocalizedRoutes {
             LocalizedRoute("/delivery/:from", ["ru": "/dostavka/:via/:from"])
-        }).contains { $0.contains("via") })
+        }).contains { $0.contains("has parameters") && $0.contains("\"via\"") })
     }
 
     /// Documented, not folklore: with a param missing, `substituteRaw` splices
@@ -374,10 +374,12 @@ import Testing
     @Test func v10RoundTripFailureIsReported() {
         // A localized pattern that repeats a param cannot round-trip: the
         // canonical rebuild has no way to know which copy was authoritative.
+        // V11 also fires on this fixture, so the assertion names V10's own
+        // message — `!out.isEmpty` would stay green with V10 deleted.
         let out = problems(.pathPrefix(), LocalizedRoutes {
             LocalizedRoute("/x/:a/:b", ["ru": "/y/:a/:a"])
         })
-        #expect(!out.isEmpty)
+        #expect(out.contains { $0.contains("round-trip") })
     }
 
     /// V15: `LocaleID` lowercases the language and treats "_" like "-", so

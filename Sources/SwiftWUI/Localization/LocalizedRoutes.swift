@@ -260,7 +260,11 @@ extension LocalizedRoutes {
                 case .some(.param), .some(.catchAll):
                     out.append("routePaths entry '\(canon)': localized slug '\(pattern.raw)' must start with a literal segment — one starting with ':' or '*' also matches the locale prefix '/\(locale.identifier)'")
                 }
-                // V10 — the check that catches everything the others miss.
+                // V10 — a backstop, not the broad check the spec bills it as:
+                // given V11, it cannot fail for any table `RoutePattern` can
+                // represent (see `roundTripFailure`). Kept because it asserts
+                // the §3.3 invariant directly, so a future change to
+                // `matchRaw` or `RoutePattern` breaks a test rather than URLs.
                 if let failure = Self.roundTripFailure(entry: entry, locale: locale) {
                     out.append("routePaths entry '\(canon)': \(failure)")
                 }
@@ -334,10 +338,18 @@ extension LocalizedRoutes {
         }
     }
 
-    /// Spec §3.3: internalize(externalize(p)) == p, sampled with values that
-    /// have historically broken path handling. The poison set is FIXED — a
-    /// validation that fails on a different build than it passed on is worse
-    /// than no validation.
+    /// Spec §3.3: internalize(externalize(p)) == p, asserted directly on one
+    /// sample rather than argued from the other checks.
+    ///
+    /// Honest about its reach: V11 already forces the two patterns to name the
+    /// same params, and `matchRaw` recovers substituted segments verbatim, so
+    /// once V11 passes this cannot fail for any table `RoutePattern` can
+    /// represent. The sample values are opaque tokens to every code path they
+    /// touch — nothing here percent-decodes — so they buy no extra coverage
+    /// either. What it does buy is a direct assertion of the invariant: change
+    /// `matchRaw` to decode, or `substituteRaw` to re-encode, and this fails
+    /// before any URL does. The set is FIXED for that reason — a validation
+    /// that fails on a different build than it passed on is worse than none.
     static func roundTripFailure(entry: Entry, locale: LocaleID) -> String? {
         let poison = ["a%2Fb", "%25", "x y", "a+b"]
         var params: [String: String] = [:]
