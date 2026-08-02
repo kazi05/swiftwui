@@ -122,3 +122,65 @@ import Testing
         #expect(LocalePath.externalize("/about", locale: de, default: en, routes: mixed) == "/ueber-uns")
     }
 }
+
+@Suite struct InternalizeWithTableTests {
+    private let supported = [LocaleID("en")!, LocaleID("de")!, LocaleID("ru")!]
+    private let table = LocalizedRoutes {
+        LocalizedRoute("/delivery/:from/:to", ["ru": "/dostavka/:from/:to"])
+        LocalizedRoute("/about", ["ru": "/o-nas"])
+    }
+
+    @Test func slugYieldsCanonicalPathAndItsLocale() {
+        let r = LocalePath.internalize("/dostavka/moscow/paris", supported: supported, routes: table)
+        #expect(r.path == "/delivery/moscow/paris")
+        #expect(r.locale == LocaleID("ru")!)
+    }
+
+    @Test func prefixStillWorksForUntranslatedRoutes() {
+        let r = LocalePath.internalize("/ru/contact", supported: supported, routes: table)
+        #expect(r.path == "/contact")
+        #expect(r.locale == LocaleID("ru")!)
+    }
+
+    @Test func roundTripIsExactForEncodedSegments() {
+        let external = LocalePath.externalize("/delivery/a%2Fb/x", locale: LocaleID("ru")!,
+                                              default: LocaleID("en")!, routes: table)
+        let back = LocalePath.internalize(external, supported: supported, routes: table)
+        #expect(external == "/dostavka/a%2Fb/x")
+        #expect(back.path == "/delivery/a%2Fb/x")
+        #expect(back.locale == LocaleID("ru")!)
+    }
+
+    /// `externalize` consults the table BEFORE the `locale != defaultLocale`
+    /// check, so an entry that declares the default locale really does yield a
+    /// slug. `internalize` must recognise it, or the round-trip breaks for
+    /// exactly the configuration that opts into it.
+    @Test func slugDeclaredForTheDefaultLocaleRoundTrips() {
+        let t = LocalizedRoutes { LocalizedRoute("/about", ["en": "/x"]) }
+        let external = LocalePath.externalize("/about", locale: LocaleID("en")!,
+                                              default: LocaleID("en")!, routes: t)
+        let back = LocalePath.internalize(external, supported: supported, routes: t)
+        #expect(external == "/x")
+        #expect(back.path == "/about")
+        #expect(back.locale == LocaleID("en")!)
+    }
+
+    // Step 2: a declared canonical path must never be eaten by the prefix split.
+    // Without it, "/de/history" in a de-enabled app internalizes to "/history"
+    // and the SSG writes a meta-refresh stub pointing at itself.
+    @Test func declaredCanonicalBeatsThePrefixSplit() {
+        let t = LocalizedRoutes { LocalizedRoute("/de/history", ["ru": "/istoriya"]) }
+        let r = LocalePath.internalize("/de/history", supported: supported, routes: t)
+        #expect(r.path == "/de/history")
+        #expect(r.locale == nil)
+    }
+
+    @Test func emptyTableIsTodaysBehaviour() {
+        let r = LocalePath.internalize("/ru/about", supported: supported)
+        #expect(r.path == "/about")
+        #expect(r.locale == LocaleID("ru")!)
+        let u = LocalePath.internalize("/xx/about", supported: supported)
+        #expect(u.path == "/xx/about")
+        #expect(u.locale == nil)
+    }
+}

@@ -110,6 +110,26 @@ extension LocalizedRoutes {
         return nil
     }
 
+    /// A localized slug → its canonical path plus the locale that owns it.
+    /// Locales are visited in identifier order so the result cannot depend on
+    /// Dictionary seeding; validation (V4) makes at most one of them match.
+    func _canonicalPath(for path: String) -> (path: String, locale: LocaleID)? {
+        for entry in entries {
+            for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
+                guard let params = Self.matchRaw(path, entry.localized[locale]!) else { continue }
+                return (Self.substituteRaw(params, into: entry.canonical), locale)
+            }
+        }
+        return nil
+    }
+
+    /// Is this path one of the table's own canonical patterns? Such a path is
+    /// locale-free by definition and must not reach the prefix split, which
+    /// would eat a leading segment that merely looks like a locale tag.
+    func _declaresCanonical(_ path: String) -> Bool {
+        entries.contains { Self.matchRaw(path, $0.canonical) != nil }
+    }
+
     /// The inverse: raw segments spliced into another pattern, by NAME.
     static func substituteRaw(_ params: [String: String], into pattern: RoutePattern) -> String {
         var out = ""

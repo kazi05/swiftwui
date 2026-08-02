@@ -13,7 +13,19 @@ public enum LocalePath {
     /// `Localization.validated`: that one reduces the request to its primary
     /// language, so an app declaring only `["en-US"]` would accept `/en/…` and
     /// then rewrite the path under a locale the URL never named.
-    public static func internalize(_ path: String, supported: [LocaleID]) -> (path: String, locale: LocaleID?) {
+    ///
+    /// With a table, three steps in order: a localized slug wins, then a
+    /// DECLARED canonical pattern (locale-free by definition — otherwise
+    /// `Route("/de/history")` has its first segment eaten by the split below),
+    /// then the prefix. The suffix is cut before matching but not reattached:
+    /// callers split query and fragment off separately.
+    public static func internalize(_ path: String, supported: [LocaleID],
+                                   routes: LocalizedRoutes = .none) -> (path: String, locale: LocaleID?) {
+        if !routes.isEmpty {
+            let (head, _) = _splitSuffix(path)
+            if let hit = routes._canonicalPath(for: head) { return hit }
+            if routes._declaresCanonical(head) { return (RouteURL._normalize(head), nil) }
+        }
         let normalized = RouteURL._normalize(path)
         let body = normalized.dropFirst()                       // _normalize guarantees the leading "/"
         let head = String(body.prefix { $0 != "/" })
