@@ -123,11 +123,21 @@ extension LocalizedRoutes {
         return nil
     }
 
-    /// Is this path one of the table's own canonical patterns? Such a path is
-    /// locale-free by definition and must not reach the prefix split, which
-    /// would eat a leading segment that merely looks like a locale tag.
+    /// Is this path one of the table's own canonical patterns, and does that
+    /// pattern START WITH A LITERAL? Such a path is locale-free by definition
+    /// and must not reach the prefix split, which would eat a leading segment
+    /// that merely looks like a locale tag (`/de/history`).
+    ///
+    /// The literal check is the whole guard: `/:slug` matches `/de` — the very
+    /// URL `externalize("/", de)` produces — and `/:a/:b` matches `/ru/contact`,
+    /// by segment count alone. Without it, localizing an ordinary parametric
+    /// route (the feature's headline use case) would swallow every prefixed URL
+    /// and report no locale; `/*` would disable prefixes app-wide.
     func _declaresCanonical(_ path: String) -> Bool {
-        entries.contains { Self.matchRaw(path, $0.canonical) != nil }
+        entries.contains { entry in
+            guard case .literal = entry.canonical.segments.first else { return false }
+            return Self.matchRaw(path, entry.canonical) != nil
+        }
     }
 
     /// The inverse: raw segments spliced into another pattern, by NAME.

@@ -175,6 +175,41 @@ import Testing
         #expect(r.locale == nil)
     }
 
+    /// Step 2 may only claim canonicals whose FIRST SEGMENT IS A LITERAL.
+    /// `/:slug` matches `/de` by segment count alone — and `/de` is exactly what
+    /// `externalize("/", de)` just produced, so claiming it there strands the
+    /// German home page with no locale. Same for `/:a/:b` and `/ru/contact`.
+    @Test func parametricCanonicalDoesNotEatThePrefix() {
+        let de = LocaleID("de")!
+        let t = LocalizedRoutes {
+            LocalizedRoute("/:category/:product", ["ru": "/tovar/:category/:product"])
+            LocalizedRoute("/:slug", ["ru": "/stranitsa/:slug"])
+        }
+        let external = LocalePath.externalize("/", locale: de, default: LocaleID("en")!, routes: t)
+        let home = LocalePath.internalize(external, supported: supported, routes: t)
+        #expect(external == "/de")
+        #expect(home.path == "/")
+        #expect(home.locale == de)
+
+        let two = LocalePath.internalize("/ru/contact", supported: supported, routes: t)
+        #expect(two.path == "/contact")
+        #expect(two.locale == LocaleID("ru")!)
+    }
+
+    /// Steps 1–2 reattach the suffix, exactly as `externalize` splits and
+    /// reattaches it. Unreachable from today's callers (all three hand over a
+    /// path from `RouteURL.split`), but Task 11's `StaticSite.resolve` takes a
+    /// browser-visible URL, query and all.
+    @Test func suffixSurvivesWhicheverStepAnswers() {
+        #expect(LocalePath.internalize("/o-nas?x=1", supported: supported,
+                                       routes: table).path == "/about?x=1")
+        #expect(LocalePath.internalize("/ru/contact?x=1", supported: supported,
+                                       routes: table).path == "/contact?x=1")
+        let t = LocalizedRoutes { LocalizedRoute("/de/history", ["ru": "/istoriya"]) }
+        #expect(LocalePath.internalize("/de/history#top", supported: supported,
+                                       routes: t).path == "/de/history#top")
+    }
+
     @Test func emptyTableIsTodaysBehaviour() {
         let r = LocalePath.internalize("/ru/about", supported: supported)
         #expect(r.path == "/about")
