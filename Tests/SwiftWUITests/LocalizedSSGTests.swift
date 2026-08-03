@@ -687,3 +687,50 @@ private struct ParametricRouteSite: App {
         #expect(StaticSite.reservedDistNames == DistLayout.reservedNames)
     }
 }
+
+/// Declares no localization at all — the shape every project that predates
+/// this feature has, and the one `resolve` must leave alone.
+private struct MonolingualSite: App {
+    init() {}
+    var body: some Tag { SiteBody() }
+}
+
+@Suite @MainActor struct ResolveTests {
+    @Test func slugResolvesToCanonicalPathAndLocale() {
+        let r = StaticSite.resolve(SlugSite.self, requestPath: "/o-nas")
+        #expect(r.path == "/about")
+        #expect(r.locale == LocaleID("ru")!)
+    }
+
+    @Test func prefixResolvesToo() {
+        let r = StaticSite.resolve(SlugSite.self, requestPath: "/ru/contact")
+        #expect(r.path == "/contact")
+        #expect(r.locale == LocaleID("ru")!)
+    }
+
+    @Test func canonicalPathResolvesToItselfWithNoLocale() {
+        let r = StaticSite.resolve(SlugSite.self, requestPath: "/about")
+        #expect(r.path == "/about")
+        #expect(r.locale == nil)
+    }
+
+    @Test func monolingualAppIsIdentity() {
+        let r = StaticSite.resolve(MonolingualSite.self, requestPath: "/ghost")
+        #expect(r.path == "/ghost")
+        #expect(r.locale == nil)
+    }
+
+    @Test func queryIsStrippedFromTheResolvedPath() {
+        let r = StaticSite.resolve(SlugSite.self, requestPath: "/o-nas?tab=2")
+        #expect(r.path == "/about")
+    }
+
+    /// A fragment never reaches a server, but an operator pasting a URL into
+    /// `ssg --path` hands one straight through. `render` would take "/o-nas#top"
+    /// as a route to match and find nothing.
+    @Test func fragmentIsStrippedToo() {
+        let r = StaticSite.resolve(SlugSite.self, requestPath: "/o-nas#top")
+        #expect(r.path == "/about")
+        #expect(r.locale == LocaleID("ru")!)
+    }
+}

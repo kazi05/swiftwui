@@ -454,8 +454,8 @@ extension LocalizedRoutes {
             out.append("""
                 routePaths requires a siteURL — without it neither the canonical nor any hreflang \
                 alternate is emitted, and a localized slug shares no substring with its canonical \
-                for a crawler to pair them up. Set it on the StaticSiteConfig in your Sources/Entry.swift: \
-                .init(outDir: out, mode: mode, siteURL: "https://example.com", prerenderEnabled: prerenderEnabled)
+                for a crawler to pair them up. Every scaffolded project has the line to edit in its \
+                Sources/Entry.swift: let siteURL: String? = "https://example.com"
                 """)
         }
         return out

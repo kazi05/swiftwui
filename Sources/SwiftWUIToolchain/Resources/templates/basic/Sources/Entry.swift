@@ -57,13 +57,14 @@ import SwiftWUIStatic
     static func main() async throws {
         var args = Array(CommandLine.arguments.dropFirst())
         guard args.first == "ssg" else {
-            print("usage: {{NAME}} ssg --out <dir> [--static] [--path <path>] [--no-prerender]")
+            print("usage: {{NAME}} ssg --out <dir> [--static] [--path <path>] [--locale <tag>] [--no-prerender]")
             return
         }
         args.removeFirst()
         var out = "dist"
         var mode = StaticSiteMode.hydrate(wasmScriptPath: "/app/index.js")
         var onlyPath: String? = nil
+        var localeTag: String? = nil
         var prerenderEnabled = PrerenderSwitch.enabled(
             fromEnvironment: ProcessInfo.processInfo.environment[PrerenderSwitch.environmentKey])
         var i = 0
@@ -76,15 +77,29 @@ import SwiftWUIStatic
             case "--path":
                 guard i + 1 < args.count else { print("--path needs a value"); return }
                 i += 1; onlyPath = args[i]
+            case "--locale":
+                guard i + 1 < args.count else { print("--locale needs a value"); return }
+                i += 1; localeTag = args[i]
             case "--no-prerender": prerenderEnabled = false
             default: print("unknown arg \(args[i])")
             }
             i += 1
         }
+        // Fill in your site's origin — it is what buys absolute canonical URLs,
+        // hreflang alternates and sitemap.xml. Left nil, canonicals stay relative
+        // and no sitemap is written; a localized `routePaths` table refuses to
+        // build without it.
+        let siteURL: String? = nil          // e.g. "https://example.com"
+        let config = StaticSiteConfig(outDir: out, mode: mode, siteURL: siteURL,
+                                      prerenderEnabled: prerenderEnabled)
         if let onlyPath {
-            let page = try await StaticSite.render({{NAME}}App.self, path: onlyPath,
-                                                   config: .init(outDir: out, mode: mode,
-                                                                 prerenderEnabled: prerenderEnabled))
+            // A localized path — a slug or a locale prefix — resolves to the
+            // canonical path the router expects, plus the locale it identified.
+            // An explicit --locale wins.
+            let resolved = StaticSite.resolve({{NAME}}App.self, requestPath: onlyPath)
+            let locale = localeTag.flatMap(LocaleID.init) ?? resolved.locale
+            let page = try await StaticSite.render({{NAME}}App.self, path: resolved.path,
+                                                   config: config, locale: locale)
             switch page.outcome {
             case .page:
                 // `page.path`/`page.subdir`, not `onlyPath`: the render decides
@@ -98,9 +113,7 @@ import SwiftWUIStatic
             }
             return
         }
-        let report = try await StaticSite.generate({{NAME}}App.self,
-                                                   config: .init(outDir: out, mode: mode,
-                                                                 prerenderEnabled: prerenderEnabled))
+        let report = try await StaticSite.generate({{NAME}}App.self, config: config)
         print("generated \(report.pages.count) pages")
     }
 }

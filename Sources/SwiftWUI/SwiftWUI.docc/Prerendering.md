@@ -240,13 +240,17 @@ The `swiftwui` CLI's own `ssg` subcommand only takes `--out`/`--product` — it
 just wraps `swift run <App> ssg --out <dir>`. `--path` is a flag each
 generated app template's `Entry.swift` parses itself, on top of the public
 `StaticSite.render` primitive, invoked directly as `swift run <App> ssg
---path <path> [--out <dir>]`:
+--path <path> [--locale <tag>] [--out <dir>]`:
 
 ```swift
 if let onlyPath {
-    let page = try await StaticSite.render(MyApp.self, path: onlyPath,
-                                           config: .init(outDir: out, mode: mode,
-                                                         prerenderEnabled: prerenderEnabled))
+    // A browser-visible path — a locale prefix or a `routePaths` slug —
+    // resolves to the canonical path routing expects, plus the locale that
+    // URL identified. An explicit `--locale` wins over it.
+    let resolved = StaticSite.resolve(MyApp.self, requestPath: onlyPath)
+    let locale = localeTag.flatMap(LocaleID.init) ?? resolved.locale
+    let page = try await StaticSite.render(MyApp.self, path: resolved.path,
+                                           config: config, locale: locale)
     switch page.outcome {
     case .page:
         // `page.path`/`page.subdir`, not `onlyPath`: the render decides where

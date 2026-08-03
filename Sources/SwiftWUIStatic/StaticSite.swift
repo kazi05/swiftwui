@@ -152,6 +152,27 @@ extension StaticSite {
         WebSession.bootstrap(session)
         return try await renderPage(A.self, path: path, config: config, session: session, locale: locale)
     }
+
+    /// A browser-visible request path → the canonical path routing expects,
+    /// plus the locale that URL identified.
+    ///
+    /// The inverse of the output boundary, exposed because callers outside the
+    /// framework need it: `swiftwui ssg --path /o-nas` has the localized path,
+    /// while `render(path:locale:)` wants the canonical one. Identity for apps
+    /// that declare no localization, and it never throws — an unroutable path
+    /// is `render`'s `.notFound` to report, not this function's.
+    @MainActor
+    public static func resolve<A: App>(_ app: A.Type, requestPath: String)
+        -> (path: String, locale: LocaleID?) {
+        // A request path carries a query, and an operator pasting a URL hands
+        // over a fragment too. Routing wants neither: `render` would take
+        // "/o-nas?tab=2" as a route to match and find nothing.
+        let head = String(requestPath.prefix { $0 != "?" && $0 != "#" })
+        guard let l10n = A.localization, l10n.strategy.usesURLPrefix else {
+            return (RouteURL._normalize(head), nil)
+        }
+        return LocalePath.internalize(head, supported: l10n.supported, routes: l10n.routePaths)
+    }
 }
 
 public enum StaticSite {
