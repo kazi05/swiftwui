@@ -15,6 +15,10 @@
 
 const root = document.documentElement;
 const tag = document.querySelector("script[data-swui-boot-config]");
+// Invariant for every emitter of the shim's script tag (SSG, build splice, dev
+// serving): the config travels on the tag. Named here because the unguarded
+// deref below would otherwise report it as "cannot read properties of null".
+if (!tag) throw new Error("swiftwui-boot.js loaded without data-swui-boot-config");
 const cfg = {
   wasm: tag.dataset.wasm,
   entry: tag.dataset.entry,
@@ -104,8 +108,10 @@ function minShowRemaining() {
 }
 
 function fail(err) {
-  // Terminal, and not merely tidy: the stall interval outlives a rejected
-  // init(), and a second fail() would append a second copy of the failure UI.
+  // Not merely tidy: the stall interval outlives a rejected init(), and a
+  // second fail() would append a second copy of the failure UI. `failed` is
+  // terminal for everything except a stall that later recovers — see the
+  // stream's `state = "starting"`.
   if (state === "failed" || state === "ready") return;
   console.error("SwiftWUI boot failed:", err);
   clearTimeout(showTimer);
@@ -169,6 +175,14 @@ function restore() {
   if (document.activeElement === document.body && lastFocused && lastFocused.isConnected) {
     lastFocused.focus();
   }
+  // Released here and not on a terminal state: this is the last read of the
+  // Map. Left attached, the capture listeners run on every keystroke of the
+  // live app and the Map grows without bound, holding strong references to
+  // inputs an SPA navigation has long since detached.
+  document.removeEventListener("input", capture, true);
+  document.removeEventListener("change", capture, true);
+  captured.clear();
+  lastFocused = null;
 }
 
 // --- boot --------------------------------------------------------------------
@@ -223,6 +237,10 @@ showTimer = setTimeout(show, cfg.delay);
           c.enqueue(value);
         }
         clearInterval(stallTimer);
+        // Deliberately unguarded against `failed`: a stall that recovers walks
+        // back out of the failure UI and the page heals, rather than sitting
+        // dead while the app boots behind it. mount()'s strip takes the failure
+        // clones with it on that path.
         state = "starting";
         if (shownAt) show();
         // The minimum-show window is held HERE, on the stream, and not by
