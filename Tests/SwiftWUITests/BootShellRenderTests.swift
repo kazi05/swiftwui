@@ -59,4 +59,16 @@ private struct LocalizedSpinner: Tag {
         #expect(shell.css.contains(":hover { padding: 4px }"))
         #expect(shell.css.hasSuffix(BootCSS.text))
     }
+
+    @Test func retryCarriesItsMarkerAndNoHandler() {
+        var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(),
+                                 invalidate: { _ in })
+        ctx.isBuildRender = true
+        let nodes = resolve(BootRetry { Text("Retry") }, path: .root, ctx: &ctx)
+        let html = HTMLRenderer._render(nodes)
+        #expect(html.contains("data-swui-boot-retry"))
+        #expect(html.contains("Retry"))
+        // No Swift closure can run in the failed state — there is no wasm.
+        #expect(ctx.liveListeners.isEmpty)
+    }
 }
