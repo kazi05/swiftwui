@@ -111,6 +111,11 @@ public enum DOMRuntime {
         let location = JSObject.global.location
         let initialPath = (location.pathname.string ?? "/") + (location.search.string ?? "")
 
+        // Boot-only nodes never exist in the tree Swift builds. They must go
+        // before AdoptingBackend snapshots the DOM, and before the cold-boot
+        // fallback, whose container wipe would not touch head-level markup.
+        BootShim.stripBootNodes()
+
         // Snapshot present + path matches (spec §7) → attempt adoption. On
         // success we're done; on mismatch (spec D6) we discard the DOM and
         // fall through to the classic mount below, re-seeding it from the

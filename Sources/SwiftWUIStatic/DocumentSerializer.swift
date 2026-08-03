@@ -182,7 +182,7 @@ public enum DocumentSerializer {
         // character tokens after </body> are reparented INTO body, which
         // poisons the adoption stream with a stray text node. The boot shell's
         // markup is the one permitted addition after bodyHTML — it is
-        // element content, not a character token, and DOMRuntime.stripBootNodes()
+        // element content, not a character token, and BootShim.stripBootNodes()
         // removes it before adoption ever reads the stream.
         out += "</head>\n<body>" + input.bodyHTML + (input.bootShell?.html ?? "") + "</body></html>"
         return out
