@@ -41,6 +41,29 @@ private struct NegotiatedSite: App {
     }
 }
 
+/// A guard cannot be handed the locale — its closure takes no arguments — so it
+/// captures the value the surrounding `body` read, which is the render's own.
+private struct PartialClusterSite: App {
+    init() {}
+    var body: some Tag { GuardedBody() }
+    static var localization: Localization? {
+        Localization(supported: [LocaleID("en")!, LocaleID("ru")!], default: LocaleID("en")!,
+                     strategy: .pathPrefix())
+    }
+}
+
+private struct GuardedBody: Tag {
+    @Environment(\.locale) var locale
+    var body: some Tag {
+        Router {
+            Route("/") { _ in Text(title) }
+            Route("/ru-only", guard: { [locale] in
+                locale.language == "ru" ? .allow : .redirect("/")
+            }) { _ in Text("только по-русски") }
+        }
+    }
+}
+
 @Suite @MainActor struct LocalizedSSGTests {
     private func outDir() -> String {
         NSTemporaryDirectory() + "swiftwui-ssg-" + UUID().uuidString
@@ -182,6 +205,24 @@ private struct NegotiatedSite: App {
         #expect(report.redirects["/admin"] == "/")
         let ru = try String(contentsOfFile: out + "/ru/admin/index.html", encoding: .utf8)
         #expect(ru.contains("url=/ru"))
+    }
+
+    /// The `.page` filter, end to end: English guard-redirects out of
+    /// `/ru-only`, so the Russian page is the whole cluster and advertises no
+    /// alternates. Delete the filter in `generate` and the redirect stub's URL
+    /// is advertised as an English sibling — which is precisely the broken
+    /// reciprocity that makes Google drop a cluster whole.
+    @Test func aLocaleThatRedirectedOutIsNotAdvertised() async throws {
+        let out = outDir()
+        let report = try await StaticSite.generate(PartialClusterSite.self, config: StaticSiteConfig(
+            outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
+        #expect(report.redirects["/ru-only"] == "/")
+        let ru = try String(contentsOfFile: out + "/ru/ru-only/index.html", encoding: .utf8)
+        #expect(ru.contains("только по-русски"))
+        #expect(!ru.contains("hreflang"))
+        // Not vacuous: the page whose cluster IS complete still gets its set.
+        let ruHome = try String(contentsOfFile: out + "/ru/index.html", encoding: .utf8)
+        #expect(ruHome.contains(#"<link href="https://example.com/" hreflang="en" rel="alternate""#))
     }
 
     @Test func renderTakesALocale() async throws {

@@ -452,7 +452,10 @@ public enum StaticSite {
             iterations += 1
             guard iterations <= buildTaskIterationCap else {
                 return RenderedTree(body: nil, css: "", head: nil,
-                                    outcome: .error("page '\(path)' never quiesced after \(iterations) build-task iterations"),
+                                    // Normalized, so this reads the same as the
+                                    // `StaticSiteError` generate() throws for it
+                                    // and as the path the report keys on.
+                                    outcome: .error("page '\(RouteURL._normalize(path))' never quiesced after \(iterations) build-task iterations"),
                                     externalPath: path, subdir: "",
                                     renderLocale: runtime._signals.locale)
             }
