@@ -191,3 +191,73 @@ private struct NegotiatedSite: App {
         #expect(page.html.contains("Главная"))
     }
 }
+
+private struct SlugSite: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/") { _ in Text("home") }
+            Route("/about") { _ in Text("about") }
+        }
+    }
+    static var localization: Localization? {
+        Localization(supported: [LocaleID("en")!, LocaleID("ru")!], default: LocaleID("en")!,
+                     strategy: .pathPrefix(),
+                     routePaths: LocalizedRoutes { LocalizedRoute("/about", ["ru": "/o-nas"]) })
+    }
+}
+
+/// With a slug table, hreflang is the ONLY thing tying `/about` to `/o-nas` —
+/// they share no substring — so every one of these is load-bearing.
+@Suite @MainActor struct LocalizedSlugSSGTests {
+    private func build(mode: StaticSiteMode = .staticOnly) async throws
+        -> (dir: String, report: StaticSiteReport) {
+        let out = NSTemporaryDirectory() + "swiftwui-slug-\(UUID().uuidString)"
+        let report = try await StaticSite.generate(SlugSite.self, config: .init(
+            outDir: out, mode: mode, siteURL: "https://example.com"))
+        return (out, report)
+    }
+
+    @Test func slugPageIsWrittenFlatAndPrefixPageIsNot() async throws {
+        let (dir, report) = try await build()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        #expect(FileManager.default.fileExists(atPath: dir + "/o-nas/index.html"))
+        #expect(FileManager.default.fileExists(atPath: dir + "/about/index.html"))
+        #expect(!FileManager.default.fileExists(atPath: dir + "/ru/about/index.html"))
+        // The report and the sitemap name the slug, not the prefix form.
+        #expect(report.pages.contains("/o-nas"))
+        #expect(!report.pages.contains("/ru/about"))
+        // The untabled path still gets its prefix.
+        #expect(report.writtenFiles.contains("ru/index.html"))
+    }
+
+    @Test func alternatesPointAtTheSlugAndAreReciprocal() async throws {
+        let (dir, _) = try await build()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let en = try String(contentsOfFile: dir + "/about/index.html", encoding: .utf8)
+        let ru = try String(contentsOfFile: dir + "/o-nas/index.html", encoding: .utf8)
+        // Attributes are emitted in sorted order, so href precedes hreflang.
+        #expect(en.contains(#"<link href="https://example.com/o-nas" hreflang="ru" rel="alternate""#))
+        #expect(ru.contains(#"<link href="https://example.com/about" hreflang="en" rel="alternate""#))
+        #expect(en.contains(#"<link href="https://example.com/about" hreflang="en" rel="alternate""#))
+        #expect(ru.contains(#"<link href="https://example.com/about" hreflang="x-default" rel="alternate""#))
+    }
+
+    @Test func canonicalIsSelfReferencing() async throws {
+        let (dir, _) = try await build()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let ru = try String(contentsOfFile: dir + "/o-nas/index.html", encoding: .utf8)
+        #expect(ru.contains(#"<link href="https://example.com/o-nas" rel="canonical""#))
+    }
+
+    /// The build's URL and the runtime's must be the same string: the boot
+    /// compares the snapshot path to `location.pathname` byte-for-byte, and
+    /// `mount()` `replaceState`s to the slug. A prefix-form snapshot here would
+    /// be discarded on every visit and every loader re-run.
+    @Test func snapshotPathIsTheSlug() async throws {
+        let (dir, _) = try await build(mode: .hydrate(wasmScriptPath: "/app.js"))
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let ru = try String(contentsOfFile: dir + "/o-nas/index.html", encoding: .utf8)
+        #expect(ru.contains(#""path":"\/o-nas""#))
+    }
+}

@@ -226,39 +226,62 @@ public enum StaticSite {
         }()
         report.locales = renderLocales
 
+        // Every page is rendered BEFORE any document is assembled: a page's
+        // hreflang set must name the URLs its siblings actually produced, and
+        // under a `routePaths` table that is not derivable from the path alone.
+        // The whole site's bodies are therefore live at once — as `documents`
+        // already was; stream both to disk if a build ever outgrows memory.
+        var trees: [(tree: RenderedTree, canonical: String)] = []
         for locale in (renderLocales.isEmpty ? [nil] : renderLocales.map { Optional($0) }) {
             for path in pagePaths {
-                let rendered = try await renderPage(A.self, path: path, config: config,
-                                                    session: session, locale: locale)
-                // Where this document goes and what its URL is were both decided
-                // by the render, from the locale it actually settled on. Never
-                // re-derived here: a `.staticTask` calling `setLocale` would put
-                // the file and its canonical in different languages.
-                let outputPath = rendered.path
-                let subdir = rendered.subdir
-                switch rendered.outcome {
-                case .redirect(let target, _):
-                    report.redirects[outputPath] = target
-                    documents.append((outputPath, subdir, redirectStub(to: target)))
-                case .error:
-                    // generate() keeps its existing throwing contract; only the
-                    // server (Phase B) treats a render failure as a 503. The cap
-                    // (not a re-guessed literal) reproduces the same iteration
-                    // count renderPage's own guard failed at (review finding 1).
-                    throw StaticSiteError.buildTaskOverflow(page: path, iterations: buildTaskIterationCap + 1)
-                case .notFound, .page:
-                    // Deduplicated: .negotiated renders the same URL once per
-                    // locale, and one URL must appear once in the report and
-                    // once in the sitemap.
-                    if !report.pages.contains(outputPath) { report.pages.append(outputPath) }
-                    if case .page = rendered.outcome, !sitemapPaths.contains(outputPath) {
-                        sitemapPaths.append(outputPath)
-                    }
-                    if config.cssFile, !rendered.css.isEmpty, cssSeen.insert(rendered.css).inserted {
-                        cssUnion.append(rendered.css)
-                    }
-                    documents.append((outputPath, subdir, rendered.html))
+                let tree = try await renderTree(A.self, path: path, config: config,
+                                                session: session, locale: locale)
+                trees.append((tree, RouteURL._normalize(path)))
+            }
+        }
+
+        // Only pages that actually rendered may be advertised as alternates: a
+        // locale that never enumerated this path, fell through to notFound or
+        // redirected away has no URL to point at, and one broken member makes a
+        // search engine drop the entire cluster.
+        var alternates: [String: [LocaleID: String]] = [:]
+        for (tree, canonical) in trees {
+            guard case .page = tree.outcome else { continue }
+            alternates[canonical, default: [:]][tree.renderLocale] = tree.externalPath
+        }
+
+        for (tree, canonical) in trees {
+            let rendered = serialize(A.self, tree, alternates: alternates[canonical] ?? [:],
+                                     config: config)
+            // Where this document goes and what its URL is were both decided
+            // by the render, from the locale it actually settled on. Never
+            // re-derived here: a `.staticTask` calling `setLocale` would put
+            // the file and its canonical in different languages.
+            let outputPath = rendered.path
+            let subdir = rendered.subdir
+            switch rendered.outcome {
+            case .redirect(let target, _):
+                report.redirects[outputPath] = target
+                documents.append((outputPath, subdir, redirectStub(to: target)))
+            case .error:
+                // generate() keeps its existing throwing contract; only the
+                // server (Phase B) treats a render failure as a 503. The cap
+                // (not a re-guessed literal) reproduces the same iteration
+                // count renderTree's own guard failed at (review finding 1).
+                throw StaticSiteError.buildTaskOverflow(page: canonical,
+                                                        iterations: buildTaskIterationCap + 1)
+            case .notFound, .page:
+                // Deduplicated: .negotiated renders the same URL once per
+                // locale, and one URL must appear once in the report and
+                // once in the sitemap.
+                if !report.pages.contains(outputPath) { report.pages.append(outputPath) }
+                if case .page = rendered.outcome, !sitemapPaths.contains(outputPath) {
+                    sitemapPaths.append(outputPath)
                 }
+                if config.cssFile, !rendered.css.isEmpty, cssSeen.insert(rendered.css).inserted {
+                    cssUnion.append(rendered.css)
+                }
+                documents.append((outputPath, subdir, rendered.html))
             }
         }
 
@@ -335,7 +358,10 @@ public enum StaticSite {
     ///
     /// `body == nil` is a render that produced no document at all — an error, a
     /// redirect, or no matched tree. `serialize` passes those outcomes straight
-    /// through: `body` and `renderLocale` are set together, on that path only.
+    /// through, and `body` is the ONLY field that says so: every other value a
+    /// document needs is either non-optional here or derived inside `serialize`.
+    /// A second defaulted field coupled to `body` would let a new construction
+    /// site forget it and silently serialize an empty page.
     private struct RenderedTree {
         var body: String?
         var css: String
@@ -344,12 +370,19 @@ public enum StaticSite {
         var outcome: RenderedPage.Outcome
         var externalPath: String
         var subdir: String
-        var settledInternalPath: String = ""
-        var renderLocale: LocaleID? = nil
-        var relFile: String = ""
+        /// The locale the page SETTLED on. Always meaningful — the runtime has
+        /// one from the moment it is constructed — so no default and no
+        /// optionality to mistake for "no document".
+        var renderLocale: LocaleID
         var wasmPath: String? = nil
     }
 
+    /// One page, rendered and assembled on its own — what `render` is.
+    ///
+    /// The alternates map is EMPTY on purpose: a page rendered in isolation has
+    /// no verified siblings, and inventing them from `supported` is exactly the
+    /// broken cluster this task removed. A caller that wants alternates has to
+    /// render the cluster, which is what `generate` does.
     @MainActor
     private static func renderPage<A: App>(_ app: A.Type, path: String, config: StaticSiteConfig,
                                            session: WebSession, locale: LocaleID? = nil) async throws
@@ -389,10 +422,13 @@ public enum StaticSite {
         // INPUTS the browser gets instead, and let it resolve them itself.
         //   .pathPrefix — the locale is in the URL, so boot from the external path.
         //   .negotiated — the edge announces the locale in the served <html lang>.
+        // `routes:` is what keeps the SSG's URLs and the runtime's agreeing: the
+        // browser boots at the slug and `mount()` would otherwise `replaceState`
+        // away from the prefix form this build had written into the snapshot.
         let bootPath: String = {
             guard let target, let localization, localization.strategy.usesURLPrefix else { return path }
-            return LocalePath.externalize(requestedPath, locale: target,
-                                          default: localization.default) + querySuffix
+            return LocalePath.externalize(requestedPath, locale: target, default: localization.default,
+                                          routes: localization.routePaths) + querySuffix
         }()
         let runtime = Runtime(backend: backend, container: backend.container,
                               root: A().body, initialPath: bootPath,
@@ -417,7 +453,8 @@ public enum StaticSite {
             guard iterations <= buildTaskIterationCap else {
                 return RenderedTree(body: nil, css: "", head: nil,
                                     outcome: .error("page '\(path)' never quiesced after \(iterations) build-task iterations"),
-                                    externalPath: path, subdir: "")
+                                    externalPath: path, subdir: "",
+                                    renderLocale: runtime._signals.locale)
             }
             pump()                                 // state writes → re-render → possibly new tasks
         }
@@ -436,7 +473,8 @@ public enum StaticSite {
         let renderLocale = runtime._signals.locale
         func externalize(_ internalPath: String) -> String {
             guard let localization, localization.strategy.usesURLPrefix else { return internalPath }
-            return LocalePath.externalize(internalPath, locale: renderLocale, default: localization.default)
+            return LocalePath.externalize(internalPath, locale: renderLocale, default: localization.default,
+                                          routes: localization.routePaths)
         }
         // `.negotiated` keeps the URL clean and puts the locale in the output
         // folder instead; every other strategy has one folder per URL.
@@ -456,12 +494,14 @@ public enum StaticSite {
             // visitor into the English site.
             return RenderedTree(body: nil, css: "", head: nil,
                                 outcome: .redirect(to: externalize(settled), permanent: false),
-                                externalPath: externalPath, subdir: subdir)
+                                externalPath: externalPath, subdir: subdir,
+                                renderLocale: renderLocale)
         }
 
         guard case .component(let rootComponent)? = runtime._currentTree else {
             return RenderedTree(body: nil, css: runtime._registryText, head: nil, outcome: .notFound,
-                                externalPath: externalPath, subdir: subdir)
+                                externalPath: externalPath, subdir: subdir,
+                                renderLocale: renderLocale)
         }
         let body = HTMLRenderer._render(rootComponent.children)
         let css = runtime._registryText
@@ -489,29 +529,25 @@ public enum StaticSite {
         }
         var wasmPath: String? = nil
         if case .hydrate(let p) = config.mode { wasmPath = p }
-        // The stylesheet href is relative to the output FILE, not to the URL —
-        // the very file the write loop derives from the same two values.
-        let relFile = outputFile(path: externalPath, subdir: subdir)
         // A Router fallthrough to notFound still resolves real content (its
         // notFound: closure, or nothing if the app declared none) — render it
         // like any other page and only flag the outcome (review finding 2).
         let outcome: RenderedPage.Outcome = runtime._routeMatched ? .page : .notFound
         return RenderedTree(body: body, css: css, head: runtime._pageHead, snapshot: snapshot,
                             outcome: outcome, externalPath: externalPath, subdir: subdir,
-                            settledInternalPath: settled, renderLocale: renderLocale,
-                            relFile: relFile, wasmPath: wasmPath)
+                            renderLocale: renderLocale, wasmPath: wasmPath)
     }
 
     /// Assembles the document. `alternates` is the verified sibling set — the
-    /// URLs a caller actually wrote — and is unused for now: the hreflang links
-    /// still come from `localization`, exactly as they did inside `renderPage`.
+    /// external URLs a caller actually produced for this canonical path, keyed
+    /// by the locale that produced them.
     @MainActor
     private static func serialize<A: App>(_ app: A.Type, _ tree: RenderedTree,
                                           alternates: [LocaleID: String],
                                           config: StaticSiteConfig) -> RenderedPage {
         // No document was rendered — the outcome IS the result, and wrapping it
         // in one would invent a page the runtime never produced.
-        guard let body = tree.body, let renderLocale = tree.renderLocale else {
+        guard let body = tree.body else {
             return RenderedPage(html: "", css: tree.css, head: tree.head, outcome: tree.outcome,
                                 path: tree.externalPath, subdir: tree.subdir)
         }
@@ -530,7 +566,7 @@ public enum StaticSite {
         if let localization {
             // A page that declared no head at all still needs its alternates —
             // hreflang is a property of the URL set, not of the page's metadata.
-            prerenderedLinks += HreflangLinks.links(internalPath: tree.settledInternalPath,
+            prerenderedLinks += HreflangLinks.links(alternates: alternates,
                                                     localization: localization, siteURL: config.siteURL)
         }
         // `RenderedPage.head` stays the full set — callers read it as "what this
@@ -545,14 +581,17 @@ public enum StaticSite {
         let doc = DocumentSerializer.render(.init(
             bodyHTML: body,
             css: config.cssFile ? nil : tree.css,
-            cssHref: config.cssFile ? cssHref(forPageFile: tree.relFile) : nil,
+            // The stylesheet href is relative to the output FILE, not to the URL
+            // — the very file the write loop derives from the same two values.
+            cssHref: config.cssFile ? cssHref(forPageFile: outputFile(path: tree.externalPath,
+                                                                     subdir: tree.subdir)) : nil,
             head: appHead,
             prerenderedLinks: prerenderedLinks,
             snapshotJSON: tree.snapshot,
             importMapJSON: importMap,
             wasmScriptPath: tree.wasmPath,
-            lang: localization == nil ? "en" : renderLocale.identifier,
-            dir: localization != nil && renderLocale.isRTL ? "rtl" : nil))
+            lang: localization == nil ? "en" : tree.renderLocale.identifier,
+            dir: localization != nil && tree.renderLocale.isRTL ? "rtl" : nil))
         return RenderedPage(html: doc, css: tree.css, head: head, outcome: tree.outcome,
                             path: tree.externalPath, subdir: tree.subdir)
     }
