@@ -56,6 +56,9 @@ public final class Runtime<Backend: RendererBackend> {
     /// Boot UI the last render pass resolved. SPI: the SSG reads it per
     /// document, folds `.inherit` into the app's, and renders the winner.
     public private(set) var _bootUI: BootUI?
+    /// The environment the last full pass assembled. Only `_renderBootShell`
+    /// reads it — see the comment at its stash in `renderPass`.
+    private var _lastEnvironment = EnvironmentValues()
     private var redirectHops = 0
     private var routeMatched = true
     private let themes: [ThemeDefinition]
@@ -137,6 +140,27 @@ public final class Runtime<Backend: RendererBackend> {
         passCounter += 1; ctx.pass = passCounter
         _ = resolve(rootTag, path: .root, ctx: &ctx)
         return ctx.collectedRoutes ?? []
+    }
+
+    /// Renders boot UI against THIS runtime's environment — so `\.locale` and
+    /// `LocalizedText` see the document's locale — into a throwaway store and
+    /// listener registry.
+    ///
+    /// `HTMLRenderer.renderWithStylesheet` is deliberately not used: it builds a
+    /// signal-less `ResolveContext`, `EnvironmentValues.locale` falls back to
+    /// "en", and a catalog-driven overlay would ship English inside every
+    /// non-default-locale document.
+    ///
+    /// The returned CSS is the shell's own registry text and is emitted into a
+    /// separate `<style data-swui-boot>` block; it never joins the app's
+    /// stylesheet, which the client runtime overwrites at mount.
+    public func _renderBootShell(_ content: AnyTag) -> (html: String, css: String) {
+        var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(),
+                                 invalidate: { _ in })
+        ctx.environment = _lastEnvironment     // seeded by renderPass — carries the locale
+        ctx.isBuildRender = true
+        let nodes = resolve(_BootTemplate(content: content), path: .root, ctx: &ctx)
+        return (HTMLRenderer._render(nodes), ctx.registry.text + "\n" + BootCSS.text)
     }
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
@@ -755,6 +779,10 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.environment.setLocale = SetLocaleAction { [weak self] locale in self?.setLocale(locale) }
         ctx.environment._externalizePath = { [weak self] path in self?._externalPath(path) ?? path }
         ctx.environment.availableLocales = _localization?.supported ?? []
+        // The boot shell renders outside a pass but must see the same
+        // environment — above all the same locale, or a catalog-driven overlay
+        // ships the default language into every localized document.
+        _lastEnvironment = ctx.environment
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
         isRendering = false
