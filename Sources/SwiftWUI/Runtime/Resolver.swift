@@ -31,6 +31,14 @@ public struct ResolveContext {
     var pendingRedirect: String? = nil
     /// Head snapshot of the matched Page, if any (spec §9).
     var pageHead: PageHead? = nil
+    /// Boot UI declared by the matched Page, if any (boot spec §5.3).
+    /// Deliberately NOT a `PageHead` field: `PageHead: Equatable` gates head
+    /// re-application, and `BootUI` wraps an `AnyTag`.
+    var bootUI: BootUI? = nil
+    /// True during the SSG's build render. Read by `_WhileBootingTag` to decide
+    /// whether to emit its placeholder — it must never change the identity path
+    /// of the wrapped content (boot spec §5.4).
+    var isBuildRender = false
     /// False when the Router fell through to its notFound branch (spec §7).
     var routeMatched = true
     /// Partial head written by `.pageMeta` from inside the route subtree (spec §5.1).

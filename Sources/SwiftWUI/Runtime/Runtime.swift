@@ -53,6 +53,9 @@ public final class Runtime<Backend: RendererBackend> {
     /// switch can rewrite the path without re-encoding the query.
     private var _currentSearch: String
     private var lastPageHead: PageHead?
+    /// Boot UI the last render pass resolved. SPI: the SSG reads it per
+    /// document, folds `.inherit` into the app's, and renders the winner.
+    public private(set) var _bootUI: BootUI?
     private var redirectHops = 0
     private var routeMatched = true
     private let themes: [ThemeDefinition]
@@ -612,6 +615,7 @@ public final class Runtime<Backend: RendererBackend> {
         }
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] in self?.markDirty($0) })
+        ctx.isBuildRender = effects._buildMode
         ctx.registry = styleRegistry
         ctx.animationValues = animationValues
         ctx.transitions = transitions
@@ -697,6 +701,9 @@ public final class Runtime<Backend: RendererBackend> {
         let empty = PageHead(title: "", meta: [], links: [])
         if ctx.routerCount > 0 {
             routeMatched = ctx.routeMatched
+            // Same guard as `routeMatched`: a scoped pass that never reached the
+            // Router must not blank the matched page's declaration.
+            _bootUI = ctx.bootUI
         }
         let baseline: PageHead? = ctx.routerCount > 0 ? ctx.pageHead : lastPageHead
         var head: PageHead? = baseline
@@ -728,6 +735,7 @@ public final class Runtime<Backend: RendererBackend> {
         // 1. RESOLVE + LINK.
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] id in self?.markDirty(id) })
+        ctx.isBuildRender = effects._buildMode
         ctx.registry = styleRegistry
         ctx.animationValues = animationValues
         ctx.transitions = transitions

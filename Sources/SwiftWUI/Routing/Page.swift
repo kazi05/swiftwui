@@ -97,10 +97,14 @@ public protocol Page: Tag {
     var meta: [MetaTag] { get }
     /// Managed `<link>` set (replaces only tags marked data-swiftwui).
     var links: [LinkTag] { get }
+    /// Per-page override. `.inherit` (the default) takes the app's; `.none`
+    /// suppresses it for this page.
+    var bootUI: BootUI { get }
 }
 extension Page {
     public var meta: [MetaTag] { [] }
     public var links: [LinkTag] { [] }
+    public var bootUI: BootUI { .inherit }
 }
 
 /// Head snapshot the Router captures for the matched page; the runtime diffs

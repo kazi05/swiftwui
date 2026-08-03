@@ -40,6 +40,7 @@ public struct Router: Tag, _PrimitiveTag {
             let content = route.builder(params)
             if let page = content.base as? any Page {                           // top-level only (spec §9)
                 ctx.pageHead = PageHead(title: page.title, meta: page.meta, links: page.links)
+                ctx.bootUI = page.bootUI
             }
             let saved = ctx.environment
             ctx.environment.routeInfo.params = params

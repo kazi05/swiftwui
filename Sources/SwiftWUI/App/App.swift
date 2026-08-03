@@ -18,6 +18,9 @@ public protocol App {
     /// Declared by localized apps: `Localization(catalog: L10n.self, default: .ru)`.
     /// nil (the default) keeps every localization branch inert.
     static var localization: Localization? { get }
+    /// Site-wide boot UI. `.none` (the default) keeps every boot branch inert
+    /// and lets `swiftwui build` skip the boot-shell host compile entirely.
+    static var bootUI: BootUI { get }
 }
 
 extension App {
@@ -26,4 +29,5 @@ extension App {
     public static var fontFaces: [FontFace] { [] }
     public static var prerender: Prerender? { nil }
     public static var localization: Localization? { nil }
+    public static var bootUI: BootUI { .none }
 }
