@@ -15,10 +15,17 @@ public struct BootShell: Codable, Equatable {
 public struct BootConfig: Codable, Equatable {
     public var wasmURL: String
     public var entryURL: String
+    /// Where `swiftwui-boot.js` is served from. Carried rather than hardcoded in
+    /// the serializer: a project whose entry is not under `/app/` would 404 the
+    /// shim and never boot, with the veil still up — and the dev server, which
+    /// serves the shim at a fixed path of its own, could not say so.
+    /// No default, so every construction site has to name the truth it knows.
+    public var shimURL: String
     public var sizeBytes: Int?
     public var delayMS: Int
-    public init(wasmURL: String, entryURL: String, sizeBytes: Int?, delayMS: Int) {
-        self.wasmURL = wasmURL; self.entryURL = entryURL
+    public init(wasmURL: String, entryURL: String, shimURL: String,
+                sizeBytes: Int?, delayMS: Int) {
+        self.wasmURL = wasmURL; self.entryURL = entryURL; self.shimURL = shimURL
         self.sizeBytes = sizeBytes; self.delayMS = delayMS
     }
 }

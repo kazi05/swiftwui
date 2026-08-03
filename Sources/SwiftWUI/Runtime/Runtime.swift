@@ -155,6 +155,12 @@ public final class Runtime<Backend: RendererBackend> {
     /// separate `<style data-swui-boot>` block; it never joins the app's
     /// stylesheet, which the client runtime overwrites at mount.
     public func _renderBootShell(_ content: AnyTag) -> (html: String, css: String) {
+        // Stale-proof but not seed-proof: called before any full pass has run,
+        // `_lastEnvironment` is still the default one and the shell renders in
+        // English inside every localized document — the exact failure the
+        // per-document render exists to prevent. `_signals` is assigned by every
+        // `renderPass`, localization or not, so this has no false positives.
+        assert(_lastEnvironment._signals != nil, "boot shell rendered before any full pass")
         var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(),
                                  invalidate: { _ in })
         ctx.environment = _lastEnvironment     // seeded by renderPass — carries the locale

@@ -15,6 +15,7 @@ import Testing
                                  delayMS: 300),
             bootConfig: BootConfig(wasmURL: "/app/App.wasm?v=a3f9c1e2",
                                    entryURL: "/app/index.js",
+                                   shimURL: "/app/swiftwui-boot.js",
                                    sizeBytes: 9570733, delayMS: 300)))
     }
 
@@ -87,6 +88,7 @@ import Testing
         let html = DocumentSerializer.render(.init(
             bodyHTML: "<main>hi</main>",
             bootConfig: BootConfig(wasmURL: "/app/App.wasm", entryURL: "/app/index.js",
+                                   shimURL: "/app/swiftwui-boot.js",
                                    sizeBytes: nil, delayMS: 0)))
         #expect(html.contains("data-swui-boot-config"))
         #expect(!html.contains("data-size"))
@@ -99,6 +101,7 @@ import Testing
             bodyHTML: "<main>hi</main>",
             wasmScriptPath: "/app/index.js",
             bootConfig: BootConfig(wasmURL: "/app/App.wasm", entryURL: "/app/index.js",
+                                   shimURL: "/app/swiftwui-boot.js",
                                    sizeBytes: 1, delayMS: 0)))
         #expect(!html.contains("await init();"))
         #expect(html.contains("src=\"/app/swiftwui-boot.js\""))

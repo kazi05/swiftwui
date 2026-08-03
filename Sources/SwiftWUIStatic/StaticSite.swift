@@ -24,13 +24,21 @@ public struct StaticSiteConfig: Sendable {
     public var prerenderEnabled: Bool
     /// Synthesize <link rel="canonical"> when a page sets none (spec §5.2).
     public var synthesizeCanonical: Bool
+    /// Byte length and version token of the wasm the documents will name.
+    /// Injected rather than derived per page: hashing a 9.6 MB binary costs
+    /// ~2.5 s in an -Onone build, and `swiftwui ssg` runs the project binary
+    /// without -c. An injected stamp wins over reading from disk; nil falls back
+    /// to `BootStamp.read(outDir:)`, and no wasm there = degrade (no `?v=`, no
+    /// `data-size`).
+    public var bootStamp: BootStamp?
 
     public init(outDir: String, mode: StaticSiteMode, paths: [String] = [], cssFile: Bool = false,
                 importMapJSON: String? = #"{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}"#,
                 siteURL: String? = nil,
                 defaultPrerender: Prerender? = nil,
                 prerenderEnabled: Bool = true,
-                synthesizeCanonical: Bool = true) {
+                synthesizeCanonical: Bool = true,
+                bootStamp: BootStamp? = nil) {
         self.outDir = outDir
         self.mode = mode
         self.paths = paths
@@ -40,6 +48,7 @@ public struct StaticSiteConfig: Sendable {
         self.defaultPrerender = defaultPrerender
         self.prerenderEnabled = prerenderEnabled
         self.synthesizeCanonical = synthesizeCanonical
+        self.bootStamp = bootStamp
     }
 }
 
@@ -349,9 +358,12 @@ public enum StaticSite {
             alternates[canonical, default: [:]][tree.renderLocale] = tree.externalPath
         }
 
+        // Once for the whole build, not once per page: hashing a multi-megabyte
+        // wasm is ~2.5 s in the -Onone binary `swiftwui ssg` actually runs.
+        let stamp = config.bootStamp ?? BootStamp.read(outDir: config.outDir)
         for (tree, canonical, claim) in trees {
             let rendered = serialize(A.self, tree, alternates: alternates[canonical] ?? [:],
-                                     config: config)
+                                     config: config, stamp: stamp)
             // Where this document goes and what its URL is were both decided
             // by the render, from the locale it actually settled on. Never
             // re-derived here: a `.staticTask` calling `setLocale` would put
@@ -517,6 +529,9 @@ public enum StaticSite {
         /// optionality to mistake for "no document".
         var renderLocale: LocaleID
         var wasmPath: String? = nil
+        /// The boot UI this document resolved, already rendered against its own
+        /// runtime's environment. nil = this document declared none.
+        var bootShell: BootShell? = nil
     }
 
     /// One page, rendered and assembled on its own — what `render` is.
@@ -531,7 +546,13 @@ public enum StaticSite {
         -> RenderedPage {
         let tree = try await renderTree(A.self, path: path, config: config,
                                         session: session, locale: locale)
-        return serialize(A.self, tree, alternates: [:], config: config)
+        // Only a document that ships a shell names the wasm, and this path is
+        // per-REQUEST for an on-demand server: without the guard every request
+        // to a boot-less site would hash a multi-megabyte binary. A server that
+        // does ship one should inject `config.bootStamp` and skip the read too.
+        let stamp = tree.bootShell == nil
+            ? nil : (config.bootStamp ?? BootStamp.read(outDir: config.outDir))
+        return serialize(A.self, tree, alternates: [:], config: config, stamp: stamp)
     }
 
     @MainActor
@@ -649,6 +670,25 @@ public enum StaticSite {
                                 renderLocale: renderLocale)
         }
         let body = HTMLRenderer._render(rootComponent.children)
+        // Per (path, locale): this loop already builds one Runtime per pair, and
+        // a boot overlay may read the catalog, so the shell is rendered HERE and
+        // not once in generate() — `_renderBootShell` renders against the
+        // environment the last full pass stashed, which is this document's.
+        // Read `_bootUI` only now, after the build-task drain above: on a pass
+        // where a guard redirects, the Router `continue`s and may match a later
+        // route, so `_bootUI` momentarily describes that fallback.
+        //
+        // The type is written out rather than left to member lookup: `_bootUI`
+        // is a `BootUI?`, so `.none` here would resolve to `Optional.none` —
+        // nil, silently, with only a warning.
+        var bootShell: BootShell? = nil
+        let declared = runtime._bootUI ?? BootUI.inherit
+        let effective = declared._isInherit ? A.bootUI : declared
+        if case .hydrate = config.mode, let content = effective._content {
+            let rendered = runtime._renderBootShell(content)
+            bootShell = BootShell(html: rendered.html, css: rendered.css,
+                                  delayMS: effective._delayMS)
+        }
         let css = runtime._registryText
         var snapshot: String? = nil
         if case .hydrate = config.mode {
@@ -680,7 +720,7 @@ public enum StaticSite {
         let outcome: RenderedPage.Outcome = runtime._routeMatched ? .page : .notFound
         return RenderedTree(body: body, css: css, head: runtime._pageHead, snapshot: snapshot,
                             outcome: outcome, externalPath: externalPath, subdir: subdir,
-                            renderLocale: renderLocale, wasmPath: wasmPath)
+                            renderLocale: renderLocale, wasmPath: wasmPath, bootShell: bootShell)
     }
 
     /// Assembles the document. `alternates` is the verified sibling set — the
@@ -689,7 +729,8 @@ public enum StaticSite {
     @MainActor
     private static func serialize<A: App>(_ app: A.Type, _ tree: RenderedTree,
                                           alternates: [LocaleID: String],
-                                          config: StaticSiteConfig) -> RenderedPage {
+                                          config: StaticSiteConfig,
+                                          stamp: BootStamp?) -> RenderedPage {
         // No document was rendered — the outcome IS the result, and wrapping it
         // in one would invent a page the runtime never produced.
         guard let body = tree.body else {
@@ -749,6 +790,22 @@ public enum StaticSite {
             head = merged
         }
         let importMap: String? = tree.wasmPath != nil ? config.importMapJSON : nil
+        var bootConfig: BootConfig? = nil
+        if let entry = tree.wasmPath, let shell = tree.bootShell {
+            // The bundle — entry, wasm and the copied shim — is one directory:
+            // "/app/index.js" → "/app/". With no stamp there is no wasm on disk
+            // to name, so the URL falls back to the conventional name and ships
+            // without `?v=` or `data-size`; the shim then reports indeterminate
+            // progress rather than dividing by a wrong number.
+            let dir = entry.hasSuffix("/index.js")
+                ? String(entry.dropLast("index.js".count)) : "/app/"
+            let base = dir + (stamp?.fileName ?? "app.wasm")
+            bootConfig = BootConfig(wasmURL: stamp.map { base + "?v=" + $0.version } ?? base,
+                                    entryURL: entry,
+                                    shimURL: dir + "swiftwui-boot.js",
+                                    sizeBytes: stamp?.sizeBytes,
+                                    delayMS: shell.delayMS)
+        }
         let doc = DocumentSerializer.render(.init(
             bodyHTML: body,
             css: config.cssFile ? nil : tree.css,
@@ -762,6 +819,8 @@ public enum StaticSite {
             snapshotJSON: tree.snapshot,
             importMapJSON: importMap,
             wasmScriptPath: tree.wasmPath,
+            bootShell: tree.bootShell,
+            bootConfig: bootConfig,
             lang: localization == nil ? "en" : tree.renderLocale.identifier,
             dir: localization != nil && tree.renderLocale.isRTL ? "rtl" : nil))
         return RenderedPage(html: doc, css: tree.css, head: head, outcome: tree.outcome,

@@ -137,23 +137,34 @@ public enum DocumentSerializer {
             out += "<script type=\"importmap\">" + HTMLEscaping.scriptJSON(map) + "</script>\n"
         }
         if let cfg = input.bootConfig {
+            // This whole block MUST stay below the import map above: a processed
+            // modulepreload disallows every later import map (see there), and
+            // hoisting the preloads "because preloads belong early" is exactly
+            // the edit that silently stops the site booting in Firefox.
+            //
             // fetchpriority="low" and the late position are deliberate: an as=fetch
             // preload defaults to High, and a multi-megabyte wasm at High saturates a
             // slow link while the render-blocking stylesheet, the webfonts and the LCP
             // image are still in flight. crossorigin matches the shim's own fetch mode —
             // without it the preload is a second download, not a cache hit.
+            let wasmURL = HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.wasmURL))
+            let shimURL = HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.shimURL))
             out += "<link rel=\"preload\" as=\"fetch\" crossorigin fetchpriority=\"low\" href=\""
-                + HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.wasmURL)) + "\">\n"
-            out += "<link rel=\"modulepreload\" href=\"/app/swiftwui-boot.js\">\n"
+                + wasmURL + "\">\n"
+            out += "<link rel=\"modulepreload\" href=\"" + shimURL + "\">\n"
             out += "<link rel=\"modulepreload\" href=\"" + HTMLEscaping.text(cfg.entryURL) + "\">\n"
             // The shim owns the import + init() call the legacy branch below inlines;
             // emitting both would boot the app twice. `data-size` is omitted outright
             // when the size is unknown — the shim reads a missing one as indeterminate.
-            out += "<script type=\"module\" src=\"/app/swiftwui-boot.js\" data-swui-boot-config"
-                + " data-wasm=\"" + HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.wasmURL)) + "\""
-                + " data-entry=\"" + HTMLEscaping.text(cfg.entryURL) + "\""
-                + (cfg.sizeBytes.map { " data-size=\"\($0)\"" } ?? "")
-                + " data-delay=\"\(cfg.delayMS)\"></script>\n"
+            //
+            // One `out +=` per attribute: a single 5-operand `+` chain compiles
+            // fine but is beyond SourceKit's type-checker, which costs this file
+            // completion and diagnostics for everyone who edits it after us.
+            out += "<script type=\"module\" src=\"" + shimURL + "\" data-swui-boot-config"
+            out += " data-wasm=\"" + wasmURL + "\""
+            out += " data-entry=\"" + HTMLEscaping.text(cfg.entryURL) + "\""
+            out += cfg.sizeBytes.map { " data-size=\"\($0)\"" } ?? ""
+            out += " data-delay=\"\(cfg.delayMS)\"></script>\n"
         } else if let src = input.wasmScriptPath {
             // Unchanged legacy boot for documents with no boot config.
             //
