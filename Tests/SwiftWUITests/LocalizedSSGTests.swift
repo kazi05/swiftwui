@@ -340,6 +340,52 @@ private struct CollidingSlugSite: App {
     }
 }
 
+/// `/ru/about` is a real page here — a Route of that exact name, kept reachable
+/// by the table's own second entry (`internalize` step 2). The stub for the
+/// FIRST entry would land on it, so the `report.pages` guard is what stops the
+/// migration aid from eating the page it was meant to help.
+private struct RetiredPathIsARealPageSite: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/about") { _ in Text("about") }
+            Route("/ru/about") { _ in Text("about the ru site") }
+        }
+    }
+    static var localization: Localization? {
+        Localization(supported: [LocaleID("en")!, LocaleID("ru")!], default: LocaleID("en")!,
+                     strategy: .pathPrefix(),
+                     routePaths: LocalizedRoutes {
+                         LocalizedRoute("/about", ["ru": "/o-nas"])
+                         LocalizedRoute("/ru/about", ["ru": "/pro-ru"])
+                     })
+    }
+}
+
+/// No table anywhere: a build task moves the page's own locale, so BOTH locales
+/// render `/about` into `ru/about/index.html` and the English URL is never
+/// written at all. A guard redirect is how this site says "Russian only"
+/// (`PartialClusterSite` above); `setLocale` mid-build just loses a page.
+private struct SetLocaleDuringBuildSite: App {
+    init() {}
+    var body: some Tag { ForcedLocaleBody() }
+    static var localization: Localization? {
+        Localization(supported: [LocaleID("en")!, LocaleID("ru")!], default: LocaleID("en")!,
+                     strategy: .pathPrefix())
+    }
+}
+
+private struct ForcedLocaleBody: Tag {
+    @Environment(\.setLocale) var setLocale
+    var body: some Tag {
+        Router {
+            Route("/about") { [setLocale] _ in
+                Div { Text("about") }.staticTask { setLocale(LocaleID("ru")!) }
+            }
+        }
+    }
+}
+
 @Suite @MainActor struct MigrationStubTests {
     @Test func retiredPrefixPathGetsAStub() async throws {
         let out = NSTemporaryDirectory() + "swiftwui-stub-\(UUID().uuidString)"
@@ -382,6 +428,52 @@ private struct CollidingSlugSite: App {
         } catch {
             Issue.record("expected StaticSiteError, got \(error)")
         }
+    }
+
+    /// A table-free app must not gain a new way to fail — but two documents
+    /// writing one file is a lost page whatever caused it, so this one fails
+    /// with its OWN error rather than being told its (absent) table is invalid.
+    @Test func aBuildTaskThatMovesItsLocaleCollidesWithTheRealPage() async {
+        let out = NSTemporaryDirectory() + "swiftwui-stub-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        do {
+            _ = try await StaticSite.generate(SetLocaleDuringBuildSite.self, config: .init(
+                outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
+            Issue.record("expected StaticSiteError, build succeeded")
+        } catch let error as StaticSiteError {
+            #expect(error.description.contains("ru/about/index.html"))
+            #expect(error.description.contains("setLocale"))
+            #expect(!error.description.contains("invalid routePaths"))
+        } catch {
+            Issue.record("expected StaticSiteError, got \(error)")
+        }
+    }
+
+    /// The `report.pages` guard: the retired URL is a page in its own right,
+    /// so it keeps its content and gains no redirect.
+    @Test func aRetiredPathThatIsARealPageKeepsIt() async throws {
+        let out = NSTemporaryDirectory() + "swiftwui-stub-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        let report = try await StaticSite.generate(RetiredPathIsARealPageSite.self, config: .init(
+            outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
+        let page = try String(contentsOfFile: out + "/ru/about/index.html", encoding: .utf8)
+        #expect(page.contains("about the ru site"))
+        #expect(!page.contains("http-equiv=\"refresh\""))
+        #expect(report.redirects["/ru/about"] == nil)
+        // Not vacuous: the entry whose retired URL is free still gets its stub.
+        #expect(report.redirects["/ru/ru/about"] == "/pro-ru")
+    }
+
+    /// The kill-switch renders nothing, so it must not write redirects to pages
+    /// this build never produced either.
+    @Test func theKillSwitchEmitsNoStubs() async throws {
+        let out = NSTemporaryDirectory() + "swiftwui-stub-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        let report = try await StaticSite.generate(SlugSite.self, config: .init(
+            outDir: out, mode: .staticOnly, siteURL: "https://example.com",
+            prerenderEnabled: false))
+        #expect(report.redirects.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: out + "/ru/about/index.html"))
     }
 
     /// The deliberate collapse the check must not touch: two query variants are

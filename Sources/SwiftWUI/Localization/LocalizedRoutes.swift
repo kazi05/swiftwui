@@ -184,16 +184,21 @@ extension LocalizedRoutes {
     /// Static canonicals only: a parameterised pattern has no single retired
     /// URL, one per parameter combination instead, and which of those a build
     /// ever wrote is not something the table knows.
+    ///
+    /// `canonical` comes back with the pair so the caller can check that this
+    /// build actually rendered the page: a stub is worth nothing if it points
+    /// at a URL no one wrote.
     public func _retiredPrefixPaths(default defaultLocale: LocaleID)
-        -> [(retired: String, current: String)] {
+        -> [(canonical: String, retired: String, current: String)] {
         entries.filter(\.canonical.isStatic).flatMap { entry in
             entry.localized.keys.sorted { $0.identifier < $1.identifier }
-                .compactMap { locale -> (retired: String, current: String)? in
+                .compactMap { locale -> (canonical: String, retired: String, current: String)? in
                     let retired = LocalePath.externalize(entry.canonical.raw, locale: locale,
                                                          default: defaultLocale)          // no table
                     let current = LocalePath.externalize(entry.canonical.raw, locale: locale,
                                                          default: defaultLocale, routes: self)
-                    return retired == current ? nil : (retired, current)
+                    guard retired != current else { return nil }
+                    return (RouteURL._normalize(entry.canonical.raw), retired, current)
                 }
         }
     }

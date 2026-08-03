@@ -49,6 +49,11 @@ public enum StaticSiteError: Error, CustomStringConvertible {
     /// A `routePaths` table that cannot work. Every one of these produces a
     /// green build and a broken site, so the build stops instead (spec §4).
     case invalidLocalizedRoutes([String])
+    /// Two rendered documents claim one output file. Its own case, not a
+    /// `routePaths` diagnostic: the commonest cause is a table, but a build
+    /// task calling `setLocale` reaches it with no table anywhere, and an app
+    /// that declares none must not be told its table is invalid.
+    case outputFileCollision(file: String, first: String, second: String)
     public var description: String {
         switch self {
         case .buildTaskOverflow(let page, let iterations):
@@ -57,6 +62,11 @@ public enum StaticSiteError: Error, CustomStringConvertible {
             return "StaticSite: failed writing '\(path)': \(underlying)"
         case .invalidLocalizedRoutes(let problems):
             return "StaticSite: invalid routePaths:\n  - " + problems.joined(separator: "\n  - ")
+        case .outputFileCollision(let file, let first, let second):
+            return "StaticSite: \(first) and \(second) both write '\(file)' — one would silently "
+                + "overwrite the other. Either two locales resolve to the same URL (a routePaths "
+                + "slug spelled like another locale's path), or the page moved its own locale with "
+                + "setLocale during the build."
         }
     }
 }
@@ -291,14 +301,18 @@ public enum StaticSite {
                                                 session: session, locale: locale)
                 let canonical = RouteURL._normalize(path)
                 // Who ASKED for this document, which is the identity the write
-                // loop's collision check keys on. Query-stripped: query-variant
-                // pages are ONE page and deliberately collapse into one output.
+                // loop's collision check keys on. Query first, THEN normalize:
+                // `_normalize` only strips a trailing slash at the very end of
+                // the string, so "/a/?x=1" would otherwise claim "/a/" while
+                // "/a?x=2" claims "/a" — two spellings of one page that write
+                // one file. Query-stripped at all because query-variant pages
+                // are ONE page and deliberately collapse into one output.
                 // The asked-for locale, not the SETTLED one: a page that settles
                 // elsewhere (a `.staticTask` calling `setLocale`) lands on
                 // another locale's file and must still be told apart from the
                 // page that legitimately owns it.
-                let claim = "'" + (canonical.firstIndex(of: "?").map { String(canonical[..<$0]) }
-                                    ?? canonical) + "'"
+                let claim = "'" + RouteURL._normalize(path.firstIndex(of: "?")
+                        .map { String(path[..<$0]) } ?? path) + "'"
                     + (locale.map { " in \($0.identifier)" } ?? "")
                 trees.append((tree, canonical, claim))
             }
@@ -361,9 +375,13 @@ public enum StaticSite {
         // table, and silent under the kill-switch — "render nothing" must not
         // start writing redirects to pages this build did not produce.
         if let localization, config.prerenderEnabled {
-            for (retired, current) in localization.routePaths
+            let rendered = Set(pagePaths.map(RouteURL._normalize))
+            for (canonical, retired, current) in localization.routePaths
                 ._retiredPrefixPaths(default: localization.default)
-            where !report.pages.contains(retired) {
+            // A page this build did not render has no URL to send anyone to:
+            // under `.prerender(.never)` or an on-demand-only pattern the stub
+            // would redirect into a 404.
+            where rendered.contains(canonical) && !report.pages.contains(retired) {
                 report.redirects[retired] = current
                 documents.append((retired, "", redirectStub(to: current),
                                   "the retired-prefix stub '\(retired)'"))
@@ -377,17 +395,21 @@ public enum StaticSite {
         // silently, which is how a whole language cluster disappears. Keyed on
         // the CLAIM, not on the file alone, so query-variant pages (one page,
         // one claim) keep collapsing into one output exactly as they do today.
+        //
+        // A whole pass before the first write, like the two validation gates
+        // above: a rejected build must leave `dist/` as it found it, not
+        // half-rewritten up to the offending page.
         var claimedFiles: [String: String] = [:]     // output file → the page that claimed it
-        for (path, subdir, html, claim) in documents {
+        for (path, subdir, _, claim) in documents {
             let file = outputFile(path: path, subdir: subdir)
             if let owner = claimedFiles[file], owner != claim {
-                throw StaticSiteError.invalidLocalizedRoutes([
-                    "\(claim) and \(owner) both write '\(file)' — two pages resolved to one output file, and one would silently overwrite the other"
-                ])
+                throw StaticSiteError.outputFileCollision(file: file, first: owner, second: claim)
             }
             claimedFiles[file] = claim
+        }
+        for (path, subdir, html, _) in documents {
             try writeDocument(html, path: path, outDir: config.outDir, subdir: subdir)
-            report.writtenFiles.append(file)
+            report.writtenFiles.append(outputFile(path: path, subdir: subdir))
         }
         try SiteDescriptor.write(localization: localization, outDir: config.outDir)
         if config.cssFile {
