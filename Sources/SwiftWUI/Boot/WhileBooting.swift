@@ -1,5 +1,8 @@
-/// Content that is visible but non-interactive until wasm is live, paired with
-/// a placeholder shown in its place during boot.
+/// Content that is hidden until wasm is live, paired with a placeholder shown
+/// in its place during boot. `BootCSS`'s veil rule is `display:none`, so the
+/// real subtree is not on screen at all while booting — the placeholder is the
+/// only thing visible, and it is replaced (not uncovered) once the runtime
+/// takes over.
 ///
 /// A `_PrimitiveTag` decorator, the same shape `_StyledTag` and
 /// `_SortableDecorator` already use.

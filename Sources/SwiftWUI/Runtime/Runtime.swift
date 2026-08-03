@@ -563,7 +563,19 @@ public final class Runtime<Backend: RendererBackend> {
                            transactionOverrides drained: [NodeIdentity: Transaction],
                            groups: [CompletionGroup],
                            suppressTransitions: Bool) {
-        if current == nil || _forceFullPasses || ids.contains(.root) {
+        // `_buildMode`: a build reads the tree as settled truth, the same
+        // reasoning StaticSite already applies with `_disableViewTransitions`.
+        // Its drain pumps after every build-task iteration and a `.staticTask`
+        // write marks only its own component dirty, so the tree the SSG
+        // serializes would otherwise be assembled partly from scoped passes —
+        // and a scoped pass re-resolves the row's own tag, skipping back up
+        // through any enclosing wrapper's `_resolve`. Anything that wrapper
+        // stamps is then lost unless it also stashes and replays it
+        // (`_StyledTag` does; `_WhileBootingTag`'s veil did not, and shipped
+        // the real subtree unhidden). Gating here rather than at the SSG call
+        // sites closes the divergence class for every build-mode entry point,
+        // including ones added later. Client flushes are unaffected.
+        if current == nil || _forceFullPasses || effects._buildMode || ids.contains(.root) {
             renderPass(transactionOverrides: drained, suppressTransitionsOnce: suppressTransitions)
         } else {
             for id in minimalCover(ids) {
