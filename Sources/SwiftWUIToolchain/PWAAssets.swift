@@ -1,4 +1,5 @@
 import Foundation
+import SwiftWUI
 
 /// Generates dist/sw-assets.js — the precache manifest consumed by the
 /// scaffolded service worker (spec 2026-07-12-pwa-mode-design.md §Build pipeline).

@@ -31,7 +31,7 @@ let package = Package(
         ], swiftSettings: [
             .enableExperimentalFeature("Extern")   // required by BridgeJS Generated/ code
         ]),
-        .target(name: "SwiftWUIToolchain",
+        .target(name: "SwiftWUIToolchain", dependencies: ["SwiftWUI"],
                 resources: [.copy("Resources")]),
         // ponytail: target named "SwiftWUICLI", not "swiftwui" — a same-named
         // target collides with "SwiftWUI" in per-target .build dirs on

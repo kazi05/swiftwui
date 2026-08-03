@@ -3,7 +3,13 @@ import Foundation
 /// Vendored FIPS 180-4 SHA-256, pure Swift. Exists so the CLI carries no
 /// crypto dependency and runs on any host platform (CryptoKit is Apple-only).
 /// Verified against the official FIPS test vectors in ToolchainPWATests.
-public enum SHA256 {
+///
+/// `nonisolated` is mandatory: the SwiftWUI target is built with
+/// `.defaultIsolation(MainActor.self)` (Package.swift:18), and `PWAAssets`
+/// calls this from a synchronous nonisolated static func. Without it the
+/// compiler demands `@MainActor` on `generateManifest`, which then propagates
+/// into ArgumentParser's nonisolated `run()`.
+public nonisolated enum SHA256 {
     private static let k: [UInt32] = [
         0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
         0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -65,6 +71,7 @@ public enum SHA256 {
     }
 
     public static func base64(_ digest: [UInt8]) -> String {
-        Data(digest).base64EncodedString()
+        // Qualified: this module also declares `Data`, the <data> HTML tag.
+        Foundation.Data(digest).base64EncodedString()
     }
 }

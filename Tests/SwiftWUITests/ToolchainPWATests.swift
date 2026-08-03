@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import SwiftWUI          // SHA256 lives in the core now
 @testable import SwiftWUIToolchain
 
 @Suite struct SHA256Tests {
