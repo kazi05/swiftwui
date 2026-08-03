@@ -112,10 +112,26 @@ private let head = "<head><script type=\"importmap\">{}</script>"
         #expect(first?.delayMS == 300)
     }
 
-    /// The `.none` answer is the one that matters most: it is every project that
-    /// never opted in, and it must not pay a host compile per build.
-    @Test func aProjectWithoutBootUICachesItsEmptyAnswer() throws {
-        let dir = try project()
+    /// No source can override `App.bootUI`/`Page.bootUI` without spelling the
+    /// token, so this needs no subprocess at all — not even the one that asks
+    /// for the product name. The cache alone would not save it: its key is the
+    /// sources, so every source-editing build would recompile to re-learn `.none`.
+    @Test func aProjectThatNeverMentionsTheTokenIsNeverAsked() throws {
+        let dir = try project("struct Thing { let x = 1 }")
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        var spawns = 0
+        let r = runner(payload: Self.payload) { _ in spawns += 1 }
+        #expect(try BootShellRunner.run(projectDir: dir, runner: r) == nil)
+        try "struct Thing { let x = 2 }".write(toFile: dir + "/Sources/Entry.swift",
+                                               atomically: true, encoding: .utf8)
+        #expect(try BootShellRunner.run(projectDir: dir, runner: r) == nil)
+        #expect(spawns == 0, "an edited source must not bring the host compile back")
+    }
+
+    /// A project that DOES spell the token but declares `.none` caches its empty
+    /// answer, so it pays the compile once rather than once per build.
+    @Test func aDeclaredNoneCachesItsEmptyAnswer() throws {
+        let dir = try project("static var bootUI: BootUI { .none }")
         defer { try? FileManager.default.removeItem(atPath: dir) }
         var runs = 0
         let r = runner(payload: #"{"html":"","css":"","delayMS":300,"swiftwui-boot-shell":1}"#) {

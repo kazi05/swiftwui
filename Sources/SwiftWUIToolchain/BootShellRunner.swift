@@ -31,10 +31,19 @@ public enum BootShellRunner {
     ///
     /// This is a HOST build: nothing else in the CLI compiles for the host, so
     /// an uncached invocation pays one compile of the whole graph into `.build`
-    /// on top of the wasm one. Hence the cache — a project that never declared
-    /// a `bootUI` pays it once, not once per build.
+    /// on top of the wasm one. Hence the two skips below — a project that never
+    /// declared a `bootUI` never pays it at all, and one that has stopped
+    /// editing pays it once.
     public static func run(projectDir: String, runner: ProcessRunner) throws -> BootShell? {
-        let key = cacheKey(projectDir: projectDir)
+        let probe = fingerprint(projectDir: projectDir)
+        // No source spells the token, so no override of `App.bootUI` (default
+        // `.none`) or `Page.bootUI` (default `.inherit`) can exist and the
+        // answer is `.none` without asking. Sound, not a heuristic: a false
+        // positive costs one compile, a false negative cannot happen. The
+        // cache does not rescue this case on its own — its key is the sources,
+        // so every build that edits one would recompile to re-learn `.none`.
+        if let probe, !probe.declaresBootUI { return nil }
+        let key = probe?.key
         if let key, let hit = cached(projectDir: projectDir, key: key) { return hit.shell }
         let product = try PackageInfo.executableProduct(in: projectDir, runner: runner)
         // A multi-second step with no output is how this compile stayed
@@ -91,30 +100,44 @@ public enum BootShellRunner {
         try? data.write(to: URL(fileURLWithPath: file), options: .atomic)
     }
 
-    /// Everything that can change the rendered shell:
+    private struct Fingerprint {
+        var key: String
+        /// Some file under `Sources/` spells `bootUI`.
+        var declaresBootUI: Bool
+    }
+
+    /// One pass over the project: the cache key, and whether asking is worth it
+    /// at all. Everything that can change the rendered shell goes into the key:
     ///
     /// - `Sources/` content — the `bootUI` declaration and everything it reads
     ///   (the generated L10n and the locale catalogs live there too).
     /// - `Package.swift` + `Package.resolved` — which SwiftWUI the app renders
     ///   against, for a project that depends on a released version.
-    /// - the CLI binary's own size and mtime — which covers the two cases
-    ///   `Package.resolved` cannot: a path-dependency SwiftWUI edited in place
-    ///   (the binary relinks) and a toolchain upgrade (same). One stat, and it
-    ///   makes a separate toolchain-version probe unnecessary.
+    /// - the CLI binary's own size and mtime — a cheap over-invalidation that
+    ///   catches an upgraded or rebuilt `swiftwui`. It is NOT a framework
+    ///   version input in general: a Homebrew-installed CLI neither relinks
+    ///   when the user edits a path-dependency checkout nor on a toolchain
+    ///   upgrade. Known residual, deliberately not chased — a path dependency
+    ///   edited in a different checkout touches none of the three inputs and
+    ///   can go stale until any project source is, which is bounded to
+    ///   framework authors.
     ///
     /// The boot shim is deliberately NOT an input: it is copied into dist at
     /// build time and has no bearing on what the app renders.
     ///
-    /// nil = we could not read enough to be sure, so never claim a hit.
-    private static func cacheKey(projectDir: String) -> String? {
+    /// nil = we could not read enough to be sure, so never claim a hit and
+    /// never claim the skip.
+    private static func fingerprint(projectDir: String) -> Fingerprint? {
         let fm = FileManager.default
         var input = ""
+        var declares = false
         guard let en = fm.enumerator(atPath: projectDir + "/Sources") else { return nil }
         var files: [String] = []
         while let rel = en.nextObject() as? String { files.append(rel) }
         for rel in files.sorted() {
             guard let data = fm.contents(atPath: projectDir + "/Sources/" + rel) else { continue }
             input += rel + "|" + SHA256.hex(SHA256.digest([UInt8](data))) + "\n"
+            if !declares, String(decoding: data, as: UTF8.self).contains("bootUI") { declares = true }
         }
         for name in ["Package.swift", "Package.resolved"] {
             guard let data = fm.contents(atPath: projectDir + "/" + name) else { continue }
@@ -125,6 +148,6 @@ public enum BootShellRunner {
               let size = attrs[.size] as? Int,
               let mtime = attrs[.modificationDate] as? Date else { return nil }
         input += "cli|\(size)|\(mtime.timeIntervalSince1970)\n"
-        return SHA256.hex(SHA256.digest(Array(input.utf8)))
+        return Fingerprint(key: SHA256.hex(SHA256.digest(Array(input.utf8))), declaresBootUI: declares)
     }
 }

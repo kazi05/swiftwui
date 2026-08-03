@@ -53,7 +53,8 @@ public enum BootSplice {
         let html = try String(contentsOfFile: index, encoding: .utf8)
         guard let spliced = apply(html: html, shell: shell, config: config) else {
             print("warning: \(index) has neither a \(open) marker nor a </head> — "
-                + "left unmodified, so nothing starts the app")
+                + "left unmodified, so nothing starts the app. The boot shim was not copied "
+                + "either, so any ssg-prerendered page will fail into its boot failure UI.")
             return false
         }
         // After the guard, never before: on the nowhere-to-splice path nothing
