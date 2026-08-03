@@ -20,19 +20,24 @@ public enum DocumentSerializer {
         public var snapshotJSON: String?     // hydrate mode only
         public var importMapJSON: String?    // hydrate mode only
         public var wasmScriptPath: String?   // hydrate mode only
+        public var bootShell: BootShell?     // rendered markup + css, hydrate mode only
+        public var bootConfig: BootConfig?   // wasm url, size, delay, hydrate mode only
         public var lang: String
         public var dir: String?              // "rtl" for right-to-left locales; nil = omit
         public init(bodyHTML: String, css: String? = nil, cssHref: String? = nil,
                     head: PageHead? = nil, prerenderedLinks: [LinkTag] = [],
                     prerenderedMeta: [MetaTag] = [],
                     snapshotJSON: String? = nil, importMapJSON: String? = nil,
-                    wasmScriptPath: String? = nil, lang: String = "en", dir: String? = nil) {
+                    wasmScriptPath: String? = nil, bootShell: BootShell? = nil,
+                    bootConfig: BootConfig? = nil, lang: String = "en", dir: String? = nil) {
             self.bodyHTML = bodyHTML; self.css = css; self.cssHref = cssHref
             self.head = head; self.prerenderedLinks = prerenderedLinks
             self.prerenderedMeta = prerenderedMeta
             self.snapshotJSON = snapshotJSON
             self.importMapJSON = importMapJSON
-            self.wasmScriptPath = wasmScriptPath; self.lang = lang; self.dir = dir
+            self.wasmScriptPath = wasmScriptPath
+            self.bootShell = bootShell; self.bootConfig = bootConfig
+            self.lang = lang; self.dir = dir
         }
     }
 
@@ -104,6 +109,15 @@ public enum DocumentSerializer {
             assert(!css.contains("</style"), "registry CSS must never contain </style")
             out += "<style data-swiftwui>\n" + css + "\n</style>\n"
         }
+        if let shell = input.bootShell, !shell.css.isEmpty {
+            // Its own element, and deliberately NOT marked data-swiftwui:
+            // DOMBackend.setStylesheet adopts style[data-swiftwui] as the
+            // managed stylesheet and replaces its textContent at mount, which
+            // would delete the veil/placeholder rules mid-boot. Emitted whether
+            // or not the app has a stylesheet of its own.
+            assert(!shell.css.contains("</style"), "boot CSS must never contain </style")
+            out += "<style data-swui-boot>\n" + shell.css + "\n</style>\n"
+        }
         if let snapshot = input.snapshotJSON {
             // "\/" alone can't stop "<!--<script" (script-data-double-escaped state
             // swallows the document) — route through the audited scriptJSON helper,
@@ -115,9 +129,34 @@ public enum DocumentSerializer {
             // Same raw-text sink as the snapshot script above — the wasm bundle's bare
             // "@bjorn3/browser_wasi_shim" import cannot resolve without this map, and it
             // must precede the module script that triggers that import.
+            //
+            // It must ALSO precede every <link rel="modulepreload"> below: processing a
+            // modulepreload disallows any later import map (Gecko today, Chromium before
+            // 133), so the reverse order leaves the bare specifier unresolvable and
+            // nothing boots at all. The preload scanner makes that deterministic, not a race.
             out += "<script type=\"importmap\">" + HTMLEscaping.scriptJSON(map) + "</script>\n"
         }
-        if let src = input.wasmScriptPath {
+        if let cfg = input.bootConfig {
+            // fetchpriority="low" and the late position are deliberate: an as=fetch
+            // preload defaults to High, and a multi-megabyte wasm at High saturates a
+            // slow link while the render-blocking stylesheet, the webfonts and the LCP
+            // image are still in flight. crossorigin matches the shim's own fetch mode —
+            // without it the preload is a second download, not a cache hit.
+            out += "<link rel=\"preload\" as=\"fetch\" crossorigin fetchpriority=\"low\" href=\""
+                + HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.wasmURL)) + "\">\n"
+            out += "<link rel=\"modulepreload\" href=\"/app/swiftwui-boot.js\">\n"
+            out += "<link rel=\"modulepreload\" href=\"" + HTMLEscaping.text(cfg.entryURL) + "\">\n"
+            // The shim owns the import + init() call the legacy branch below inlines;
+            // emitting both would boot the app twice. `data-size` is omitted outright
+            // when the size is unknown — the shim reads a missing one as indeterminate.
+            out += "<script type=\"module\" src=\"/app/swiftwui-boot.js\" data-swui-boot-config"
+                + " data-wasm=\"" + HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.wasmURL)) + "\""
+                + " data-entry=\"" + HTMLEscaping.text(cfg.entryURL) + "\""
+                + (cfg.sizeBytes.map { " data-size=\"\($0)\"" } ?? "")
+                + " data-delay=\"\(cfg.delayMS)\"></script>\n"
+        } else if let src = input.wasmScriptPath {
+            // Unchanged legacy boot for documents with no boot config.
+            //
             // type="module" defers by default — head placement is behavior-identical, and
             // keeps <body> byte-exact for adoption (a stray "\n" text node poisons the stream).
             //
@@ -130,8 +169,11 @@ public enum DocumentSerializer {
         }
         // No trailing newline (or anything) after </body>: per the HTML spec,
         // character tokens after </body> are reparented INTO body, which
-        // poisons the adoption stream with a stray text node.
-        out += "</head>\n<body>" + input.bodyHTML + "</body></html>"
+        // poisons the adoption stream with a stray text node. The boot shell's
+        // markup is the one permitted addition after bodyHTML — it is
+        // element content, not a character token, and DOMRuntime.stripBootNodes()
+        // removes it before adoption ever reads the stream.
+        out += "</head>\n<body>" + input.bodyHTML + (input.bootShell?.html ?? "") + "</body></html>"
         return out
     }
 }
