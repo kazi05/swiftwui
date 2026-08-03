@@ -81,8 +81,13 @@ function instantiateBootUI() {
       roots.push(node);
     }
 
-    if (t.isConnected) t.before(frag);
-    else document.body.appendChild(frag);   // stripped at mount: §6.4 re-instantiation
+    // In body: insert in place, so a `.whileBooting` placeholder stands exactly
+    // where its veiled subtree does. Anywhere else — <head>, which is where the
+    // build's index.html splice puts it (the marker region lives there), or
+    // detached, which is what mount()'s strip leaves behind before a §6.4
+    // re-instantiation — the only place it can be seen is the end of <body>.
+    if (t.isConnected && document.body.contains(t)) t.before(frag);
+    else document.body.appendChild(frag);
 
     // Two unattributed layout shifts otherwise — one when the placeholder takes
     // the veiled element's place, one when it gives it back. Never cleared, and
