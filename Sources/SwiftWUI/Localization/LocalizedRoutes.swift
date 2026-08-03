@@ -81,6 +81,14 @@ extension LocalizedRoutes.Entry {
     ///     entry order is, and that canonical is unreachable at its own URL;
     ///   - V5, the same canonical pattern declared twice, which is checked
     ///     per entry and never consults the flag at all.
+    ///
+    /// A malformed LOCALE TAG is collected (`invalidTags`) and reported; a
+    /// malformed PATTERN — a mid-pattern `*`, an empty `:` name — traps in
+    /// debug inside `RoutePattern.init`, in this same declaration. The
+    /// asymmetry is deliberate but inherited: `RoutePattern` predates this type
+    /// and every `Route(...)` in the app is built the same way, so a pattern
+    /// trap is a failure mode the author already has. The tags are the part
+    /// this type could keep out of it, and does.
     public init(_ canonical: String, _ localized: [String: String],
                 overlapsEarlierEntry: Bool = false) {
         var parsed: [LocaleID: RoutePattern] = [:]
