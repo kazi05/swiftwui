@@ -73,6 +73,85 @@ private let head = "<head><script type=\"importmap\">{}</script>"
     }
 }
 
+/// The host build `boot-shell` needs is the most expensive step of `swiftwui
+/// build` and it runs before the wasm one, so a cache miss that should have
+/// been a hit is invisible except as a slower build.
+@Suite struct BootShellCacheTests {
+    private static let describe = """
+    {"products": [{"name": "Probe", "type": {"executable": null}}]}
+    """
+    private static let payload = """
+    {"html":"<template data-swui-boot-ui><b>L</b></template>","css":".b{}","delayMS":300,"swiftwui-boot-shell":1}
+    """
+
+    private func project(_ source: String = "let bootUI = 1") throws -> String {
+        let dir = NSTemporaryDirectory() + "swiftwui-bootcache-" + UUID().uuidString
+        try FileManager.default.createDirectory(atPath: dir + "/Sources", withIntermediateDirectories: true)
+        try "// Package".write(toFile: dir + "/Package.swift", atomically: true, encoding: .utf8)
+        try source.write(toFile: dir + "/Sources/Entry.swift", atomically: true, encoding: .utf8)
+        return dir
+    }
+
+    private func runner(payload: String, exitCode: Int32 = 0,
+                        onRun: @escaping ([String]) -> Void) -> MockRunner {
+        MockRunner(results: ["swift package describe": .init(exitCode: 0, stdout: Self.describe, stderr: ""),
+                             "swift run Probe boot-shell": .init(exitCode: exitCode, stdout: payload, stderr: "")],
+                   recorded: onRun)
+    }
+
+    @Test func aSecondBuildSkipsTheHostCompile() throws {
+        let dir = try project()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        var runs = 0
+        let r = runner(payload: Self.payload) { if $0.contains("boot-shell") { runs += 1 } }
+
+        let first = try BootShellRunner.run(projectDir: dir, runner: r)
+        let second = try BootShellRunner.run(projectDir: dir, runner: r)
+        #expect(runs == 1, "the second build must answer from the cache")
+        #expect(first == second)
+        #expect(first?.delayMS == 300)
+    }
+
+    /// The `.none` answer is the one that matters most: it is every project that
+    /// never opted in, and it must not pay a host compile per build.
+    @Test func aProjectWithoutBootUICachesItsEmptyAnswer() throws {
+        let dir = try project()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        var runs = 0
+        let r = runner(payload: #"{"html":"","css":"","delayMS":300,"swiftwui-boot-shell":1}"#) {
+            if $0.contains("boot-shell") { runs += 1 }
+        }
+        #expect(try BootShellRunner.run(projectDir: dir, runner: r) == nil)
+        #expect(try BootShellRunner.run(projectDir: dir, runner: r) == nil)
+        #expect(runs == 1)
+    }
+
+    @Test func editingASourceFileInvalidatesTheCache() throws {
+        let dir = try project()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        var runs = 0
+        let r = runner(payload: Self.payload) { if $0.contains("boot-shell") { runs += 1 } }
+        _ = try BootShellRunner.run(projectDir: dir, runner: r)
+        try "let bootUI = 2".write(toFile: dir + "/Sources/Entry.swift", atomically: true, encoding: .utf8)
+        _ = try BootShellRunner.run(projectDir: dir, runner: r)
+        #expect(runs == 2)
+    }
+
+    /// A project that fails to COMPILE exits non-zero here. Caching that as "no
+    /// boot UI" would silently drop the boot UI from every later build.
+    @Test func aFailedRunIsNeverCached() throws {
+        let dir = try project()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        var runs = 0
+        let r = runner(payload: "error: kaputt", exitCode: 1) {
+            if $0.contains("boot-shell") { runs += 1 }
+        }
+        #expect(try BootShellRunner.run(projectDir: dir, runner: r) == nil)
+        #expect(try BootShellRunner.run(projectDir: dir, runner: r) == nil)
+        #expect(runs == 2)
+    }
+}
+
 @Suite struct BootSpliceWriteTests {
     /// A fake assembled dist: index.html with the marker + app/ holding a wasm.
     private func makeDist() throws -> String {
@@ -134,5 +213,7 @@ private let head = "<head><script type=\"importmap\">{}</script>"
         #expect(try BootSplice.write(outDir: dist, shell: shell) == false)
         #expect(try String(contentsOfFile: dist + "/index.html", encoding: .utf8)
                 == "<p>hand-written, no head</p>")
+        #expect(!FileManager.default.fileExists(atPath: dist + "/app/swiftwui-boot.js"),
+                "nothing names the shim on this path — an orphan would still be precached")
     }
 }

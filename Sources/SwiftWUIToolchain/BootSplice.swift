@@ -30,7 +30,6 @@ public enum BootSplice {
         var config: BootConfig? = nil
         var versioned = false
         if let shell {
-            try DistLayout.copyBootShim(outDir: outDir)
             guard let wasmName = WasmDigest.wasmName(inAppDir: outDir + "/app") else {
                 throw ToolchainError.io("no .wasm in \(outDir)/app after assemble")
             }
@@ -57,6 +56,9 @@ public enum BootSplice {
                 + "left unmodified, so nothing starts the app")
             return false
         }
+        // After the guard, never before: on the nowhere-to-splice path nothing
+        // names the shim, and an orphan in dist/app would still be precached.
+        if shell != nil { try DistLayout.copyBootShim(outDir: outDir) }
         try spliced.write(toFile: index, atomically: true, encoding: .utf8)
         return versioned
     }

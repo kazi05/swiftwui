@@ -9,10 +9,10 @@ import SwiftWUI
 /// same token for the prerendered documents: `SwiftWUIStatic` cannot depend on
 /// `SwiftWUIToolchain`, and a `FileManager` build helper does not belong in the
 /// core that compiles into every wasm binary. Both route through the one
-/// `SHA256` in the core, and `WasmDigestAgreementTests` pins them to the same
-/// answer — the `?v=` in a build-spliced `index.html` and the one in an
-/// ssg-prerendered document must be the same string or the immutable cache
-/// header over the wasm is a lie.
+/// `SHA256` in the core, and `BootSpliceWriteTests.theBuildsVersionTokenMatchesTheSSGs`
+/// pins them to the same answer — the `?v=` in a build-spliced `index.html` and
+/// the one in an ssg-prerendered document must be the same string or the
+/// immutable cache header over the wasm is a lie.
 public enum WasmDigest {
     public struct Stamp: Equatable {
         public var sizeBytes: Int
