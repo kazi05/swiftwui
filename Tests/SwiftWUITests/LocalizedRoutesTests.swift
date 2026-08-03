@@ -331,6 +331,59 @@ import Testing
         }).contains { $0.contains("overlap") })
     }
 
+    /// The normal table V6 was too strict about: `Router` resolves this pair by
+    /// declaration order and so does the table, so the author is allowed to say
+    /// so — on the LATER entry, the shadowed one.
+    @Test func v6OptOutAllowsAShadowedLaterCanonical() {
+        let t = LocalizedRoutes {
+            LocalizedRoute("/blog/archive", ["ru": "/arkhiv"])
+            LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"], overlapsEarlierEntry: true)
+        }
+        #expect(problems(.pathPrefix(), t).isEmpty)
+        // and the resolution it buys — first match in declaration order, so
+        // "/arkhiv" and not "/novosti/archive". Reordering the two lines above
+        // rewrites this URL, silently: that is the trade the flag makes.
+        #expect(LocalePath.externalize("/blog/archive", locale: ru, default: en, routes: t) == "/arkhiv")
+        #expect(LocalePath.externalize("/blog/hello", locale: ru, default: en, routes: t) == "/novosti/hello")
+    }
+
+    /// Without the flag the same table is refused — the check itself is intact.
+    @Test func v6StillRejectsThatTableWithoutTheOptOut() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/blog/archive", ["ru": "/arkhiv"])
+            LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"])
+        }).contains { $0.contains("overlap") })
+    }
+
+    /// The flag is about being shadowed, not about shadowing: on the EARLIER
+    /// entry it says nothing about the pair, so the report stands.
+    @Test func v6OptOutOnTheEarlierEntryDoesNotSuppressTheReport() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/blog/archive", ["ru": "/arkhiv"], overlapsEarlierEntry: true)
+            LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"])
+        }).contains { $0.contains("overlap") })
+    }
+
+    /// The flag never reaches a pair involving a slug (V7). Here the canonicals
+    /// do not overlap at all — the collision is entry 1's slug against entry 0's
+    /// canonical, which makes `/history` unreachable no matter how the two lines
+    /// are ordered. Not something declaration order can express, so still reported.
+    @Test func v6OptOutDoesNotSuppressV7() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/history", ["ru": "/istoriya"])
+            LocalizedRoute("/team", ["ru": "/history"], overlapsEarlierEntry: true)
+        }).contains { $0.contains("/history") && $0.contains("overlap") })
+    }
+
+    /// V5 is a duplicate, not an ordering choice: the second entry is dead
+    /// whatever the author intended, so the flag must not reach it.
+    @Test func v6OptOutDoesNotSuppressV5() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/about", ["ru": "/o-nas"])
+            LocalizedRoute("/about", ["de": "/ueber-uns"], overlapsEarlierEntry: true)
+        }).contains { $0.contains("twice") && $0.contains("/about") })
+    }
+
     @Test func v11RejectsParamNameMismatch() {
         #expect(problems(.pathPrefix(), LocalizedRoutes {
             LocalizedRoute("/delivery/:from/:to", ["ru": "/dostavka/:from"])

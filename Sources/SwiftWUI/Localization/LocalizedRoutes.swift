@@ -18,6 +18,9 @@ public struct LocalizedRoutes {
         /// a mapping they did not write. Collected here for the same reason as
         /// `invalidTags`, and reported by `_validate` (V15).
         let collidingTags: [LocaleID: [String]]
+        /// The author's V6 opt-out: an EARLIER entry's canonical pattern also
+        /// matches some of these paths, and that is intended.
+        let overlapsEarlierEntry: Bool
     }
 
     /// Declaration order is load-bearing — resolution is first-match-wins,
@@ -47,7 +50,27 @@ extension LocalizedRoutes.Entry {
     /// is failable, so a typed key would force `[LocaleID("ru")!: …]` at every
     /// declaration. The raw tags pass through that same validating initializer
     /// here — one choke point, as everywhere else locale strings arrive.
-    public init(_ canonical: String, _ localized: [String: String]) {
+    ///
+    /// - Parameter overlapsEarlierEntry: opts this entry out of V6, which
+    ///   otherwise rejects two canonical patterns that some path matches both
+    ///   of. Set it on the LATER of the pair — the shadowed one — to say "an
+    ///   earlier entry also claims these paths; resolve me by declaration
+    ///   order, like `Router` does":
+    ///
+    ///   ```swift
+    ///   LocalizedRoute("/blog/archive", ["ru": "/arkhiv"])
+    ///   LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"], overlapsEarlierEntry: true)
+    ///   ```
+    ///
+    ///   The trade: declaration order now silently decides this site's URLs.
+    ///   Swap those two lines and `/blog/archive` externalizes as
+    ///   `/novosti/archive` instead of `/arkhiv` — no diagnostic, because the
+    ///   flag is exactly the promise that overlap was deliberate. Nothing else
+    ///   is relaxed: V5 (the same canonical twice) and the slug checks (V7)
+    ///   still fire, since a duplicate and an unreachable canonical are not
+    ///   ordering choices.
+    public init(_ canonical: String, _ localized: [String: String],
+                overlapsEarlierEntry: Bool = false) {
         var parsed: [LocaleID: RoutePattern] = [:]
         var invalid: [String] = []
         var rawTags: [LocaleID: [String]] = [:]
@@ -62,6 +85,7 @@ extension LocalizedRoutes.Entry {
         self.localized = parsed
         self.invalidTags = invalid
         self.collidingTags = rawTags.filter { $0.value.count > 1 }
+        self.overlapsEarlierEntry = overlapsEarlierEntry
     }
 }
 
@@ -110,7 +134,9 @@ extension LocalizedRoutes {
 
     /// Canonical path → this locale's slug, or nil when the table says nothing.
     /// First entry whose canonical pattern matches AND that declares `locale`;
-    /// validation (V5/V6) guarantees at most one entry can match at all.
+    /// validation (V5/V6) guarantees at most one entry can match at all, unless
+    /// a later entry opted out with `overlapsEarlierEntry` — then first-match
+    /// in declaration order is the answer the author asked for.
     func _localizedPath(for path: String, locale: LocaleID) -> String? {
         for entry in entries {
             guard let pattern = entry.localized[locale],
@@ -278,16 +304,32 @@ extension LocalizedRoutes {
         // one path. Resolution is first-match-wins in declaration order, so
         // each of them makes some page unreachable without any diagnostic.
         // Tables are small (tens of entries); O(n²) is free.
-        var declared: [(label: String, pattern: RoutePattern)] = []
-        for entry in entries {
-            declared.append(("canonical '\(entry.canonical.raw)'", entry.canonical))
+        //
+        // `canonicalOf` carries the entry index for a canonical pattern and nil
+        // for a slug — that is what separates V6 from V7 below. Canonicals are
+        // appended in entry order, so for a canonical pair `i < j` the entry at
+        // `j` is the LATER one, the one whose opt-out applies.
+        var declared: [(label: String, pattern: RoutePattern, canonicalOf: Int?)] = []
+        for (index, entry) in entries.enumerated() {
+            declared.append(("canonical '\(entry.canonical.raw)'", entry.canonical, index))
             for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
                 let pattern = entry.localized[locale]!
-                declared.append(("the '\(locale.identifier)' slug '\(pattern.raw)' of '\(entry.canonical.raw)'", pattern))
+                declared.append(("the '\(locale.identifier)' slug '\(pattern.raw)' of '\(entry.canonical.raw)'", pattern, nil))
             }
         }
         for i in declared.indices {
             for j in declared.indices where j > i {
+                // The V6 opt-out, and ONLY V6: both sides must be canonicals.
+                // `overlapsEarlierEntry` says "an earlier entry outranks me",
+                // which is a statement about resolution order between two
+                // canonical patterns. It deliberately does not reach any pair
+                // involving a slug (V7): a slug that matches another entry's
+                // canonical makes that canonical unreachable, and two slugs
+                // that match one path lose a page — neither is a preference
+                // the author can express by ordering.
+                if declared[i].canonicalOf != nil,
+                   let later = declared[j].canonicalOf,
+                   entries[later].overlapsEarlierEntry { continue }
                 if Self.overlap(declared[i].pattern, declared[j].pattern) {
                     out.append("routePaths: \(declared[i].label) and \(declared[j].label) overlap — one path would match both and resolution is declaration-order, so a reordering would silently rewrite URLs")
                 }
