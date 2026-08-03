@@ -267,7 +267,9 @@ public enum StaticSite {
         // harmless (CSS is idempotent) — optimize only if it ever matters.
         var cssUnion: [String] = []
         var cssSeen = Set<String>()
-        var documents: [(path: String, subdir: String, html: String)] = []
+        // `claim` is who asked for this document — the page and the locale, not
+        // the URL it landed on. The write loop keys the collision check on it.
+        var documents: [(path: String, subdir: String, html: String, claim: String)] = []
         var sitemapPaths: [String] = []   // .page only — .notFound stays out (review finding)
 
         let localization = A.localization
@@ -282,12 +284,23 @@ public enum StaticSite {
         // under a `routePaths` table that is not derivable from the path alone.
         // The whole site's bodies are therefore live at once — as `documents`
         // already was; stream both to disk if a build ever outgrows memory.
-        var trees: [(tree: RenderedTree, canonical: String)] = []
+        var trees: [(tree: RenderedTree, canonical: String, claim: String)] = []
         for locale in (renderLocales.isEmpty ? [nil] : renderLocales.map { Optional($0) }) {
             for path in pagePaths {
                 let tree = try await renderTree(A.self, path: path, config: config,
                                                 session: session, locale: locale)
-                trees.append((tree, RouteURL._normalize(path)))
+                let canonical = RouteURL._normalize(path)
+                // Who ASKED for this document, which is the identity the write
+                // loop's collision check keys on. Query-stripped: query-variant
+                // pages are ONE page and deliberately collapse into one output.
+                // The asked-for locale, not the SETTLED one: a page that settles
+                // elsewhere (a `.staticTask` calling `setLocale`) lands on
+                // another locale's file and must still be told apart from the
+                // page that legitimately owns it.
+                let claim = "'" + (canonical.firstIndex(of: "?").map { String(canonical[..<$0]) }
+                                    ?? canonical) + "'"
+                    + (locale.map { " in \($0.identifier)" } ?? "")
+                trees.append((tree, canonical, claim))
             }
         }
 
@@ -296,12 +309,12 @@ public enum StaticSite {
         // redirected away has no URL to point at, and one broken member makes a
         // search engine drop the entire cluster.
         var alternates: [String: [LocaleID: String]] = [:]
-        for (tree, canonical) in trees {
+        for (tree, canonical, _) in trees {
             guard case .page = tree.outcome else { continue }
             alternates[canonical, default: [:]][tree.renderLocale] = tree.externalPath
         }
 
-        for (tree, canonical) in trees {
+        for (tree, canonical, claim) in trees {
             let rendered = serialize(A.self, tree, alternates: alternates[canonical] ?? [:],
                                      config: config)
             // Where this document goes and what its URL is were both decided
@@ -313,7 +326,7 @@ public enum StaticSite {
             switch rendered.outcome {
             case .redirect(let target, _):
                 report.redirects[outputPath] = target
-                documents.append((outputPath, subdir, redirectStub(to: target)))
+                documents.append((outputPath, subdir, redirectStub(to: target), claim))
             case .error:
                 // generate() keeps its existing throwing contract; only the
                 // server (Phase B) treats a render failure as a 503. The cap
@@ -335,14 +348,46 @@ public enum StaticSite {
                 if config.cssFile, !rendered.css.isEmpty, cssSeen.insert(rendered.css).inserted {
                     cssUnion.append(rendered.css)
                 }
-                documents.append((outputPath, subdir, rendered.html))
+                documents.append((outputPath, subdir, rendered.html, claim))
+            }
+        }
+
+        // --- migration stubs ---
+        // Adding a slug RETIRES the prefix form, and that URL is already
+        // indexed, linked and bookmarked — including the bare `/ru`, which no
+        // build ever writes once the home page is slugged. Stubs stay out of
+        // report.pages and out of the sitemap: a redirect is not a page, the
+        // same rule the guard-redirect branch above follows. Inert without a
+        // table, and silent under the kill-switch — "render nothing" must not
+        // start writing redirects to pages this build did not produce.
+        if let localization, config.prerenderEnabled {
+            for (retired, current) in localization.routePaths
+                ._retiredPrefixPaths(default: localization.default)
+            where !report.pages.contains(retired) {
+                report.redirects[retired] = current
+                documents.append((retired, "", redirectStub(to: current),
+                                  "the retired-prefix stub '\(retired)'"))
             }
         }
 
         // --- write files ---
-        for (path, subdir, html) in documents {
+        // Under prefixes a collision here was structurally impossible: every
+        // non-default locale was namespaced by its prefix. A slug removes that
+        // namespace, so two pages can now claim one file — last write winning,
+        // silently, which is how a whole language cluster disappears. Keyed on
+        // the CLAIM, not on the file alone, so query-variant pages (one page,
+        // one claim) keep collapsing into one output exactly as they do today.
+        var claimedFiles: [String: String] = [:]     // output file → the page that claimed it
+        for (path, subdir, html, claim) in documents {
+            let file = outputFile(path: path, subdir: subdir)
+            if let owner = claimedFiles[file], owner != claim {
+                throw StaticSiteError.invalidLocalizedRoutes([
+                    "\(claim) and \(owner) both write '\(file)' — two pages resolved to one output file, and one would silently overwrite the other"
+                ])
+            }
+            claimedFiles[file] = claim
             try writeDocument(html, path: path, outDir: config.outDir, subdir: subdir)
-            report.writtenFiles.append(outputFile(path: path, subdir: subdir))
+            report.writtenFiles.append(file)
         }
         try SiteDescriptor.write(localization: localization, outDir: config.outDir)
         if config.cssFile {

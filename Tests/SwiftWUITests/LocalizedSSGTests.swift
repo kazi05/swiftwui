@@ -265,7 +265,11 @@ private struct SlugSite: App {
         defer { try? FileManager.default.removeItem(atPath: dir) }
         #expect(FileManager.default.fileExists(atPath: dir + "/o-nas/index.html"))
         #expect(FileManager.default.fileExists(atPath: dir + "/about/index.html"))
-        #expect(!FileManager.default.fileExists(atPath: dir + "/ru/about/index.html"))
+        // The prefix form no longer holds the PAGE — it holds the migration
+        // stub that retires it (`MigrationStubTests`), which is a redirect and
+        // not a page: it stays out of `report.pages` below.
+        let retired = try String(contentsOfFile: dir + "/ru/about/index.html", encoding: .utf8)
+        #expect(retired.contains(#"http-equiv="refresh""#) && !retired.contains("about"))
         // The report and the sitemap name the slug, not the prefix form.
         #expect(report.pages.contains("/o-nas"))
         #expect(!report.pages.contains("/ru/about"))
@@ -301,6 +305,100 @@ private struct SlugSite: App {
         defer { try? FileManager.default.removeItem(atPath: dir) }
         let ru = try String(contentsOfFile: dir + "/o-nas/index.html", encoding: .utf8)
         #expect(ru.contains(#""path":"\/o-nas""#))
+    }
+}
+
+private struct SluggedHomeSite: App {
+    init() {}
+    var body: some Tag { Router { Route("/") { _ in Text("home") } } }
+    static var localization: Localization? {
+        Localization(supported: [LocaleID("en")!, LocaleID("ru")!], default: LocaleID("en")!,
+                     strategy: .pathPrefix(),
+                     routePaths: LocalizedRoutes { LocalizedRoute("/", ["ru": "/glavnaya"]) })
+    }
+}
+
+/// Two locales, one file. `ru`'s slug for `/x` is spelled `/de/about` — a URL
+/// that under prefixes belonged to `de` and to nothing else. Every table
+/// validation passes: the slug is no Route, overlaps no other pattern and
+/// enumerates nothing. What it does instead is claim `de`'s boot path, so the
+/// `de` request for `/about` internalizes through it, settles in `ru`, and both
+/// locales' `/about` end up writing `ru/about/index.html`. The prefix namespace
+/// that made this impossible is the very thing a slug removes.
+private struct CollidingSlugSite: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/about") { _ in Text("about") }
+            Route("/x") { _ in Text("x") }
+        }
+    }
+    static var localization: Localization? {
+        Localization(supported: [LocaleID("en")!, LocaleID("ru")!, LocaleID("de")!],
+                     default: LocaleID("en")!, strategy: .pathPrefix(),
+                     routePaths: LocalizedRoutes { LocalizedRoute("/x", ["ru": "/de/about"]) })
+    }
+}
+
+@Suite @MainActor struct MigrationStubTests {
+    @Test func retiredPrefixPathGetsAStub() async throws {
+        let out = NSTemporaryDirectory() + "swiftwui-stub-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        let report = try await StaticSite.generate(SlugSite.self, config: .init(
+            outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
+        let stub = try String(contentsOfFile: out + "/ru/about/index.html", encoding: .utf8)
+        #expect(stub.contains("url=/o-nas"))
+        #expect(report.redirects["/ru/about"] == "/o-nas")
+        // A redirect is not a page: neither the report nor the sitemap may
+        // advertise a URL whose only content is a meta-refresh.
+        #expect(!report.pages.contains("/ru/about"))
+        let sitemap = try String(contentsOfFile: out + "/sitemap.xml", encoding: .utf8)
+        #expect(!sitemap.contains("/ru/about"))
+    }
+
+    @Test func bareLocaleRootGetsAStubWhenTheHomeIsSlugged() async throws {
+        let out = NSTemporaryDirectory() + "swiftwui-stub-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        _ = try await StaticSite.generate(SluggedHomeSite.self, config: .init(
+            outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
+        let stub = try String(contentsOfFile: out + "/ru/index.html", encoding: .utf8)
+        #expect(stub.contains("url=/glavnaya"))
+    }
+
+    @Test func twoPagesClaimingOneOutputFileFailTheBuild() async {
+        let out = NSTemporaryDirectory() + "swiftwui-stub-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        do {
+            _ = try await StaticSite.generate(CollidingSlugSite.self, config: .init(
+                outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
+            Issue.record("expected StaticSiteError, build succeeded")
+        } catch let error as StaticSiteError {
+            // Named by the build INPUTS — the page and the locale that was
+            // asked for. Naming only the file would leave the author with a
+            // path no line of their site declares.
+            #expect(error.description.contains("ru/about/index.html"))
+            #expect(error.description.contains("'/about' in de"))
+            #expect(error.description.contains("'/about' in ru"))
+        } catch {
+            Issue.record("expected StaticSiteError, got \(error)")
+        }
+    }
+
+    /// The deliberate collapse the check must not touch: two query variants are
+    /// ONE page and have always written one file (StaticSite.outputFile strips
+    /// the query). A check keyed on the output file alone would reject this.
+    @Test func queryVariantsStillCollapseIntoOneFile() async throws {
+        struct TodoApp: App {
+            init() {}
+            var body: some Tag {
+                Router { Route("/todo/:id") { p in Text("todo " + (p["id"] ?? "")) } }
+            }
+        }
+        let out = NSTemporaryDirectory() + "swiftwui-stub-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        let report = try await StaticSite.generate(TodoApp.self, config: .init(
+            outDir: out, mode: .staticOnly, paths: ["/todo/1?tab=all", "/todo/1?tab=done"]))
+        #expect(report.writtenFiles == ["todo/1/index.html", "todo/1/index.html"])
     }
 }
 

@@ -171,6 +171,33 @@ extension LocalizedRoutes {
         return nil
     }
 
+    /// The prefix-form URLs this table RETIRED, each paired with the URL that
+    /// replaced it: `/ru/about` → `/o-nas`, and `/ru` → `/glavnaya` when the
+    /// home page itself is slugged (trimming a URL down to the bare locale is
+    /// the commonest manual edit there is, and no build ever writes `/ru`).
+    ///
+    /// Adding a slug to a live site stops writing a URL that is already
+    /// indexed, linked and bookmarked, so the SSG leaves a redirect behind at
+    /// every one of these. The location is what the prefix rule WOULD have
+    /// produced — this table disabled — and the target is what it produces now.
+    ///
+    /// Static canonicals only: a parameterised pattern has no single retired
+    /// URL, one per parameter combination instead, and which of those a build
+    /// ever wrote is not something the table knows.
+    public func _retiredPrefixPaths(default defaultLocale: LocaleID)
+        -> [(retired: String, current: String)] {
+        entries.filter(\.canonical.isStatic).flatMap { entry in
+            entry.localized.keys.sorted { $0.identifier < $1.identifier }
+                .compactMap { locale -> (retired: String, current: String)? in
+                    let retired = LocalePath.externalize(entry.canonical.raw, locale: locale,
+                                                         default: defaultLocale)          // no table
+                    let current = LocalePath.externalize(entry.canonical.raw, locale: locale,
+                                                         default: defaultLocale, routes: self)
+                    return retired == current ? nil : (retired, current)
+                }
+        }
+    }
+
     /// Is this path one of the table's own canonical patterns, and does that
     /// pattern START WITH A LITERAL? Such a path is locale-free by definition
     /// and must not reach the prefix split, which would eat a leading segment
