@@ -426,8 +426,9 @@ Locale keys are plain `String`s, parsed through the same validating
 written as `LocalizedRoute(…)`, not as a leading-dot factory: two `.path(…)`
 lines in a row parse as one chained expression and would not compile.
 
-The canonical pattern is written exactly as its `Route` — that string is the
-key tying the two together. Nothing else in the app changes:
+The canonical pattern is written as its `Route` pattern — that string is the
+key tying the two together, and both sides are normalized, so a trailing slash
+is not a mismatch. Nothing else in the app changes:
 
 ```swift
 Route("/delivery/:from/:to") { p in DeliveryPage(from: p["from"], to: p["to"]) }
@@ -449,8 +450,9 @@ The two forms coexist per route and per locale: a route the table says nothing
 about, or a locale one entry omits, keeps today's prefix URL.
 
 **Parameter values are not translated.** `:from` is `moscow` in every
-language. That is what lets the build emit a correct `hreflang` set —
-`/delivery/moscow/paris` and `/dostavka/moscow/paris` share no text, so
+language, and the slug names the same `:params` as its canonical — only the
+literal segments change. That is what lets the build emit a correct `hreflang`
+set: `/delivery/moscow/paris` and `/dostavka/moscow/paris` share no text, so
 hreflang is the only thing pairing them for a crawler. If you want Russian
 values in the URL, they have to be the canonical ones.
 
@@ -463,18 +465,15 @@ all. Rather than ignore it silently, the generator rejects it.
 
 ### What the build checks
 
-The table is validated by `StaticSite.generate` and `StaticSite.render` — so
-by `swiftwui ssg` — and a problem fails the run with every message at once.
-The checks exist because each of these failures otherwise produces a site that
-builds, has the right page count, and is quietly wrong. The ones you are most
-likely to meet:
+Both `StaticSite.generate` and `StaticSite.render` validate the table before
+rendering anything, and a failing gate throws with all of its messages at
+once. The checks exist because each of these failures otherwise produces a
+site that builds, has the right page count, and is quietly wrong.
 
-- **`siteURL` is required.** Without it neither the canonical nor any hreflang
-  alternate is emitted, and the language cluster is lost — see above. A
-  scaffolded project leaves `let siteURL: String? = nil` in its
-  `Sources/Entry.swift` for you to fill in.
-- **Every entry must match a declared `Route`.** An entry no route claims is
-  inert, and a typo in a canonical pattern has no other symptom.
+`render` — and so `ssg --path` — sees the table and nothing else, so it checks
+only what the table can be judged on alone:
+
+- **The strategy must be `.pathPrefix`** (above).
 - **The default locale must not appear in an entry** — the canonical pattern
   already is that locale's path.
 - **A slug must start with a literal segment.** One starting with `:` or `*`
@@ -483,7 +482,23 @@ likely to meet:
   resolution is first-match-in-declaration-order and a reordering would
   silently rewrite URLs.
 
-That last one has an opt-out, for the shape `Router` itself resolves by
+`generate` — a full `swiftwui ssg` — has the app's route set and the config
+too, and adds the checks that need them:
+
+- **`siteURL` is required.** Without it neither the canonical nor any hreflang
+  alternate is emitted, and the language cluster is lost — see above. A
+  scaffolded project leaves `let siteURL: String? = nil` in its
+  `Sources/Entry.swift` for you to fill in.
+- **Every entry must match a declared `Route`** (match, not equal — an entry
+  may name one concrete path of a parametric route), **and no slug may be one
+  itself.** An entry no route claims is inert, and a typo in a canonical
+  pattern has no other symptom.
+- After enumeration, a second gate: **no path the build enumerates may be a
+  localized slug.** Enumeration is canonical and locale-free; a slug among
+  those paths resolves back to a canonical *and* a locale, which collapses the
+  page's hreflang cluster.
+
+The overlap check has an opt-out, for the shape `Router` itself resolves by
 declaration order. Set it on the *later* entry — the shadowed one:
 
 ```swift
@@ -495,7 +510,8 @@ The trade is that declaration order now decides this site's URLs and the build
 stops watching that pair. Swapping the two lines is still caught, since the
 flag travels with its line and lands on the earlier entry — but moving the
 flag onto the new later entry to silence that report leaves `/blog/archive`
-externalizing as `/novosti/archive`, with nothing left to say so.
+externalizing as `/novosti/archive` instead of `/novosti/arkhiv`, with nothing
+left to say so.
 
 ### Adding a slug is a URL migration
 
@@ -522,8 +538,8 @@ fragment are dropped. An app that declares no localization — or one not on
 ```swift
 let resolved = StaticSite.resolve(MyApp.self, requestPath: "/o-nas?tab=2")
 // resolved.path == "/about", resolved.locale == .ru
-try await StaticSite.render(MyApp.self, path: resolved.path, config: config,
-                            locale: resolved.locale)
+_ = try await StaticSite.render(MyApp.self, path: resolved.path, config: config,
+                                locale: resolved.locale)
 ```
 
 Every scaffolded template parses `--path`/`--locale` on top of it, so

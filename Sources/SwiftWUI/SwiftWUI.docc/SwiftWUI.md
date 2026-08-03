@@ -180,6 +180,8 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 - ``LocalizedText``
 - ``LocalizationCatalog``
 - ``LocalePath``
+- ``LocalizedRoutes``
+- ``LocalizedRoute``
 - ``LocaleResolution``
 - ``SetLocaleAction``
 
