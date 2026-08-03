@@ -28,8 +28,8 @@ public struct StaticSiteConfig: Sendable {
     /// Injected rather than derived per page: hashing a 9.6 MB binary costs
     /// ~2.5 s in an -Onone build, and `swiftwui ssg` runs the project binary
     /// without -c. An injected stamp wins over reading from disk; nil falls back
-    /// to `BootStamp.read(outDir:)`, and no wasm there = degrade (no `?v=`, no
-    /// `data-size`).
+    /// to `BootStamp.read(outDir:)`, and no wasm there means no boot config is
+    /// emitted at all — the document takes the legacy inline boot.
     public var bootStamp: BootStamp?
 
     public init(outDir: String, mode: StaticSiteMode, paths: [String] = [], cssFile: Bool = false,
@@ -358,9 +358,12 @@ public enum StaticSite {
             alternates[canonical, default: [:]][tree.renderLocale] = tree.externalPath
         }
 
-        // Once for the whole build, not once per page: hashing a multi-megabyte
-        // wasm is ~2.5 s in the -Onone binary `swiftwui ssg` actually runs.
-        let stamp = config.bootStamp ?? BootStamp.read(outDir: config.outDir)
+        // Once for the whole build, not once per page, and only if some document
+        // will name the wasm: hashing a multi-megabyte binary is ~2.5 s in the
+        // -Onone binary `swiftwui ssg` actually runs, and a project that never
+        // opts into a boot UI must not pay it.
+        let stamp = trees.contains { $0.tree.bootShell != nil }
+            ? (config.bootStamp ?? BootStamp.read(outDir: config.outDir)) : nil
         for (tree, canonical, claim) in trees {
             let rendered = serialize(A.self, tree, alternates: alternates[canonical] ?? [:],
                                      config: config, stamp: stamp)
@@ -791,19 +794,23 @@ public enum StaticSite {
         }
         let importMap: String? = tree.wasmPath != nil ? config.importMapJSON : nil
         var bootConfig: BootConfig? = nil
-        if let entry = tree.wasmPath, let shell = tree.bootShell {
-            // The bundle — entry, wasm and the copied shim — is one directory:
-            // "/app/index.js" → "/app/". With no stamp there is no wasm on disk
-            // to name, so the URL falls back to the conventional name and ships
-            // without `?v=` or `data-size`; the shim then reports indeterminate
-            // progress rather than dividing by a wrong number.
-            let dir = entry.hasSuffix("/index.js")
-                ? String(entry.dropLast("index.js".count)) : "/app/"
-            let base = dir + (stamp?.fileName ?? "app.wasm")
-            bootConfig = BootConfig(wasmURL: stamp.map { base + "?v=" + $0.version } ?? base,
+        // No stamp, no config: without a read wasm there is no name to put in
+        // `data-wasm`, and a guessed one ("app.wasm" is never a real product
+        // name) 404s inside the shim, which fails closed and shows the failure
+        // UI — a dead page, not a degrade. Dropping the config instead hands the
+        // document to `DocumentSerializer`'s legacy inline boot and it loads
+        // normally; the shell's `<template>`/`<style>` ride along inert, since
+        // nothing ever sets `data-swui-boot` on <html> to trigger them.
+        if let entry = tree.wasmPath, let shell = tree.bootShell, let stamp {
+            // The bundle — entry, wasm and the copied shim — is one directory,
+            // so take the entry's OWN directory. Matching on "index.js" would
+            // send every renamed entry back to a hardcoded "/app/", which is the
+            // 404-behind-the-veil this carries `shimURL` to avoid.
+            let dir = entry.lastIndex(of: "/").map { String(entry[...$0]) } ?? "/app/"
+            bootConfig = BootConfig(wasmURL: dir + stamp.fileName + "?v=" + stamp.version,
                                     entryURL: entry,
                                     shimURL: dir + "swiftwui-boot.js",
-                                    sizeBytes: stamp?.sizeBytes,
+                                    sizeBytes: stamp.sizeBytes,
                                     delayMS: shell.delayMS)
         }
         let doc = DocumentSerializer.render(.init(

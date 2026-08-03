@@ -34,9 +34,17 @@ private struct SiteApp: App {
     private var config: StaticSiteConfig {
         .init(outDir: "/tmp/unused", mode: .hydrate(wasmScriptPath: "/app/index.js"))
     }
+    /// No wasm exists under /tmp/unused, so anything asserting on the boot
+    /// CONFIG (rather than the shell) has to inject a stamp — without one the
+    /// config is deliberately not emitted at all.
+    private var stampedConfig: StaticSiteConfig {
+        var cfg = config
+        cfg.bootStamp = BootStamp(sizeBytes: 9570733, version: "a3f9c1e2", fileName: "App.wasm")
+        return cfg
+    }
 
     @Test func appLevelOverlayReachesTheDocument() async throws {
-        let page = try await StaticSite.render(SiteApp.self, path: "/", config: config)
+        let page = try await StaticSite.render(SiteApp.self, path: "/", config: stampedConfig)
         #expect(page.html.contains("<template data-swui-boot-ui>"))
         #expect(page.html.contains("class=\"spin\""))
         #expect(page.html.contains("data-delay=\"250\""))
@@ -50,21 +58,24 @@ private struct SiteApp: App {
         #expect(!page.html.contains("data-swui-boot-ui"))
     }
 
-    @Test func missingWasmDegradesWithoutFailing() async throws {
+    /// No `dist/app/*.wasm` exists for /tmp/unused. A guessed wasm name would
+    /// 404 inside the shim, which fails closed and shows the failure UI — a dead
+    /// page. So no config at all is emitted, the legacy inline boot takes over,
+    /// and the build still succeeds.
+    @Test func missingWasmFallsBackToTheLegacyBoot() async throws {
         let page = try await StaticSite.render(SiteApp.self, path: "/", config: config)
-        // No dist/app/*.wasm exists for /tmp/unused, so no version and no size.
+        #expect(page.outcome == .page)
+        #expect(!page.html.contains("data-swui-boot-config"))
         #expect(!page.html.contains("?v="))
         #expect(!page.html.contains("data-size="))
-        #expect(page.html.contains("data-swui-boot-config"))
+        #expect(page.html.contains("import { init }"))
     }
 
     /// An injected stamp names the wasm the build actually produced — and is the
     /// only path that ever ships `?v=`/`data-size`, since the disk read is the
     /// fallback for a bare `swift run App ssg`.
     @Test func injectedStampNamesTheWasmAndItsSize() async throws {
-        var cfg = config
-        cfg.bootStamp = BootStamp(sizeBytes: 9570733, version: "a3f9c1e2", fileName: "App.wasm")
-        let page = try await StaticSite.render(SiteApp.self, path: "/", config: cfg)
+        let page = try await StaticSite.render(SiteApp.self, path: "/", config: stampedConfig)
         #expect(page.html.contains("data-wasm=\"/app/App.wasm?v=a3f9c1e2\""))
         #expect(page.html.contains("data-size=\"9570733\""))
     }
@@ -72,14 +83,19 @@ private struct SiteApp: App {
     /// The shim ships next to the entry script, so a project serving its bundle
     /// from anywhere but `/app/` must not get a hardcoded `/app/swiftwui-boot.js`
     /// — that is a 404 on the shim and a page that never boots behind the veil.
-    @Test func shimAndWasmFollowTheEntryScriptOutOfApp() async throws {
-        var cfg = StaticSiteConfig(outDir: "/tmp/unused",
-                                   mode: .hydrate(wasmScriptPath: "/static/bundle/index.js"))
+    ///
+    /// Both entry names are exercised because the derivation must key on the
+    /// entry's DIRECTORY: matching the filename `index.js` sends every renamed
+    /// entry back to `/app/`, reintroducing the same 404 through another input.
+    @Test(arguments: ["/static/bundle/index.js", "/static/bundle/main.js"])
+    func shimAndWasmFollowTheEntryScriptOutOfApp(entry: String) async throws {
+        var cfg = StaticSiteConfig(outDir: "/tmp/unused", mode: .hydrate(wasmScriptPath: entry))
         cfg.bootStamp = BootStamp(sizeBytes: 12, version: "deadbeef", fileName: "App.wasm")
         let page = try await StaticSite.render(SiteApp.self, path: "/", config: cfg)
         #expect(page.html.contains("src=\"/static/bundle/swiftwui-boot.js\""))
         #expect(page.html.contains("<link rel=\"modulepreload\" href=\"/static/bundle/swiftwui-boot.js\">"))
         #expect(page.html.contains("data-wasm=\"/static/bundle/App.wasm?v=deadbeef\""))
+        #expect(page.html.contains("data-entry=\"\(entry)\""))
         #expect(!page.html.contains("/app/"))
     }
 

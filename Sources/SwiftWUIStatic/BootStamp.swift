@@ -20,8 +20,8 @@ public struct BootStamp: Sendable, Equatable {
     }
 
     /// Reads `<outDir>/app/*.wasm`. Returns nil when no wasm has been built yet
-    /// — a bare `swift run App ssg` must degrade (no `?v=`, no `data-size`),
-    /// never fail.
+    /// — a bare `swift run App ssg` must still produce a document (it falls back
+    /// to the legacy inline boot), never fail.
     public static func read(outDir: String) -> BootStamp? {
         let fm = FileManager.default
         let appDir = outDir + "/app"
