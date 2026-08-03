@@ -76,8 +76,18 @@ import SwiftWUIStatic
 @main enum Entry {
     static func main() async throws {
         var args = Array(CommandLine.arguments.dropFirst())
+        if args.first == "boot-shell" {
+            // One tagged line on stdout. The CLI identifies the answer by this
+            // key, not by exit status — an older project prints usage and
+            // returns 0, which is indistinguishable otherwise.
+            let shell = StaticSite.renderBootShell({{NAME}}App.self)
+            let data = try JSONEncoder().encode(shell)
+            print(String(data: data, encoding: .utf8)!)
+            return
+        }
         guard args.first == "ssg" else {
             print("usage: {{NAME}} ssg --out <dir> [--static] [--path <path>] [--locale <tag>] [--no-prerender]")
+            print("       {{NAME}} boot-shell")
             return
         }
         args.removeFirst()

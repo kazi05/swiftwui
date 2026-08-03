@@ -1,6 +1,9 @@
 /// A rendered boot shell. Codable because the CLI receives it as one JSON line
 /// from `swift run <App> boot-shell` (boot spec §9.2).
-public struct BootShell: Codable, Equatable {
+///
+/// `nonisolated` for that same reason: the CLI target is not MainActor-isolated
+/// and could otherwise neither build nor read one (cf. `SHA256`).
+public nonisolated struct BootShell: Codable, Equatable, Sendable {
     public var html: String
     public var css: String
     public var delayMS: Int

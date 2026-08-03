@@ -182,6 +182,48 @@ extension StaticSite {
         }
         return LocalePath.internalize(head, supported: l10n.supported, routes: l10n.routePaths)
     }
+
+    /// Renders the app-level boot shell for the SPA path — what `<App> boot-shell`
+    /// prints for the CLI to splice into the author's `index.html`.
+    ///
+    /// Locale-independent, and no page is resolved: a SPA `index.html` is ONE
+    /// document serving every route and every locale, so there is nothing to
+    /// key a per-page or per-locale shell on and the app's default locale wins.
+    /// The prerendered path is the one that gets a shell per (path, locale) —
+    /// see `renderTree`.
+    @MainActor public static func renderBootShell<A: App>(_ app: A.Type) -> BootShellPayload {
+        guard let content = A.bootUI._content else {
+            // .none — the CLI reads the empty html and skips the splice entirely.
+            return BootShellPayload(html: "", css: "", delayMS: A.bootUI._delayMS)
+        }
+        // Same construction `renderTree` uses, minus the per-path parts.
+        let backend = MockBackend()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: A().body, initialPath: "/",
+                              scheduleMicrotask: { $0() },
+                              globalStyles: A.globalStyles, themes: A.themes,
+                              fontFaces: A.fontFaces, localization: A.localization)
+        runtime._effects._buildMode = true
+        // `_renderBootShell` renders against the environment the last full pass
+        // stashed, so it needs a pass to have run: without `mount()` it asserts
+        // in debug and ships a signal-less environment in release.
+        runtime.mount()
+        let rendered = runtime._renderBootShell(content)
+        return BootShellPayload(html: rendered.html, css: rendered.css,
+                                delayMS: A.bootUI._delayMS)
+    }
+}
+
+/// `BootShell` plus the wire tag. Separate type so the tag cannot leak into the
+/// in-process carrier.
+public struct BootShellPayload: Encodable {
+    public var html: String, css: String, delayMS: Int
+    enum CodingKeys: String, CodingKey { case html, css, delayMS, tag = "swiftwui-boot-shell" }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(html, forKey: .html); try c.encode(css, forKey: .css)
+        try c.encode(delayMS, forKey: .delayMS); try c.encode(1, forKey: .tag)
+    }
 }
 
 public enum StaticSite {
