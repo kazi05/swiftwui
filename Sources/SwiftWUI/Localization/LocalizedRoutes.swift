@@ -377,7 +377,15 @@ extension LocalizedRoutes {
             // page count is right, and the feature silently did nothing; the
             // canonical pattern is the identity key tying the two together, so
             // a typo in it has no other symptom.
-            if !declared.contains(RouteURL._normalize(canon)) {
+            //
+            // MATCHES, not equals (spec §4): a table entry is free to name one
+            // concrete path of a parametric route, and `Router { Route("/:page") }`
+            // with an entry for '/about' is a working configuration. Equality is
+            // only the fast path — it is what a literal route set hits, and it
+            // is the case where the typo-catching is sharp.
+            let canonPath = RouteURL._normalize(canon)
+            if !declared.contains(canonPath),
+               !collected.contains(where: { Self.matchRaw(canonPath, $0.pattern) != nil }) {
                 out.append("routePaths entry '\(canon)' matches no Route — declared patterns are \(declared.sorted())")
             }
             for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
@@ -407,9 +415,16 @@ extension LocalizedRoutes {
         // V13 — with a table this is not a mild omission. `/about` and `/o-nas`
         // share no substring, so hreflang is the ONLY thing pairing them up;
         // without an origin neither it nor the canonical is emitted, and the
-        // whole language cluster is lost.
+        // whole language cluster is lost. The message names where the value
+        // goes, spelled out: a scaffolded project's StaticSiteConfig sets no
+        // siteURL, so the author who trips this has nothing to search for.
         if siteURL?.isEmpty != false {
-            out.append("routePaths requires a siteURL in StaticSiteConfig — without it neither the canonical nor any hreflang alternate is emitted, and a localized slug shares no substring with its canonical for a crawler to pair them up")
+            out.append("""
+                routePaths requires a siteURL — without it neither the canonical nor any hreflang \
+                alternate is emitted, and a localized slug shares no substring with its canonical \
+                for a crawler to pair them up. Set it on the StaticSiteConfig in your Sources/Entry.swift: \
+                .init(outDir: out, mode: mode, siteURL: "https://example.com", prerenderEnabled: prerenderEnabled)
+                """)
         }
         return out
     }

@@ -126,15 +126,18 @@ extension StaticSite {
     @MainActor
     public static func render<A: App>(_ app: A.Type, path: String, config: StaticSiteConfig,
                                       locale: LocaleID? = nil) async throws -> RenderedPage {
-        // `render` never goes through `generate()`, so it validates too — the
-        // table-only half only: there is no probe here and therefore no route
-        // set, and no alternates map for V13 to protect.
-        try StaticSite.validateLocalizedRoutes(A.self, collected: nil, config: config)
+        // The kill-switch stays unconditional and first: it is the documented
+        // operational escape hatch, and a bad table must not be able to block
+        // the one flag that turns prerendering off.
         guard config.prerenderEnabled else {
             return RenderedPage(html: "", css: "", head: nil,
                                 outcome: .error("prerendering disabled (kill-switch)"),
                                 path: path, subdir: "")
         }
+        // `render` never goes through `generate()`, so it validates too — the
+        // table-only half only: there is no probe here and therefore no route
+        // set, and no alternates map for V13 to protect.
+        try StaticSite.validateLocalizedRoutes(A.self, collected: nil, config: config)
         let session = WebSession(transport: URLSessionTransport())
         WebSession.bootstrap(session)
         return try await renderPage(A.self, path: path, config: config, session: session, locale: locale)

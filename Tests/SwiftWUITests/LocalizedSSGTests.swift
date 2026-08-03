@@ -368,6 +368,15 @@ private struct EnumeratedSlugSite: App {
     }
 }
 
+/// No literal `/about` route — the entry names one concrete path of `/:page`.
+private struct ParametricRouteSite: App {
+    init() {}
+    var body: some Tag { Router { Route("/:page") { p in Text(p["page"] ?? "") } } }
+    static var localization: Localization? {
+        l10n { LocalizedRoute("/about", ["ru": "/o-nas"]) }
+    }
+}
+
 @Suite @MainActor struct LocalizedRoutesBuildValidationTests {
     private func out() -> String { NSTemporaryDirectory() + "swiftwui-v-\(UUID().uuidString)" }
 
@@ -394,8 +403,22 @@ private struct EnumeratedSlugSite: App {
         await expectRejection(OrphanEntrySite.self, containing: "/abuot")
     }
 
+    /// Asserts V7's own wording, not just `/novosti`: `Route("/novosti")` is
+    /// static and auto-enumerated, so the enumerated-path check reports that
+    /// same string and a green test would survive deleting V7's route half.
     @Test func slugShadowingARealRouteIsRejected() async {
-        await expectRejection(ShadowingSlugSite.self, containing: "/novosti")
+        await expectRejection(ShadowingSlugSite.self,
+                              containing: "declares slug '/novosti' for 'ru', which is also a real Route pattern")
+    }
+
+    /// V8 matches, it does not compare strings: an entry naming one concrete
+    /// path of a parametric route is a working configuration (spec §4).
+    @Test func aTableOverAParametricRouteValidatesClean() async throws {
+        let dir = out()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let report = try await StaticSite.generate(ParametricRouteSite.self, config: .init(
+            outDir: dir, mode: .staticOnly, paths: ["/about"], siteURL: "https://example.com"))
+        #expect(report.pages.sorted() == ["/about", "/o-nas"])
     }
 
     @Test func tableUnderNegotiatedIsRejected() async {
@@ -430,6 +453,18 @@ private struct EnumeratedSlugSite: App {
             _ = try await StaticSite.render(NegotiatedWithTableSite.self, path: "/about",
                                             config: .init(outDir: dir, mode: .staticOnly))
         }
+    }
+
+    /// The kill-switch is unconditional and outranks the gate: it is the
+    /// documented operational escape hatch, and a bad table must not be able to
+    /// block the one flag that turns prerendering off.
+    @Test func theKillSwitchOutranksValidation() async throws {
+        let dir = out()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let page = try await StaticSite.render(NegotiatedWithTableSite.self, path: "/about",
+                                               config: .init(outDir: dir, mode: .staticOnly,
+                                                             prerenderEnabled: false))
+        #expect(page.outcome == .error("prerendering disabled (kill-switch)"))
     }
 
     /// …and only the table-only half: with no probe there is no route set, so
