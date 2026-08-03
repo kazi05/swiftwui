@@ -329,10 +329,40 @@ public enum StaticSite {
         return String(repeating: "../", count: dirDepth) + "styles.css"
     }
 
+    /// What one render resolved, before any document exists. Split out of
+    /// `renderPage` so a caller can render every page of a cluster first and
+    /// only then assemble the documents, with the sibling set in hand.
+    ///
+    /// `body == nil` is a render that produced no document at all — an error, a
+    /// redirect, or no matched tree. `serialize` passes those outcomes straight
+    /// through: `body` and `renderLocale` are set together, on that path only.
+    private struct RenderedTree {
+        var body: String?
+        var css: String
+        var head: PageHead?
+        var snapshot: String? = nil
+        var outcome: RenderedPage.Outcome
+        var externalPath: String
+        var subdir: String
+        var settledInternalPath: String = ""
+        var renderLocale: LocaleID? = nil
+        var relFile: String = ""
+        var wasmPath: String? = nil
+    }
+
     @MainActor
     private static func renderPage<A: App>(_ app: A.Type, path: String, config: StaticSiteConfig,
                                            session: WebSession, locale: LocaleID? = nil) async throws
         -> RenderedPage {
+        let tree = try await renderTree(A.self, path: path, config: config,
+                                        session: session, locale: locale)
+        return serialize(A.self, tree, alternates: [:], config: config)
+    }
+
+    @MainActor
+    private static func renderTree<A: App>(_ app: A.Type, path: String, config: StaticSiteConfig,
+                                           session: WebSession, locale: LocaleID? = nil) async throws
+        -> RenderedTree {
         // Immediate-drain scheduler: microtasks run synchronously in order.
         var queue: [() -> Void] = []
         var draining = false
@@ -385,9 +415,9 @@ public enum StaticSite {
             if !hadPending { break }
             iterations += 1
             guard iterations <= buildTaskIterationCap else {
-                return RenderedPage(html: "", css: "", head: nil,
+                return RenderedTree(body: nil, css: "", head: nil,
                                     outcome: .error("page '\(path)' never quiesced after \(iterations) build-task iterations"),
-                                    path: path, subdir: "")
+                                    externalPath: path, subdir: "")
             }
             pump()                                 // state writes → re-render → possibly new tasks
         }
@@ -424,14 +454,14 @@ public enum StaticSite {
             // The stub's target is a URL a browser will follow, so it carries
             // the prefix: a guard redirect out of /ru/admin must not drop the
             // visitor into the English site.
-            return RenderedPage(html: "", css: "", head: nil,
+            return RenderedTree(body: nil, css: "", head: nil,
                                 outcome: .redirect(to: externalize(settled), permanent: false),
-                                path: externalPath, subdir: subdir)
+                                externalPath: externalPath, subdir: subdir)
         }
 
         guard case .component(let rootComponent)? = runtime._currentTree else {
-            return RenderedPage(html: "", css: runtime._registryText, head: nil, outcome: .notFound,
-                                path: externalPath, subdir: subdir)
+            return RenderedTree(body: nil, css: runtime._registryText, head: nil, outcome: .notFound,
+                                externalPath: externalPath, subdir: subdir)
         }
         let body = HTMLRenderer._render(rootComponent.children)
         let css = runtime._registryText
@@ -459,17 +489,40 @@ public enum StaticSite {
         }
         var wasmPath: String? = nil
         if case .hydrate(let p) = config.mode { wasmPath = p }
-        let importMap: String? = wasmPath != nil ? config.importMapJSON : nil
         // The stylesheet href is relative to the output FILE, not to the URL —
         // the very file the write loop derives from the same two values.
         let relFile = outputFile(path: externalPath, subdir: subdir)
+        // A Router fallthrough to notFound still resolves real content (its
+        // notFound: closure, or nothing if the app declared none) — render it
+        // like any other page and only flag the outcome (review finding 2).
+        let outcome: RenderedPage.Outcome = runtime._routeMatched ? .page : .notFound
+        return RenderedTree(body: body, css: css, head: runtime._pageHead, snapshot: snapshot,
+                            outcome: outcome, externalPath: externalPath, subdir: subdir,
+                            settledInternalPath: settled, renderLocale: renderLocale,
+                            relFile: relFile, wasmPath: wasmPath)
+    }
+
+    /// Assembles the document. `alternates` is the verified sibling set — the
+    /// URLs a caller actually wrote — and is unused for now: the hreflang links
+    /// still come from `localization`, exactly as they did inside `renderPage`.
+    @MainActor
+    private static func serialize<A: App>(_ app: A.Type, _ tree: RenderedTree,
+                                          alternates: [LocaleID: String],
+                                          config: StaticSiteConfig) -> RenderedPage {
+        // No document was rendered — the outcome IS the result, and wrapping it
+        // in one would invent a page the runtime never produced.
+        guard let body = tree.body, let renderLocale = tree.renderLocale else {
+            return RenderedPage(html: "", css: tree.css, head: tree.head, outcome: tree.outcome,
+                                path: tree.externalPath, subdir: tree.subdir)
+        }
+        let localization = A.localization
         // Kept apart from the app's own head: these describe the URL, not the
         // page, so the client — which can recompute neither — must not sweep
         // them on the first hydrated commit (DocumentSerializer emits them under
         // `data-swiftwui-ssg`).
-        let appHead = runtime._pageHead
+        let appHead = tree.head
         var prerenderedLinks: [LinkTag] = []
-        if let canonical = CanonicalSynthesis.synthesized(for: appHead, path: externalPath,
+        if let canonical = CanonicalSynthesis.synthesized(for: appHead, path: tree.externalPath,
                                                           siteURL: config.siteURL,
                                                           enabled: config.synthesizeCanonical) {
             prerenderedLinks.append(canonical)
@@ -477,7 +530,7 @@ public enum StaticSite {
         if let localization {
             // A page that declared no head at all still needs its alternates —
             // hreflang is a property of the URL set, not of the page's metadata.
-            prerenderedLinks += HreflangLinks.links(internalPath: settled,
+            prerenderedLinks += HreflangLinks.links(internalPath: tree.settledInternalPath,
                                                     localization: localization, siteURL: config.siteURL)
         }
         // `RenderedPage.head` stays the full set — callers read it as "what this
@@ -488,23 +541,20 @@ public enum StaticSite {
             merged.links += prerenderedLinks
             head = merged
         }
+        let importMap: String? = tree.wasmPath != nil ? config.importMapJSON : nil
         let doc = DocumentSerializer.render(.init(
             bodyHTML: body,
-            css: config.cssFile ? nil : css,
-            cssHref: config.cssFile ? cssHref(forPageFile: relFile) : nil,
+            css: config.cssFile ? nil : tree.css,
+            cssHref: config.cssFile ? cssHref(forPageFile: tree.relFile) : nil,
             head: appHead,
             prerenderedLinks: prerenderedLinks,
-            snapshotJSON: snapshot,
+            snapshotJSON: tree.snapshot,
             importMapJSON: importMap,
-            wasmScriptPath: wasmPath,
+            wasmScriptPath: tree.wasmPath,
             lang: localization == nil ? "en" : renderLocale.identifier,
             dir: localization != nil && renderLocale.isRTL ? "rtl" : nil))
-        // A Router fallthrough to notFound still resolves real content (its
-        // notFound: closure, or nothing if the app declared none) — render it
-        // like any other page and only flag the outcome (review finding 2).
-        let outcome: RenderedPage.Outcome = runtime._routeMatched ? .page : .notFound
-        return RenderedPage(html: doc, css: css, head: head, outcome: outcome,
-                            path: externalPath, subdir: subdir)
+        return RenderedPage(html: doc, css: tree.css, head: head, outcome: tree.outcome,
+                            path: tree.externalPath, subdir: tree.subdir)
     }
 }
 
