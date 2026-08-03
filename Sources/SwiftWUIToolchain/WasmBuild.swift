@@ -54,6 +54,7 @@ public enum DistLayout {
         try? fm.removeItem(atPath: outDir + "/app")
         try fm.createDirectory(atPath: outDir, withIntermediateDirectories: true)
         try fm.copyItem(atPath: bundleDir, toPath: outDir + "/app")
+        try copyBootShim(outDir: outDir)
         try? fm.removeItem(atPath: outDir + "/index.html")
         try fm.copyItem(atPath: projectDir + "/index.html", toPath: outDir + "/index.html")
         let projectShim = projectDir + "/vendor/wasi-shim"
@@ -66,14 +67,17 @@ public enum DistLayout {
         try copyPublic(projectDir: projectDir, outDir: outDir)
     }
 
-    /// Copies the boot shim into dist/app. Must run AFTER `assemble`, which
-    /// deletes and recopies dist/app wholesale on every build — which is also
-    /// why a project that drops its boot UI never keeps a stale shim.
+    /// Part of the bundle directory, not of the boot opt-in: `A.bootUI` may be
+    /// `.none` while a single `Page.bootUI` is an overlay, and it is the SSG
+    /// that decides per page. Gating this on the SPA-level answer 404s the shim
+    /// for that page — which does not surface as the shim's failure UI, since
+    /// nothing runs to produce one: the page just renders static and never
+    /// hydrates. An unreferenced 13 KB file in dist/app is the cheaper mistake.
     ///
     /// Not in `reservedNames`: that list guards dist-ROOT names against
     /// top-level public/ entries, and the shim lives under the already-reserved
     /// `app`.
-    public static func copyBootShim(outDir: String) throws {
+    static func copyBootShim(outDir: String) throws {
         let src = ToolchainResources.url("swiftwui-boot.js").path
         let dst = outDir + "/app/swiftwui-boot.js"
         try? FileManager.default.removeItem(atPath: dst)

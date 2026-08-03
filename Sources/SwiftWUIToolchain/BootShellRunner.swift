@@ -38,10 +38,21 @@ public enum BootShellRunner {
         let probe = fingerprint(projectDir: projectDir)
         // No source spells the token, so no override of `App.bootUI` (default
         // `.none`) or `Page.bootUI` (default `.inherit`) can exist and the
-        // answer is `.none` without asking. Sound, not a heuristic: a false
-        // positive costs one compile, a false negative cannot happen. The
-        // cache does not rescue this case on its own — its key is the sources,
-        // so every build that edits one would recompile to re-learn `.none`.
+        // answer is `.none` without asking. A false positive costs one compile.
+        //
+        // The premise, which is what makes this sound rather than a heuristic:
+        // every declaration that can witness `App.bootUI` lives under the
+        // project's own `Sources/`. A dependency shipping
+        // `extension App where Self: Branded { static var bootUI: … }` — or a
+        // macro, or a path dependency outside `Sources/` — would witness it
+        // from a file this never reads. None exists today, and adding a
+        // convenience `extension App` with a non-`.none` default inside
+        // SwiftWUI itself would silently break the skip for every project at
+        // once. Read this before shipping one.
+        //
+        // The cache does not rescue this case on its own — its key is the
+        // sources, so every build that edits one would recompile to re-learn
+        // `.none`.
         if let probe, !probe.declaresBootUI { return nil }
         let key = probe?.key
         if let key, let hit = cached(projectDir: projectDir, key: key) { return hit.shell }

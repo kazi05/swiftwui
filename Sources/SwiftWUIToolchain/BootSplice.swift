@@ -53,13 +53,9 @@ public enum BootSplice {
         let html = try String(contentsOfFile: index, encoding: .utf8)
         guard let spliced = apply(html: html, shell: shell, config: config) else {
             print("warning: \(index) has neither a \(open) marker nor a </head> — "
-                + "left unmodified, so nothing starts the app. The boot shim was not copied "
-                + "either, so any ssg-prerendered page will fail into its boot failure UI.")
+                + "left unmodified, so nothing starts the app")
             return false
         }
-        // After the guard, never before: on the nowhere-to-splice path nothing
-        // names the shim, and an orphan in dist/app would still be precached.
-        if shell != nil { try DistLayout.copyBootShim(outDir: outDir) }
         try spliced.write(toFile: index, atomically: true, encoding: .utf8)
         return versioned
     }

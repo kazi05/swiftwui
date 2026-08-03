@@ -170,6 +170,30 @@ private let head = "<head><script type=\"importmap\">{}</script>"
 
 @Suite struct BootSpliceWriteTests {
     /// A fake assembled dist: index.html with the marker + app/ holding a wasm.
+    /// `A.bootUI == .none` while one `Page.bootUI` is an overlay is a supported
+    /// shape, and `boot-shell` answers for the APP — so `shell` is nil here
+    /// while the SSG still emits `<script src=".../swiftwui-boot.js">` for that
+    /// page. The shim therefore ships with the bundle, not with the SPA answer:
+    /// a 404 on it would leave the page rendering static content and never
+    /// hydrating, with nothing to show it went wrong.
+    @Test func theShimShipsEvenWhenOnlyAPageDeclaresBootUI() throws {
+        let fm = FileManager.default
+        let proj = NSTemporaryDirectory() + "swiftwui-pageboot-" + UUID().uuidString
+        defer { try? fm.removeItem(atPath: proj) }
+        try fm.createDirectory(atPath: proj + "/bundle", withIntermediateDirectories: true)
+        try "js".write(toFile: proj + "/bundle/index.js", atomically: true, encoding: .utf8)
+        try Data("wasm".utf8).write(to: URL(fileURLWithPath: proj + "/bundle/Probe.wasm"))
+        try (head + "<!--swiftwui:boot--><!--/swiftwui:boot--></head><body></body>")
+            .write(toFile: proj + "/index.html", atomically: true, encoding: .utf8)
+
+        let dist = proj + "/dist"
+        try DistLayout.assemble(projectDir: proj, bundleDir: proj + "/bundle", outDir: dist)
+        #expect(fm.fileExists(atPath: dist + "/app/swiftwui-boot.js"))
+        #expect(try BootSplice.write(outDir: dist, shell: nil) == false)
+        #expect(fm.fileExists(atPath: dist + "/app/swiftwui-boot.js"),
+                "the app-level answer must not decide whether a page can boot")
+    }
+
     private func makeDist() throws -> String {
         let dir = NSTemporaryDirectory() + "swiftwui-splice-" + UUID().uuidString
         try FileManager.default.createDirectory(atPath: dir + "/app", withIntermediateDirectories: true)
@@ -179,14 +203,12 @@ private let head = "<head><script type=\"importmap\">{}</script>"
         return dir
     }
 
-    @Test func stampsTheDigest_copiesTheShim_andRepeatsByteForByte() throws {
+    @Test func stampsTheDigestAndRepeatsByteForByte() throws {
         let dist = try makeDist()
         defer { try? FileManager.default.removeItem(atPath: dist) }
 
         #expect(try BootSplice.write(outDir: dist, shell: shell))
         let once = try String(contentsOfFile: dist + "/index.html", encoding: .utf8)
-        #expect(FileManager.default.fileExists(atPath: dist + "/app/swiftwui-boot.js"),
-                "the shim the spliced tag names must be in dist")
         let stamp = try #require(WasmDigest.stamp(path: dist + "/app/Probe.wasm"))
         #expect(once.contains("data-wasm=\"/app/Probe.wasm?v=" + WasmDigest.version(stamp) + "\""))
         #expect(once.contains("data-size=\"\(stamp.sizeBytes)\""))
@@ -211,12 +233,11 @@ private let head = "<head><script type=\"importmap\">{}</script>"
         #expect(ssg.fileName == "Probe.wasm")
     }
 
-    @Test func aProjectWithoutBootUIGetsNoShimAndNoVersion() throws {
+    @Test func aProjectWithoutBootUIGetsNoVersion() throws {
         let dist = try makeDist()
         defer { try? FileManager.default.removeItem(atPath: dist) }
         #expect(try BootSplice.write(outDir: dist, shell: nil) == false,
                 "no ?v= in the document means no immutable header over the wasm")
-        #expect(!FileManager.default.fileExists(atPath: dist + "/app/swiftwui-boot.js"))
         let html = try String(contentsOfFile: dist + "/index.html", encoding: .utf8)
         #expect(html.contains("await init()"))
     }
@@ -229,7 +250,5 @@ private let head = "<head><script type=\"importmap\">{}</script>"
         #expect(try BootSplice.write(outDir: dist, shell: shell) == false)
         #expect(try String(contentsOfFile: dist + "/index.html", encoding: .utf8)
                 == "<p>hand-written, no head</p>")
-        #expect(!FileManager.default.fileExists(atPath: dist + "/app/swiftwui-boot.js"),
-                "nothing names the shim on this path — an orphan would still be precached")
     }
 }
