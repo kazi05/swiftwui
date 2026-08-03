@@ -341,8 +341,9 @@ import Testing
         }
         #expect(problems(.pathPrefix(), t).isEmpty)
         // and the resolution it buys — first match in declaration order, so
-        // "/arkhiv" and not "/novosti/archive". Reordering the two lines above
-        // rewrites this URL, silently: that is the trade the flag makes.
+        // "/arkhiv" and not "/novosti/archive". Swapping the two lines above is
+        // still caught (the flag moves with its line, onto the earlier entry);
+        // moving the flag afterwards is what rewrites this URL silently.
         #expect(LocalePath.externalize("/blog/archive", locale: ru, default: en, routes: t) == "/arkhiv")
         #expect(LocalePath.externalize("/blog/hello", locale: ru, default: en, routes: t) == "/novosti/hello")
     }
@@ -382,6 +383,20 @@ import Testing
             LocalizedRoute("/blog/archive", ["ru": "/arkhiv"], overlapsEarlierEntry: true)
             LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"])
         }).contains { $0.contains("overlap") })
+    }
+
+    /// Cross-kind: entry 0's canonical `/history` against entry 1's SLUG
+    /// `/history`. `internalize` tries slugs before declared canonicals, so the
+    /// slug wins for either entry order and `/history` is unreachable at its own
+    /// URL — not an ordering choice, so the flag must not reach it.
+    @Test func v6OptOutDoesNotSuppressV7() {
+        let t = LocalizedRoutes {
+            LocalizedRoute("/history", ["ru": "/istoriya"])
+            LocalizedRoute("/team", ["ru": "/history"], overlapsEarlierEntry: true)
+        }
+        #expect(problems(.pathPrefix(), t).contains { $0.contains("/history") && $0.contains("overlap") })
+        // the behaviour it keeps reporting:
+        #expect(LocalePath.internalize("/history", supported: [en, ru, de], routes: t).path == "/team")
     }
 
     /// Suppression is per ORDERED PAIR OF ENTRIES, so it cannot reach two

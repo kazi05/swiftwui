@@ -70,10 +70,17 @@ extension LocalizedRoutes.Entry {
     ///   `/blog/archive` now externalizes as `/novosti/archive` instead of
     ///   `/novosti/arkhiv`, with nothing left to say so.
     ///
-    ///   Suppression is per ORDERED PAIR of entries, so it never reaches V5
-    ///   (the same canonical declared twice — a duplicate, not an ordering
-    ///   choice) nor two patterns of ONE entry, such as a slug colliding with
-    ///   its own canonical: there is no declaration order to appeal to there.
+    ///   Suppression is per ORDERED PAIR of entries and only between patterns
+    ///   of the same kind — canonical against canonical, slug against slug.
+    ///   Everything else still reports:
+    ///
+    ///   - two patterns of ONE entry, such as a slug colliding with its own
+    ///     canonical — there is no declaration order to appeal to;
+    ///   - one entry's slug against another's canonical: `internalize` tries
+    ///     slugs before declared canonicals, so the slug wins whatever the
+    ///     entry order is, and that canonical is unreachable at its own URL;
+    ///   - V5, the same canonical pattern declared twice, which is checked
+    ///     per entry and never consults the flag at all.
     public init(_ canonical: String, _ localized: [String: String],
                 overlapsEarlierEntry: Bool = false) {
         var parsed: [LocaleID: RoutePattern] = [:]
@@ -311,24 +318,32 @@ extension LocalizedRoutes {
         // Tables are small (tens of entries); O(n²) is free.
         //
         // `owner` is the declaring entry's index, carried by slugs too: the
-        // opt-out is about two ENTRIES, and which of the two patterns is the
-        // canonical does not change whose declaration comes first.
-        var declared: [(label: String, pattern: RoutePattern, owner: Int)] = []
+        // opt-out is about two ENTRIES, and a slug pair of those two entries is
+        // resolved in the same declaration order as their canonicals.
+        var declared: [(label: String, pattern: RoutePattern, owner: Int, isCanonical: Bool)] = []
         for (index, entry) in entries.enumerated() {
-            declared.append(("canonical '\(entry.canonical.raw)'", entry.canonical, index))
+            declared.append(("canonical '\(entry.canonical.raw)'", entry.canonical, index, true))
             for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
                 let pattern = entry.localized[locale]!
-                declared.append(("the '\(locale.identifier)' slug '\(pattern.raw)' of '\(entry.canonical.raw)'", pattern, index))
+                declared.append(("the '\(locale.identifier)' slug '\(pattern.raw)' of '\(entry.canonical.raw)'", pattern, index, false))
             }
         }
         for i in declared.indices {
             for j in declared.indices where j > i {
                 // The opt-out. `owner` is non-decreasing (patterns are appended
                 // entry by entry), so `<` is exactly "different entries, this
-                // one later" — and equal owners, two patterns of ONE entry, are
-                // never suppressed: a slug colliding with its own canonical has
-                // no declaration order to appeal to.
+                // one later". Two conditions the author cannot express by
+                // ordering are excluded:
+                //
+                //  - equal owners, two patterns of ONE entry: a slug colliding
+                //    with its own canonical is a misdeclaration, not a choice;
+                //  - a CROSS-KIND pair, one entry's slug against another's
+                //    canonical. `internalize` runs the slug lookup before the
+                //    declared-canonical check (LocalePath.swift:27-28), so the
+                //    slug wins for either entry order and that canonical is
+                //    unreachable at its own URL — nothing to opt into.
                 if declared[i].owner < declared[j].owner,
+                   declared[i].isCanonical == declared[j].isCanonical,
                    entries[declared[j].owner].overlapsEarlierEntry { continue }
                 if Self.overlap(declared[i].pattern, declared[j].pattern) {
                     out.append("routePaths: \(declared[i].label) and \(declared[j].label) overlap — one path would match both and resolution is declaration-order, so a reordering would silently rewrite URLs")
