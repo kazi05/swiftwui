@@ -26,15 +26,15 @@ import Testing
     // The whole point of the raw matcher: RoutePattern.match would return "a/b".
     @Test func matchRawNeverDecodes() {
         let p = RoutePattern("/delivery/:from/:to")
-        let params = LocalizedRoutes.matchRaw("/delivery/a%2Fb/x", p)
+        let params = p._matchRaw("/delivery/a%2Fb/x")
         #expect(params?["from"] == "a%2Fb")
         #expect(params?["to"] == "x")
         #expect(RoutePattern("/delivery/:from/:to").match("/delivery/a%2Fb/x")?["from"] == "a/b")
     }
 
     @Test func matchRawRejectsWrongArity() {
-        #expect(LocalizedRoutes.matchRaw("/delivery/a", RoutePattern("/delivery/:from/:to")) == nil)
-        #expect(LocalizedRoutes.matchRaw("/delivery/a/b/c", RoutePattern("/delivery/:from/:to")) == nil)
+        #expect(RoutePattern("/delivery/:from/:to")._matchRaw("/delivery/a") == nil)
+        #expect(RoutePattern("/delivery/:from/:to")._matchRaw("/delivery/a/b/c") == nil)
     }
 
     @Test func substituteRawRebuildsByName() {
@@ -44,14 +44,14 @@ import Testing
     }
 
     @Test func catchAllTailSplicesVerbatim() {
-        let params = LocalizedRoutes.matchRaw("/docs/a/b%2Fc", RoutePattern("/docs/*"))
+        let params = RoutePattern("/docs/*")._matchRaw("/docs/a/b%2Fc")
         #expect(params?["*"] == "a/b%2Fc")
         #expect(LocalizedRoutes.substituteRaw(params!, into: RoutePattern("/dokumenty/*"))
                 == "/dokumenty/a/b%2Fc")
     }
 
     @Test func emptyCatchAllTailDropsTheSegment() {
-        let params = LocalizedRoutes.matchRaw("/docs", RoutePattern("/docs/*"))
+        let params = RoutePattern("/docs/*")._matchRaw("/docs")
         #expect(params?["*"] == "")
         #expect(LocalizedRoutes.substituteRaw(params!, into: RoutePattern("/dokumenty/*"))
                 == "/dokumenty")

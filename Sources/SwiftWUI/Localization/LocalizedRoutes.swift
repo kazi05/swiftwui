@@ -118,32 +118,6 @@ public enum LocalizedRoutesBuilder {
 }
 
 extension LocalizedRoutes {
-    /// `RoutePattern.match`, minus the percent-decode (`RoutePattern.swift:130`).
-    ///
-    /// The table's entire job is to hand a path back byte-for-byte. Decoding
-    /// here would turn `/dostavka/a%2Fb/x` into a three-segment canonical path,
-    /// break the round-trip invariant, and make the SSG classify every page of
-    /// that route as a self-targeting redirect (spec §2.1).
-    static func matchRaw(_ path: String, _ pattern: RoutePattern) -> [String: String]? {
-        let parts = RouteURL.pathSegments(RouteURL.normalizePath(path))
-        var params: [String: String] = [:]
-        var i = 0
-        for seg in pattern.segments {
-            switch seg {
-            case .catchAll:
-                params["*"] = parts[i...].joined(separator: "/")
-                return params
-            case .literal(let lit):
-                guard i < parts.count, parts[i] == lit else { return nil }
-            case .param(let name):
-                guard i < parts.count else { return nil }
-                params[name] = parts[i]
-            }
-            i += 1
-        }
-        return i == parts.count ? params : nil
-    }
-
     /// Canonical path → this locale's slug, or nil when the table says nothing.
     /// First entry whose canonical pattern matches AND that declares `locale`;
     /// validation (V5/V6) guarantees at most one entry can match at all, unless
@@ -152,7 +126,7 @@ extension LocalizedRoutes {
     func _localizedPath(for path: String, locale: LocaleID) -> String? {
         for entry in entries {
             guard let pattern = entry.localized[locale],
-                  let params = Self.matchRaw(path, entry.canonical) else { continue }
+                  let params = entry.canonical._matchRaw(path) else { continue }
             return Self.substituteRaw(params, into: pattern)
         }
         return nil
@@ -164,7 +138,7 @@ extension LocalizedRoutes {
     func _canonicalPath(for path: String) -> (path: String, locale: LocaleID)? {
         for entry in entries {
             for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
-                guard let params = Self.matchRaw(path, entry.localized[locale]!) else { continue }
+                guard let params = entry.localized[locale]!._matchRaw(path) else { continue }
                 return (Self.substituteRaw(params, into: entry.canonical), locale)
             }
         }
@@ -216,7 +190,7 @@ extension LocalizedRoutes {
     func _declaresCanonical(_ path: String) -> Bool {
         entries.contains { entry in
             guard case .literal = entry.canonical.segments.first else { return false }
-            return Self.matchRaw(path, entry.canonical) != nil
+            return entry.canonical._matchRaw(path) != nil
         }
     }
 
@@ -334,7 +308,7 @@ extension LocalizedRoutes {
                 // given V11, it cannot fail for any table `RoutePattern` can
                 // represent (see `roundTripFailure`). Kept because it asserts
                 // the §3.3 invariant directly, so a future change to
-                // `matchRaw` or `RoutePattern` breaks a test rather than URLs.
+                // `RoutePattern._matchRaw` breaks a test rather than URLs.
                 if let failure = Self.roundTripFailure(entry: entry, locale: locale) {
                     out.append("routePaths entry '\(canon)': \(failure)")
                 }
@@ -417,7 +391,7 @@ extension LocalizedRoutes {
             // is the case where the typo-catching is sharp.
             let canonPath = RouteURL._normalize(canon)
             if !declared.contains(canonPath),
-               !collected.contains(where: { Self.matchRaw(canonPath, $0.pattern) != nil }) {
+               !collected.contains(where: { $0.pattern._matchRaw(canonPath) != nil }) {
                 out.append("routePaths entry '\(canon)' matches no Route — declared patterns are \(declared.sorted())")
             }
             for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
@@ -528,12 +502,12 @@ extension LocalizedRoutes {
     /// sample rather than argued from the other checks.
     ///
     /// Honest about its reach: V11 already forces the two patterns to name the
-    /// same params, and `matchRaw` recovers substituted segments verbatim, so
+    /// same params, and `_matchRaw` recovers substituted segments verbatim, so
     /// once V11 passes this cannot fail for any table `RoutePattern` can
     /// represent. The sample values are opaque tokens to every code path they
     /// touch — nothing here percent-decodes — so they buy no extra coverage
     /// either. What it does buy is a direct assertion of the invariant: change
-    /// `matchRaw` to decode, or `substituteRaw` to re-encode, and this fails
+    /// `_matchRaw` to decode, or `substituteRaw` to re-encode, and this fails
     /// before any URL does. The set is FIXED for that reason — a validation
     /// that fails on a different build than it passed on is worse than none.
     static func roundTripFailure(entry: Entry, locale: LocaleID) -> String? {
@@ -549,7 +523,7 @@ extension LocalizedRoutes {
         }
         let canonicalPath = substituteRaw(params, into: entry.canonical)
         let slug = substituteRaw(params, into: entry.localized[locale]!)
-        guard let back = matchRaw(slug, entry.localized[locale]!) else {
+        guard let back = entry.localized[locale]!._matchRaw(slug) else {
             return "'\(slug)' does not match its own pattern '\(entry.localized[locale]!.raw)'"
         }
         let rebuilt = substituteRaw(back, into: entry.canonical)

@@ -126,9 +126,25 @@ public struct RoutePattern: Equatable {
 
     /// Captured params (percent-decoded), or nil when the path doesn't match.
     /// A catch-all's tail lands under key "*". Matching is case-sensitive.
-    public func match(_ path: String) -> [String: String]? {
-        let parts = RouteURL.pathSegments(RouteURL.normalizePath(path))
-            .map(RouteURL.percentDecode)
+    public func match(_ path: String) -> [String: String]? { _match(path, decoding: true) }
+
+    /// The same matcher, handing segments back BYTE-FOR-BYTE.
+    ///
+    /// `LocalizedRoutes` needs it: the table's entire job is to hand a path back
+    /// unchanged, and decoding here would turn `/dostavka/a%2Fb/x` into a
+    /// three-segment canonical path, break the round-trip invariant, and make
+    /// the SSG classify every page of that route as a self-targeting redirect
+    /// (spec 2026-08-02 §2.1).
+    ///
+    /// It shares `match`'s body deliberately. It lived in `LocalizedRoutes` as a
+    /// hand-copied fork, where the next change to pattern semantics would have
+    /// landed in one matcher and not the other — with a green build and a site
+    /// of meta-refresh stubs pointing at themselves as the only symptom.
+    func _matchRaw(_ path: String) -> [String: String]? { _match(path, decoding: false) }
+
+    private func _match(_ path: String, decoding: Bool) -> [String: String]? {
+        var parts = RouteURL.pathSegments(RouteURL.normalizePath(path))
+        if decoding { parts = parts.map(RouteURL.percentDecode) }
         var params: [String: String] = [:]
         var i = 0
         for seg in segments {
