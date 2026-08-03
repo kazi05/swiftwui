@@ -204,6 +204,7 @@ extension StaticSite {
                               globalStyles: A.globalStyles, themes: A.themes,
                               fontFaces: A.fontFaces, localization: A.localization)
         runtime._effects._buildMode = true
+        runtime._disableViewTransitions = true    // a build reads the tree as settled truth
         // `_renderBootShell` renders against the environment the last full pass
         // stashed, so it needs a pass to have run: without `mount()` it asserts
         // in debug and ships a signal-less environment in release.

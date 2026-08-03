@@ -31,15 +31,19 @@ public enum BootShellRunner {
     ///
     /// This is a HOST build: nothing else in the CLI compiles for the host, so
     /// the first invocation pays one cold compile of the whole graph into
-    /// `.build`. Callers skip it entirely when the project declares no boot UI.
+    /// `.build`.
     public static func run(projectDir: String, runner: ProcessRunner) throws -> BootShell? {
         let product = try PackageInfo.executableProduct(in: projectDir, runner: runner)
         let result = try runner.run("swift", ["run", product, "boot-shell"],
                                     cwd: projectDir, streamOutput: false)
         guard result.exitCode == 0, let shell = parse(stdout: result.stdout) else {
+            // Deliberately not "has no 'boot-shell' subcommand": a project that
+            // fails to COMPILE exits non-zero too, and `streamOutput: false`
+            // swallowed its diagnostics. Name the remedy, not a cause this
+            // cannot tell apart — the build step surfaces the real error next.
             print("""
-            note: \(product) has no 'boot-shell' subcommand — regenerate Sources/Entry.swift; \
-            building without boot UI
+            note: could not run '\(product) boot-shell' — if this project predates boot UI, \
+            regenerate Sources/Entry.swift; building without boot UI
             """)
             return nil
         }

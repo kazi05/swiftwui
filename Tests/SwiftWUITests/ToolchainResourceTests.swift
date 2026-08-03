@@ -15,6 +15,26 @@ import Foundation
         #expect(entry.contains("./wasi.js"))        // relative sibling imports = must ship whole dist
     }
 
+    /// The splice marker is a magic string repeated in three templates that
+    /// nothing compiles, so this is the only thing standing between a head
+    /// reorder and a site that boots nowhere: `build` writes modulepreloads
+    /// into the region, and a modulepreload ABOVE the import map makes Firefox
+    /// reject the map outright.
+    @Test func everyTemplateHasTheBootMarkerBelowTheImportMap() throws {
+        for template in Scaffolder.templates {
+            let path = ToolchainResources.url("templates/\(template)/index.html")
+            let html = try String(contentsOf: path, encoding: .utf8)
+            let open = try #require(html.range(of: "<!--swiftwui:boot-->"),
+                                    "template \(template): no boot marker")
+            #expect(html.range(of: "<!--/swiftwui:boot-->") != nil,
+                    "template \(template): boot marker never closed")
+            let map = try #require(html.range(of: "importmap"),
+                                   "template \(template): no import map")
+            #expect(map.lowerBound < open.lowerBound,
+                    "template \(template): import map must come BEFORE the boot marker")
+        }
+    }
+
     @Test(.timeLimit(.minutes(1)))
     func concurrentDrainSurvivesLargeStderr() throws {
         // 200KB to BOTH pipes — deadlocks under a sequential drain (stderr pipe fills
