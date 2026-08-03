@@ -446,13 +446,19 @@ public final class DOMBackend: RendererBackend {
     public func historyBack() {
         _ = JSObject.global.history.object!.back!()
     }
-    /// The prerender's own `link[data-swiftwui-ssg]` (synthesized canonical +
-    /// hreflang). `setLinks` deliberately does not sweep them — they belong to
-    /// the URL that was served and the client cannot rebuild them — so this is
-    /// the one place they go, called by Runtime on every client-side URL move.
+    /// The prerender's own `[data-swiftwui-ssg]` head tags: the synthesized
+    /// canonical and hreflang links, AND the fall-through page's
+    /// `<meta name="robots" content="noindex">`. `setLinks`/`setMetaTags`
+    /// deliberately do not sweep them — they belong to the URL that was served
+    /// and the client cannot rebuild them — so this is the one place they go,
+    /// called by Runtime on every client-side URL move.
     /// Nothing to do after the first move: the selector then matches nothing.
+    ///
+    /// The meta half matters as much as the links: a visitor landing on a
+    /// prerendered 404 and following an in-page `Link` to a real page would
+    /// otherwise carry that `noindex` for the rest of the session.
     public func dropPrerenderedHeadLinks() {
-        let old = jsDocument.querySelectorAll("link[data-swiftwui-ssg]").object
+        let old = jsDocument.querySelectorAll("link[data-swiftwui-ssg], meta[data-swiftwui-ssg]").object
         let n = Int(old?.length.number ?? 0)
         for i in (0..<n).reversed() {
             if let el = old?[i].object { _ = el.parentNode.object?.removeChild?(el) }

@@ -62,11 +62,13 @@ public enum DocumentSerializer {
             }
             out += " data-swiftwui>\n"       // managed set marker (same as meta)
         }
-        // Prerender-only links get their OWN marker, so the hydration re-apply
-        // (`setLinks` sweeps `link[data-swiftwui]`, an exact attribute-NAME
-        // match) leaves them standing. Neither CanonicalSynthesis nor
-        // HreflangLinks exists client-side, and the client has neither siteURL
-        // nor the locale set, so anything swept here is gone for good.
+        // Prerender-only tags get their OWN marker, so the hydration re-apply
+        // (`setLinks`/`setMetaTags` sweep `link[data-swiftwui]` and
+        // `meta[data-swiftwui]`, an exact attribute-NAME match) leaves them
+        // standing. Neither CanonicalSynthesis nor HreflangLinks exists
+        // client-side, the client has neither siteURL nor the locale set, and
+        // it never learns a page was a fall-through, so anything swept here is
+        // gone for good.
         //
         // They describe THE URL THAT WAS SERVED. The moment the client moves the
         // URL — SPA navigation, back/forward, a `.pathPrefix` locale switch —
