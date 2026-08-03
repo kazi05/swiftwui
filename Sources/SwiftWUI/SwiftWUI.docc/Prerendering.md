@@ -240,7 +240,11 @@ The `swiftwui` CLI's own `ssg` subcommand only takes `--out`/`--product` — it
 just wraps `swift run <App> ssg --out <dir>`. `--path` is a flag each
 generated app template's `Entry.swift` parses itself, on top of the public
 `StaticSite.render` primitive, invoked directly as `swift run <App> ssg
---path <path> [--locale <tag>] [--out <dir>]`:
+--path <path> [--locale <tag>] [--out <dir>]`.
+
+In the template's `Entry.swift`, `onlyPath`, `localeTag` and `out` are the
+parsed `--path`, `--locale` and `--out` values, and `config` is the
+`StaticSiteConfig` built from them:
 
 ```swift
 if let onlyPath {

@@ -405,6 +405,131 @@ route, and the prefix gets applied on top of it. DEBUG builds print
 release builds are silent. ``Link`` handles this for you — its `href` carries
 the prefix while its click still navigates to the internal path.
 
+## Per-locale paths
+
+A page can have a different path in each locale instead of a prefixed one.
+Declare the table on ``Localization``; everything else in the app keeps using
+the **canonical** path, which is the default locale's:
+
+```swift
+static var localization: Localization? {
+    Localization(catalog: L10n.self, default: .en, strategy: .pathPrefix(),
+                 routePaths: LocalizedRoutes {
+                     LocalizedRoute("/delivery/:from/:to", ["ru": "/dostavka/:from/:to"])
+                     LocalizedRoute("/about", ["ru": "/o-nas"])
+                 })
+}
+```
+
+Locale keys are plain `String`s, parsed through the same validating
+``LocaleID`` initializer every other locale string goes through. Entries are
+written as `LocalizedRoute(…)`, not as a leading-dot factory: two `.path(…)`
+lines in a row parse as one chained expression and would not compile.
+
+The canonical pattern is written exactly as its `Route` — that string is the
+key tying the two together. Nothing else in the app changes:
+
+```swift
+Route("/delivery/:from/:to") { p in DeliveryPage(from: p["from"], to: p["to"]) }
+Link("/delivery/moscow/paris") { Text("Moscow → Paris") }  // href: /dostavka/… in ru
+navigate("/about")                                         // canonical, every locale
+```
+
+Slugs are applied at the three output boundaries `LocalePath` already owned —
+`Link` hrefs, history writes, URLs built by SSG — and nowhere else.
+`currentPath`, route matching, ``RouteParam``, guards and `.prerender`
+policies never see a slug, exactly as they never see a prefix.
+
+| | en | ru |
+| --- | --- | --- |
+| **translated** | `/delivery/moscow/paris` | `/dostavka/moscow/paris` |
+| **untranslated** | `/about` | `/ru/about` |
+
+The two forms coexist per route and per locale: a route the table says nothing
+about, or a locale one entry omits, keeps today's prefix URL.
+
+**Parameter values are not translated.** `:from` is `moscow` in every
+language. That is what lets the build emit a correct `hreflang` set —
+`/delivery/moscow/paris` and `/dostavka/moscow/paris` share no text, so
+hreflang is the only thing pairing them for a crawler. If you want Russian
+values in the URL, they have to be the canonical ones.
+
+**Only `.pathPrefix`.** Under `.negotiated` and `.client` there is no locale
+in the URL for a slug to replace, so the table would be read by nothing at
+all. Rather than ignore it silently, the generator rejects it.
+
+**Slugs are ASCII** — `[A-Za-z0-9-._~/:*]`. Transliterate: `/dostavka`, not
+`/доставка`.
+
+### What the build checks
+
+The table is validated by `StaticSite.generate` and `StaticSite.render` — so
+by `swiftwui ssg` — and a problem fails the run with every message at once.
+The checks exist because each of these failures otherwise produces a site that
+builds, has the right page count, and is quietly wrong. The ones you are most
+likely to meet:
+
+- **`siteURL` is required.** Without it neither the canonical nor any hreflang
+  alternate is emitted, and the language cluster is lost — see above. A
+  scaffolded project leaves `let siteURL: String? = nil` in its
+  `Sources/Entry.swift` for you to fill in.
+- **Every entry must match a declared `Route`.** An entry no route claims is
+  inert, and a typo in a canonical pattern has no other symptom.
+- **The default locale must not appear in an entry** — the canonical pattern
+  already is that locale's path.
+- **A slug must start with a literal segment.** One starting with `:` or `*`
+  also matches the locale prefix `/ru` by segment count alone.
+- **No two declared patterns may overlap**, canonical or slug, because
+  resolution is first-match-in-declaration-order and a reordering would
+  silently rewrite URLs.
+
+That last one has an opt-out, for the shape `Router` itself resolves by
+declaration order. Set it on the *later* entry — the shadowed one:
+
+```swift
+LocalizedRoute("/blog/archive", ["ru": "/novosti/arkhiv"])
+LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"], overlapsEarlierEntry: true)
+```
+
+The trade is that declaration order now decides this site's URLs and the build
+stops watching that pair. Swapping the two lines is still caught, since the
+flag travels with its line and lands on the earlier entry — but moving the
+flag onto the new later entry to silence that report leaves `/blog/archive`
+externalizing as `/novosti/archive`, with nothing left to say so.
+
+### Adding a slug is a URL migration
+
+`/ru/about` stops being written the moment `/o-nas` exists, and that URL is
+already indexed, linked and bookmarked. `ssg` leaves a meta-refresh stub at
+every retired prefix URL pointing at its replacement — including the bare
+`/ru`, which no build writes once the home page itself is slugged.
+
+Two limits. Only an entry whose canonical pattern is static gets a stub: a
+parameterised route has one retired URL per parameter combination, and which
+of those a previous build wrote is not something the table knows. And a stub
+is written only for a page this build actually rendered, so a route under
+`.prerender(.never)` gets none — a redirect into a 404 is worse than a 404. A
+meta-refresh is a placeholder either way; configure a real `301` at your
+server for anything long-lived.
+
+### Reading a localized URL back
+
+`StaticSite.resolve` is the inverse of the output boundary: a browser-visible
+path in, the canonical path plus the locale that URL identified out. Query and
+fragment are dropped. An app that declares no localization — or one not on
+`.pathPrefix` — gets its path back normalized and a `nil` locale.
+
+```swift
+let resolved = StaticSite.resolve(MyApp.self, requestPath: "/o-nas?tab=2")
+// resolved.path == "/about", resolved.locale == .ru
+try await StaticSite.render(MyApp.self, path: resolved.path, config: config,
+                            locale: resolved.locale)
+```
+
+Every scaffolded template parses `--path`/`--locale` on top of it, so
+`swift run MyApp ssg --path /o-nas` renders exactly that one page. See
+<doc:Prerendering>.
+
 ## Deploying `.negotiated`
 
 `.negotiated` serves real localized HTML at a clean URL. Every language of
