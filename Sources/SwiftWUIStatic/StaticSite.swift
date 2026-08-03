@@ -564,7 +564,7 @@ public enum StaticSite {
         // page, so the client — which can recompute neither — must not sweep
         // them on the first hydrated commit (DocumentSerializer emits them under
         // `data-swiftwui-ssg`).
-        let appHead = tree.head
+        var appHead = tree.head
         var prerenderedLinks: [LinkTag] = []
         var prerenderedMeta: [MetaTag] = []
         if case .page = tree.outcome {
@@ -588,9 +588,23 @@ public enum StaticSite {
             // deserve the same treatment for the same reason, so the branch is
             // deliberately the catch-all rather than `case .notFound`.
             prerenderedMeta.append(MetaTag(attributes: ["name": "robots", "content": "noindex"]))
+            // The app's OWN canonical is the same hazard and is NOT covered by
+            // the gate above. `.pageMeta` writes `ctx.pageHeadPatch` from
+            // wherever it sits — a site-wide one ABOVE the Router included —
+            // and `commitRouteEffects` folds it over an empty baseline when no
+            // route matched, so a fall-through's head is non-nil and carries
+            // those links. `noindex` + `canonical` is a conflicting pair, and
+            // the canonical names a REAL URL that would inherit the noindex.
+            // Title, description and the rest stay: they cost nothing on a 404.
+            appHead?.links.removeAll {
+                $0.attributes["rel"] == "canonical"
+                    || ($0.attributes["rel"] == "alternate" && $0.attributes["hreflang"] != nil)
+            }
         }
         // `RenderedPage.head` stays the full set — callers read it as "what this
         // page's head contains", and that is unchanged by where the markers go.
+        // It is built from the same `appHead` the document got, so a caller
+        // (an on-demand server) never sees a canonical the document dropped.
         var head = appHead
         if !prerenderedLinks.isEmpty {
             var merged = head ?? PageHead(title: "", meta: [], links: [])

@@ -249,6 +249,22 @@ private struct FallThroughSite: App {
     }
 }
 
+/// Same fall-through shape, plus the site-wide `.pageMeta` canonical that makes
+/// `tree.head` non-nil on a page no route matched: `_PageMetaTag` writes
+/// `ctx.pageHeadPatch` from ABOVE the Router, and `commitRouteEffects` folds it
+/// over an empty baseline. Synthesis stands down when the app declared its own,
+/// so gating only the synthesized links would still ship this one.
+private struct FallThroughSiteWithSiteWideCanonical: App {
+    init() {}
+    var body: some Tag {
+        Router(notFound: { Text("nothing here") }) {
+            Route("/") { Text("home") }
+            Route("/ghost", guard: { .redirect("/ghost") }) { Text("secret") }
+        }
+        .pageMeta(links: [.canonical("https://example.com/")])
+    }
+}
+
 @Suite @MainActor struct NotFoundIndexingTests {
     func tempDir() -> String { NSTemporaryDirectory() + "swiftwui-nf-\(UUID().uuidString)" }
 
@@ -258,9 +274,25 @@ private struct FallThroughSite: App {
         let report = try await StaticSite.generate(FallThroughSite.self, config: .init(
             outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
         let html = try String(contentsOfFile: out + "/ghost/index.html", encoding: .utf8)
-        #expect(html.contains("content=\"noindex\""))
+        // Full string, marker included: under `data-swiftwui` instead,
+        // `setMetaTags` would sweep it on the first hydrated commit.
+        #expect(html.contains("<meta content=\"noindex\" name=\"robots\" data-swiftwui-ssg>"))
         #expect(!html.contains("rel=\"canonical\""))
         #expect(report.notFoundPages.contains("/ghost"))
+        #expect(!report.notFoundPages.contains("/"))
+    }
+
+    @Test func appDeclaredCanonicalIsStrippedFromAFallThrough() async throws {
+        let out = tempDir()
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        _ = try await StaticSite.generate(FallThroughSiteWithSiteWideCanonical.self, config: .init(
+            outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
+        let ghost = try String(contentsOfFile: out + "/ghost/index.html", encoding: .utf8)
+        #expect(ghost.contains("<meta content=\"noindex\" name=\"robots\" data-swiftwui-ssg>"))
+        #expect(!ghost.contains("rel=\"canonical\""))     // noindex + canonical would poison the target URL
+        let home = try String(contentsOfFile: out + "/index.html", encoding: .utf8)
+        #expect(home.contains("rel=\"canonical\""))       // the real page keeps the app's own
+        #expect(!home.contains("content=\"noindex\""))
     }
 
     @Test func realPageStillGetsItsCanonical() async throws {
