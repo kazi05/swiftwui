@@ -46,12 +46,17 @@ public struct StaticSiteConfig: Sendable {
 public enum StaticSiteError: Error, CustomStringConvertible {
     case buildTaskOverflow(page: String, iterations: Int)
     case io(path: String, underlying: String)
+    /// A `routePaths` table that cannot work. Every one of these produces a
+    /// green build and a broken site, so the build stops instead (spec §4).
+    case invalidLocalizedRoutes([String])
     public var description: String {
         switch self {
         case .buildTaskOverflow(let page, let iterations):
             return "StaticSite: page '\(page)' never quiesced after \(iterations) build-task iterations"
         case .io(let path, let underlying):
             return "StaticSite: failed writing '\(path)': \(underlying)"
+        case .invalidLocalizedRoutes(let problems):
+            return "StaticSite: invalid routePaths:\n  - " + problems.joined(separator: "\n  - ")
         }
     }
 }
@@ -121,6 +126,10 @@ extension StaticSite {
     @MainActor
     public static func render<A: App>(_ app: A.Type, path: String, config: StaticSiteConfig,
                                       locale: LocaleID? = nil) async throws -> RenderedPage {
+        // `render` never goes through `generate()`, so it validates too — the
+        // table-only half only: there is no probe here and therefore no route
+        // set, and no alternates map for V13 to protect.
+        try StaticSite.validateLocalizedRoutes(A.self, collected: nil, config: config)
         guard config.prerenderEnabled else {
             return RenderedPage(html: "", css: "", head: nil,
                                 outcome: .error("prerendering disabled (kill-switch)"),
@@ -138,6 +147,35 @@ public enum StaticSite {
     /// — generate()'s error reconstruction derives its count from here rather
     /// than a second hardcoded literal, so the two can't drift apart.
     private static let buildTaskIterationCap = 10
+
+    /// Mirrors `DistLayout.reservedNames`: a localized slug becomes a top-level
+    /// directory in dist/, and the toolchain's own collision check only ever
+    /// scans `public/`. SwiftWUIStatic cannot import SwiftWUIToolchain (the
+    /// same seam `LocaleNegotiation` sits on), so the list is duplicated and
+    /// `ReservedNameDriftTests` is what keeps the two copies equal.
+    static let reservedDistNames: Set<String> =
+        ["app", "vendor", "index.html", "styles.css", "__swiftwui", "sw-assets.js",
+         "nginx.conf", "swiftwui-site.json"]
+
+    /// The one gate on `routePaths`. `_validate` is a reporting pass by design
+    /// — the table is built during `static let` initialization, where a trap
+    /// kills the process before any diagnostic prints — so this is where a
+    /// report becomes a failed build.
+    ///
+    /// `collected == nil` runs the table-only half: that is `render`, which has
+    /// no probe and therefore no route set.
+    static func validateLocalizedRoutes<A: App>(_ app: A.Type, collected: [_CollectedRoute]?,
+                                                config: StaticSiteConfig) throws {
+        // Everything about this feature is inert without a table — an app that
+        // declares none must not gain a single new way to fail its build.
+        guard let l10n = A.localization, !l10n.routePaths.isEmpty else { return }
+        var problems = l10n.routePaths._validate(localization: l10n)
+        if let collected {
+            problems += l10n.routePaths._validate(against: collected, siteURL: config.siteURL,
+                                                  reservedNames: reservedDistNames)
+        }
+        guard problems.isEmpty else { throw StaticSiteError.invalidLocalizedRoutes(problems) }
+    }
 
     /// Renders one page per enumerated path (spec §5): a fresh native
     /// Runtime<MockBackend> per page — guards, redirects, effects and state
@@ -157,6 +195,9 @@ public enum StaticSite {
         probe._effects._buildMode = true      // enumeration must not run "/"'s effects for real
         probe.mount()
         let collected = probe._collectRoutes()
+        // Before the providers run: a table this build can never honour should
+        // not cost the author a round trip to whatever `.paths` talks to.
+        try validateLocalizedRoutes(A.self, collected: collected, config: config)
         var pagePaths: [String] = []
         var skipped: [String] = []
         var onDemand: [String] = []
@@ -208,6 +249,11 @@ public enum StaticSite {
             }
         }
         let unmatched = config.paths.filter { !claimed.contains(RouteURL._normalize($0)) } + providerUnmatched   // M2
+        // The second half of the gate, and it has to be here: `config.paths`
+        // entries AND `.paths` provider output both land in `pagePaths`, and
+        // the providers only just ran. Inert without a table.
+        let slugPaths = A.localization?.routePaths._validate(enumerated: pagePaths) ?? []
+        guard slugPaths.isEmpty else { throw StaticSiteError.invalidLocalizedRoutes(slugPaths) }
 
         // --- render each page ---
         var report = StaticSiteReport(pages: [], redirects: [:], skippedPatterns: skipped,

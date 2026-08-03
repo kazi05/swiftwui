@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import SwiftWUI
 @testable import SwiftWUIStatic
+@testable import SwiftWUIToolchain
 
 private let title = LocalizedText(key: "t") { locale in
     switch locale.language {
@@ -300,5 +301,164 @@ private struct SlugSite: App {
         defer { try? FileManager.default.removeItem(atPath: dir) }
         let ru = try String(contentsOfFile: dir + "/o-nas/index.html", encoding: .utf8)
         #expect(ru.contains(#""path":"\/o-nas""#))
+    }
+}
+
+private func l10n(_ strategy: LocaleStrategy = .pathPrefix(),
+                  @LocalizedRoutesBuilder _ table: () -> [LocalizedRoutes.Entry]) -> Localization {
+    Localization(supported: [LocaleID("en")!, LocaleID("ru")!], default: LocaleID("en")!,
+                 strategy: strategy, routePaths: LocalizedRoutes(table))
+}
+
+/// The canonical is misspelled, so no `Route` ever claims the entry (V8).
+private struct OrphanEntrySite: App {
+    init() {}
+    var body: some Tag { Router { Route("/about") { _ in Text("about") } } }
+    static var localization: Localization? {
+        l10n { LocalizedRoute("/abuot", ["ru": "/o-nas"]) }
+    }
+}
+
+/// The slug is spelled as a real `Route`, which `internalize` then rewrites
+/// away before routing sees it (V7).
+private struct ShadowingSlugSite: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/blog") { _ in Text("blog") }
+            Route("/novosti") { _ in Text("news") }
+        }
+    }
+    static var localization: Localization? {
+        l10n { LocalizedRoute("/blog", ["ru": "/novosti"]) }
+    }
+}
+
+/// A table under a strategy that never reads it (V1, from the table-only pass).
+private struct NegotiatedWithTableSite: App {
+    init() {}
+    var body: some Tag { Router { Route("/about") { _ in Text("about") } } }
+    static var localization: Localization? {
+        l10n(.negotiated) { LocalizedRoute("/about", ["ru": "/o-nas"]) }
+    }
+}
+
+/// The slug's first segment is a top-level dist/ directory (V14).
+private struct ReservedSlugSite: App {
+    init() {}
+    var body: some Tag { Router { Route("/about") { _ in Text("about") } } }
+    static var localization: Localization? {
+        l10n { LocalizedRoute("/about", ["ru": "/vendor"]) }
+    }
+}
+
+/// `config.paths` names the ru slug instead of the canonical path, and the
+/// parametric route happily claims it. `internalize` then reports locale `ru`
+/// for it whatever locale the build asked for.
+private struct EnumeratedSlugSite: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/about") { _ in Text("about") }
+            Route("/:page") { p in Text(p["page"] ?? "") }
+        }
+    }
+    static var localization: Localization? {
+        l10n { LocalizedRoute("/about", ["ru": "/o-nas"]) }
+    }
+}
+
+@Suite @MainActor struct LocalizedRoutesBuildValidationTests {
+    private func out() -> String { NSTemporaryDirectory() + "swiftwui-v-\(UUID().uuidString)" }
+
+    /// Asserts the build fails AND that the diagnostic names the offender —
+    /// a validation whose message does not say which entry is wrong sends the
+    /// author hunting through the whole table.
+    private func expectRejection<A: App>(_ app: A.Type, containing needle: String,
+                                         paths: [String] = [],
+                                         siteURL: String? = "https://example.com") async {
+        let dir = out()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        do {
+            _ = try await StaticSite.generate(app, config: .init(
+                outDir: dir, mode: .staticOnly, paths: paths, siteURL: siteURL))
+            Issue.record("expected StaticSiteError, build succeeded")
+        } catch let error as StaticSiteError {
+            #expect(error.description.contains(needle))
+        } catch {
+            Issue.record("expected StaticSiteError, got \(error)")
+        }
+    }
+
+    @Test func orphanEntryIsRejected() async {
+        await expectRejection(OrphanEntrySite.self, containing: "/abuot")
+    }
+
+    @Test func slugShadowingARealRouteIsRejected() async {
+        await expectRejection(ShadowingSlugSite.self, containing: "/novosti")
+    }
+
+    @Test func tableUnderNegotiatedIsRejected() async {
+        await expectRejection(NegotiatedWithTableSite.self, containing: ".pathPrefix")
+    }
+
+    @Test func slugOnAReservedDistNameIsRejected() async {
+        await expectRejection(ReservedSlugSite.self, containing: "reserved dist name")
+    }
+
+    /// V13. Without an origin a slug site emits neither canonical nor hreflang,
+    /// and `/about` ↔ `/o-nas` share no substring for a crawler to pair up.
+    @Test func aTableWithoutASiteURLIsRejected() async {
+        await expectRejection(SlugSite.self, containing: "siteURL", siteURL: nil)
+        await expectRejection(SlugSite.self, containing: "siteURL", siteURL: "")
+    }
+
+    /// Enumerating the slug itself is last-write-wins on the locale key: both
+    /// renders of `/o-nas` report locale `ru`, so the cluster collapses to one
+    /// entry and hreflang vanishes from every page of it.
+    @Test func enumeratingALocalizedSlugIsRejected() async {
+        await expectRejection(EnumeratedSlugSite.self, containing: "/o-nas",
+                              paths: ["/o-nas"])
+    }
+
+    /// `render` is a separate public entry point (`ssg --path`, any render
+    /// server) and never goes through `generate`.
+    @Test func renderRunsTheTableOnlyValidations() async {
+        let dir = out()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        await #expect(throws: StaticSiteError.self) {
+            _ = try await StaticSite.render(NegotiatedWithTableSite.self, path: "/about",
+                                            config: .init(outDir: dir, mode: .staticOnly))
+        }
+    }
+
+    /// …and only the table-only half: with no probe there is no route set, so
+    /// the orphan `render` cannot see is not a reason to refuse the page.
+    @Test func renderDoesNotRunTheRouteSetValidations() async throws {
+        let dir = out()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let page = try await StaticSite.render(OrphanEntrySite.self, path: "/about",
+                                               config: .init(outDir: dir, mode: .staticOnly))
+        #expect(page.outcome == .page)
+    }
+
+    /// The whole feature is opt-in: a localized app that declares no table must
+    /// not gain a single new way to fail, V13 above all — every project that
+    /// predates this ships without a `siteURL`.
+    @Test func aTableFreeAppIsUntouchedWithoutASiteURL() async throws {
+        let dir = out()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let report = try await StaticSite.generate(PrefixSite.self, config: .init(
+            outDir: dir, mode: .staticOnly))
+        #expect(!report.pages.isEmpty)
+    }
+}
+
+/// `StaticSite.reservedDistNames` is a hand-copy of `DistLayout.reservedNames`
+/// — SwiftWUIStatic cannot import the toolchain. This is the only thing
+/// stopping the two from drifting.
+@Suite struct ReservedNameDriftTests {
+    @Test func staticMirrorsToolchain() {
+        #expect(StaticSite.reservedDistNames == DistLayout.reservedNames)
     }
 }

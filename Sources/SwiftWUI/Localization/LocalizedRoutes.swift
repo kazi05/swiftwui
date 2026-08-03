@@ -353,6 +353,88 @@ extension LocalizedRoutes {
         return out
     }
 
+    /// Checks that need something `_validate(localization:)` cannot see: the
+    /// app's real route set (spec §4: V8 and V7's route half) and the SSG's
+    /// config (V13, V14). Same REPORTING contract — the caller decides what a
+    /// problem costs.
+    ///
+    /// `reservedNames` is passed in rather than known here: it describes the
+    /// dist layout, which lives in SwiftWUIStatic. No `localization:` parameter
+    /// — none of these four checks reads one, and V1 already rejects a table
+    /// under a strategy that ignores it.
+    public func _validate(against collected: [_CollectedRoute], siteURL: String?,
+                          reservedNames: Set<String>) -> [String] {
+        guard !isEmpty else { return [] }
+        var out: [String] = []
+        // Normalized on both sides: `RoutePattern.raw` is stored verbatim, so
+        // `Route("/about/")` and `LocalizedRoute("/about", …)` are the same
+        // route and must not read as an orphan.
+        let declared = Set(collected.map { RouteURL._normalize($0.pattern.raw) })
+
+        for entry in entries {
+            let canon = entry.canonical.raw
+            // V8 — an entry no Route claims is inert. The build succeeds, the
+            // page count is right, and the feature silently did nothing; the
+            // canonical pattern is the identity key tying the two together, so
+            // a typo in it has no other symptom.
+            if !declared.contains(RouteURL._normalize(canon)) {
+                out.append("routePaths entry '\(canon)' matches no Route — declared patterns are \(declared.sorted())")
+            }
+            for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
+                let slug = entry.localized[locale]!.raw
+                // V7's route half — `internalize` rewrites the slug to its
+                // canonical before routing ever sees it, so the shadowed Route
+                // is unreachable at its own URL.
+                //
+                // ponytail: equality, not `overlap`. A slug that merely overlaps
+                // a broader pattern is the same hazard, but so is every slug
+                // against an app-wide `Route("/*")` — `_validate(enumerated:)`
+                // catches the concrete instances instead.
+                if declared.contains(RouteURL._normalize(slug)) {
+                    out.append("routePaths entry '\(canon)' declares slug '\(slug)' for '\(locale.identifier)', which is also a real Route pattern")
+                }
+                // V14 — a slug's first segment IS a top-level directory in
+                // dist/, and the toolchain's own reserved-name check only ever
+                // scans public/. Lowercased: dist lands on a case-insensitive
+                // filesystem on both macOS and Windows, where '/Vendor'
+                // overwrites 'vendor' exactly as '/vendor' would.
+                let head = String(RouteURL._normalize(slug).dropFirst().prefix { $0 != "/" })
+                if reservedNames.contains(head.lowercased()) {
+                    out.append("routePaths entry '\(canon)': slug '\(slug)' for '\(locale.identifier)' starts with '\(head)', a reserved dist name (\(reservedNames.sorted().joined(separator: ", ")))")
+                }
+            }
+        }
+        // V13 — with a table this is not a mild omission. `/about` and `/o-nas`
+        // share no substring, so hreflang is the ONLY thing pairing them up;
+        // without an origin neither it nor the canonical is emitted, and the
+        // whole language cluster is lost.
+        if siteURL?.isEmpty != false {
+            out.append("routePaths requires a siteURL in StaticSiteConfig — without it neither the canonical nor any hreflang alternate is emitted, and a localized slug shares no substring with its canonical for a crawler to pair them up")
+        }
+        return out
+    }
+
+    /// The paths the SSG is about to render, checked against the table.
+    ///
+    /// Separate from the pass above because `.paths` providers are part of the
+    /// input: their output is only known after enumeration has run them.
+    ///
+    /// The SSG enumerates INTERNAL, locale-free paths. One that a slug pattern
+    /// claims is therefore already wrong, and it fails in a way nothing else
+    /// reports: `internalize` maps it back to its canonical AND to the locale
+    /// that owns the slug, whichever locale the build asked for. The page
+    /// either self-redirects forever or lands in the alternates map under a
+    /// locale that already has an entry — `alternates[canonical][locale]` is
+    /// last-write-wins, so a two-locale cluster silently collapses to one and
+    /// hreflang disappears from both pages.
+    public func _validate(enumerated paths: [String]) -> [String] {
+        guard !isEmpty else { return [] }
+        return paths.compactMap { path in
+            guard let hit = _canonicalPath(for: path) else { return nil }
+            return "SSG page path '\(path)' is a '\(hit.locale.identifier)' localized slug — enumerate its canonical path '\(hit.path)' instead and let the build produce every locale's URL"
+        }
+    }
+
     static func isSlugCharacter(_ c: Character) -> Bool {
         guard c.isASCII else { return false }
         return c.isLetter || c.isNumber || "-._~/:*".contains(c)
