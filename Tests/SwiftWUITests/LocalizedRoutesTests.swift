@@ -535,4 +535,31 @@ import Testing
             LocalizedRoute("/docs/*", ["ru": "/*"])
         }).contains { $0.contains("literal segment") })
     }
+
+    /// `Runtime.init`'s `#if DEBUG` block is the only thing that runs these
+    /// checks for an app that never builds a `StaticSite` — `swiftwui build`
+    /// and `swiftwui dev` do not. This suite has no print capture, so what is
+    /// pinned here is the expression the runtime prints, plus a boot on the
+    /// same table: the reporting pass must still not trap where the print
+    /// happens, and the damage it reports must be real.
+    @Test @MainActor func theRuntimeStartupDiagnosticReportsABadTable() {
+        // V2 — the default locale in an entry. `internalize('/about-us')` then
+        // reports a locale, which wins outright under `.pathPrefix`, so
+        // `.pathPrefix(.full)` degrades to `.urlOnly` for this one route and
+        // x-default moves off the URL. Green build, no diagnostic, wrong site.
+        let bad = LocalizedRoutes { LocalizedRoute("/about", ["en": "/about-us"]) }
+        #expect(bad._validate(localization: l10n(.pathPrefix(), bad))
+                   .contains { $0.contains("declares the default locale 'en'") })
+
+        let good = LocalizedRoutes { LocalizedRoute("/about", ["ru": "/o-nas", "de": "/ueber-uns"]) }
+        #expect(good._validate(localization: l10n(.pathPrefix(), good)).isEmpty)
+        // Silent for a table-free app: nothing is printed at boot.
+        #expect(LocalizedRoutes.none._validate(localization: l10n(.pathPrefix(), .none)).isEmpty)
+
+        let backend = MockBackend()
+        let runtime = Runtime(backend: backend, container: backend.container, root: Text("x"),
+                              initialPath: "/about-us", scheduleMicrotask: { _ in },
+                              localization: l10n(.pathPrefix(), bad))
+        #expect(runtime._locationPath == "/about")     // the degradation V2 names, at boot
+    }
 }

@@ -166,6 +166,21 @@ public final class Runtime<Backend: RendererBackend> {
         if let localization {
             signals._setDefaultLocale(localization.default)
             signals._setLocale(urlLocale ?? localization.default)   // the URL wins over the default
+            #if DEBUG
+            // The table's table-only checks, at the one install point EVERY app
+            // reaches. `swiftwui build` and `swiftwui dev` never construct a
+            // StaticSite, so the SSG's two gates leave an SPA-only project with
+            // no diagnostic at all — and every one of these fails silently and
+            // looks like a working site (spec 2026-08-02 §4).
+            //
+            // A REPORT, never a trap: this runs at app startup, exactly where
+            // `LocalizedRoutes._validate(localization:)` argues a trap would
+            // kill the process before the diagnostic prints. Empty table → no
+            // output, so a table-free app sees nothing.
+            for line in localization.routePaths._validate(localization: localization) {
+                print("SwiftWUI: \(line)")
+            }
+            #endif
         }
         effects._windowHub = windowEvents
         effects._onDropGuardChange = { [weak self] enabled in
