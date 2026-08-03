@@ -15,7 +15,10 @@ public nonisolated struct BootShell: Codable, Equatable {
 /// Everything the shim needs, stamped at build time.
 /// `sizeBytes == nil` means "unknown" — the shim then reports indeterminate
 /// progress rather than dividing by a wrong number.
-public struct BootConfig: Codable, Equatable {
+///
+/// `nonisolated` like `BootShell` above: `swiftwui build` constructs one from a
+/// nonisolated command body to stamp it into `dist/index.html`.
+public nonisolated struct BootConfig: Codable, Equatable {
     public var wasmURL: String
     public var entryURL: String
     /// Where `swiftwui-boot.js` is served from. Carried rather than hardcoded in

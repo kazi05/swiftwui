@@ -64,10 +64,18 @@ public enum PWAAssets {
             if rel.contains("?") || rel.contains("#") || rel.contains("%") {
                 throw ToolchainError.io("file name '\(rel)' contains '?', '#' or '%' — not representable as a precache URL; rename the file")
             }
-            guard let data = fm.contents(atPath: full) else {
-                throw ToolchainError.io("cannot read \(full) while generating sw-assets.js")
+            // The wasm is ~9.6 MB and the build already hashed it to stamp `?v=`
+            // into index.html — take that digest rather than reading the file a
+            // second time. Same bytes, two encodings.
+            let digest: [UInt8]
+            if rel.hasSuffix(".wasm"), let stamp = WasmDigest.stamp(path: full) {
+                digest = stamp.digest
+            } else {
+                guard let data = fm.contents(atPath: full) else {
+                    throw ToolchainError.io("cannot read \(full) while generating sw-assets.js")
+                }
+                digest = SHA256.digest([UInt8](data))
             }
-            let digest = SHA256.digest([UInt8](data))
             entries.append((url: "/" + rel, integrity: "sha256-" + SHA256.base64(digest)))
         }
         entries.sort { $0.url < $1.url }

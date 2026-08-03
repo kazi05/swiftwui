@@ -66,6 +66,20 @@ public enum DistLayout {
         try copyPublic(projectDir: projectDir, outDir: outDir)
     }
 
+    /// Copies the boot shim into dist/app. Must run AFTER `assemble`, which
+    /// deletes and recopies dist/app wholesale on every build — which is also
+    /// why a project that drops its boot UI never keeps a stale shim.
+    ///
+    /// Not in `reservedNames`: that list guards dist-ROOT names against
+    /// top-level public/ entries, and the shim lives under the already-reserved
+    /// `app`.
+    public static func copyBootShim(outDir: String) throws {
+        let src = ToolchainResources.url("swiftwui-boot.js").path
+        let dst = outDir + "/app/swiftwui-boot.js"
+        try? FileManager.default.removeItem(atPath: dst)
+        try FileManager.default.copyItem(atPath: src, toPath: dst)
+    }
+
     public static let reservedNames: Set<String> = ["app", "vendor", "index.html", "styles.css", "__swiftwui", "sw-assets.js", "nginx.conf", "swiftwui-site.json"]
 
     /// Top-level public/ entries that would shadow the framework's dist layout (spec §1).

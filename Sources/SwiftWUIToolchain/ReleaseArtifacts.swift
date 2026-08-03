@@ -85,7 +85,14 @@ public enum ReleaseArtifacts {
     /// Overwrite dist/nginx.conf (dist is build output; not user-owned).
     /// A `.negotiated` site descriptor adds cookie/Accept-Language rewriting;
     /// every other site gets byte-for-byte the config it always got.
-    public static func writeNginxConf(distDir: String, site: LocaleNegotiation.Site? = nil) throws {
+    ///
+    /// `wasmVersioned` is the build's answer to "does dist/index.html name the
+    /// wasm with a `?v=` digest" — false when the project declared no boot UI,
+    /// or when its index.html had nowhere to splice. It is the precondition for
+    /// an immutable cache header over the binary, and nothing reads it yet: the
+    /// caching rules are the next task's, and the signal is only knowable here.
+    public static func writeNginxConf(distDir: String, site: LocaleNegotiation.Site? = nil,
+                                      wasmVersioned: Bool = false) throws {
         var text = nginxConf
         if let site, site.isNegotiated, !site.locales.isEmpty {
             // `map` is only legal in the http block, `location` only inside

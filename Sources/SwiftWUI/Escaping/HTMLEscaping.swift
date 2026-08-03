@@ -9,7 +9,11 @@
 //
 // Foundation-free on purpose: this is hot-path SSR/SSG code and Core stays
 // light for the WASM binary.
-public enum HTMLEscaping {
+// `nonisolated` for the same reason `SHA256` is: the module builds with
+// `.defaultIsolation(MainActor.self)`, and the choke point has to stay reachable
+// from the nonisolated toolchain (the build's `index.html` splice) — the one
+// alternative being a second, unaudited copy of these escapes over there.
+public nonisolated enum HTMLEscaping {
 
     /// Escape text and attribute values for HTML. Safe for element text nodes
     /// and for any `attr="…"` value, including `class`/`style` attributes where
@@ -113,7 +117,7 @@ public enum HTMLEscaping {
     }
 }
 
-private extension String {
+private nonisolated extension String {
     /// Trim leading/trailing ASCII whitespace and control characters (incl. the
     /// NUL/tab/newline tricks used to smuggle `java\tscript:` past a naive
     /// scheme check) without pulling in Foundation.

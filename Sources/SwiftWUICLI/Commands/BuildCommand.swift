@@ -33,16 +33,28 @@ struct Build: ParsableCommand {
 
             """)
         }
+        // Before the wasm build, never after: this is a HOST build of the same
+        // sources, and a project that fails to compile exits non-zero here with
+        // its diagnostics swallowed. The wasm build then prints the real error.
+        let shell = try BootShellRunner.run(projectDir: cwd, runner: runner)
         let bundle = try WasmBuilder(runner: runner, projectDir: cwd, sdk: sdk)
             .build(configuration: config)
         let outDir = cwd + "/" + out
         try DistLayout.assemble(projectDir: cwd, bundleDir: bundle, outDir: outDir)
+        // Between `assemble` and `generateManifest`, and the order is not
+        // negotiable: `assemble` re-copies index.html over any earlier splice;
+        // after `generateManifest` the manifest's SRI covers the pre-splice
+        // index.html and every PWA install fails its integrity check; after
+        // `compress` the .gz sibling gzip_static serves is the boot-less one.
+        let wasmVersioned = try BootSplice.write(outDir: outDir, shell: shell)
         if try PWAAssets.generateManifest(distDir: outDir) {
             print("generated sw-assets.js (PWA precache manifest)")
         }
         if config == "release" {
             let s = try ReleaseArtifacts.compress(distDir: outDir, runner: runner)
-            try ReleaseArtifacts.writeNginxConf(distDir: outDir, site: LocaleNegotiation.read(distDir: outDir))
+            try ReleaseArtifacts.writeNginxConf(distDir: outDir,
+                                                site: LocaleNegotiation.read(distDir: outDir),
+                                                wasmVersioned: wasmVersioned)
             print("precompressed \(s.gzipped) file(s) (\(s.brotliAvailable ? "gzip + brotli" : "gzip only")); wrote nginx.conf")
         } else {
             try ReleaseArtifacts.clean(distDir: outDir)
