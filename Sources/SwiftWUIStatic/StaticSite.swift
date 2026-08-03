@@ -69,6 +69,8 @@ public struct StaticSiteReport {
     public var sitemapFiles: [String] = []
     /// Locales rendered (empty when the app declares no localization).
     public var locales: [LocaleID] = []
+    /// Pages whose Router fell through. Written and served, but `noindex`.
+    public var notFoundPages: [String] = []
     /// Output files actually written, relative to outDir.
     public var writtenFiles: [String] = []
 }
@@ -277,6 +279,9 @@ public enum StaticSite {
                 if !report.pages.contains(outputPath) { report.pages.append(outputPath) }
                 if case .page = rendered.outcome, !sitemapPaths.contains(outputPath) {
                     sitemapPaths.append(outputPath)
+                }
+                if case .notFound = rendered.outcome, !report.notFoundPages.contains(outputPath) {
+                    report.notFoundPages.append(outputPath)
                 }
                 if config.cssFile, !rendered.css.isEmpty, cssSeen.insert(rendered.css).inserted {
                     cssUnion.append(rendered.css)
@@ -561,16 +566,28 @@ public enum StaticSite {
         // `data-swiftwui-ssg`).
         let appHead = tree.head
         var prerenderedLinks: [LinkTag] = []
-        if let canonical = CanonicalSynthesis.synthesized(for: appHead, path: tree.externalPath,
-                                                          siteURL: config.siteURL,
-                                                          enabled: config.synthesizeCanonical) {
-            prerenderedLinks.append(canonical)
-        }
-        if let localization {
-            // A page that declared no head at all still needs its alternates —
-            // hreflang is a property of the URL set, not of the page's metadata.
-            prerenderedLinks += HreflangLinks.links(alternates: alternates,
-                                                    localization: localization, siteURL: config.siteURL)
+        var prerenderedMeta: [MetaTag] = []
+        if case .page = tree.outcome {
+            if let canonical = CanonicalSynthesis.synthesized(for: appHead, path: tree.externalPath,
+                                                              siteURL: config.siteURL,
+                                                              enabled: config.synthesizeCanonical) {
+                prerenderedLinks.append(canonical)
+            }
+            if let localization {
+                // A page that declared no head at all still needs its alternates —
+                // hreflang is a property of the URL set, not of the page's metadata.
+                prerenderedLinks += HreflangLinks.links(alternates: alternates,
+                                                        localization: localization, siteURL: config.siteURL)
+            }
+        } else {
+            // Only a Router fall-through gets this far — every other non-.page
+            // outcome left `body` nil and returned above. It renders real
+            // content at HTTP 200, so without this it ships a self-canonical
+            // and a reciprocal alternate, and Google is free to swap the empty
+            // page in as that language's version of a real one. `.error` would
+            // deserve the same treatment for the same reason, so the branch is
+            // deliberately the catch-all rather than `case .notFound`.
+            prerenderedMeta.append(MetaTag(attributes: ["name": "robots", "content": "noindex"]))
         }
         // `RenderedPage.head` stays the full set — callers read it as "what this
         // page's head contains", and that is unchanged by where the markers go.
@@ -590,6 +607,7 @@ public enum StaticSite {
                                                                      subdir: tree.subdir)) : nil,
             head: appHead,
             prerenderedLinks: prerenderedLinks,
+            prerenderedMeta: prerenderedMeta,
             snapshotJSON: tree.snapshot,
             importMapJSON: importMap,
             wasmScriptPath: tree.wasmPath,

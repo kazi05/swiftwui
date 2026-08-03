@@ -233,3 +233,43 @@ private struct BuildAttributionApp: App {
         #expect(snapshotRegion[..<scriptEnd.lowerBound].contains("\"tasks\":[]"))
     }
 }
+
+/// `/ghost`'s guard redirects to itself, which `Runtime.navigate` no-ops — the
+/// render settles on the path it was asked for while `_routeMatched` is false,
+/// so the Router falls through and the notFound content is the document body.
+/// That is the only shape in which `generate()` reaches serialize with a
+/// `.notFound` outcome (same fixture idea as `SitemapExcludesNotFoundTests`).
+private struct FallThroughSite: App {
+    init() {}
+    var body: some Tag {
+        Router(notFound: { Text("nothing here") }) {
+            Route("/") { Text("home") }
+            Route("/ghost", guard: { .redirect("/ghost") }) { Text("secret") }
+        }
+    }
+}
+
+@Suite @MainActor struct NotFoundIndexingTests {
+    func tempDir() -> String { NSTemporaryDirectory() + "swiftwui-nf-\(UUID().uuidString)" }
+
+    @Test func fallThroughPageIsNoindexedAndUncanonicalised() async throws {
+        let out = tempDir()
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        let report = try await StaticSite.generate(FallThroughSite.self, config: .init(
+            outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
+        let html = try String(contentsOfFile: out + "/ghost/index.html", encoding: .utf8)
+        #expect(html.contains("content=\"noindex\""))
+        #expect(!html.contains("rel=\"canonical\""))
+        #expect(report.notFoundPages.contains("/ghost"))
+    }
+
+    @Test func realPageStillGetsItsCanonical() async throws {
+        let out = tempDir()
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        _ = try await StaticSite.generate(FallThroughSite.self, config: .init(
+            outDir: out, mode: .staticOnly, siteURL: "https://example.com"))
+        let html = try String(contentsOfFile: out + "/index.html", encoding: .utf8)
+        #expect(html.contains("rel=\"canonical\""))
+        #expect(!html.contains("content=\"noindex\""))
+    }
+}

@@ -14,6 +14,9 @@ public enum DocumentSerializer {
         /// the hreflang set. Emitted under `data-swiftwui-ssg`, NOT the managed
         /// marker; see the loop below for why.
         public var prerenderedLinks: [LinkTag]
+        /// Meta the prerender owns, emitted under `data-swiftwui-ssg` like the
+        /// prerendered links — the client can recompute none of it.
+        public var prerenderedMeta: [MetaTag]
         public var snapshotJSON: String?     // hydrate mode only
         public var importMapJSON: String?    // hydrate mode only
         public var wasmScriptPath: String?   // hydrate mode only
@@ -21,10 +24,12 @@ public enum DocumentSerializer {
         public var dir: String?              // "rtl" for right-to-left locales; nil = omit
         public init(bodyHTML: String, css: String? = nil, cssHref: String? = nil,
                     head: PageHead? = nil, prerenderedLinks: [LinkTag] = [],
+                    prerenderedMeta: [MetaTag] = [],
                     snapshotJSON: String? = nil, importMapJSON: String? = nil,
                     wasmScriptPath: String? = nil, lang: String = "en", dir: String? = nil) {
             self.bodyHTML = bodyHTML; self.css = css; self.cssHref = cssHref
             self.head = head; self.prerenderedLinks = prerenderedLinks
+            self.prerenderedMeta = prerenderedMeta
             self.snapshotJSON = snapshotJSON
             self.importMapJSON = importMapJSON
             self.wasmScriptPath = wasmScriptPath; self.lang = lang; self.dir = dir
@@ -69,6 +74,13 @@ public enum DocumentSerializer {
         // (`Runtime.moveURL` / `handlePopState` → `dropPrerenderedHeadLinks`).
         // Dropping beats keeping a stale canonical, and costs nothing: crawlers
         // fetch each URL fresh and read its own prerendered head.
+        for meta in input.prerenderedMeta {
+            out += "<meta"
+            for name in meta.attributes.keys.sorted() {
+                out += " \(name)=\"\(HTMLEscaping.text(meta.attributes[name]!))\""
+            }
+            out += " data-swiftwui-ssg>\n"
+        }
         for link in input.prerenderedLinks {
             out += "<link"
             for name in link.attributes.keys.sorted() {
