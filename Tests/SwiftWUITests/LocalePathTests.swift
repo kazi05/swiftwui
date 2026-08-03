@@ -103,3 +103,79 @@ private struct PrefixApp: Tag {
         #expect(runtime._locationPath == "/about")      // routing never saw either prefix
     }
 }
+
+private struct SlugApp: Tag {
+    var body: some Tag {
+        Router {
+            Route("/") { _ in Text("home") }
+            Route("/about") { _ in Link("/about") { Text("self") } }
+            Route("/contact") { _ in Text("contact") }
+        }
+    }
+}
+
+@Suite @MainActor struct LocalizedSlugRuntimeTests {
+    private let en = LocaleID("en")!, ru = LocaleID("ru")!
+
+    private func make(_ initialPath: String)
+        -> (Runtime<MockBackend>, MockBackend, TestScheduler) {
+        let backend = MockBackend(); let sched = TestScheduler()
+        let l10n = Localization(supported: [en, ru], default: en,
+                                strategy: .pathPrefix(detection: .urlOnly),
+                                routePaths: LocalizedRoutes {
+                                    LocalizedRoute("/about", ["ru": "/o-nas"])
+                                })
+        let runtime = Runtime(backend: backend, container: backend.container, root: SlugApp(),
+                              initialPath: initialPath, scheduleMicrotask: sched.schedule,
+                              localization: l10n)
+        runtime.mount(); sched.pump()
+        return (runtime, backend, sched)
+    }
+
+    @Test func bootFromSlugAdoptsItsLocaleAndCanonicalPath() {
+        let (runtime, _, _) = make("/o-nas")
+        #expect(runtime._locationPath == "/about")
+        #expect(runtime._signals.locale == ru)
+    }
+
+    @Test func linkHrefUsesTheSlug() {
+        let (_, backend, _) = make("/o-nas")
+        #expect(backend.serializeHTML().contains("href=\"/o-nas\""))
+    }
+
+    @Test func setLocaleMovesBetweenSlugAndCanonical() {
+        let (runtime, backend, sched) = make("/o-nas")
+        runtime.setLocale(en); sched.pump()
+        #expect(backend.replacedStates.last == "/about")
+    }
+
+    @Test func untranslatedRouteStillUsesThePrefix() {
+        let (runtime, _, _) = make("/ru/contact")
+        #expect(runtime._locationPath == "/contact")
+        #expect(runtime._signals.locale == ru)
+    }
+
+    // The bug this task exists for: comparing LOCALES would find them equal and
+    // never move, leaving the address bar on the retired prefix form while every
+    // href on the page points at the slug.
+    @Test func retiredPrefixFormIsReplacedByTheSlug() {
+        let (_, backend, _) = make("/ru/about")
+        #expect(backend.replacedStates.last == "/o-nas")
+    }
+
+    // The inverse: an identity slug must NOT fire a move, because moveURL drops
+    // the prerendered canonical and hreflang set unconditionally.
+    @Test func identitySlugDoesNotFireAMove() {
+        let backend = MockBackend(); let sched = TestScheduler()
+        let l10n = Localization(supported: [en, ru], default: en,
+                                strategy: .pathPrefix(detection: .urlOnly),
+                                routePaths: LocalizedRoutes {
+                                    LocalizedRoute("/about", ["ru": "/about"])
+                                })
+        let runtime = Runtime(backend: backend, container: backend.container, root: SlugApp(),
+                              initialPath: "/about", scheduleMicrotask: sched.schedule,
+                              localization: l10n)
+        runtime.mount(); sched.pump()
+        #expect(backend.replacedStates.isEmpty)
+    }
+}

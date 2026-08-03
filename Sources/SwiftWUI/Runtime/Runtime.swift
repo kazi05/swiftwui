@@ -36,6 +36,12 @@ public final class Runtime<Backend: RendererBackend> {
     /// prefix. `signals.locale` cannot answer this: `init` already collapsed
     /// "no prefix" into the app default.
     private let initialURLLocale: LocaleID?
+    /// The external path currently displayed — what the browser arrived on until
+    /// the first move. Boot and `setLocale` compare against it rather than
+    /// re-deriving what "should" be shown: comparing LOCALES was equivalent
+    /// under prefixes and is not once a slug can carry the locale (spec §5.1).
+    /// Path only, no query — every comparison against it is path-only too.
+    private var _lastExternalPath: String
     // Routing (spec §7): the runtime owns the current location.
     private var currentPath: String
     private var currentQuery: [String: String]
@@ -137,8 +143,10 @@ public final class Runtime<Backend: RendererBackend> {
         var internalPath = RouteURL.normalizePath(rawPath)
         var urlLocale: LocaleID?
         if let localization, localization.strategy.usesURLPrefix {
-            (internalPath, urlLocale) = LocalePath.internalize(rawPath, supported: localization.supported)
+            (internalPath, urlLocale) = LocalePath.internalize(rawPath, supported: localization.supported,
+                                                               routes: localization.routePaths)
         }
+        _lastExternalPath = RouteURL.normalizePath(rawPath)
         currentPath = internalPath
         currentQuery = query
         _currentSearch = search
@@ -227,16 +235,19 @@ public final class Runtime<Backend: RendererBackend> {
         let (rawPath, query, search) = RouteURL.split(url)
         let path = RouteURL.normalizePath(rawPath)
         #if DEBUG
-        // Otherwise this is a blank page with no diagnostic: the prefix becomes
-        // part of the path, no route matches, and the URL gets it twice.
+        // Otherwise this is a blank page with no diagnostic: the prefix (or the
+        // slug) becomes part of the path, no route matches, and the URL gets it
+        // twice.
         if let l10n = _localization, l10n.strategy.usesURLPrefix,
-           LocalePath.internalize(path, supported: l10n.supported).locale != nil {
-            print("SwiftWUI: navigate('\(path)') carries a locale prefix — pass the locale-free path, prefixes are added on output")
+           LocalePath.internalize(path, supported: l10n.supported,
+                                  routes: l10n.routePaths).locale != nil {
+            print("SwiftWUI: navigate('\(path)') is a URL that already identifies a locale — pass the canonical path, prefixes and slugs are applied on output")
         }
         #endif
         guard path != currentPath || query != currentQuery else { redirectHops = 0; return }  // arriving at the current location ends any redirect chain
         currentPath = path; currentQuery = query; _currentSearch = search
         let externalPath = _externalPath(path)
+        _lastExternalPath = externalPath
         let full = search.isEmpty ? externalPath : externalPath + "?" + search
         moveURL(to: full, replace: replace)
         // Precedence (spec §4): explicit call site → destination Route →
@@ -267,9 +278,11 @@ public final class Runtime<Backend: RendererBackend> {
     /// true here, and the client can rebuild none of it (both live in
     /// SwiftWUIStatic, and neither `siteURL` nor the locale list ships in the
     /// snapshot). So the prerendered links are dropped, not rewritten: a
-    /// missing canonical is a non-signal, a stale one is a wrong signal. Real
-    /// crawlers never see the difference — they fetch every URL fresh and read
-    /// its own prerendered head; only an in-page SPA hop reaches this state.
+    /// missing canonical is a non-signal, a stale one is a wrong signal. NOT
+    /// only an in-page hop: `_resolveInitialLocale` calls this during `mount()`,
+    /// on the first render of a freshly fetched URL, so a crawler that renders
+    /// JS can observe a page whose prerendered canonical and alternates were
+    /// dropped. Tracked separately.
     ///
     /// Assumption: locale changes that do NOT move the URL cannot strand a
     /// stale link. True only because `HreflangLinks` bails unless
@@ -289,14 +302,17 @@ public final class Runtime<Backend: RendererBackend> {
         // The URL moved without going through `moveURL` (the browser did it).
         applier.backend.dropPrerenderedHeadLinks()
         let (rawPath, query, search) = RouteURL.split(url)
+        _lastExternalPath = RouteURL.normalizePath(rawPath)
         if let localization = _localization, localization.strategy.usesURLPrefix {
-            let (internalPath, urlLocale) = LocalePath.internalize(rawPath, supported: localization.supported)
+            let (internalPath, urlLocale) = LocalePath.internalize(rawPath, supported: localization.supported,
+                                                                   routes: localization.routePaths)
             currentPath = internalPath
-            // No prefix means the DEFAULT locale, not "keep the current one":
-            // under .pathPrefix every history entry was written by `_externalPath`,
-            // so an unprefixed one cannot stand for a non-default locale. Without
-            // this, Back from /ru/contact to /about leaves a Russian page at an
-            // English URL and every later href carries a /ru the address bar lacks.
+            // A URL that identifies no locale means the DEFAULT locale: every
+            // history entry under this strategy was written by `_externalPath`,
+            // so neither a prefix nor a slug being present means the default.
+            // Without this, Back from /ru/contact to /about leaves a Russian page
+            // at an English URL and every later href carries a /ru the address
+            // bar lacks.
             let target = urlLocale ?? localization.default
             if target != signals.locale {
                 signals._setLocale(target)
@@ -328,7 +344,8 @@ public final class Runtime<Backend: RendererBackend> {
         guard let localization = _localization, localization.strategy.usesURLPrefix else {
             return RouteURL._normalize(path)
         }
-        return LocalePath.externalize(path, locale: signals.locale, default: localization.default)
+        return LocalePath.externalize(path, locale: signals.locale, default: localization.default,
+                                      routes: localization.routePaths)
     }
 
     /// Runs the detection chain once, before the first pass, and makes the
@@ -363,18 +380,26 @@ public final class Runtime<Backend: RendererBackend> {
                                         maxAgeDays: 365, secure: _isSecureContext)
         }
         // Task 9's invariant: under `.pathPrefix` every history entry is written
-        // by this runtime, so an unprefixed one means the default locale. When
-        // detection picked something the URL did not name, the URL has to move
-        // before the first pass — otherwise `handlePopState` would later read
-        // that untouched entry as "default" and fight the rendered page.
-        // `urlLocale ?? default`, not `urlLocale`: an unprefixed path IS the
-        // default locale's canonical URL, so resolving to the default there
-        // must not fire a replaceState onto the very same path.
-        if localization.strategy.usesURLPrefix, resolved != (initialURLLocale ?? localization.default) {
+        // by this runtime, so a URL that identifies no locale means the default
+        // one. When detection picked something the URL did not name, the URL has
+        // to move before the first pass — otherwise `handlePopState` would later
+        // read that untouched entry as "default" and fight the rendered page.
+        //
+        // Compare URL FORMS, not locales. Under prefixes the two were
+        // equivalent; with a slug table they are not — adding a slug retires
+        // the prefix form, and a locale-only comparison would leave the address
+        // bar on the retired URL while every href says the new one. The inverse
+        // matters too: a slug identical to its canonical must NOT fire a move,
+        // because `moveURL` drops the prerendered canonical and hreflang set.
+        if localization.strategy.usesURLPrefix {
             let external = LocalePath.externalize(currentPath, locale: resolved,
-                                                  default: localization.default)
-            moveURL(to: _currentSearch.isEmpty ? external : external + "?" + _currentSearch,
-                    replace: true)
+                                                  default: localization.default,
+                                                  routes: localization.routePaths)
+            if external != _lastExternalPath {
+                _lastExternalPath = external
+                moveURL(to: _currentSearch.isEmpty ? external : external + "?" + _currentSearch,
+                        replace: true)
+            }
         }
     }
 
@@ -402,12 +427,21 @@ public final class Runtime<Backend: RendererBackend> {
         }
         applier.backend.setDocumentLanguage(locale.identifier,
                                             dir: locale.isRTL ? "rtl" : nil)
-        // Same route, new prefix: `currentPath` stays locale-free, only the
-        // browser-visible URL moves (replace, not push — it is the same page).
+        // Same route, new prefix (or new slug): `currentPath` stays locale-free,
+        // only the browser-visible URL moves (replace, not push — it is the same
+        // page). Gated on the URL FORM changing, for the reason spelled out in
+        // `_resolveInitialLocale`: two locales can share one URL once a slug is
+        // spelled like its canonical, and `moveURL` is not free — it drops the
+        // prerendered head links. With an empty table the gate never fires:
+        // exactly one of two distinct locales carries a prefix, so the forms
+        // always differ.
         if localization.strategy.usesURLPrefix {
             let external = _externalPath(currentPath)      // reads the signal written above
-            moveURL(to: _currentSearch.isEmpty ? external : external + "?" + _currentSearch,
-                    replace: true)
+            if external != _lastExternalPath {
+                _lastExternalPath = external
+                moveURL(to: _currentSearch.isEmpty ? external : external + "?" + _currentSearch,
+                        replace: true)
+            }
         }
         markDirty(.root)
     }

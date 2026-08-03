@@ -1,4 +1,5 @@
-/// The only place locale prefixes exist.
+/// The only place a locale is added to, or read out of, a URL. Prefixes and
+/// localized slugs both live here and nowhere else.
 ///
 /// The runtime's `currentPath` is always locale-free, so route matching,
 /// `@RouteParam`, guards, prerender policies and redirect stubs never learn
