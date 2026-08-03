@@ -347,6 +347,26 @@ import Testing
         #expect(LocalePath.externalize("/blog/hello", locale: ru, default: en, routes: t) == "/novosti/hello")
     }
 
+    /// The same table written the way an author normally would: both slugs
+    /// under one prefix, so the SLUGS overlap as well as the canonicals. Same
+    /// two entries, same declaration order, same first-match resolution — one
+    /// flag covers every pattern the pair declares.
+    @Test func v6OptOutAlsoCoversTheSlugPairOfTheSameEntries() {
+        let t = LocalizedRoutes {
+            LocalizedRoute("/blog/archive", ["ru": "/novosti/arkhiv"])
+            LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"], overlapsEarlierEntry: true)
+        }
+        #expect(problems(.pathPrefix(), t).isEmpty)
+        #expect(LocalePath.internalize("/novosti/arkhiv", supported: [en, ru, de], routes: t).path == "/blog/archive")
+    }
+
+    @Test func thatSlugPairIsStillRejectedWithoutTheOptOut() {
+        #expect(problems(.pathPrefix(), LocalizedRoutes {
+            LocalizedRoute("/blog/archive", ["ru": "/novosti/arkhiv"])
+            LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"])
+        }).contains { $0.contains("/novosti/arkhiv") && $0.contains("overlap") })
+    }
+
     /// Without the flag the same table is refused — the check itself is intact.
     @Test func v6StillRejectsThatTableWithoutTheOptOut() {
         #expect(problems(.pathPrefix(), LocalizedRoutes {
@@ -364,15 +384,15 @@ import Testing
         }).contains { $0.contains("overlap") })
     }
 
-    /// The flag never reaches a pair involving a slug (V7). Here the canonicals
-    /// do not overlap at all — the collision is entry 1's slug against entry 0's
-    /// canonical, which makes `/history` unreachable no matter how the two lines
-    /// are ordered. Not something declaration order can express, so still reported.
-    @Test func v6OptOutDoesNotSuppressV7() {
+    /// Suppression is per ORDERED PAIR OF ENTRIES, so it cannot reach two
+    /// patterns of one entry: this slug shadows its own canonical, and no
+    /// ordering of the table changes that. (Reordering is also not available —
+    /// there is only one entry involved.)
+    @Test func v6OptOutDoesNotSuppressASlugCollidingWithItsOwnCanonical() {
         #expect(problems(.pathPrefix(), LocalizedRoutes {
             LocalizedRoute("/history", ["ru": "/istoriya"])
-            LocalizedRoute("/team", ["ru": "/history"], overlapsEarlierEntry: true)
-        }).contains { $0.contains("/history") && $0.contains("overlap") })
+            LocalizedRoute("/about", ["ru": "/about"], overlapsEarlierEntry: true)
+        }).contains { $0.contains("/about") && $0.contains("overlap") })
     }
 
     /// V5 is a duplicate, not an ordering choice: the second entry is dead

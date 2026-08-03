@@ -51,24 +51,29 @@ extension LocalizedRoutes.Entry {
     /// declaration. The raw tags pass through that same validating initializer
     /// here — one choke point, as everywhere else locale strings arrive.
     ///
-    /// - Parameter overlapsEarlierEntry: opts this entry out of V6, which
-    ///   otherwise rejects two canonical patterns that some path matches both
-    ///   of. Set it on the LATER of the pair — the shadowed one — to say "an
-    ///   earlier entry also claims these paths; resolve me by declaration
+    /// - Parameter overlapsEarlierEntry: opts this entry out of the overlap
+    ///   check, which otherwise rejects two patterns that some path matches
+    ///   both of. Set it on the LATER of the pair — the shadowed one — to say
+    ///   "an earlier entry also claims these paths; resolve me by declaration
     ///   order, like `Router` does":
     ///
     ///   ```swift
-    ///   LocalizedRoute("/blog/archive", ["ru": "/arkhiv"])
+    ///   LocalizedRoute("/blog/archive", ["ru": "/novosti/arkhiv"])
     ///   LocalizedRoute("/blog/:slug", ["ru": "/novosti/:slug"], overlapsEarlierEntry: true)
     ///   ```
     ///
-    ///   The trade: declaration order now silently decides this site's URLs.
-    ///   Swap those two lines and `/blog/archive` externalizes as
-    ///   `/novosti/archive` instead of `/arkhiv` — no diagnostic, because the
-    ///   flag is exactly the promise that overlap was deliberate. Nothing else
-    ///   is relaxed: V5 (the same canonical twice) and the slug checks (V7)
-    ///   still fire, since a duplicate and an unreachable canonical are not
-    ///   ordering choices.
+    ///   The trade: declaration order now decides this site's URLs, and the
+    ///   build stops watching that pair. Swapping the two lines above is
+    ///   caught — the flag travels with its line, so it lands on the EARLIER
+    ///   entry and the overlap is reported again. The hazard is the step after
+    ///   that: move the flag onto the new later entry to silence the build, and
+    ///   `/blog/archive` now externalizes as `/novosti/archive` instead of
+    ///   `/novosti/arkhiv`, with nothing left to say so.
+    ///
+    ///   Suppression is per ORDERED PAIR of entries, so it never reaches V5
+    ///   (the same canonical declared twice — a duplicate, not an ordering
+    ///   choice) nor two patterns of ONE entry, such as a slug colliding with
+    ///   its own canonical: there is no declaration order to appeal to there.
     public init(_ canonical: String, _ localized: [String: String],
                 overlapsEarlierEntry: Bool = false) {
         var parsed: [LocaleID: RoutePattern] = [:]
@@ -305,31 +310,26 @@ extension LocalizedRoutes {
         // each of them makes some page unreachable without any diagnostic.
         // Tables are small (tens of entries); O(n²) is free.
         //
-        // `canonicalOf` carries the entry index for a canonical pattern and nil
-        // for a slug — that is what separates V6 from V7 below. Canonicals are
-        // appended in entry order, so for a canonical pair `i < j` the entry at
-        // `j` is the LATER one, the one whose opt-out applies.
-        var declared: [(label: String, pattern: RoutePattern, canonicalOf: Int?)] = []
+        // `owner` is the declaring entry's index, carried by slugs too: the
+        // opt-out is about two ENTRIES, and which of the two patterns is the
+        // canonical does not change whose declaration comes first.
+        var declared: [(label: String, pattern: RoutePattern, owner: Int)] = []
         for (index, entry) in entries.enumerated() {
             declared.append(("canonical '\(entry.canonical.raw)'", entry.canonical, index))
             for locale in entry.localized.keys.sorted(by: { $0.identifier < $1.identifier }) {
                 let pattern = entry.localized[locale]!
-                declared.append(("the '\(locale.identifier)' slug '\(pattern.raw)' of '\(entry.canonical.raw)'", pattern, nil))
+                declared.append(("the '\(locale.identifier)' slug '\(pattern.raw)' of '\(entry.canonical.raw)'", pattern, index))
             }
         }
         for i in declared.indices {
             for j in declared.indices where j > i {
-                // The V6 opt-out, and ONLY V6: both sides must be canonicals.
-                // `overlapsEarlierEntry` says "an earlier entry outranks me",
-                // which is a statement about resolution order between two
-                // canonical patterns. It deliberately does not reach any pair
-                // involving a slug (V7): a slug that matches another entry's
-                // canonical makes that canonical unreachable, and two slugs
-                // that match one path lose a page — neither is a preference
-                // the author can express by ordering.
-                if declared[i].canonicalOf != nil,
-                   let later = declared[j].canonicalOf,
-                   entries[later].overlapsEarlierEntry { continue }
+                // The opt-out. `owner` is non-decreasing (patterns are appended
+                // entry by entry), so `<` is exactly "different entries, this
+                // one later" — and equal owners, two patterns of ONE entry, are
+                // never suppressed: a slug colliding with its own canonical has
+                // no declaration order to appeal to.
+                if declared[i].owner < declared[j].owner,
+                   entries[declared[j].owner].overlapsEarlierEntry { continue }
                 if Self.overlap(declared[i].pattern, declared[j].pattern) {
                     out.append("routePaths: \(declared[i].label) and \(declared[j].label) overlap — one path would match both and resolution is declaration-order, so a reordering would silently rewrite URLs")
                 }
