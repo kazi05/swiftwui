@@ -163,9 +163,13 @@ private struct SlugApp: Tag {
         #expect(backend.replacedStates.last == "/o-nas")
     }
 
-    // The inverse: an identity slug must NOT fire a move, because moveURL drops
-    // the prerendered canonical and hreflang set unconditionally.
-    @Test func identitySlugDoesNotFireAMove() {
+    // The inverse, on the side where it is reachable: a slug spelled like its
+    // canonical leaves both locales on one URL, and a locale-only gate would
+    // replaceState onto the URL already displayed — dropping the prerendered
+    // canonical and the whole hreflang set for a no-op. (Boot cannot reach this:
+    // any URL whose externalized form equals itself is one `internalize` already
+    // claimed the same locale for, so both gates were always silent there.)
+    @Test func identitySlugDoesNotFireAMoveOnSetLocale() {
         let backend = MockBackend(); let sched = TestScheduler()
         let l10n = Localization(supported: [en, ru], default: en,
                                 strategy: .pathPrefix(detection: .urlOnly),
@@ -176,6 +180,19 @@ private struct SlugApp: Tag {
                               initialPath: "/about", scheduleMicrotask: sched.schedule,
                               localization: l10n)
         runtime.mount(); sched.pump()
-        #expect(backend.replacedStates.isEmpty)
+        #expect(runtime._signals.locale == ru)      // the slug claimed the URL
+        runtime.setLocale(en); sched.pump()
+        #expect(backend.replacedStates.isEmpty)     // ungated: ["/about"], onto the same URL
+        #expect(backend.hasPrerenderedHeadLinks)
+    }
+
+    // The two call sites the boot and setLocale tests never touch.
+    @Test func navigationAndBackBothSpeakSlugs() {
+        let (runtime, backend, sched) = make("/ru/contact")
+        runtime.navigate(to: "/about"); sched.pump()
+        #expect(backend.historyStack.last == "/o-nas")     // pushed the slug, not /ru/about
+        runtime.handlePopState(url: "/o-nas"); sched.pump()
+        #expect(runtime._locationPath == "/about")         // and read it back
+        #expect(runtime._signals.locale == ru)
     }
 }

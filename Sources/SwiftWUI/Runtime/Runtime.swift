@@ -41,6 +41,10 @@ public final class Runtime<Backend: RendererBackend> {
     /// re-deriving what "should" be shown: comparing LOCALES was equivalent
     /// under prefixes and is not once a slug can carry the locale (spec §5.1).
     /// Path only, no query — every comparison against it is path-only too.
+    ///
+    /// Written by `moveURL`, which is every URL move this runtime makes, plus
+    /// the two it does not make itself: `init` and `handlePopState`, where the
+    /// browser is already showing the URL.
     private var _lastExternalPath: String
     // Routing (spec §7): the runtime owns the current location.
     private var currentPath: String
@@ -247,7 +251,6 @@ public final class Runtime<Backend: RendererBackend> {
         guard path != currentPath || query != currentQuery else { redirectHops = 0; return }  // arriving at the current location ends any redirect chain
         currentPath = path; currentQuery = query; _currentSearch = search
         let externalPath = _externalPath(path)
-        _lastExternalPath = externalPath
         let full = search.isEmpty ? externalPath : externalPath + "?" + search
         moveURL(to: full, replace: replace)
         // Precedence (spec §4): explicit call site → destination Route →
@@ -285,12 +288,19 @@ public final class Runtime<Backend: RendererBackend> {
     /// dropped. Tracked separately.
     ///
     /// Assumption: locale changes that do NOT move the URL cannot strand a
-    /// stale link. True only because `HreflangLinks` bails unless
-    /// `usesURLPrefix` and `.negotiated`/`.client` prerender a locale-free
-    /// canonical. A per-locale canonical for `.negotiated`, or any future
-    /// strategy that encodes the locale off the path, has to call this (or drop
-    /// the links directly) from `setLocale` as well.
+    /// stale link. Under `.pathPrefix` that case is now live — a slug spelled
+    /// like its canonical leaves both locales on one URL — and the links stay
+    /// correct because a page's canonical and its alternate set are facts about
+    /// the URL, not about the current locale. For `.negotiated`/`.client` it
+    /// holds for a second reason: they prerender a locale-free canonical, and
+    /// `HreflangLinks` bails unless `usesURLPrefix`. A per-locale canonical for
+    /// `.negotiated`, or any future strategy that encodes the locale off the
+    /// path, breaks BOTH reasons and has to call this (or drop the links
+    /// directly) from `setLocale` as well.
     private func moveURL(to full: String, replace: Bool) {
+        // The one place the tracker is kept honest: it is by definition what the
+        // address bar now shows, minus the query every comparand also lacks.
+        _lastExternalPath = LocalePath._splitSuffix(full).head
         applier.backend.dropPrerenderedHeadLinks()
         if replace { applier.backend.replaceState(path: full) }
         else { applier.backend.pushState(path: full) }
@@ -396,7 +406,6 @@ public final class Runtime<Backend: RendererBackend> {
                                                   default: localization.default,
                                                   routes: localization.routePaths)
             if external != _lastExternalPath {
-                _lastExternalPath = external
                 moveURL(to: _currentSearch.isEmpty ? external : external + "?" + _currentSearch,
                         replace: true)
             }
@@ -438,7 +447,6 @@ public final class Runtime<Backend: RendererBackend> {
         if localization.strategy.usesURLPrefix {
             let external = _externalPath(currentPath)      // reads the signal written above
             if external != _lastExternalPath {
-                _lastExternalPath = external
                 moveURL(to: _currentSearch.isEmpty ? external : external + "?" + _currentSearch,
                         replace: true)
             }
