@@ -210,6 +210,12 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 
 - <doc:PWA>
 
+### Boot loading
+
+- <doc:BootLoading>
+- ``BootUI``
+- ``BootRetry``
+
 ### Building and deploying
 
 - <doc:Deployment>

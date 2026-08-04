@@ -6,11 +6,10 @@
   <script type="importmap">
   {"imports": {"@bjorn3/browser_wasi_shim": "/vendor/wasi-shim/index.js"}}
   </script>
+  <!-- swiftwui build writes the app's boot scripts between these markers.
+       Keep them, and keep the import map above them. -->
+  <!--swiftwui:boot--><!--/swiftwui:boot-->
 </head>
 <body>
-  <script type="module">
-    import { init } from "/app/index.js";
-    await init();
-  </script>
 </body>
 </html>

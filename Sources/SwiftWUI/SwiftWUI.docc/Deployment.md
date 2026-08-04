@@ -177,8 +177,17 @@ That root config pins the wasm MIME type and `Cache-Control: no-cache` and
 falls back with `try_files $uri $uri/index.html /index.html`, but it has no
 `gzip_static`, so the `.gz`/`.br` files a release build produced go unused,
 and it has no rule hiding `/nginx.conf`, so the generated config is reachable
-under that path in the served root. If you want the release serving
-behavior, copy `dist/nginx.conf` in instead.
+under that path in the served root. It also has no `/app/` wasm block, so a
+build that stamps `?v=` on the binary gets none of the immutable caching that
+buys — the root config still assumes every asset must revalidate. If you want
+the release serving behavior, copy `dist/nginx.conf` in instead:
+
+```dockerfile
+COPY dist/nginx.conf /etc/nginx/conf.d/default.conf
+```
+
+Both files are yours to edit. The scaffold points at the project-root one
+because `dist/nginx.conf` is build output, rewritten on every release build.
 
 ### Hosting on a static host or CDN
 
@@ -206,7 +215,10 @@ The requirements are short, and every one of them is a real failure mode:
 - **Cache headers.** Bundle filenames are not content-hashed. A long
   `max-age` on `/app/index.js` or the `.wasm` serves the previous deploy
   until it expires. Revalidate (`no-cache` plus ETag) or deploy under
-  versioned paths and set `immutable` there.
+  versioned paths and set `immutable` there. A build that emits boot UI is
+  the one exception: it names the wasm `?v=<hash>` and the generated config
+  pins only versioned requests. A CDN that strips query strings turns that
+  back into plain revalidation — see <doc:BootLoading>.
 - **Root-path deploys only.** The scaffolded `index.html` resolves the shim
   and the bundle through absolute URLs (`/vendor/wasi-shim/index.js`,
   `/app/index.js`), and hydrate mode's default `wasmScriptPath` is

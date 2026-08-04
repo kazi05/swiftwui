@@ -35,6 +35,20 @@ import Foundation
         }
     }
 
+    /// Same rule, same failure, one file the templates' loop cannot reach: the
+    /// Tutorial is its own package, hand-written, and it is what the boot
+    /// acceptance run is performed against.
+    @Test func tutorialSiteHasTheBootMarkerBelowTheImportMap() throws {
+        let repo = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let html = try String(contentsOf: repo.appendingPathComponent("Sites/Tutorial/index.html"),
+                              encoding: .utf8)
+        let open = try #require(html.range(of: "<!--swiftwui:boot-->"), "no boot marker")
+        #expect(html.range(of: "<!--/swiftwui:boot-->") != nil, "boot marker never closed")
+        let map = try #require(html.range(of: "importmap"), "no import map")
+        #expect(map.lowerBound < open.lowerBound, "import map must come BEFORE the boot marker")
+    }
+
     @Test(.timeLimit(.minutes(1)))
     func concurrentDrainSurvivesLargeStderr() throws {
         // 200KB to BOTH pipes — deadlocks under a sequential drain (stderr pipe fills

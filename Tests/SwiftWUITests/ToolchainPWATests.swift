@@ -208,6 +208,10 @@ import SwiftWUI          // SHA256 lives in the core now
         // calling it unconditionally — count the actual call form instead.
         #expect(js.components(separatedBy: "self.skipWaiting()").count - 1 == 1)   // exactly one call site
         #expect(js.contains("event.data.type === 'SKIP_WAITING'"))
+        // Keyed on the PATH, not the request: the boot shim asks for
+        // /app/App.wasm?v=<hash> and a request-keyed match would miss the
+        // precached entry, silently re-downloading the binary for every PWA user.
+        #expect(js.contains("cache.match(url.pathname)"))
     }
 }
 

@@ -2,13 +2,23 @@ import TutorialKit
 import SwiftWUI
 
 #if canImport(SwiftWUIStatic)
+import Foundation
 import SwiftWUIStatic
 
 @main enum Entry {
     static func main() async throws {
         var args = Array(CommandLine.arguments.dropFirst())
+        if args.first == "boot-shell" {
+            // One tagged line on stdout — `swiftwui build` identifies the answer
+            // by that key, not by exit status. Without this branch a declared
+            // `bootUI` is silently dropped from the build.
+            let shell = StaticSite.renderBootShell(TutorialApp.self)
+            print(String(decoding: try JSONEncoder().encode(shell), as: UTF8.self))
+            return
+        }
         guard args.first == "ssg" else {
             print("usage: TutorialSite ssg --out <dir>")
+            print("       TutorialSite boot-shell")
             return
         }
         args.removeFirst()
