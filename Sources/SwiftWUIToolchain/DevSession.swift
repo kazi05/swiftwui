@@ -56,7 +56,13 @@ public final class DevSession: @unchecked Sendable {   // lastError guarded by `
                 || !request.path.dropFirst().contains(".") else { return nil }
             guard let html = try? String(contentsOfFile: projectDir + "/index.html", encoding: .utf8)
             else { return nil }
-            return .text(DevInjection.inject(into: html), contentType: "text/html; charset=utf-8")
+            // Read per request, not once here: the bundle dir may not exist yet
+            // when the handlers are built, and a rebuild can rename the binary.
+            // No `?v=` — the dev server answers no-cache, and a digest would
+            // mean hashing a ~50 MB debug binary on every page load.
+            let wasm = WasmDigest.wasmName(inAppDir: bundleDir).map { BootSplice.entryDir + $0 }
+            return .text(DevInjection.inject(into: html, wasmURL: wasm),
+                         contentType: "text/html; charset=utf-8")
         }
         // public/ assets (spec §2): dotted paths only — extensionless paths
         // must keep falling through to the SPA index handler below.
@@ -70,9 +76,34 @@ public final class DevSession: @unchecked Sendable {   // lastError guarded by `
             devClient,
             StaticFiles.handler(urlPrefix: "/__swiftwui/vendor/wasi-shim/", root: shimRoot),
             StaticFiles.handler(urlPrefix: "/vendor/wasi-shim/", root: shimRoot),
+            Self.bootShimHandler(),   // BEFORE /app/ — see the factory's note
             StaticFiles.handler(urlPrefix: "/app/", root: bundleDir),
             publicHandler,
             indexHandler,
         ]
+    }
+
+    /// Where the dev document points its shim tag. Same directory as the entry
+    /// dev serves out of `bundleDir`, which is what makes `/app/` right *here*
+    /// specifically — it is derived, never assumed, everywhere else.
+    static var shimPath: String { BootSplice.entryDir + "swiftwui-boot.js" }
+
+    /// Exact match, and it MUST be registered before the `/app/` static handler:
+    /// dev serves `/app/*` out of the PackageToJS bundle dir, which the plugin
+    /// owns and wipes, so the shim is never written there — only
+    /// `DistLayout.assemble` puts it next to the bundle, and dev has no dist/.
+    /// Without this the shim tag 404s, `init()` is never called, and every dev
+    /// session is a dead page.
+    ///
+    /// A static factory, not an instance method: a test can exercise it with no
+    /// session, no watcher and no build.
+    public static func bootShimHandler() -> HTTPHandler {
+        let path = ToolchainResources.url("swiftwui-boot.js").path
+        return { request in
+            guard request.path == shimPath,
+                  let data = FileManager.default.contents(atPath: path)
+            else { return nil }
+            return .file(bytes: Array(data), mime: "text/javascript; charset=utf-8")
+        }
     }
 }

@@ -16,6 +16,11 @@ public enum BootSplice {
     /// names the module that exports `init` index.js.
     static let entryURL = "/app/index.js"
 
+    /// The entry's OWN directory, not a hardcoded "/app/" — every URL the shim
+    /// is given is derived from it, so the build, the SSG and `swiftwui dev`
+    /// cannot disagree about where the files next to the entry are served from.
+    static let entryDir = entryURL.lastIndex(of: "/").map { String(entryURL[...$0]) } ?? "/app/"
+
     /// Splices `<outDir>/index.html` — never the project's own, which is
     /// user-owned. Returns whether the document ends up naming the wasm with a
     /// `?v=` digest.
@@ -40,10 +45,7 @@ public enum BootSplice {
             }
             let stamp = WasmDigest.stamp(path: outDir + "/app/" + wasmName)
             versioned = stamp != nil
-            // The entry's OWN directory, not a hardcoded "/app/" — the same
-            // derivation the SSG makes, so the two never disagree about where
-            // the shim just copied above is served from.
-            let dir = entryURL.lastIndex(of: "/").map { String(entryURL[...$0]) } ?? "/app/"
+            let dir = entryDir
             let wasmURL = dir + wasmName
             // No stamp (an unreadable wasm) drops only the `?v=`: the URL still
             // resolves, the shim still boots, and the progress bar goes
