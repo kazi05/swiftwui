@@ -103,13 +103,13 @@ import Foundation
     @Test func writeNginxConfIsPresentAndOverwrites() throws {
         let dist = try scratchDist()
         defer { try? FileManager.default.removeItem(atPath: dist) }
-        try ReleaseArtifacts.writeNginxConf(distDir: dist)
+        try ReleaseArtifacts.writeNginxConf(distDir: dist, wasmVersioned: false)
         let conf = try String(contentsOfFile: dist + "/nginx.conf", encoding: .utf8)
         #expect(conf.contains("gzip_static on"))
         #expect(conf.contains("try_files"))
         #expect(conf.contains("application/wasm"))
         // idempotent overwrite (no append/duplication)
-        try ReleaseArtifacts.writeNginxConf(distDir: dist)
+        try ReleaseArtifacts.writeNginxConf(distDir: dist, wasmVersioned: false)
         let again = try String(contentsOfFile: dist + "/nginx.conf", encoding: .utf8)
         #expect(again == conf)
     }
@@ -138,7 +138,7 @@ import Foundation
         try "wasm".write(toFile: dist + "/app/x.wasm", atomically: true, encoding: .utf8)
         try "gz".write(toFile: dist + "/app/x.wasm.gz", atomically: true, encoding: .utf8)   // owned → excluded
         try "br".write(toFile: dist + "/app/x.wasm.br", atomically: true, encoding: .utf8)   // owned → excluded
-        try ReleaseArtifacts.writeNginxConf(distDir: dist)                                    // nginx.conf → excluded
+        try ReleaseArtifacts.writeNginxConf(distDir: dist, wasmVersioned: false)                                    // nginx.conf → excluded
         try "tar".write(toFile: dist + "/foo.tar.gz", atomically: true, encoding: .utf8)      // user asset → included
 
         #expect(try PWAAssets.generateManifest(distDir: dist) == true)
@@ -212,9 +212,12 @@ import Foundation
         #expect(conf.contains("map $arg_v $swui_wasm_cc"))
         #expect(conf.range(of: "map $arg_v")!.upperBound < conf.range(of: "server {")!.lowerBound)
         // The server-level Vary is emitted below the wasm block, so bound the
-        // search to the block's own braces rather than to end-of-file.
+        // search to the block itself. NOT on the first `}` — that one closes
+        // `types {}` on its own line and the window would be three tokens wide,
+        // i.e. an assertion that cannot fail. The next `location ` is the real end.
         let open = conf.range(of: "location ~ ^/app/.*\\.wasm$")!.upperBound
-        let close = conf.range(of: "}", range: open..<conf.endIndex)!.lowerBound
+        let close = conf.range(of: "location ", range: open..<conf.endIndex)!.lowerBound
+        #expect(conf[open..<close].contains("add_header Cache-Control"))   // window covers the block
         #expect(conf.range(of: "Vary", range: open..<close) == nil)
         #expect(conf.contains("add_header Vary"))   // still present at server level
         #expect(!conf.contains("__SWIFTWUI"))

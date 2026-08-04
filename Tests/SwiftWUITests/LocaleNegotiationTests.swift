@@ -144,7 +144,7 @@ import Testing
         let dist = NSTemporaryDirectory() + "swiftwui-nginx-" + UUID().uuidString
         defer { try? FileManager.default.removeItem(atPath: dist) }
         try FileManager.default.createDirectory(atPath: dist, withIntermediateDirectories: true)
-        try ReleaseArtifacts.writeNginxConf(distDir: dist, site: site)
+        try ReleaseArtifacts.writeNginxConf(distDir: dist, site: site, wasmVersioned: false)
         let conf = try String(contentsOfFile: dist + "/nginx.conf", encoding: .utf8)
         #expect(conf.contains("$swui_locale"))
         #expect(conf.contains("Vary"))
@@ -156,7 +156,7 @@ import Testing
         // negotiates en and the edge disagrees with `pick`.
         #expect(conf.range(of: #""~*^\s*de""#)!.upperBound < conf.range(of: #""~*,\s*en""#)!.lowerBound)
 
-        try ReleaseArtifacts.writeNginxConf(distDir: dist, site: nil)
+        try ReleaseArtifacts.writeNginxConf(distDir: dist, site: nil, wasmVersioned: false)
         let plain = try String(contentsOfFile: dist + "/nginx.conf", encoding: .utf8)
         #expect(!plain.contains("$swui_locale"))
         #expect(!plain.contains("map "))
@@ -170,10 +170,10 @@ import Testing
         let dist = NSTemporaryDirectory() + "swiftwui-nginx-" + UUID().uuidString
         defer { try? FileManager.default.removeItem(atPath: dist) }
         try FileManager.default.createDirectory(atPath: dist, withIntermediateDirectories: true)
-        try ReleaseArtifacts.writeNginxConf(distDir: dist)
+        try ReleaseArtifacts.writeNginxConf(distDir: dist, wasmVersioned: false)
         let byDefault = try String(contentsOfFile: dist + "/nginx.conf", encoding: .utf8)
         for site in [nil, LocaleNegotiation.Site(strategy: "pathPrefix", locales: ["en", "ru"], defaultLocale: "en")] {
-            try ReleaseArtifacts.writeNginxConf(distDir: dist, site: site)
+            try ReleaseArtifacts.writeNginxConf(distDir: dist, site: site, wasmVersioned: false)
             #expect(try String(contentsOfFile: dist + "/nginx.conf", encoding: .utf8) == byDefault)
         }
         #expect(!byDefault.contains("__SWIFTWUI"))
@@ -219,7 +219,7 @@ import Testing
         let dist = NSTemporaryDirectory() + "swiftwui-cookie-" + UUID().uuidString
         defer { try? FileManager.default.removeItem(atPath: dist) }
         try FileManager.default.createDirectory(atPath: dist, withIntermediateDirectories: true)
-        try ReleaseArtifacts.writeNginxConf(distDir: dist, site: site)
+        try ReleaseArtifacts.writeNginxConf(distDir: dist, site: site, wasmVersioned: false)
         let conf = try String(contentsOfFile: dist + "/nginx.conf", encoding: .utf8)
 
         // Lift the regex out of the generated config and run it: asserting that

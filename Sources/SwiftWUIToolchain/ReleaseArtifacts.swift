@@ -97,17 +97,22 @@ public enum ReleaseArtifacts {
     ///   and none carries a different one; `stale` — the dist-relative paths that
     ///   disagree, for the caller to name in a warning.
     public static func auditWasmVersions(distDir: String) -> (versioned: Bool, stale: [String]) {
-        guard let name = WasmDigest.wasmName(inAppDir: distDir + "/app"),
-              let stamp = WasmDigest.stamp(path: distDir + "/app/" + name) else { return (false, []) }
-        let expected = WasmDigest.version(stamp)
-        var current = false
-        var stale: [String] = []
+        // Documents first, wasm second. A project with no boot shell stamps
+        // nothing, so the WasmDigest memo is cold and hashing here would read the
+        // whole (debug: ~70 MB) binary on every build to learn there is nothing
+        // to compare it to.
+        var tokens: [(rel: String, token: String)] = []
         for rel in distFiles(distDir) where (rel as NSString).lastPathComponent == "index.html" {
             guard let html = try? String(contentsOfFile: distDir + "/" + rel, encoding: .utf8),
                   let token = wasmVersion(inHTML: html) else { continue }
-            if token == expected { current = true } else { stale.append(rel) }
+            tokens.append((rel, token))
         }
-        return (current && stale.isEmpty, stale.sorted())
+        guard !tokens.isEmpty,
+              let name = WasmDigest.wasmName(inAppDir: distDir + "/app"),
+              let stamp = WasmDigest.stamp(path: distDir + "/app/" + name) else { return (false, []) }
+        let expected = WasmDigest.version(stamp)
+        let stale = tokens.filter { $0.token != expected }.map(\.rel).sorted()
+        return (stale.isEmpty, stale)
     }
 
     /// The `?v=` token a document stamps on the wasm URL, or nil when it names no
@@ -127,19 +132,19 @@ public enum ReleaseArtifacts {
     /// A `.negotiated` site descriptor adds cookie/Accept-Language rewriting;
     /// every other site gets byte-for-byte the config it always got.
     ///
-    /// `wasmVersioned` is `auditWasmVersions(distDir:).versioned` — read it from
-    /// there rather than guessing, and never leave the default at a call site
-    /// that could be looking at a versioned dist: false only weakens caching,
-    /// but a build followed by an `ssg` that passes the default silently strips
-    /// the header the build just wrote.
+    /// `wasmVersioned` is `auditWasmVersions(distDir:).versioned`. It has NO
+    /// default on purpose: a call site that omits it would silently strip the
+    /// cache header off whatever the previous step wrote, and `SwiftWUICLI` is an
+    /// executableTarget the test target cannot import — the compiler is the only
+    /// enforcement available for this wiring.
     public static func writeNginxConf(distDir: String, site: LocaleNegotiation.Site? = nil,
-                                      wasmVersioned: Bool = false) throws {
+                                      wasmVersioned: Bool) throws {
         try nginxConfText(site: site, wasmVersioned: wasmVersioned)
             .write(toFile: distDir + "/nginx.conf", atomically: true, encoding: .utf8)
     }
 
     /// The generated config, so tests can read it without a temp directory.
-    static func nginxConfText(site: LocaleNegotiation.Site? = nil, wasmVersioned: Bool = false) -> String {
+    static func nginxConfText(site: LocaleNegotiation.Site? = nil, wasmVersioned: Bool) -> String {
         // `map` is only legal in the http block, `location` only inside
         // `server` — hence separate anchors rather than one.
         var maps = ""
@@ -316,6 +321,8 @@ public enum ReleaseArtifacts {
 
         gzip_static on;      # serve the .gz artifacts emitted by the release build
         #brotli_static on;   # serve the .br artifacts — requires the ngx_brotli module
+        gzip_vary on;        # off by default; without it a shared cache can pin
+                             # one encoding for as long as the wasm's max-age
 
         gzip on;             # runtime fallback for responses without a precompressed sibling
         gzip_types application/wasm application/javascript text/css application/json image/svg+xml;
