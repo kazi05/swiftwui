@@ -4,6 +4,21 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
+## [0.9.1] - 2026-08-04
+
+### Fixed
+
+- **`swift build -c release` no longer crashes the compiler.** Every class in `SwiftWUI` and
+  `SwiftWUIStatic` inherited a MainActor-isolated `deinit` from
+  `.defaultIsolation(MainActor.self)`, and Swift 6.3.2/6.3.3 die with signal 11 in the SIL
+  inliner optimizing one for an Apple target. Each class now opts out with
+  `nonisolated deinit { }` — no class in either target had a deinit body, so the isolation only
+  bought an executor hop per dealloc.
+
+  The crash was latent since 0.6.0 and became reachable in 0.9.0, when `SwiftWUIToolchain`
+  started depending on the core: that is what first pulled `SwiftWUI` into the optimized CLI
+  build, so `brew install swiftwui` failed on 0.9.0. Wasm builds were never affected.
+
 ## [0.9.0] - 2026-08-04
 
 ### Added
