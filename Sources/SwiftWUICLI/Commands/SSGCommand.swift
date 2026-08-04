@@ -33,7 +33,13 @@ struct SSG: ParsableCommand {
         // `.negotiated` is the one strategy a plain static host cannot serve —
         // say so here, where the folders were just written, not in the docs only.
         if let site = LocaleNegotiation.read(distDir: outDir), site.isNegotiated {
-            try ReleaseArtifacts.writeNginxConf(distDir: outDir, site: site)
+            // This rewrites the file `swiftwui build -c release` just wrote, so the
+            // signal has to be recomputed: leaving the default would silently strip
+            // the wasm cache header off every `.negotiated` release, and these
+            // documents carry `?v=` exactly like the build's does.
+            try ReleaseArtifacts.writeNginxConf(distDir: outDir, site: site,
+                                                wasmVersioned: ReleaseArtifacts
+                                                    .auditWasmVersions(distDir: outDir).versioned)
             print("""
             NOTE: this site uses the .negotiated locale strategy — clean URLs with \
             per-locale folders. It requires a host that can rewrite by cookie/Accept-Language. \

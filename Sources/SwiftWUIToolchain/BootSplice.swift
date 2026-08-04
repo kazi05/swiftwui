@@ -18,8 +18,13 @@ public enum BootSplice {
 
     /// Splices `<outDir>/index.html` — never the project's own, which is
     /// user-owned. Returns whether the document ends up naming the wasm with a
-    /// `?v=` digest; false also means "no immutable cache header over the
-    /// binary", since nothing then busts it.
+    /// `?v=` digest.
+    ///
+    /// That answer is about this one file, so it is NOT the input to the
+    /// immutable cache header: a dist also holds prerenders this call never
+    /// touches, and one of them naming an older version is what has to veto the
+    /// header. `ReleaseArtifacts.auditWasmVersions` reads the whole dist and is
+    /// what `writeNginxConf` is given.
     ///
     /// Must run after `DistLayout.assemble` (which re-copies index.html over any
     /// earlier splice) and before `PWAAssets.generateManifest` (whose SRI covers
@@ -63,8 +68,7 @@ public enum BootSplice {
     /// Replaces the paired marker region wholesale — idempotent across rebuilds,
     /// so a stale `?v=` cannot survive one. Falls back to the `</head>` anchor
     /// for projects scaffolded before the marker existed. nil = leave the file
-    /// alone (the caller then also suppresses the immutable wasm header, since
-    /// nothing will carry `?v=`).
+    /// alone, so nothing starts the app.
     ///
     /// `shell` and `config` are nil together and mean "this project declared no
     /// boot UI": the region still gets the module script that boots the app, the

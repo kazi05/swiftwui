@@ -82,33 +82,147 @@ public enum ReleaseArtifacts {
         distFiles(distDir).contains { isOwnedCompressed(relPath: $0) }
     }
 
+    /// Does every document in dist name the wasm with the version the binary in
+    /// `dist/app` actually hashes to?
+    ///
+    /// This is the precondition for an immutable cache header, and it is a
+    /// property of the whole dist, not of the last file written. `swiftwui build`
+    /// rewrites only the root index.html: any per-route prerender left over from
+    /// an earlier `swiftwui ssg` still names the previous `?v=`, and pinning that
+    /// URL for a year against a binary that has since changed is the worst
+    /// outcome this feature can produce — no later deploy can dislodge it,
+    /// because the stale document never stops asking for the stale token.
+    ///
+    /// - Returns: `versioned` — at least one document carries the current token
+    ///   and none carries a different one; `stale` — the dist-relative paths that
+    ///   disagree, for the caller to name in a warning.
+    public static func auditWasmVersions(distDir: String) -> (versioned: Bool, stale: [String]) {
+        guard let name = WasmDigest.wasmName(inAppDir: distDir + "/app"),
+              let stamp = WasmDigest.stamp(path: distDir + "/app/" + name) else { return (false, []) }
+        let expected = WasmDigest.version(stamp)
+        var current = false
+        var stale: [String] = []
+        for rel in distFiles(distDir) where (rel as NSString).lastPathComponent == "index.html" {
+            guard let html = try? String(contentsOfFile: distDir + "/" + rel, encoding: .utf8),
+                  let token = wasmVersion(inHTML: html) else { continue }
+            if token == expected { current = true } else { stale.append(rel) }
+        }
+        return (current && stale.isEmpty, stale.sorted())
+    }
+
+    /// The `?v=` token a document stamps on the wasm URL, or nil when it names no
+    /// wasm (a project without a boot UI) or names it without a version — both of
+    /// which the map already answers with `no-cache`, so neither is "stale".
+    /// Reads `data-wasm`, the attribute both emitters write: `BootSplice.render`
+    /// for the SPA document and `DocumentSerializer.render` for the prerenders.
+    static func wasmVersion(inHTML html: String) -> String? {
+        guard let attr = html.range(of: "data-wasm=\""),
+              let end = html.range(of: "\"", range: attr.upperBound..<html.endIndex) else { return nil }
+        let url = html[attr.upperBound..<end.lowerBound]
+        guard let q = url.range(of: "?v=") else { return nil }
+        return String(url[q.upperBound...])
+    }
+
     /// Overwrite dist/nginx.conf (dist is build output; not user-owned).
     /// A `.negotiated` site descriptor adds cookie/Accept-Language rewriting;
     /// every other site gets byte-for-byte the config it always got.
     ///
-    /// `wasmVersioned` is the build's answer to "does dist/index.html name the
-    /// wasm with a `?v=` digest" — false when the project declared no boot UI,
-    /// or when its index.html had nowhere to splice. It is the precondition for
-    /// an immutable cache header over the binary, and nothing reads it yet: the
-    /// caching rules are the next task's, and the signal is only knowable here.
+    /// `wasmVersioned` is `auditWasmVersions(distDir:).versioned` — read it from
+    /// there rather than guessing, and never leave the default at a call site
+    /// that could be looking at a versioned dist: false only weakens caching,
+    /// but a build followed by an `ssg` that passes the default silently strips
+    /// the header the build just wrote.
     public static func writeNginxConf(distDir: String, site: LocaleNegotiation.Site? = nil,
                                       wasmVersioned: Bool = false) throws {
-        var text = nginxConf
+        try nginxConfText(site: site, wasmVersioned: wasmVersioned)
+            .write(toFile: distDir + "/nginx.conf", atomically: true, encoding: .utf8)
+    }
+
+    /// The generated config, so tests can read it without a temp directory.
+    static func nginxConfText(site: LocaleNegotiation.Site? = nil, wasmVersioned: Bool = false) -> String {
+        // `map` is only legal in the http block, `location` only inside
+        // `server` — hence separate anchors rather than one.
+        var maps = ""
+        var location = defaultLocationBlock
         if let site, site.isNegotiated, !site.locales.isEmpty {
-            // `map` is only legal in the http block, `location` only inside
-            // `server` — hence two anchors rather than one.
-            text = text.replacingOccurrences(of: mapsAnchor, with: negotiationMaps(site: site) + "\n")
-            text = text.replacingOccurrences(of: locationAnchor, with: negotiationLocation)
-        } else {
-            text = text.replacingOccurrences(of: mapsAnchor, with: "")
-            text = text.replacingOccurrences(of: locationAnchor, with: defaultLocationBlock)
+            maps = negotiationMaps(site: site) + "\n"
+            location = negotiationLocation
         }
-        try text.write(toFile: distDir + "/nginx.conf", atomically: true, encoding: .utf8)
+        // The map defines $swui_wasm_cc; emitting the location block without it
+        // makes nginx refuse to start on an unknown variable, so the two are one
+        // decision. Unversioned dists get byte-for-byte the block they got before.
+        if wasmVersioned { maps += wasmCacheMap + "\n" }
+        var text = nginxConf
+        text = text.replacingOccurrences(of: mapsAnchor, with: maps)
+        text = text.replacingOccurrences(of: locationAnchor, with: location)
+        text = text.replacingOccurrences(of: wasmAnchor,
+                                         with: wasmVersioned ? versionedWasmBlocks : plainWasmBlock)
+        return text
     }
 
     // Anchors include their own newline so an unused one leaves no blank line.
     static let mapsAnchor = "#__SWIFTWUI_MAPS__\n"
     static let locationAnchor = "#__SWIFTWUI_LOCATION__"
+    static let wasmAnchor = "#__SWIFTWUI_WASM__"
+
+    /// `$arg_v` is the empty string when the URL carries no `?v=`, and `~.`
+    /// needs one character — so only a stamped request is ever pinned.
+    static let wasmCacheMap = """
+    # Cache policy for the versioned wasm URL the boot shim requests.
+    map $arg_v $swui_wasm_cc {
+        default "no-cache";
+        "~."    "public, max-age=31536000, immutable";
+    }
+    """
+
+    /// MIME only — what every build shipped before versioned boot URLs, and what
+    /// a dist whose documents carry no `?v=` still gets.
+    static let plainWasmBlock = """
+    # WebAssembly MIME type — instantiateStreaming requires it; distro
+        # mime.types before nginx 1.21.4 lack the entry.
+        location ~ \\.wasm$ {
+            types {}
+            default_type application/wasm;
+        }
+    """
+
+    /// Same MIME rule, plus a year on the bundle's binary when — and only when —
+    /// the request names a version.
+    ///
+    /// The ORDER of the two blocks is the whole design. nginx serves the first
+    /// matching regex location and a regex beats any prefix location outright,
+    /// so the `/app/` rule has to be the first wasm regex in the file: a second
+    /// one added below is unreachable, and a `location /app/ { }` prefix block
+    /// never runs at all. Both mistakes look fine in a smoke test, because
+    /// `no-cache` revalidates to a 304.
+    static let versionedWasmBlocks = """
+    # WebAssembly MIME type — instantiateStreaming requires it; distro
+        # mime.types before nginx 1.21.4 lack the entry.
+        #
+        # Cache-Control comes from $swui_wasm_cc: a request without ?v= did not
+        # boot through the shim (a hand-written index.html, or a build with
+        # nowhere to splice) and must not be pinned for a year.
+        #
+        # A location-level add_header REPLACES every inherited one, so a
+        # `.negotiated` site's `Vary: Accept-Language, Cookie` does not reach
+        # here. That is deliberate: /app/ is the same bytes for every locale.
+        #
+        # Only the wasm is immutable. The rest of /app/ — index.js, runtime.js,
+        # bridge-js.js, ~25 KB — stays no-cache, because index.js imports
+        # ./instantiate.js relatively and a query is not inherited: pinning the
+        # bundle would strand half of it in caches permanently.
+        location ~ ^/app/.*\\.wasm$ {
+            types {}
+            default_type application/wasm;
+            add_header Cache-Control $swui_wasm_cc;
+        }
+
+        # User wasm copied from public/ — MIME only, no caching claim.
+        location ~ \\.wasm$ {
+            types {}
+            default_type application/wasm;
+        }
+    """
 
     static let defaultLocationBlock = """
     # SPA fallback; `swiftwui ssg` per-route prerenders are served via $uri/.
@@ -208,17 +322,15 @@ public enum ReleaseArtifacts {
         gzip_min_length 1024;
 
         # Bundle file names are not content-hashed -> always revalidate (ETag/304).
-        # Deploying under versioned paths? Switch to "public, max-age=31536000, immutable".
+        # Do NOT give this server-level header a long max-age: it covers
+        # index.html and the /app/ JS, none of which carry a version, and
+        # index.js imports ./instantiate.js relatively. The one asset that IS
+        # versioned — the wasm — overrides this from its own location below.
         add_header Cache-Control "no-cache";
 
         location = /nginx.conf { return 404; }  # this file ships inside dist/
 
-        # WebAssembly MIME type — instantiateStreaming requires it; distro
-        # mime.types before nginx 1.21.4 lack the entry.
-        location ~ \\.wasm$ {
-            types {}
-            default_type application/wasm;
-        }
+        #__SWIFTWUI_WASM__
 
         #__SWIFTWUI_LOCATION__
     }

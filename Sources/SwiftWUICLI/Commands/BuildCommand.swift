@@ -46,7 +46,16 @@ struct Build: ParsableCommand {
         // after `generateManifest` the manifest's SRI covers the pre-splice
         // index.html and every PWA install fails its integrity check; after
         // `compress` the .gz sibling gzip_static serves is the boot-less one.
-        let wasmVersioned = try BootSplice.write(outDir: outDir, shell: shell)
+        try BootSplice.write(outDir: outDir, shell: shell)
+        // Only the root index.html was just rewritten. Prerenders from an earlier
+        // `swiftwui ssg` still name the previous wasm version, and they keep
+        // asking for it forever — so say so here (debug builds included, where
+        // the prerenders are just as stale) and drop the immutable header below.
+        let audit = ReleaseArtifacts.auditWasmVersions(distDir: outDir)
+        if let first = audit.stale.first {
+            print("warning: dist holds \(audit.stale.count) prerendered page(s) stamped for an older "
+                + "binary (e.g. \(first)) — run 'swiftwui ssg'; wasm caching stays off until they agree")
+        }
         if try PWAAssets.generateManifest(distDir: outDir) {
             print("generated sw-assets.js (PWA precache manifest)")
         }
@@ -54,7 +63,7 @@ struct Build: ParsableCommand {
             let s = try ReleaseArtifacts.compress(distDir: outDir, runner: runner)
             try ReleaseArtifacts.writeNginxConf(distDir: outDir,
                                                 site: LocaleNegotiation.read(distDir: outDir),
-                                                wasmVersioned: wasmVersioned)
+                                                wasmVersioned: audit.versioned)
             print("precompressed \(s.gzipped) file(s) (\(s.brotliAvailable ? "gzip + brotli" : "gzip only")); wrote nginx.conf")
         } else {
             try ReleaseArtifacts.clean(distDir: outDir)

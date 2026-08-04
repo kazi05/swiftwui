@@ -159,4 +159,99 @@ import Foundation
         try write(dist + "/index.html.gz", bytes: 50)  // framework-owned
         #expect(ReleaseArtifacts.hasCompressedArtifacts(distDir: dist) == true)
     }
+
+    // 10. The cache header must sit in the FIRST wasm regex.
+    //
+    // nginx serves the first matching regex location and a regex beats any
+    // prefix location, so a second wasm block — or a `location /app/` prefix
+    // block — is dead code and the caching feature silently does nothing. A
+    // plain text golden cannot catch that: the header would be *present in the
+    // file* and never reached, and an acceptance check still sees a correct
+    // 304, because the unreached block leaves the server-level `no-cache` in
+    // force. Only the relative order proves it.
+    @Test func theCacheHeaderLivesInTheFirstWasmRegex() throws {
+        let conf = ReleaseArtifacts.nginxConfText(wasmVersioned: true)
+        let appBlock = try #require(conf.range(of: "location ~ ^/app/.*\\.wasm$"))
+        let genericBlock = try #require(conf.range(of: "location ~ \\.wasm$"))
+        #expect(appBlock.lowerBound < genericBlock.lowerBound)
+        #expect(conf.contains("add_header Cache-Control $swui_wasm_cc;"))
+        #expect(!conf.contains("location /app/"))
+        #expect(conf.components(separatedBy: "^/app/.*\\.wasm$").count - 1 == 1)
+        // `map` is only legal in the http block — above `server {`, like the
+        // negotiation maps, or nginx refuses to load the file.
+        let map = try #require(conf.range(of: "map $arg_v $swui_wasm_cc"))
+        #expect(map.upperBound < conf.range(of: "server {")!.lowerBound)
+        #expect(conf.contains("public, max-age=31536000, immutable"))
+    }
+
+    // 11. Unversioned dist: today's config, byte for byte.
+    //
+    // $swui_wasm_cc is defined by the map, so emitting the location half without
+    // it makes nginx refuse to start on an unknown variable — the two are one
+    // decision, and the whole block reverts rather than losing one line.
+    @Test func unversionedBuildsGetTheOldWasmBlockAndNoImmutable() {
+        let conf = ReleaseArtifacts.nginxConfText(wasmVersioned: false)
+        #expect(!conf.contains("immutable"))
+        #expect(!conf.contains("$swui_wasm_cc"))
+        #expect(!conf.contains("^/app/"))
+        #expect(conf.contains("""
+                location ~ \\.wasm$ {
+                    types {}
+                    default_type application/wasm;
+                }
+            """))
+    }
+
+    // 12. A `.negotiated` site keeps both maps, and the wasm block deliberately
+    // drops the inherited Vary: a location-level add_header REPLACES every
+    // inherited one, and /app/ is the same bytes for every locale.
+    @Test func negotiationAndWasmCachingCoexist() {
+        let site = LocaleNegotiation.Site(strategy: "negotiated", locales: ["en", "ru"], defaultLocale: "en")
+        let conf = ReleaseArtifacts.nginxConfText(site: site, wasmVersioned: true)
+        #expect(conf.contains("map $http_cookie"))
+        #expect(conf.contains("map $arg_v $swui_wasm_cc"))
+        #expect(conf.range(of: "map $arg_v")!.upperBound < conf.range(of: "server {")!.lowerBound)
+        // The server-level Vary is emitted below the wasm block, so bound the
+        // search to the block's own braces rather than to end-of-file.
+        let open = conf.range(of: "location ~ ^/app/.*\\.wasm$")!.upperBound
+        let close = conf.range(of: "}", range: open..<conf.endIndex)!.lowerBound
+        #expect(conf.range(of: "Vary", range: open..<close) == nil)
+        #expect(conf.contains("add_header Vary"))   // still present at server level
+        #expect(!conf.contains("__SWIFTWUI"))
+    }
+
+    // 13. Freshness: a prerender left over from an older binary vetoes the year.
+    //
+    // `swiftwui build` rewrites only the root index.html. A stale sub-page keeps
+    // asking for the old ?v= forever, so pinning that URL is unrecoverable — no
+    // later deploy changes the document that requests it.
+    @Test func aStalePrerenderVetoesImmutableCaching() throws {
+        let dist = try scratchDist()
+        defer { try? FileManager.default.removeItem(atPath: dist) }
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: dist + "/app", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: dist + "/about", withIntermediateDirectories: true)
+        try "wasm bytes".write(toFile: dist + "/app/App.wasm", atomically: true, encoding: .utf8)
+        let token = WasmDigest.version(WasmDigest.stamp(path: dist + "/app/App.wasm")!)
+
+        // Nothing versioned at all → no claim to make.
+        try "<script data-wasm=\"/app/App.wasm\"></script>".write(
+            toFile: dist + "/index.html", atomically: true, encoding: .utf8)
+        #expect(ReleaseArtifacts.auditWasmVersions(distDir: dist) == (false, []))
+
+        // Root current, sub-page from an older build.
+        try "<script data-wasm=\"/app/App.wasm?v=\(token)\"></script>".write(
+            toFile: dist + "/index.html", atomically: true, encoding: .utf8)
+        try "<script data-wasm=\"/app/App.wasm?v=deadbeef\"></script>".write(
+            toFile: dist + "/about/index.html", atomically: true, encoding: .utf8)
+        let stale = ReleaseArtifacts.auditWasmVersions(distDir: dist)
+        #expect(stale.versioned == false)
+        #expect(stale.stale == ["about/index.html"])
+        #expect(!ReleaseArtifacts.nginxConfText(wasmVersioned: stale.versioned).contains("immutable"))
+
+        // Refreshed by `swiftwui ssg` → the year is safe.
+        try "<script data-wasm=\"/app/App.wasm?v=\(token)\"></script>".write(
+            toFile: dist + "/about/index.html", atomically: true, encoding: .utf8)
+        #expect(ReleaseArtifacts.auditWasmVersions(distDir: dist) == (true, []))
+    }
 }
