@@ -73,6 +73,17 @@ public enum BootShellRunner {
             """)
             return nil
         }
+        // `BootProbe`'s findings come back on the child's stderr, which
+        // `streamOutput: false` captured and would otherwise drop on the floor.
+        // Prefix-filtered rather than echoed wholesale: SwiftPM's "Building for
+        // debugging…" chatter shares this stream, and a compile failure never
+        // reaches here at all (it exits non-zero, handled above). This is the
+        // ONLY place an SPA-only project — no `ssg` step anywhere, and the one
+        // that needs boot UI most — can hear about boot UI that cannot work.
+        for line in result.stderr.split(whereSeparator: \.isNewline)
+        where line.hasPrefix("error: ") || line.hasPrefix("warning: ") {
+            FileHandle.standardError.write(Data((line + "\n").utf8))
+        }
         // Empty html === the app declared `.none`, and that answer is cached
         // like any other: it is the one that skips the compile for every project
         // that never opted in. A FAILED run is never cached — a project that

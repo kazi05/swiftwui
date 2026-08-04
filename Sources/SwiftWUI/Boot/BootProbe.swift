@@ -34,8 +34,10 @@ public enum BootProbe {
     /// every listener/row/effect it finds belongs to `content`.
     ///
     /// `Runtime._renderBootShell` does NOT route through this: it already has a
-    /// resolved context and probing that one costs nothing extra.
-    public static func check(_ content: AnyTag) -> [Finding] {
+    /// resolved context and probing that one costs nothing extra. Internal
+    /// therefore — the tests reach it with `@testable`, and the two real call
+    /// sites use `findings` directly.
+    static func check(_ content: AnyTag) -> [Finding] {
         var ctx = ResolveContext(store: StateStore(), listeners: ListenerRegistry(),
                                  invalidate: { _ in })
         ctx.isBuildRender = true
@@ -74,9 +76,25 @@ public enum BootProbe {
             out.append(.init(message: "\(what) declares @State; it is rendered once at build time "
                                     + "and never re-renders", isError: true))
         }
-        if ctx.effects.contains(where: { $0.id.isSelfOrDescendant(of: root) }) {
-            out.append(.init(message: "\(what) declares .task/.onAppear; effects never run in a "
-                                    + "build render", isError: true))
+        // Named from the cases actually present. `ctx.effects` carries six kinds,
+        // and telling an author who wrote `.onChange` that they wrote `.task`
+        // is precisely the wrong-diagnostic failure this probe exists to avoid.
+        var kinds: [String] = []
+        for e in ctx.effects where e.id.isSelfOrDescendant(of: root) {
+            let name: String
+            switch e {
+            case .onChange:    name = ".onChange"
+            case .task:        name = ".task"
+            case .appear:      name = ".onAppear"
+            case .disappear:   name = ".onDisappear"
+            case .windowEvent: name = "a window event observer"
+            case .dropGuard:   name = ".dropDestination"
+            }
+            if !kinds.contains(name) { kinds.append(name) }
+        }
+        if !kinds.isEmpty {
+            out.append(.init(message: "\(what) declares \(kinds.joined(separator: ", ")); "
+                                    + "effects never run in a build render", isError: true))
         }
         return out
     }

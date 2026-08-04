@@ -16,6 +16,11 @@ private struct LinkInBoot: Tag {
 private struct Effectful: Tag {
     var body: some Tag { Div { Text("x") }.onAppear { } }
 }
+/// A component whose own `.type` segment is spelled "…Links" and which sits
+/// ABOVE a listener that is not a Link's.
+private struct SocialLinks: Tag {
+    var body: some Tag { Div { Button("share") { } } }
+}
 
 @Suite @MainActor struct BootProbeTests {
     @Test func listenersAndStateAreReported() {
@@ -37,6 +42,16 @@ private struct Effectful: Tag {
     @Test func aLinkDoesNotExemptItsNeighbours() {
         let mixed = AnyTag(Div { Link("/") { Text("home") }; Button("no") { } })
         #expect(BootProbe.check(mixed).contains { $0.isError })
+    }
+
+    /// The exemption is matched on the `data-swui-link` element, NOT on the
+    /// canonical path. This is the case that tells the two apart: `SocialLinks`
+    /// puts a `.type` segment spelled "…Links" ABOVE a dead Button, so a
+    /// substring test on the path calls it a Link and downgrades a real error
+    /// to a warning. `aLinkDoesNotExemptItsNeighbours` alone does NOT catch it —
+    /// `Div` is a primitive and contributes no `.type` segment at all.
+    @Test func theExemptionIsNotASubstringMatchOnThePath() {
+        #expect(BootProbe.check(AnyTag(SocialLinks())).contains { $0.isError })
     }
 
     @Test func plainMarkupIsClean() {
@@ -72,6 +87,22 @@ private struct PlaceholderPage: Page {
 }
 private struct PlaceholderApp: App {
     var body: some Tag { Router { Route("/") { PlaceholderPage() } } }
+}
+
+/// A page that legitimately owns `@State` and gives it an honest, markup-only
+/// placeholder. The row lives at the Page's own identity, ABOVE the
+/// `_WhileBootingTag`, so a probe keyed on `StateStore.rowCount` instead of the
+/// row identities fails this correct project.
+private struct StatefulPage: Page {
+    @State var n = 0
+    var title: String { "Home" }
+    var body: some Tag {
+        Main { H1("Home"); Text("\(n)") }
+            .whileBooting { Div(class: "skeleton") { Text("…") } }
+    }
+}
+private struct HonestPlaceholderApp: App {
+    var body: some Tag { Router { Route("/") { StatefulPage() } } }
 }
 
 private struct CleanPage: Page {
@@ -121,6 +152,20 @@ private struct CleanApp: App {
         guard let problems = await bootProblems(PlaceholderApp.self) else { return }
         #expect(problems.allSatisfy { $0.hasPrefix(".whileBooting placeholder") })
         #expect(problems.contains { $0.contains("@State") })
+    }
+
+    /// The false-BUILD-FAILURE case, and the reason the probe reads row
+    /// IDENTITIES rather than `StateStore.rowCount`: the placeholder shares the
+    /// page's store, so a count sees the page's own legitimate `@State` and
+    /// fails a correct project. Nothing else in the suite covers a page that
+    /// owns state AND declares a placeholder.
+    @Test func pageStateWithAnHonestPlaceholderBuilds() async throws {
+        let out = NSTemporaryDirectory() + "swiftwui-bootprobe-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        let report = try await StaticSite.generate(
+            HonestPlaceholderApp.self,
+            config: .init(outDir: out, mode: .hydrate(wasmScriptPath: "/app/index.js")))
+        #expect(report.pages == ["/"])
     }
 
     /// The probe must not fail an honest boot UI, or every author turns it off.
