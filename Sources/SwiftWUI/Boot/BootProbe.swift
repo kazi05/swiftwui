@@ -89,9 +89,11 @@ public enum BootProbe {
             case .onChange:    name = ".onChange/.onRouteChange"
             // `.staticTask` does not contain the substring ".task", so the
             // wrong name here sends an author grepping their own source for a
-            // string that is not in it. The policy discriminates.
+            // string that is not in it. The policy discriminates — but `.build`
+            // has two spellings (`policy:` is public, and DocC teaches
+            // `.task(policy: .build)`), so name the pair, as `.onChange` does.
             case .task(_, _, let policy, _):
-                name = policy == .build ? ".staticTask" : ".task"
+                name = policy == .build ? ".staticTask/.task(policy:.build)" : ".task"
             case .appear:      name = ".onAppear"
             case .disappear:   name = ".onDisappear"
             // These discriminate too, and a `switch` rather than a ternary so a
