@@ -87,12 +87,20 @@ public enum BootProbe {
             // `_RouteChangeEffect` — and the case carries no discriminator, so
             // name the pair rather than guess which one.
             case .onChange:    name = ".onChange/.onRouteChange"
-            case .task:        name = ".task"
+            // `.staticTask` does not contain the substring ".task", so the
+            // wrong name here sends an author grepping their own source for a
+            // string that is not in it. The policy discriminates.
+            case .task(_, _, let policy, _):
+                name = policy == .build ? ".staticTask" : ".task"
             case .appear:      name = ".onAppear"
             case .disappear:   name = ".onDisappear"
-            // This one DOES discriminate: the kind is right there.
+            // These discriminate too, and a `switch` rather than a ternary so a
+            // future third kind breaks the build instead of reporting a lie.
             case .windowEvent(_, let kind, _):
-                name = kind == .scroll ? ".onWindowScroll" : ".onWindowResize"
+                switch kind {
+                case .scroll: name = ".onWindowScroll"
+                case .resize: name = ".onWindowResize"
+                }
             // NOT `.dropDestination`, which is a different modifier entirely
             // (it registers attributes, not this effect).
             case .dropGuard:   name = ".preventsAccidentalDropNavigation"

@@ -16,6 +16,9 @@ private struct LinkInBoot: Tag {
 private struct Effectful: Tag {
     var body: some Tag { Div { Text("x") }.onAppear { } }
 }
+private struct StaticTasked: Tag {
+    var body: some Tag { Div { Text("x") }.staticTask { } }
+}
 /// A component whose own `.type` segment is spelled "…Links" and which sits
 /// ABOVE a listener that is not a Link's.
 private struct SocialLinks: Tag {
@@ -27,6 +30,18 @@ private struct SocialLinks: Tag {
         #expect(BootProbe.check(AnyTag(Interactive())).contains { $0.isError })
         #expect(BootProbe.check(AnyTag(Stateful())).contains { $0.isError })
         #expect(BootProbe.check(AnyTag(Effectful())).contains { $0.isError })
+    }
+
+    /// Each effect is named as the MODIFIER the author would grep for. Both
+    /// `.task` and `.staticTask` produce `EffectRequest.task` and differ only in
+    /// `policy`, and ".staticTask" does not contain ".task" — so getting this
+    /// wrong sends an author looking for a string that is not in their source.
+    @Test func effectsAreNamedAfterTheModifierThatMadeThem() {
+        let staticTask = BootProbe.check(AnyTag(StaticTasked()))
+        #expect(staticTask.contains { $0.message.contains(".staticTask") })
+        let onAppear = BootProbe.check(AnyTag(Effectful()))
+        #expect(onAppear.contains { $0.message.contains(".onAppear") })
+        #expect(!onAppear.contains { $0.message.contains(".task") })
     }
 
     /// `Link` registers an internal click handler yet navigates perfectly well
