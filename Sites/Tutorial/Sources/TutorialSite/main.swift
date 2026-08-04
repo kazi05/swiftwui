@@ -11,7 +11,7 @@ import SwiftWUIStatic
         if args.first == "boot-shell" {
             // One tagged line on stdout — `swiftwui build` identifies the answer
             // by that key, not by exit status. Without this branch a declared
-            // `bootUI` is silently dropped from the build.
+            // boot overlay is silently dropped from the build.
             let shell = StaticSite.renderBootShell(TutorialApp.self)
             print(String(decoding: try JSONEncoder().encode(shell), as: UTF8.self))
             return

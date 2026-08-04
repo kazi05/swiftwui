@@ -21,9 +21,8 @@ wasm itself, so the progress it reports is bytes actually delivered rather
 than a guess.
 
 The whole feature is opt-in. An app that never declares a `bootUI` and never
-calls `.whileBooting` gets byte-for-byte the document it got before, boots
-through the same inline `import { init }` it always did, and pays no extra
-build step.
+calls `.whileBooting` boots through the same inline `import { init }` it
+always did, gets no boot markup and no shim, and pays no extra build step.
 
 ### Four states, one attribute
 
@@ -38,7 +37,7 @@ property:
 | *(attribute absent)* | ready |
 
 ```
---swui-boot-progress: 0…1        on <html>, while the size is known
+--swui-boot-progress: 0…0.99     on <html>, while the size is known
 data-swui-boot-progress="unknown"  on <html>, when it is not
 ```
 
@@ -53,7 +52,10 @@ document whose real content is `display: none` behind skeletons.
 
 The progress value is a unitless number rather than a percentage string, so a
 progress bar is pure CSS (`transform: scaleX(var(--swui-boot-progress))`) and
-the shim touches no element per chunk. It is counted against a size stamped
+the shim touches no element per chunk. **It is clamped to 0.99 and never
+reaches 1** — so that stale HTML paired with a newer binary degrades instead
+of overshooting; do not hang a "complete" style off the value. The `starting`
+state is what says the bytes are all in. It is counted against a size stamped
 into the HTML at build time, never against `Content-Length`: under brotli
 that header is the compressed length while the stream yields decompressed
 bytes, which reports about 390%.
@@ -253,8 +255,9 @@ a `.whileBooting` placeholder, or a ``BootRetry``:
 
 - `@State` never re-renders. It is grafted, rendered once, and that value is
   what ships.
-- `.task`, `.staticTask`, `.onAppear`, `.onDisappear`, `.onChange` and the
-  window-event modifiers never run.
+- `.task`, `.staticTask`, `.onAppear`, `.onDisappear`, `.onChange`,
+  `.onRouteChange`, `.onWindowScroll`/`.onWindowResize` and
+  `.preventsAccidentalDropNavigation` never run.
 - Event handlers never fire. No Swift closure can run before the runtime that
   owns it exists.
 - Localization *does* work — the shell renders against the document's own
@@ -296,8 +299,8 @@ Two framework rules do all the work, and they ship in their own
 `<style data-swui-boot>` block:
 
 ```css
-html:not([data-swui-boot]) [data-swui-boot-ui] { display: none !important }
-html[data-swui-boot]       [data-swui-boot-veil] { display: none !important }
+html:not([data-swui-boot]) [data-swui-boot-ui]{display:none!important}
+html[data-swui-boot] [data-swui-boot-veil]{display:none!important}
 ```
 
 The `!important` is not defensive habit. Every typed style modifier in this
@@ -398,12 +401,13 @@ fails — are skipped; their state was lost either way.
 
 This is the difference most likely to send you debugging a phantom:
 
-- **`swiftwui dev` always uses the shim**, for every project, whether or not
-  it declared any `bootUI`. So a dev page sets `data-swui-boot` on `<html>`
+- **`swiftwui dev` uses the shim** for every project, whether or not it
+  declared any `bootUI`. So a dev page sets `data-swui-boot` on `<html>`
   while the production build of that same project — with no `bootUI` — emits
   the legacy inline `import { init }` and never sets the attribute at all.
   Boot attributes you see in dev are not evidence that a build will emit
-  them.
+  them. (The one dev page without the shim is one with no wasm to name yet:
+  before the first successful build, dev falls back to the inline boot too.)
 - **Dev never renders your shell.** It does not run `boot-shell`: on
   localhost the boot finishes well inside the delay so nothing would be
   shown, and a host compile on every hot-reload cycle would roughly double
