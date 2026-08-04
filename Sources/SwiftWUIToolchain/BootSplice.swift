@@ -81,8 +81,42 @@ public enum BootSplice {
         if let o = html.range(of: open), let c = html.range(of: close), o.upperBound <= c.lowerBound {
             return html.replacingCharacters(in: o.lowerBound..<c.upperBound, with: block)
         }
-        guard let head = html.range(of: "</head>", options: .caseInsensitive) else { return nil }
-        return html.replacingCharacters(in: head.lowerBound..<head.lowerBound, with: block)
+        // The fallback only INSERTS, and a pre-marker index.html still inlines
+        // the boot in <body> — so without this the wasm instantiates twice and
+        // `mount()` appends a SECOND copy of the whole app (Runtime.mount never
+        // replaces): doubled window listeners, every `.task` run twice, silently.
+        // Only reached here: a document carrying the markers is current, and the
+        // module script beside them is the author's own.
+        let stripped = stripLegacyBoot(html)
+        let source = stripped ?? html
+        guard let head = source.range(of: "</head>", options: .caseInsensitive) else { return nil }
+        if stripped != nil {
+            print("note: replaced index.html's inline boot script with the generated boot block")
+        }
+        return source.replacingCharacters(in: head.lowerBound..<head.lowerBound, with: block)
+    }
+
+    /// Removes the `<script type="module">import { init } … await init();</script>`
+    /// the templates inlined before the marker existed. nil = there was none.
+    ///
+    /// Both halves of the body are required, so a module script of the author's
+    /// own — which is what every other `<script type="module">` in a project is —
+    /// is left standing.
+    static func stripLegacyBoot(_ html: String) -> String? {
+        var from = html.startIndex
+        while let open = html.range(of: "<script", options: .caseInsensitive, range: from..<html.endIndex) {
+            guard let gt = html.range(of: ">", range: open.upperBound..<html.endIndex),
+                  let close = html.range(of: "</script>", options: .caseInsensitive,
+                                         range: gt.upperBound..<html.endIndex)
+            else { return nil }
+            let tag = html[open.lowerBound..<gt.upperBound]
+            let body = html[gt.upperBound..<close.lowerBound]
+            if tag.contains("module"), body.contains("import { init }"), body.contains("await init()") {
+                return html.replacingCharacters(in: open.lowerBound..<close.upperBound, with: "")
+            }
+            from = close.upperBound
+        }
+        return nil
     }
 
     static func render(shell: BootShell?, config: BootConfig?) -> String {

@@ -123,6 +123,22 @@ note: could not run 'MyApp boot-shell' — if this project predates boot UI, reg
 and builds with no boot markup at all. If you declared an overlay and never
 see it, that note is the first thing to look for.
 
+**Your `index.html` needs the boot markers.** The current template carries
+
+```html
+  <!--swiftwui:boot--><!--/swiftwui:boot-->
+</head>
+```
+
+directly under the import map, and `swiftwui build` replaces everything
+between them on every build. A project scaffolded before this feature has
+neither marker, so the build falls back to inserting its block at `</head>`
+and, in the same pass, deletes the `<script type="module">import { init } …
+await init();</script>` the old template inlined in `<body>` — otherwise the
+wasm would instantiate twice and the app would mount twice. It prints a note
+when it does. Add the markers to keep the block where you can see it; a
+module script of your own is never touched.
+
 That host build is a new build axis — nothing else in the CLI compiles for
 the host — so it is skipped outright when no source file under `Sources/`
 so much as spells `bootUI`, and memoized on a hash of your sources

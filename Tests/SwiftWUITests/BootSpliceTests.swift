@@ -11,6 +11,27 @@ private let cfg = BootConfig(wasmURL: "/app/App.wasm?v=abc12345",
                              shimURL: "/app/swiftwui-boot.js",
                              sizeBytes: 42, delayMS: 300)
 private let head = "<head><script type=\"importmap\">{}</script>"
+/// `Resources/templates/basic/index.html` VERBATIM as of b85638b — the shape on
+/// disk in every project scaffolded before the marker existed.
+private let preMarkerIndex = """
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{{NAME}}</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <script type="importmap">
+  {"imports": {"@bjorn3/browser_wasi_shim": "/vendor/wasi-shim/index.js"}}
+  </script>
+</head>
+<body>
+  <script type="module">
+    import { init } from "/app/index.js";
+    await init();
+  </script>
+</body>
+</html>
+"""
 
 @Suite struct BootSpliceTests {
     @Test func replacesThePairedRegionAndIsIdempotent() throws {
@@ -46,6 +67,42 @@ private let head = "<head><script type=\"importmap\">{}</script>"
         let out = try #require(BootSplice.apply(html: html, shell: shell, config: cfg))
         #expect(out.contains("<!--swiftwui:boot-->"))
         #expect(out.contains("data-swui-boot-config"))
+    }
+
+    /// A project scaffolded before this branch has no marker AND an inline boot
+    /// in <body>. Two `init()`s means two `mount()`s, and `Runtime.mount` only
+    /// appends — the app renders twice, with everything that follows from that.
+    @Test func aPreMarkerProjectEndsUpWithExactlyOneBoot() throws {
+        let out = try #require(BootSplice.apply(html: preMarkerIndex, shell: shell, config: cfg))
+        #expect(out.components(separatedBy: "data-swui-boot-config").count - 1 == 1)
+        #expect(!out.contains("await init()"), "the shim owns init(); the inlined call must go")
+        #expect(!out.contains("import { init }"))
+    }
+
+    /// Same document, no boot UI declared: the block inlines `init()` itself, so
+    /// the count — not the presence — is what says the old one went.
+    @Test func aPreMarkerProjectWithoutBootUIBootsOnceToo() throws {
+        let out = try #require(BootSplice.apply(html: preMarkerIndex, shell: nil, config: nil))
+        #expect(out.components(separatedBy: "await init()").count - 1 == 1)
+        let boot = try #require(out.range(of: "await init()"))
+        let headEnd = try #require(out.range(of: "</head>"))
+        #expect(boot.lowerBound < headEnd.lowerBound, "the survivor is the spliced one")
+    }
+
+    @Test func aModuleScriptThatIsNotTheLegacyBootSurvives() throws {
+        let mine = "<script type=\"module\">import { chart } from \"/c.js\"; chart();</script>"
+        let out = try #require(BootSplice.apply(html: head + "</head><body>" + mine + "</body>",
+                                                shell: shell, config: cfg))
+        #expect(out.contains(mine))
+    }
+
+    /// A document carrying the markers is already current; a module script next
+    /// to them is the author's, whatever it happens to contain.
+    @Test func theMarkerPathStripsNothing() throws {
+        let mine = "<script type=\"module\">import { init } from \"/x.js\"; await init();</script>"
+        let html = head + "<!--swiftwui:boot--><!--/swiftwui:boot--></head><body>" + mine + "</body>"
+        let out = try #require(BootSplice.apply(html: html, shell: shell, config: cfg))
+        #expect(out.contains(mine))
     }
 
     @Test func returnsNilWhenThereIsNowhereSafeToPutIt() {
