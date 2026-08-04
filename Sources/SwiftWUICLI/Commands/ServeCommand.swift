@@ -8,7 +8,7 @@ struct Serve: ParsableCommand {
 
     @Argument(help: "Directory to serve.") var dir: String = "dist"
     @Option(name: .long, help: "Port to serve on.") var port: UInt16 = 8080
-    @Flag(name: .long, help: "Set the dev flag so ?swui-boot=slow|fail|stall works against dist/.")
+    @Flag(name: .long, help: "Set the dev flag so ?swui-boot=slow|fail|stall works against dist/. The flag also skips service-worker registration, so a PWA preview stops being faithful.")
     var bootDebug = false
 
     func run() throws {
@@ -18,7 +18,11 @@ struct Serve: ParsableCommand {
         var files = StaticFiles.handler(urlPrefix: "/", root: root, spaFallback: true, localeSite: site)
         if bootDebug {
             files = DevInjection.bootDebugFlag(wrapping: files)
-            print("warning: serving with boot debug enabled — do not use for a production preview")
+            // `__swiftwui_dev` is not single-purpose: DOMBackend also skips
+            // service-worker registration under it, so a PWA dist served this
+            // way is no longer the build it is meant to be previewing.
+            print("warning: serving with boot debug enabled — the dev flag also skips "
+                + "service-worker registration, so this is not a faithful production or PWA preview")
         }
         let server = HTTPServer(handlers: [files])
         try server.start(port: port)

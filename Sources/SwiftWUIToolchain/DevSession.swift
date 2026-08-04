@@ -76,7 +76,7 @@ public final class DevSession: @unchecked Sendable {   // lastError guarded by `
             devClient,
             StaticFiles.handler(urlPrefix: "/__swiftwui/vendor/wasi-shim/", root: shimRoot),
             StaticFiles.handler(urlPrefix: "/vendor/wasi-shim/", root: shimRoot),
-            Self.bootShimHandler(),   // BEFORE /app/ — see the factory's note
+            Self.bootShimHandler(),   // ahead of /app/ — see the factory's note
             StaticFiles.handler(urlPrefix: "/app/", root: bundleDir),
             publicHandler,
             indexHandler,
@@ -88,12 +88,16 @@ public final class DevSession: @unchecked Sendable {   // lastError guarded by `
     /// specifically — it is derived, never assumed, everywhere else.
     static var shimPath: String { BootSplice.entryDir + "swiftwui-boot.js" }
 
-    /// Exact match, and it MUST be registered before the `/app/` static handler:
-    /// dev serves `/app/*` out of the PackageToJS bundle dir, which the plugin
+    /// Dev serves `/app/*` out of the PackageToJS bundle dir, which the plugin
     /// owns and wipes, so the shim is never written there — only
-    /// `DistLayout.assemble` puts it next to the bundle, and dev has no dist/.
-    /// Without this the shim tag 404s, `init()` is never called, and every dev
-    /// session is a dead page.
+    /// `DistLayout.assemble` puts it next to a bundle, and dev has no dist/.
+    /// Without this handler the shim tag 404s, `init()` is never called, and
+    /// every dev session is a dead page.
+    ///
+    /// Registered ahead of that static handler defensively, not because it has
+    /// to be today: `StaticFiles.handler` returns nil on a miss, so either order
+    /// resolves the shim, and no test can tell them apart. The order becomes
+    /// load-bearing the moment `/app/` grows a directory index or SPA fallback.
     ///
     /// A static factory, not an instance method: a test can exercise it with no
     /// session, no watcher and no build.

@@ -18,6 +18,8 @@ public enum DevInjection {
     /// rendered until an author's own shell arrives via `swiftwui build`.
     static let devDelayMS = 300
 
+    private nonisolated(unsafe) static var warnedNoAnchor = false
+
     /// `nil` wasmURL (no build yet, or a failed first build) falls back to the
     /// inline `import { init }` the templates used to carry: `index.js` then
     /// fetches the binary itself, relative to its own URL. The page still boots,
@@ -36,8 +38,19 @@ public enum DevInjection {
         // "@bjorn3/browser_wasi_shim" import would then never resolve.
         //
         // nil = a document with neither the marker nor a </head>, which has no
-        // import map either and so could not boot whatever we injected.
-        let booted = BootSplice.apply(html: html, shell: nil, config: config) ?? html
+        // import map either and so could not boot whatever we injected. Said
+        // out loud, like `BootSplice.write` does for the same shape: a page
+        // that silently never boots is the failure this whole path exists to end.
+        var booted = html
+        if let spliced = BootSplice.apply(html: html, shell: nil, config: config) { booted = spliced }
+        else if !warnedNoAnchor {
+            // Once per process — the index is re-injected on every request, and
+            // one line per page load would bury itself. A torn write costs a
+            // duplicate warning, which is why this needs no lock.
+            warnedNoAnchor = true
+            print("warning: index.html has neither a \(BootSplice.open) marker nor a </head> — "
+                + "nothing starts the app")
+        }
         return insertAfterHead(snippet, into: booted)
     }
 
