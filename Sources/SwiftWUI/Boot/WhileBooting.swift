@@ -24,9 +24,14 @@ public struct _WhileBootingTag<Content: Tag, Placeholder: Tag>: Tag, _PrimitiveT
         var contentNodes = resolve(content, path: id.appending(.child(0)), ctx: &ctx)
         guard ctx.isBuildRender else { return contentNodes }
         for i in contentNodes.indices { applyVeil(to: &contentNodes[i]) }
+        let placeholderPath = id.appending(.keyed(NodeKey("swui-boot")))
         let placeholderNodes = resolve(_BootTemplate(content: placeholder),
-                                       path: id.appending(.keyed(NodeKey("swui-boot"))),
-                                       ctx: &ctx)
+                                       path: placeholderPath, ctx: &ctx)
+        // Build render only (the guard above), so this costs the browser nothing.
+        // Placeholder rows are REAL: they enter `ctx.reachable` and are retained,
+        // so `@State` here ships dead rows into the SSG snapshot.
+        ctx.bootFindings += BootProbe.findings(root: placeholderPath, nodes: placeholderNodes,
+                                               ctx: ctx, what: ".whileBooting placeholder")
         return placeholderNodes + contentNodes
     }
 }

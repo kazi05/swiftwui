@@ -137,6 +137,11 @@ public final class StateStore {
 
     var rowCount: Int { rows.count }
 
+    /// Identities of grafted `@State` rows. `BootProbe` needs the identities and
+    /// not just `rowCount`: a `.whileBooting` placeholder shares this store with
+    /// the page around it, so its own rows are found by path.
+    var rowIdentities: [NodeIdentity] { Array(rows.keys) }
+
     /// SSG side (spec §7): Encodable-only rows; a single non-encodable slot drops
     /// the WHOLE row (partial rows would desync Mirror order on restore).
     /// Constraint (Task 5 review I1): private/function-local component types won't survive hydration — `String(reflecting:)` yields a per-binary address, not a stable name.

@@ -63,6 +63,10 @@ public enum StaticSiteError: Error, CustomStringConvertible {
     /// task calling `setLocale` reaches it with no table anywhere, and an app
     /// that declares none must not be told its table is invalid.
     case outputFileCollision(file: String, first: String, second: String)
+    /// Boot UI that cannot work. It is rendered once, natively, at build time,
+    /// so `@State`, `.task` and event handlers inside it are inert — and every
+    /// one of those produces a green build and a dead loader (boot spec §5.6).
+    case bootUIUnsupported([String])
     public var description: String {
         switch self {
         case .buildTaskOverflow(let page, let iterations):
@@ -76,6 +80,9 @@ public enum StaticSiteError: Error, CustomStringConvertible {
                 + "overwrite the other. Either two locales resolve to the same URL (a routePaths "
                 + "slug spelled like another locale's path), or the page moved its own locale with "
                 + "setLocale during the build."
+        case .bootUIUnsupported(let problems):
+            return "StaticSite: boot UI cannot do this — it is rendered once, natively, at build "
+                + "time:\n  - " + problems.joined(separator: "\n  - ")
         }
     }
 }
@@ -210,6 +217,14 @@ extension StaticSite {
         // in debug and ships a signal-less environment in release.
         runtime.mount()
         let rendered = runtime._renderBootShell(content)
+        // Printed, never fatal — the one place the probe deliberately does NOT
+        // fail. `BootShellRunner` runs this subcommand with `streamOutput: false`
+        // and already reads a non-zero exit as "this project predates boot UI":
+        // exiting non-zero here would print the wrong remedy and then silently
+        // build WITHOUT the boot UI, deleting the feature to report a nit about
+        // it. Visible when an author runs `<App> boot-shell` directly; the hard
+        // gate on the same declaration is `generate()`.
+        _ = reportBootFindings(runtime._bootFindings + rendered.findings)
         return BootShellPayload(html: rendered.html, css: rendered.css,
                                 delayMS: A.bootUI._delayMS)
     }
@@ -390,6 +405,13 @@ public enum StaticSite {
                 trees.append((tree, canonical, claim))
             }
         }
+
+        // Boot-UI authoring probe (boot spec §5.6), before a single document is
+        // written: a build that is about to fail must not leave half a site on
+        // disk. Reported for the whole build at once rather than per page — an
+        // app-level overlay produces the same finding on every one of them.
+        let bootErrors = reportBootFindings(trees.flatMap { $0.tree.bootFindings })
+        guard bootErrors.isEmpty else { throw StaticSiteError.bootUIUnsupported(bootErrors) }
 
         // Only pages that actually rendered may be advertised as alternates: a
         // locale that never enumerated this path, fell through to notFound or
@@ -578,6 +600,30 @@ public enum StaticSite {
         /// The boot UI this document resolved, already rendered against its own
         /// runtime's environment. nil = this document declared none.
         var bootShell: BootShell? = nil
+        /// Authoring findings for this document's boot UI (`BootProbe`).
+        /// `generate()` reports and fails on them; `render(path:)` drops them —
+        /// it is the per-REQUEST on-demand entry too, and an authoring nit is
+        /// not something to re-print or 500 on once per request.
+        var bootFindings: [BootProbe.Finding] = []
+    }
+
+    /// Writes `BootProbe` findings to stderr, deduped in first-seen order, and
+    /// returns the error messages among them.
+    ///
+    /// stderr and a return value, NEVER `assert`: `swiftwui build` defaults to
+    /// `-c release`, where assertions are stripped — a probe that only asserted
+    /// would advertise a guarantee it does not provide in the one configuration
+    /// authors ship.
+    private static func reportBootFindings(_ findings: [BootProbe.Finding]) -> [String] {
+        var seen: Set<String> = []
+        var errors: [String] = []
+        var text = ""
+        for f in findings where seen.insert(f.message).inserted {
+            text += (f.isError ? "error: " : "warning: ") + f.message + "\n"
+            if f.isError { errors.append(f.message) }
+        }
+        if !text.isEmpty { FileHandle.standardError.write(Data(text.utf8)) }
+        return errors
     }
 
     /// One page, rendered and assembled on its own — what `render` is.
@@ -728,12 +774,14 @@ public enum StaticSite {
         // is a `BootUI?`, so `.none` here would resolve to `Optional.none` —
         // nil, silently, with only a warning.
         var bootShell: BootShell? = nil
+        var bootShellFindings: [BootProbe.Finding] = []
         let declared = runtime._bootUI ?? BootUI.inherit
         let effective = declared._isInherit ? A.bootUI : declared
         if case .hydrate = config.mode, let content = effective._content {
             let rendered = runtime._renderBootShell(content)
             bootShell = BootShell(html: rendered.html, css: rendered.css,
                                   delayMS: effective._delayMS)
+            bootShellFindings = rendered.findings
         }
         let css = runtime._registryText
         var snapshot: String? = nil
@@ -758,6 +806,9 @@ public enum StaticSite {
             }
             snapshot = SnapshotJSON.assemble(version: 1, path: externalPath, rows: rows, tasks: tasks)
         }
+        // Read after the drain, like `_bootUI` above: `_bootFindings` is stashed
+        // by every full pass, so the last one is the tree this document ships.
+        let bootFindings = runtime._bootFindings + bootShellFindings
         var wasmPath: String? = nil
         if case .hydrate(let p) = config.mode { wasmPath = p }
         // A Router fallthrough to notFound still resolves real content (its
@@ -766,7 +817,8 @@ public enum StaticSite {
         let outcome: RenderedPage.Outcome = runtime._routeMatched ? .page : .notFound
         return RenderedTree(body: body, css: css, head: runtime._pageHead, snapshot: snapshot,
                             outcome: outcome, externalPath: externalPath, subdir: subdir,
-                            renderLocale: renderLocale, wasmPath: wasmPath, bootShell: bootShell)
+                            renderLocale: renderLocale, wasmPath: wasmPath, bootShell: bootShell,
+                            bootFindings: bootFindings)
     }
 
     /// Assembles the document. `alternates` is the verified sibling set — the

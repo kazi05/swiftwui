@@ -56,6 +56,10 @@ public final class Runtime<Backend: RendererBackend> {
     /// Boot UI the last render pass resolved. SPI: the SSG reads it per
     /// document, folds `.inherit` into the app's, and renders the winner.
     public private(set) var _bootUI: BootUI?
+    /// `.whileBooting` authoring findings from the last FULL pass (`BootProbe`),
+    /// for the SSG to report. Full passes only: a subtree pass that never
+    /// reached the `.whileBooting` wrapper would otherwise blank a real finding.
+    public private(set) var _bootFindings: [BootProbe.Finding] = []
     /// The environment the last full pass assembled. Only `_renderBootShell`
     /// reads it — see the comment at its stash in `renderPass`.
     private var _lastEnvironment = EnvironmentValues()
@@ -154,7 +158,8 @@ public final class Runtime<Backend: RendererBackend> {
     /// The returned CSS is the shell's own registry text and is emitted into a
     /// separate `<style data-swui-boot>` block; it never joins the app's
     /// stylesheet, which the client runtime overwrites at mount.
-    public func _renderBootShell(_ content: AnyTag) -> (html: String, css: String) {
+    public func _renderBootShell(_ content: AnyTag)
+        -> (html: String, css: String, findings: [BootProbe.Finding]) {
         // Stale-proof but not seed-proof: called before any full pass has run,
         // `_lastEnvironment` is still the default one and the shell renders in
         // English inside every localized document — the exact failure the
@@ -166,7 +171,8 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.environment = _lastEnvironment     // seeded by renderPass — carries the locale
         ctx.isBuildRender = true
         let nodes = resolve(_BootTemplate(content: content), path: .root, ctx: &ctx)
-        return (HTMLRenderer._render(nodes), ctx.registry.text + "\n" + BootCSS.text)
+        return (HTMLRenderer._render(nodes), ctx.registry.text + "\n" + BootCSS.text,
+                BootProbe.findings(root: .root, nodes: nodes, ctx: ctx, what: "boot UI"))
     }
 
     public init(backend: Backend, container: Backend.HostNode, root: some Tag,
@@ -804,6 +810,7 @@ public final class Runtime<Backend: RendererBackend> {
         isRendering = true
         let children = coalesceText(resolve(rootTag, path: .root, ctx: &ctx))
         isRendering = false
+        _bootFindings = ctx.bootFindings
         _lastEffectiveTransactions.merge(ctx.effectiveTransactions) { _, latest in latest }
         let new = Node.component(ComponentNode(identity: .root, typeName: "Root",
                                                key: nil, children: children))

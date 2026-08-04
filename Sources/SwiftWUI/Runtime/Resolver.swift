@@ -39,6 +39,10 @@ public struct ResolveContext {
     /// whether to emit its placeholder — it must never change the identity path
     /// of the wrapped content (boot spec §5.4).
     var isBuildRender = false
+    /// Authoring findings collected by `.whileBooting` placeholders (`BootProbe`).
+    /// Always empty in the browser: the placeholder is not resolved at all when
+    /// `isBuildRender` is false.
+    var bootFindings: [BootProbe.Finding] = []
     /// False when the Router fell through to its notFound branch (spec §7).
     var routeMatched = true
     /// Partial head written by `.pageMeta` from inside the route subtree (spec §5.1).
