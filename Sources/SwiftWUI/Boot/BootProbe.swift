@@ -76,19 +76,26 @@ public enum BootProbe {
             out.append(.init(message: "\(what) declares @State; it is rendered once at build time "
                                     + "and never re-renders", isError: true))
         }
-        // Named from the cases actually present. `ctx.effects` carries six kinds,
-        // and telling an author who wrote `.onChange` that they wrote `.task`
-        // is precisely the wrong-diagnostic failure this probe exists to avoid.
+        // Named from the cases actually present, and named as the MODIFIER an
+        // author would go looking for: sending them to unrelated code is the
+        // wrong-diagnostic failure this probe exists to prevent.
         var kinds: [String] = []
         for e in ctx.effects where e.id.isSelfOrDescendant(of: root) {
             let name: String
             switch e {
-            case .onChange:    name = ".onChange"
+            // `.onChange` has two producers — `_OnChangeEffect` and
+            // `_RouteChangeEffect` — and the case carries no discriminator, so
+            // name the pair rather than guess which one.
+            case .onChange:    name = ".onChange/.onRouteChange"
             case .task:        name = ".task"
             case .appear:      name = ".onAppear"
             case .disappear:   name = ".onDisappear"
-            case .windowEvent: name = "a window event observer"
-            case .dropGuard:   name = ".dropDestination"
+            // This one DOES discriminate: the kind is right there.
+            case .windowEvent(_, let kind, _):
+                name = kind == .scroll ? ".onWindowScroll" : ".onWindowResize"
+            // NOT `.dropDestination`, which is a different modifier entirely
+            // (it registers attributes, not this effect).
+            case .dropGuard:   name = ".preventsAccidentalDropNavigation"
             }
             if !kinds.contains(name) { kinds.append(name) }
         }

@@ -166,6 +166,38 @@ private let head = "<head><script type=\"importmap\">{}</script>"
         #expect(try BootShellRunner.run(projectDir: dir, runner: r) == nil)
         #expect(runs == 2)
     }
+
+    /// `BootProbe`'s findings ride the child's stderr, which `streamOutput:
+    /// false` captures and used to discard. The filter is what keeps SwiftPM's
+    /// chatter out of the author's terminal while letting the findings through —
+    /// for an SPA-only project this is the only place they surface at all.
+    @Test func onlyDiagnosticLinesSurviveTheStderrFilter() {
+        let stderr = """
+        Building for debugging...
+        [1/1] Compiling Probe Entry.swift
+        warning: found 1 file(s) which are unhandled; explicitly declare them as resources
+            /tmp/p/Sources/notes.txt
+        error: boot UI declares @State; it is rendered once at build time and never re-renders
+        warning: boot UI contains a Link; its click handler is dead until the runtime is live
+        Build complete!
+        """
+        #expect(BootShellRunner.diagnostics(inStderr: stderr) == [
+            "warning: found 1 file(s) which are unhandled; explicitly declare them as resources",
+            "error: boot UI declares @State; it is rendered once at build time and never re-renders",
+            "warning: boot UI contains a Link; its click handler is dead until the runtime is live",
+        ])
+    }
+
+    /// …and it runs on the SUCCESS path without disturbing the payload.
+    @Test func aRunWithFindingsStillReturnsItsShell() throws {
+        let dir = try project()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let r = MockRunner(results: [
+            "swift package describe": .init(exitCode: 0, stdout: Self.describe, stderr: ""),
+            "swift run Probe boot-shell": .init(exitCode: 0, stdout: Self.payload,
+                                                stderr: "error: boot UI declares @State\n")])
+        #expect(try BootShellRunner.run(projectDir: dir, runner: r)?.delayMS == 300)
+    }
 }
 
 @Suite struct BootSpliceWriteTests {

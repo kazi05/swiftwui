@@ -73,15 +73,7 @@ public enum BootShellRunner {
             """)
             return nil
         }
-        // `BootProbe`'s findings come back on the child's stderr, which
-        // `streamOutput: false` captured and would otherwise drop on the floor.
-        // Prefix-filtered rather than echoed wholesale: SwiftPM's "Building for
-        // debugging…" chatter shares this stream, and a compile failure never
-        // reaches here at all (it exits non-zero, handled above). This is the
-        // ONLY place an SPA-only project — no `ssg` step anywhere, and the one
-        // that needs boot UI most — can hear about boot UI that cannot work.
-        for line in result.stderr.split(whereSeparator: \.isNewline)
-        where line.hasPrefix("error: ") || line.hasPrefix("warning: ") {
+        for line in diagnostics(inStderr: result.stderr) {
             FileHandle.standardError.write(Data((line + "\n").utf8))
         }
         // Empty html === the app declared `.none`, and that answer is cached
@@ -91,6 +83,26 @@ public enum BootShellRunner {
         let answer = shell.html.isEmpty ? nil : shell
         if let key { store(Cache(key: key, shell: answer), projectDir: projectDir) }
         return answer
+    }
+
+    /// `BootProbe`'s findings, out of the child's stderr — which
+    /// `streamOutput: false` captured and would otherwise drop on the floor.
+    /// This is the ONLY place an SPA-only project (no `ssg` step anywhere, and
+    /// the one that needs boot UI most) can hear about boot UI that cannot work.
+    ///
+    /// Prefix-filtered rather than echoed wholesale: SwiftPM's "Building for
+    /// debugging…" chatter shares this stream, and `StaticSite` already writes
+    /// findings with exactly these two prefixes. A compile failure never reaches
+    /// here at all — it exits non-zero, which the caller handles above.
+    ///
+    /// Known noise, not worth tightening: a package-level SwiftPM diagnostic
+    /// ("warning: found 1 file(s) which are unhandled…") exits 0 and matches, so
+    /// it prints unattributed and without its indented continuation. The wasm
+    /// build streams the same line anyway.
+    static func diagnostics(inStderr stderr: String) -> [String] {
+        stderr.split(whereSeparator: \.isNewline)
+            .filter { $0.hasPrefix("error: ") || $0.hasPrefix("warning: ") }
+            .map(String.init)
     }
 
     // MARK: - Cache
