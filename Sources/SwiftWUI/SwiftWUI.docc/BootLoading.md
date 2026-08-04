@@ -259,9 +259,14 @@ static var bootUI: BootUI {
 ```
 
 Showing the failure branch only in the failed state is a CSS job — one
-`html[data-swui-boot="failed"] .boot-failed-only` rule in a stylesheet the
-document already links; see *Styling the boot UI* for why it cannot be a typed
-modifier.
+`html[data-swui-boot="failed"] .boot-failed-only` rule — and *where* you put
+that rule decides whether it works. See *Styling the boot UI* for why it cannot
+be a typed modifier, and for the one mechanism that reaches every page.
+
+**Get this wrong and the failure branch is visible during a perfectly normal
+boot**, stacked on top of the spinner: the boot UI is one template, and every
+root in it is instantiated together. There is no state in which some of it is
+withheld.
 
 `BootRetry` renders a `<button data-swui-boot-retry>`, and the shim delegates a
 click listener on that attribute which reloads the current URL **minus** the
@@ -353,14 +358,25 @@ Div()
     .style("transform-origin", "left")
 ```
 
-**State-dependent styling needs a plain stylesheet.** ``Rule`` builds
-class, id and element selectors only, so `html[data-swui-boot="failed"] .x`
-is not expressible through the typed API. Put those rules in a stylesheet and
-link it from your own `index.html` — a `<link rel="stylesheet">` sitting in
-the served document is applied by the browser whether or not any wasm ever
-arrives, which is the property that matters here. ``LinkTag/stylesheet(_:)``
-in ``Page/links`` works too, but only on a prerendered page: on an SPA route
-the runtime applies the page's links at mount, which is after boot is over.
+**State-dependent styling needs a plain stylesheet, and it has to be linked
+from two places.** ``Rule`` builds class, id and element selectors only, so
+`html[data-swui-boot="failed"] .x` is not expressible through the typed API.
+Write those rules in a `.css` file under `public/`, then link it **both** ways:
+
+- ``LinkTag/stylesheet(_:)`` in ``Page/links``, on every page. This is the only
+  mechanism that reaches a **prerendered** document. `swiftwui ssg` regenerates
+  each page from `DocumentSerializer` and overwrites `dist/index.html` — your
+  own `index.html` is not consulted for those routes at all, so a `<style>` or
+  `<link>` you put there never arrives.
+- A `<link rel="stylesheet">` in your own `index.html`, for **SPA** routes,
+  which are served from that file. ``Page/links`` cannot cover these: the
+  runtime applies a page's links at mount, which is after boot is over.
+
+Miss the first and your failure branch shows during every normal boot on the
+prerendered pages — the ones the whole feature exists for. Miss the second and
+the same happens on SPA routes. A `<link rel="stylesheet">` in the served
+document is applied whether or not any wasm ever arrives, which is the property
+that makes it the right tool on both paths.
 
 Two more things about what CSS exists during boot:
 
