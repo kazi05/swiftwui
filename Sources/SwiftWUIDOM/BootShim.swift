@@ -45,8 +45,11 @@ enum BootShim {
             _ = ui?[i].object?.remove?()
         }
         // The veil is stamped on real adopted elements in the BUILD render only,
-        // so it is absent from the tree the browser builds — left in place it is
-        // an attribute diff on every veiled element at the first reconciliation.
+        // so it appears in neither VDOM and the applier never diffs it. What
+        // makes it load-bearing to drop is the FAILED path: the shim re-sets
+        // `<html data-swui-boot>` on a trap after mount, and a leftover veil
+        // attribute would then hide every veiled element of the live page
+        // underneath the failure UI. Do not delete this loop.
         let veiled = document.querySelectorAll("[data-swui-boot-veil]").object
         for i in (0..<Int(veiled?.length.number ?? 0)).reversed() {
             _ = veiled?[i].object?.removeAttribute?("data-swui-boot-veil")

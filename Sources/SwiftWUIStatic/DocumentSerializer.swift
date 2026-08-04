@@ -149,10 +149,13 @@ public enum DocumentSerializer {
             // without it the preload is a second download, not a cache hit.
             let wasmURL = HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.wasmURL))
             let shimURL = HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.shimURL))
+            // Sanitized like the two above, not merely escaped: the shim feeds
+            // `data-entry` to a dynamic `import()`, which resolves `data:`.
+            let entryURL = HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.entryURL))
             out += "<link rel=\"preload\" as=\"fetch\" crossorigin fetchpriority=\"low\" href=\""
                 + wasmURL + "\">\n"
             out += "<link rel=\"modulepreload\" href=\"" + shimURL + "\">\n"
-            out += "<link rel=\"modulepreload\" href=\"" + HTMLEscaping.text(cfg.entryURL) + "\">\n"
+            out += "<link rel=\"modulepreload\" href=\"" + entryURL + "\">\n"
             // The shim owns the import + init() call the legacy branch below inlines;
             // emitting both would boot the app twice. `data-size` is omitted outright
             // when the size is unknown — the shim reads a missing one as indeterminate.
@@ -162,7 +165,7 @@ public enum DocumentSerializer {
             // completion and diagnostics for everyone who edits it after us.
             out += "<script type=\"module\" src=\"" + shimURL + "\" data-swui-boot-config"
             out += " data-wasm=\"" + wasmURL + "\""
-            out += " data-entry=\"" + HTMLEscaping.text(cfg.entryURL) + "\""
+            out += " data-entry=\"" + entryURL + "\""
             out += cfg.sizeBytes.map { " data-size=\"\($0)\"" } ?? ""
             out += " data-delay=\"\(cfg.delayMS)\"></script>\n"
         } else if let src = input.wasmScriptPath {

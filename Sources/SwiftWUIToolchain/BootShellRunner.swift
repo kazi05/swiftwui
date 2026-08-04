@@ -53,6 +53,12 @@ public enum BootShellRunner {
         // The cache does not rescue this case on its own — its key is the
         // sources, so every build that edits one would recompile to re-learn
         // `.none`.
+        //
+        // The probe is TEXTUAL and does not tokenize, so comments count: a doc
+        // comment that merely names `bootUI` opts the project into the host
+        // compile above. That is the safe direction (a false positive costs one
+        // compile, a false negative silently drops the feature), but it is why a
+        // project with no boot UI can still pay ~25s — the Tutorial did.
         if let probe, !probe.declaresBootUI { return nil }
         let key = probe?.key
         if let key, let hit = cached(projectDir: projectDir, key: key) { return hit.shell }

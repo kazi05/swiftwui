@@ -159,9 +159,11 @@ struct ArticlePage: Tag, Page {
 }
 ```
 
-`.none` on a page suppresses the app's overlay for that page and emits no
-boot markup into its document. `.inherit` on an `App` reads as `.none` —
-there is nothing above it to inherit from.
+`.none` on a page suppresses the app's overlay for that page: no shell, no
+boot stylesheet and no shim in that document. It does not suppress
+`.whileBooting`, which emits its placeholder regardless — see below, where
+that combination turns out to do nothing at all. `.inherit` on an `App` reads
+as `.none` — there is nothing above it to inherit from.
 
 Selection happens per rendered document, once per `(path, locale)` pair, and
 the shell is rendered through that document's own `Runtime`. That is what
@@ -202,8 +204,17 @@ is `display: none` and the placeholder stands in its place; at mount the
 framework removes the placeholder and drops the veil in the same paintless
 turn, so the swap back is never an observable frame.
 
-Four things to know before using it:
+Five things to know before using it:
 
+- **It needs the page to have a declared `bootUI`.** The veil rule ships in
+  the boot stylesheet and the shim ships with the boot config, and a document
+  gets neither unless its `App` or `Page` declares an overlay. On a page that
+  declares none, `.whileBooting` still emits the placeholder and the veil
+  attribute, but nothing ever sets `data-swui-boot` on `<html>` to act on
+  them: the placeholder stays hidden inside its `<template>`, the real subtree
+  stays visible, and you get inert extra bytes and no diagnostic. Declare an
+  overlay — `.overlay { Div() }` with no visible content is enough — or drop
+  the `.whileBooting`.
 - **It only does anything on a prerendered page.** With no prerender there is
   no real subtree to stand in for, so `.whileBooting` contributes nothing and
   only `App`/`Page` overlays apply.

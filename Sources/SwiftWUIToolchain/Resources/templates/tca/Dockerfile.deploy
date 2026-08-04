@@ -1,5 +1,8 @@
 # Serve a locally built dist/ (run `swiftwui build && swiftwui ssg` first):
 #   docker build -f Dockerfile.deploy -t {{NAME}} . && docker run -p 8080:80 {{NAME}}
 FROM nginx:alpine
+# This is the project-root nginx.conf, not the generated dist/nginx.conf — so the
+# wasm cache policy and gzip_static that a release build writes there are NOT in
+# this image. Swap in `COPY dist/nginx.conf` to get them; both files are yours.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY dist/ /usr/share/nginx/html/

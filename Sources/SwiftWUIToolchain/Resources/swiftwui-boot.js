@@ -5,7 +5,8 @@
 // Contract with the document (boot spec §4, §6):
 //   <html data-swui-boot="downloading|starting|failed">   absent === ready
 //   <html data-swui-boot-progress="unknown">              size not stamped
-//   --swui-boot-progress: 0…1  on <html>                  size known
+//   --swui-boot-progress: 0…0.99 on <html>                size known (clamped:
+//                                                         never reaches 1)
 //   <template data-swui-boot-ui>                          cloned in once shown
 //   [data-swui-boot-veil]                                 real content, CSS-hidden
 //   [data-swui-boot-retry]                                delegated reload

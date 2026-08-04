@@ -39,6 +39,9 @@ private struct SocialLinks: Tag {
     @Test func effectsAreNamedAfterTheModifierThatMadeThem() {
         let staticTask = BootProbe.check(AnyTag(StaticTasked()))
         #expect(staticTask.contains { $0.message.contains(".staticTask") })
+        // Both spellings, or an author on `.task(policy: .build)` greps for a
+        // string that is not in the diagnostic.
+        #expect(staticTask.contains { $0.message.contains(".task(policy:") })
         let onAppear = BootProbe.check(AnyTag(Effectful()))
         #expect(onAppear.contains { $0.message.contains(".onAppear") })
         #expect(!onAppear.contains { $0.message.contains(".task") })

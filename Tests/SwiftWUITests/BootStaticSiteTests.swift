@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SwiftWUI
 @testable import SwiftWUIStatic
@@ -19,6 +20,23 @@ private struct Quiet: Page {
     var bootUI: BootUI { .none }
     var body: some Tag { Div { Text("quiet") } }
 }
+private struct Loud: Page {
+    var title: String { "L" }
+    var bootUI: BootUI { .overlay(after: .ms(120)) { Spin() } }
+    var body: some Tag { Div { Text("loud") } }
+}
+/// `App.bootUI` left at its `.none` default while one page opts in — the shape
+/// the app-level `boot-shell` answer cannot see, so only the per-document
+/// resolution in `renderTree` can produce it.
+private struct QuietApp: App {
+    init() {}
+    var body: some Tag {
+        Router {
+            Route("/") { Home() }
+            Route("/loud") { Loud() }
+        }
+    }
+}
 private struct SiteApp: App {
     init() {}
     static var bootUI: BootUI { .overlay(after: .ms(250)) { Spin() } }
@@ -31,10 +49,14 @@ private struct SiteApp: App {
 }
 
 @Suite @MainActor struct BootStaticSiteTests {
+    /// A directory that does not exist, unique per call: `BootStamp.read` scans
+    /// `<outDir>/app` off the real filesystem, so a fixed path under /tmp makes
+    /// "no wasm here" a property of the machine rather than of the test.
     private var config: StaticSiteConfig {
-        .init(outDir: "/tmp/unused", mode: .hydrate(wasmScriptPath: "/app/index.js"))
+        .init(outDir: NSTemporaryDirectory() + "swiftwui-nowasm-" + UUID().uuidString,
+              mode: .hydrate(wasmScriptPath: "/app/index.js"))
     }
-    /// No wasm exists under /tmp/unused, so anything asserting on the boot
+    /// No wasm exists under that directory, so anything asserting on the boot
     /// CONFIG (rather than the shell) has to inject a stamp — without one the
     /// config is deliberately not emitted at all.
     private var stampedConfig: StaticSiteConfig {
@@ -58,7 +80,7 @@ private struct SiteApp: App {
         #expect(!page.html.contains("data-swui-boot-ui"))
     }
 
-    /// No `dist/app/*.wasm` exists for /tmp/unused. A guessed wasm name would
+    /// No `dist/app/*.wasm` exists under that outDir. A guessed wasm name would
     /// 404 inside the shim, which fails closed and shows the failure UI — a dead
     /// page. So no config at all is emitted, the legacy inline boot takes over,
     /// and the build still succeeds.
@@ -97,6 +119,25 @@ private struct SiteApp: App {
         #expect(page.html.contains("data-wasm=\"/static/bundle/App.wasm?v=deadbeef\""))
         #expect(page.html.contains("data-entry=\"\(entry)\""))
         #expect(!page.html.contains("/app/"))
+    }
+
+    /// The inverse of `pageLevelNoneSuppressesIt`, and the shape the SPA answer
+    /// reports as "no boot UI": an app that declares none, one page that does.
+    /// That page must get the whole apparatus — shell, stylesheet and shim.
+    @Test func aPageOverlayStandsOnItsOwnWithoutAnAppLevelOne() async throws {
+        let page = try await StaticSite.render(QuietApp.self, path: "/loud", config: stampedConfig)
+        #expect(page.html.contains("<template data-swui-boot-ui>"))
+        #expect(page.html.contains("class=\"spin\""))
+        #expect(page.html.contains("<style data-swui-boot>"))
+        #expect(page.html.contains("data-swui-boot-config"))
+        #expect(page.html.contains("data-delay=\"120\""), "the PAGE's delay, not the app's default")
+    }
+
+    /// …and it stays that page's, so the opt-in does not leak site-wide.
+    @Test func theRestOfThatAppStaysCold() async throws {
+        let page = try await StaticSite.render(QuietApp.self, path: "/", config: stampedConfig)
+        #expect(page.html.contains("home"))
+        #expect(!page.html.contains("data-swui-boot"))
     }
 
     /// `.staticOnly` ships no wasm at all, so a boot UI it would never use must

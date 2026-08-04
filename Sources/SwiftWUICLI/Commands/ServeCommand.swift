@@ -4,7 +4,7 @@ import SwiftWUIToolchain
 
 struct Serve: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Statically preview a built site (no watcher, no dev injection).")
+        abstract: "Statically preview a built site (no watcher; no dev injection unless --boot-debug).")
 
     @Argument(help: "Directory to serve.") var dir: String = "dist"
     @Option(name: .long, help: "Port to serve on.") var port: UInt16 = 8080
