@@ -4,6 +4,70 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
+## [0.9.0] - 2026-08-04
+
+### Added
+
+- **Boot loading.** A SwiftWUI binary is a couple of megabytes compressed, which on a slow
+  connection is ten-odd seconds during which a prerendered page looks alive and is not. You can
+  now declare what the visitor sees in that window, in Swift:
+
+  ```swift
+  struct MyApp: App {
+      static var bootUI: BootUI {
+          .overlay(after: .ms(300)) { Div(class: "boot") { P { "Loading…" } } }
+      }
+  }
+  ```
+
+  ``BootUI`` sits on ``App`` and on ``Page`` (a page override wins; `.none` opts a page out),
+  ``Tag/whileBooting(_:)`` puts a skeleton in place of one heavy widget, and ``BootRetry`` is a
+  retry control for the failed state — it carries no Swift closure, because the failed state is
+  precisely the one with no runtime to run one.
+
+  The UI is rendered **natively at build time**, through the document's own runtime, so an
+  overlay that reads the localization catalog renders in that document's language. It ships
+  inside an inert `<template>` and is revealed by a small shipped JS shim that fetches the wasm
+  itself, so progress is counted against real decompressed bytes rather than `Content-Length`.
+  Phase lives in one attribute on `<html>` — `downloading`, `starting`, `failed`, and *absent*
+  for ready. Absent-means-ready is deliberate: a client that runs no JavaScript never sees the
+  attribute, so it gets the ordinary static page instead of one hidden behind skeletons.
+
+  Typed keystrokes survive hydration, `swiftwui serve --boot-debug` previews the states against
+  a real build, and `swiftwui dev` serves the shim so a scaffolded project boots the same way it
+  will in production.
+
+- **Per-locale route paths.** A route can have its own URL in each language —
+  `/delivery/:from/:to` in English, `/dostavka/:from/:to` in Russian — through an optional table
+  inside ``Localization``:
+
+  ```swift
+  Localization(catalog: L10n.self, default: .en, strategy: .pathPrefix(),
+               routePaths: LocalizedRoutes { … })
+  ```
+
+  ``Route``, ``Router``, guards, `@RouteParam` and ``Prerender`` are untouched: the canonical
+  path is what the render tree keeps seeing, and only `LocalePath`'s externalize/internalize
+  consult the table. Tables that cannot work — overlapping slugs, collisions, patterns that
+  match nothing — fail the build with their own diagnostics rather than producing a green build
+  and a broken site.
+
+### Changed
+
+- The wasm URL now carries a content hash (`?v=…`), and the generated `nginx.conf` caches only
+  versioned requests as `immutable`. A request without the query gets `no-cache`, so a
+  hand-written `index.html` that boots without the shim is never pinned.
+- `swiftwui build` splices its boot block into a marker region in `index.html`. A project
+  scaffolded before this release has no marker and an inline boot script in `<body>`; the build
+  replaces that script and says so, because leaving both would boot the app twice.
+
+### Fixed
+
+- `.notFound` pages no longer serve an HTTP 200 self-canonical with a full hreflang set, which
+  could get an empty page indexed as a language alternate of a real one.
+- The prerender's `noindex` meta is dropped when the client moves the URL.
+- Route-table validation runs at app startup, not only under `ssg`.
+
 ## [0.8.0] - 2026-07-29
 
 ### Added
