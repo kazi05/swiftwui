@@ -1,5 +1,6 @@
 @MainActor
 public final class ListenerRegistry {
+    nonisolated deinit { }
     private var handlers: [ListenerID: (Any?) -> Void] = [:]
     public init() {}
 

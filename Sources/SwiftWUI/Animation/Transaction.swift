@@ -27,6 +27,7 @@ public struct Transaction {
 /// microtask rather than never firing.
 @MainActor
 final class CompletionGroup {
+    nonisolated deinit { }
     private(set) var pending = 0
     private var fired = false
     private var armed = false

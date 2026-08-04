@@ -1,6 +1,7 @@
 /// Shadow tree: the single owner of virtual-identity → host-node mapping and
 /// listener bookkeeping (spec §8.4, traps T5/T10).
 final class MountedNode<N> {
+    nonisolated deinit { }
     let host: N?                       // nil for component shadow nodes
     let hostParent: N                  // nearest enclosing realized element
     let componentIdentity: NodeIdentity?   // set for component shadow nodes only
@@ -19,6 +20,7 @@ final class MountedNode<N> {
 
 @MainActor
 final class TreeApplier<Backend: RendererBackend> {
+    nonisolated deinit { }
     let backend: Backend
     /// Root wraps the container element (host != nil) — anchor recursion
     /// terminates here (spec §8.4, decision 22).

@@ -7,6 +7,7 @@ public enum WindowEventKind: Hashable {
 /// like environment observation — never detached).
 @MainActor
 final class WindowEventHub {
+    nonisolated deinit { }
     private var subscribers: [NodeIdentity: (kind: WindowEventKind, action: (Any) -> Void)] = [:]
     var onFirstSubscriber: (() -> Void)?
     private var began = false

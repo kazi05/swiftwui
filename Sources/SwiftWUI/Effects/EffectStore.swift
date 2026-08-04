@@ -28,6 +28,7 @@ enum EffectRequest {
 /// not an underscored SPI. Members prefixed `_` remain SPI.
 @MainActor
 public final class EffectStore {
+    nonisolated deinit { }
     private var previousValues: [NodeIdentity: Any] = [:]
     private var tasks: [NodeIdentity: (task: Task<Void, Never>, id: AnyHashable?)] = [:]
     private var appeared: Set<NodeIdentity> = []

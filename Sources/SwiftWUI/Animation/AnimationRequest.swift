@@ -30,6 +30,7 @@ public struct AnimationRequest: Equatable {
 /// Opaque handle to a running backend animation; backends subclass to attach
 /// their own bookkeeping (e.g. the underlying `Animation` JS object).
 open class AnimationToken {
+    nonisolated deinit { }
     public init() {}
 }
 

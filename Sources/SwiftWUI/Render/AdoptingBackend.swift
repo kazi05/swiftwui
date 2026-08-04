@@ -33,6 +33,7 @@
 @MainActor
 public final class AdoptingBackend<Base: RendererBackend>: RendererBackend
 where Base.HostNode: AnyObject {
+    nonisolated deinit { }
     public typealias HostNode = Base.HostNode
     public let base: Base
     public private(set) var failed = false

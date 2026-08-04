@@ -3,6 +3,7 @@
 /// stacking indefinitely (anim spec §6.2), and lets unmount cancel every
 /// animation under a subtree (Task 10).
 @MainActor final class AnimationRegistry {
+    nonisolated deinit { }
     struct Key: Hashable {
         let identity: NodeIdentity
         let property: String

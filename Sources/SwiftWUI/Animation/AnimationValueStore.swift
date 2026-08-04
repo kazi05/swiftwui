@@ -10,6 +10,7 @@
 /// must apply it for exactly the one pass that observed the change.
 @MainActor
 final class AnimationValueStore {
+    nonisolated deinit { }
     private var values: [NodeIdentity: Any] = [:]
     private var seenThisPass: Set<NodeIdentity> = []
 

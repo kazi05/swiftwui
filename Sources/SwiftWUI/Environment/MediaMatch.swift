@@ -4,6 +4,7 @@ import Observation
 /// component `body`; a condition flip re-renders exactly the readers.
 @MainActor @Observable
 public final class MediaMatchStore {
+    nonisolated deinit { }
     // Baseline captured at registration. NON-observed: it is written during the
     // body eval that first reads a new query, and must not invalidate that read.
     @ObservationIgnored private var registered: [String: Bool] = [:]

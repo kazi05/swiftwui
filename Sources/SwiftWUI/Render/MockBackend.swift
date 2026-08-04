@@ -1,4 +1,5 @@
 public final class MockNode {
+    nonisolated deinit { }
     public var tag: String?
     public var text: String?
     public var attrs: [String: String] = [:]
@@ -24,6 +25,7 @@ public struct RecordedAnimation {
 /// and serializes to HTML for the cross-check property (spec §10.4).
 @MainActor
 public final class MockBackend: RendererBackend {
+    nonisolated deinit { }
     public typealias HostNode = MockNode
     public let container = MockNode()
     public private(set) var counts: [String: Int] = [:]

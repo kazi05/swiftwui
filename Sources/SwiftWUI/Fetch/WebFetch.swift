@@ -51,6 +51,7 @@ public protocol FetchTransport: AnyObject {
 }
 
 final class _UnsupportedTransport: FetchTransport {
+    nonisolated deinit { }
     func perform(_ request: WebRequest) async throws -> (_FoundationData, WebResponse) {
         throw WebFetchError.unsupported
     }
@@ -61,6 +62,7 @@ final class _UnsupportedTransport: FetchTransport {
 /// security invariant: same-origin only, both platforms.
 @MainActor
 public final class WebSession {
+    nonisolated deinit { }
     public static let unsupported = WebSession(transport: _UnsupportedTransport())
     private let transport: FetchTransport
     public init(transport: FetchTransport) { self.transport = transport }

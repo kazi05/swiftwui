@@ -8,6 +8,7 @@ import SwiftWUI
 /// runs with the builder's network position — URLs must be trusted/static.
 /// Ephemeral session, no cookie storage: the same-origin credential invariant.
 final class URLSessionTransport: FetchTransport {
+    nonisolated deinit { }
     private let session: URLSession
     init() {
         let config = URLSessionConfiguration.ephemeral

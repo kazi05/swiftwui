@@ -21,6 +21,7 @@ struct RetainedComponent {
 
 @MainActor
 public final class StateStore {
+    nonisolated deinit { }
     private var rows: [NodeIdentity: [AnyObject]] = [:]
     private var retained: [NodeIdentity: RetainedComponent] = [:]
     public init() {}

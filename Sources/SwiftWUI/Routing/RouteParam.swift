@@ -3,7 +3,7 @@
 /// fails to parse. Mirrors `@QueryParam` and rides the same injection seam.
 @propertyWrapper
 public struct RouteParam<Value: LosslessStringConvertible>: _EnvironmentProperty {
-    final class Slot { var snapshot: EnvironmentValues? }
+    final class Slot { var snapshot: EnvironmentValues?; nonisolated deinit { } }
     private let name: String
     private let slot = Slot()
     public init(_ name: String) { self.name = name }

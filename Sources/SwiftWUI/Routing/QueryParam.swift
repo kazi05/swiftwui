@@ -3,7 +3,7 @@
 /// `navigate`. Rides the same injection seam as @Environment.
 @propertyWrapper
 public struct QueryParam<Value: LosslessStringConvertible>: _EnvironmentProperty {
-    final class Slot { var snapshot: EnvironmentValues? }
+    final class Slot { var snapshot: EnvironmentValues?; nonisolated deinit { } }
     private let name: String
     private let slot = Slot()
     public init(_ name: String) { self.name = name }

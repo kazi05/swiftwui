@@ -11,6 +11,7 @@ import Observation
 /// _resolve, event handlers, .task closures) are NOT tracked.
 @MainActor @Observable
 public final class EnvironmentSignals {
+    nonisolated deinit { }
     public private(set) var colorScheme: ColorScheme = .light
     public private(set) var isOnline: Bool = true
     /// A new service-worker version is installed and waiting (PWA spec 2026-07-12).

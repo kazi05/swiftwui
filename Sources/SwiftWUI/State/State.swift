@@ -1,4 +1,5 @@
 final class StateBox<Value> {
+    nonisolated deinit { }
     var value: Value
     var invalidate: (() -> Void)?
     init(_ value: Value) { self.value = value }
@@ -43,7 +44,7 @@ extension StateBox: _SnapshotEncodableBox {
 
 @propertyWrapper
 public struct State<Value> {
-    final class Slot { var box: StateBox<Value>; init(_ b: StateBox<Value>) { box = b } }
+    final class Slot { var box: StateBox<Value>; init(_ b: StateBox<Value>) { box = b }; nonisolated deinit { } }
     private let slot: Slot
 
     public init(wrappedValue: Value) { slot = Slot(StateBox(wrappedValue)) }

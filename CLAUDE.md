@@ -36,6 +36,8 @@ Swift web UI framework: SwiftUI-inspired declarative API compiled to WebAssembly
 - Toolchain: Swift **6.3.3** (swiftly) + official Swift.org WASM SDK `swift-6.3.3-RELEASE_wasm`. Host and SDK versions must match exactly. Never pass `-disable-reflection-metadata` (breaks Mirror → silently resets all @State; runtime has a startup canary).
 - WASM example: `cd Examples/Counter && swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug`; Vite as dev server.
 - wasm gates: run a clean build (`rm -rf .build/wasm32-unknown-wasip1`) before release-critical checks — stale .o files have masked real wasm-only compile breaks.
+- Release gate: `swift build -c release --product swiftwui` — the brew formula's build, and the only place the core is optimized for an Apple target. Debug and wasm are both blind to it.
+- **Every class in `SwiftWUI`/`SwiftWUIStatic` needs `nonisolated deinit { }`.** `.defaultIsolation(MainActor.self)` makes the implicit deinit MainActor-isolated, and Swift 6.3.2/6.3.3 crash the SIL inliner optimizing one for an Apple target. `IsolatedDeinitGuardTests` fails if a new class forgets.
 
 ## Hard-won WASM knowledge (from v1 — still true)
 

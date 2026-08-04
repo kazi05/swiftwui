@@ -16,6 +16,7 @@
 /// structural identity (loses the wrapper's `.type` segment), so the old id
 /// vanishes from the tree and dies naturally.
 @MainActor final class TransitionRegistry {
+    nonisolated deinit { }
     private(set) var byIdentity: [NodeIdentity: AnyTransition] = [:]
     private var seenThisPass: Set<NodeIdentity> = []
     /// Cheap guard for the mount-path lookup (Task 9): skip the per-element

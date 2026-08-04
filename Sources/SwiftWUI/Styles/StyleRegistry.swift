@@ -3,6 +3,7 @@
 /// ponytail: no sweep — add one when profiling shows unbounded distinct rules.
 @MainActor
 public final class StyleRegistry {
+    nonisolated deinit { }
     struct Entry {
         let media: String        // "" for no condition — sorts before any @media
         let container: String     // "" for no @container condition

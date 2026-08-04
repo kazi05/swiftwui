@@ -2,6 +2,7 @@
 /// resolve+link → sweep → diff → apply → commit.
 @MainActor
 public final class Runtime<Backend: RendererBackend> {
+    nonisolated deinit { }
     private let applier: TreeApplier<Backend>
     private let store = StateStore()
     private let signals = EnvironmentSignals()

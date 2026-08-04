@@ -74,8 +74,10 @@ public extension StorageConvertible where Self: RawRepresentable, RawValue == In
 /// the source of truth; each wrapper decodes at read with its own type.
 @MainActor
 public final class StorageStore {
+    nonisolated deinit { }
     @Observable
     public final class Box {
+        nonisolated deinit { }
         public internal(set) var raw: String?
         init(_ raw: String?) { self.raw = raw }
     }
@@ -122,6 +124,7 @@ extension EnvironmentValues {
 
 @MainActor
 final class _StorageSlot {
+    nonisolated deinit { }
     var store: StorageStore?
     var box: StorageStore.Box?
 }

@@ -20,7 +20,7 @@ public protocol _EnvironmentProperty {
 
 @propertyWrapper
 public struct Environment<Value>: _EnvironmentProperty {
-    final class Slot { var snapshot: EnvironmentValues? }
+    final class Slot { var snapshot: EnvironmentValues?; nonisolated deinit { } }
     private let keyPath: KeyPath<EnvironmentValues, Value>
     private let slot = Slot()
     public init(_ keyPath: KeyPath<EnvironmentValues, Value>) { self.keyPath = keyPath }

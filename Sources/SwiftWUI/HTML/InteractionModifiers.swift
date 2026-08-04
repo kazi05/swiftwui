@@ -1,7 +1,7 @@
 /// Tracks the in-flight press timer for `onLongPress`. Not nested inside the
 /// modifier function: Swift disallows local types in a generic (Self-bound
 /// protocol extension) function context.
-private final class LongPressState { var task: Task<Void, Never>? }
+private final class LongPressState { var task: Task<Void, Never>?; nonisolated deinit { } }
 
 /// Built-in interaction modifiers (spec 2026-07-12 §2.2). Event modifiers are
 /// HTMLTag-only by design — they ride the attribute-bag path and return Self.
