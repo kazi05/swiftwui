@@ -4,6 +4,37 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
+## [0.9.2] - 2026-08-05
+
+### Fixed
+
+- **Wasm bundles are ~36 MB smaller.** `SHA256.swift` moved into the `SwiftWUI` core in 0.9.0
+  carrying a bare `import Foundation`. Swift emits autolink entries per *module*, not per file,
+  so that one import made every object file in `SwiftWUI` — and every module downstream of it —
+  request `-lFoundationInternationalization -l_FoundationICU`. `lib_FoundationICU.a` defines
+  `icudt76_dat`, a single non-strippable data symbol holding every ICU locale, calendar and
+  collation table, so it is linked whole or not at all.
+
+  Every bundle built against 0.9.0 or 0.9.1 carries it. Measured on the Counter example:
+  **45 MB → 8.8 MB** raw, 12 MB → 2.3 MB brotli. On a real 11.8k-LOC site: 48.9 MB → 10 MB raw,
+  12.7 MB → 2.6 MB brotli. If you shipped a site built with 0.9.0 or 0.9.1, rebuild it.
+
+  The file needed the umbrella for exactly two things: `Data` (which
+  `FoundationEssentials` has, via the `_FoundationData` typealias the core already declared) and
+  `String(format:)` (which it does not — now a hand-rolled nibble table).
+
+### Added
+
+- **A guard against the same regression, on both sides of the framework boundary.**
+  `FoundationImportGuardTests` fails `swift test` when any file in `SwiftWUI` or `SwiftWUIDOM`
+  imports `Foundation`, `CoreFoundation` or `FoundationInternationalization` outside the
+  `#else` branch of a `#if canImport(FoundationEssentials)` guard.
+
+  For applications, `swiftwui build -c release` now reads the built bundle's
+  `.swift1_autolink_entries` section and warns when it links `_FoundationICU`, naming the
+  modules that requested it and the size their data section reached. It warns and never fails —
+  an app that genuinely needs `Locale` or `Calendar` must still build.
+
 ## [0.9.1] - 2026-08-04
 
 ### Fixed
