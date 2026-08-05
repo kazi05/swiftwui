@@ -1,4 +1,8 @@
-import Foundation
+// Never the umbrella `Foundation` here: Swift emits autolink entries per
+// MODULE, so one umbrella import in any SwiftWUI file makes every consumer
+// link -lFoundationInternationalization -l_FoundationICU, and the ICU data
+// blob (icudt76_dat) adds ~36 MB to every wasm bundle. `_FoundationData`
+// (State/Storage.swift) already carries the guarded Data typealias.
 
 /// Vendored FIPS 180-4 SHA-256, pure Swift. Exists so the CLI carries no
 /// crypto dependency and runs on any host platform (CryptoKit is Apple-only).
@@ -66,12 +70,23 @@ public nonisolated enum SHA256 {
 
     private static func rotr(_ x: UInt32, _ n: UInt32) -> UInt32 { (x >> n) | (x << (32 - n)) }
 
+    // Hand-rolled instead of `String(format: "%02x")`: that initializer lives in
+    // the umbrella Foundation only, and importing it here costs every consumer
+    // ~36 MB of ICU data (see the note at the top of this file).
+    private static let hexDigits: [Character] = Array("0123456789abcdef")
+
     public static func hex(_ digest: [UInt8]) -> String {
-        digest.map { String(format: "%02x", $0) }.joined()
+        var out = ""
+        out.reserveCapacity(digest.count * 2)
+        for byte in digest {
+            out.append(hexDigits[Int(byte >> 4)])
+            out.append(hexDigits[Int(byte & 0x0F)])
+        }
+        return out
     }
 
     public static func base64(_ digest: [UInt8]) -> String {
         // Qualified: this module also declares `Data`, the <data> HTML tag.
-        Foundation.Data(digest).base64EncodedString()
+        _FoundationData(digest).base64EncodedString()
     }
 }
