@@ -115,6 +115,139 @@ public enum ReleaseArtifacts {
         return (stale.isEmpty, stale)
     }
 
+    // MARK: - ICU audit
+
+    /// A bundle that links `_FoundationICU`, and what it cost.
+    public struct ICUAudit {
+        /// Size of the wasm `data` section — the ICU tables are ~36 MB of it.
+        public var dataBytes: Int
+        /// Modules whose objects request `FoundationInternationalization`.
+        public var modules: [String]
+    }
+
+    /// Does the shipped bundle link the ICU data blob, and which modules asked?
+    ///
+    /// `FoundationImportGuardTests` protects the framework's own sources; this
+    /// protects the app's. One umbrella `import Foundation` in a user module adds
+    /// ~36 MB to the binary just as silently — Swift emits autolink entries per
+    /// MODULE, so a single import anywhere in a module makes the whole module,
+    /// and everything downstream of it, request `-l_FoundationICU`. The symbol is
+    /// one non-strippable data blob (`icudt76_dat`): linked or not, never partly.
+    ///
+    /// - Returns: nil when the bundle is clean, unreadable, or absent — the
+    ///   caller warns only on a real hit.
+    public static func auditICU(distDir: String, projectDir: String, configuration: String) -> ICUAudit? {
+        guard let name = WasmDigest.wasmName(inAppDir: distDir + "/app"),
+              let data = FileManager.default.contents(atPath: distDir + "/app/" + name),
+              let scan = scanWasm(data), scan.linksICU else { return nil }
+        return ICUAudit(dataBytes: scan.dataBytes,
+                        modules: icuRequestingModules(projectDir: projectDir, configuration: configuration))
+    }
+
+    /// Walk the wasm section table for the `data` section's size and the autolink
+    /// entries. Format: `\0asm`, a u32 version, then `(varuint7 id, varuint32
+    /// size, payload)*`; a custom section (id 0) opens its payload with a
+    /// length-prefixed name. `.swift1_autolink_entries` holds NUL-separated
+    /// `-lXxx` strings, and survives wasm-opt.
+    ///
+    /// Returns nil on anything that is not a well-formed wasm — a truncated or
+    /// non-wasm file is the caller's problem to not warn about, not to diagnose.
+    static func scanWasm(_ data: Data) -> (dataBytes: Int, linksICU: Bool)? {
+        let b = [UInt8](data)
+        guard b.count > 8, b[0] == 0x00, b[1] == 0x61, b[2] == 0x73, b[3] == 0x6D else { return nil }
+        var p = 8
+        var dataBytes = 0
+        var linksICU = false
+        while p < b.count {
+            let id = b[p]
+            guard let (size, afterSize) = uleb128(b, p + 1), afterSize + size <= b.count else { return nil }
+            let start = afterSize, end = afterSize + size
+            if id == 11 { dataBytes = size }           // 11 = data section
+            if id == 0, let (nameLen, afterLen) = uleb128(b, start), afterLen + nameLen <= end,
+               String(decoding: b[afterLen..<afterLen + nameLen], as: UTF8.self) == ".swift1_autolink_entries" {
+                linksICU = String(decoding: b[(afterLen + nameLen)..<end], as: UTF8.self).contains("-l_FoundationICU")
+            }
+            p = end
+        }
+        return (dataBytes, linksICU)
+    }
+
+    /// LEB128 unsigned, as the wasm binary format spells every length.
+    private static func uleb128(_ b: [UInt8], _ start: Int) -> (value: Int, next: Int)? {
+        var value = 0, shift = 0, p = start
+        while p < b.count {
+            let byte = b[p]
+            p += 1
+            value |= Int(byte & 0x7F) << shift
+            if byte & 0x80 == 0 { return (value, p) }
+            shift += 7
+            if shift > 28 { return nil }  // wasm caps these at u32
+        }
+        return nil
+    }
+
+    /// Modules whose object files name `FoundationInternationalization`.
+    ///
+    /// Autolink requests flow from imported module to importer, so every module
+    /// downstream of the offender is in the list too; the offender is the one the
+    /// others depend on. The warning says that rather than pretending to pinpoint
+    /// a line.
+    ///
+    /// `.build-wasm` is the fixed scratch path `WasmBuilder.build` sets, so the
+    /// object directory is deterministic; an absent one (a `dist` built
+    /// elsewhere) simply yields no names.
+    static func icuRequestingModules(projectDir: String, configuration: String) -> [String] {
+        let fm = FileManager.default
+        let root = projectDir + "/.build-wasm/wasm32-unknown-wasip1/" + configuration
+        let needle = Data("FoundationInternationalization".utf8)
+        guard let entries = try? fm.contentsOfDirectory(atPath: root) else { return [] }
+        var out: [String] = []
+        for entry in entries where entry.hasSuffix(".build") {
+            let dir = root + "/" + entry
+            let objects = ((try? fm.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasSuffix(".o") }
+            let hit = objects.contains { fm.contents(atPath: dir + "/" + $0)?.range(of: needle) != nil }
+            if hit { out.append(String(entry.dropLast(".build".count))) }
+        }
+        return out.sorted()
+    }
+
+    /// The boxed warning, in the style of the wasm-opt one. Lives here rather
+    /// than in the command so it can be tested: `SwiftWUICLI` is an
+    /// executableTarget the test target cannot import.
+    public static func icuWarningText(_ audit: ICUAudit) -> String {
+        let mb = String(format: "%.1f", Double(audit.dataBytes) / 1_048_576)
+        let modules = audit.modules.isEmpty
+            ? "  (no object files under .build-wasm to name them — build from the project root)"
+            : "  " + audit.modules.joined(separator: ", ")
+        return """
+
+        ================================================================
+        WARNING: this bundle links _FoundationICU — its data section is
+        \(mb) MB, nearly all of it ICU locale tables shipped to every visitor.
+
+        Cause: an umbrella `import Foundation`. Swift emits autolink entries
+        per MODULE, so one such import anywhere in a module makes that module
+        and everything downstream of it link the ICU data blob, which is a
+        single non-strippable symbol.
+
+        Modules requesting it (the offender is the one the others import):
+        \(modules)
+
+        Fix, unless you genuinely need Locale/Calendar/collation:
+
+          #if canImport(FoundationEssentials)
+          import FoundationEssentials
+          #else
+          import Foundation
+          #endif
+
+        FoundationEssentials carries Data, URL, JSONEncoder and friends.
+        `String(format:)` is umbrella-only — hand-roll it.
+        ================================================================
+
+        """
+    }
+
     /// The `?v=` token a document stamps on the wasm URL, or nil when it names no
     /// wasm (a project without a boot UI) or names it without a version — both of
     /// which the map already answers with `no-cache`, so neither is "stale".

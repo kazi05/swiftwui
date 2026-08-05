@@ -69,5 +69,13 @@ struct Build: ParsableCommand {
             try ReleaseArtifacts.clean(distDir: outDir)
         }
         print("built \(out)/ (app bundle + vendor shim + index.html)")
+        // Last, and after the success line on purpose: the wasm-opt warning above
+        // gets buried under the build's own output, and 36 MB of ICU data is not
+        // something to bury. Warn, never fail — an app that genuinely needs
+        // Locale or Calendar must still build. Release only; debug is not shipped.
+        if config == "release",
+           let icu = ReleaseArtifacts.auditICU(distDir: outDir, projectDir: cwd, configuration: config) {
+            print(ReleaseArtifacts.icuWarningText(icu))
+        }
     }
 }

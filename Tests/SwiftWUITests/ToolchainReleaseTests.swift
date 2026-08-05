@@ -257,4 +257,102 @@ import Foundation
             toFile: dist + "/about/index.html", atomically: true, encoding: .utf8)
         #expect(ReleaseArtifacts.auditWasmVersions(distDir: dist) == (true, []))
     }
+
+    // MARK: - ICU audit
+
+    /// LEB128, the way every length in the wasm binary format is spelled.
+    private func uleb(_ value: Int) -> [UInt8] {
+        var v = value, out: [UInt8] = []
+        repeat {
+            var byte = UInt8(v & 0x7F)
+            v >>= 7
+            if v != 0 { byte |= 0x80 }
+            out.append(byte)
+        } while v != 0
+        return out
+    }
+
+    private func section(id: UInt8, payload: [UInt8]) -> [UInt8] {
+        [id] + uleb(payload.count) + payload
+    }
+
+    /// A wasm with just the two sections the audit reads. `dataBytes` is
+    /// deliberately > 127 so the size varint takes the multi-byte path.
+    private func fakeWasm(dataBytes: Int, autolink: [String]) -> Data {
+        let name = ".swift1_autolink_entries"
+        let custom = uleb(name.utf8.count) + Array(name.utf8)
+            + Array(autolink.joined(separator: "\0").utf8)
+        return Data([0x00, 0x61, 0x73, 0x6D, 0x01, 0x00, 0x00, 0x00]
+            + section(id: 11, payload: [UInt8](repeating: 0xAA, count: dataBytes))
+            + section(id: 0, payload: custom))
+    }
+
+    @Test func scanWasmReadsTheDataSizeAndTheAutolinkEntries() {
+        let dirty = ReleaseArtifacts.scanWasm(fakeWasm(dataBytes: 2000, autolink: [
+            "-lswiftCore", "-lFoundationInternationalization", "-l_FoundationICU",
+        ]))
+        #expect(dirty?.dataBytes == 2000)
+        #expect(dirty?.linksICU == true)
+
+        let clean = ReleaseArtifacts.scanWasm(fakeWasm(dataBytes: 2000, autolink: [
+            "-lswiftCore", "-lFoundationEssentials",
+        ]))
+        #expect(clean?.linksICU == false)
+
+        // Not a wasm, and a truncated one: nil, not a crash and not a false alarm.
+        #expect(ReleaseArtifacts.scanWasm(Data("not a wasm at all".utf8)) == nil)
+        #expect(ReleaseArtifacts.scanWasm(fakeWasm(dataBytes: 2000, autolink: []).prefix(40)) == nil)
+    }
+
+    @Test func auditICUWarnsOnlyOnADirtyBundleAndNamesTheModules() throws {
+        let project = try scratchDist()
+        defer { try? FileManager.default.removeItem(atPath: project) }
+        let fm = FileManager.default
+        let dist = project + "/dist"
+        let objects = project + "/.build-wasm/wasm32-unknown-wasip1/release"
+        try fm.createDirectory(atPath: dist + "/app", withIntermediateDirectories: true)
+        for module in ["MyApp", "MyModels", "Innocent"] {
+            try fm.createDirectory(atPath: objects + "/\(module).build", withIntermediateDirectories: true)
+        }
+        // Both the offender and everything downstream of it carry the request.
+        try "…FoundationInternationalization…".write(
+            toFile: objects + "/MyModels.build/Model.swift.o", atomically: true, encoding: .utf8)
+        try "…FoundationInternationalization…".write(
+            toFile: objects + "/MyApp.build/App.swift.o", atomically: true, encoding: .utf8)
+        try "nothing to see".write(
+            toFile: objects + "/Innocent.build/Pure.swift.o", atomically: true, encoding: .utf8)
+
+        try fakeWasm(dataBytes: 3000, autolink: ["-l_FoundationICU"])
+            .write(to: URL(fileURLWithPath: dist + "/app/MyApp.wasm"))
+        let audit = ReleaseArtifacts.auditICU(distDir: dist, projectDir: project, configuration: "release")
+        #expect(audit?.dataBytes == 3000)
+        #expect(audit?.modules == ["MyApp", "MyModels"])
+        let text = ReleaseArtifacts.icuWarningText(audit!)
+        #expect(text.contains("MyApp, MyModels"))
+        #expect(text.contains("canImport(FoundationEssentials)"))
+
+        // Same tree, clean bundle → nothing to say, so nothing is printed.
+        try fakeWasm(dataBytes: 3000, autolink: ["-lFoundationEssentials"])
+            .write(to: URL(fileURLWithPath: dist + "/app/MyApp.wasm"))
+        #expect(ReleaseArtifacts.auditICU(distDir: dist, projectDir: project, configuration: "release") == nil)
+
+        // No bundle at all (never built, or a dist assembled elsewhere).
+        try fm.removeItem(atPath: dist + "/app/MyApp.wasm")
+        #expect(ReleaseArtifacts.auditICU(distDir: dist, projectDir: project, configuration: "release") == nil)
+    }
+
+    /// A dist built somewhere without `.build-wasm` still warns — it just cannot
+    /// name names, and says so instead of printing an empty list.
+    @Test func icuWarningSurvivesAMissingObjectTree() throws {
+        let project = try scratchDist()
+        defer { try? FileManager.default.removeItem(atPath: project) }
+        let dist = project + "/dist"
+        try FileManager.default.createDirectory(atPath: dist + "/app", withIntermediateDirectories: true)
+        try fakeWasm(dataBytes: 3000, autolink: ["-l_FoundationICU"])
+            .write(to: URL(fileURLWithPath: dist + "/app/App.wasm"))
+
+        let audit = ReleaseArtifacts.auditICU(distDir: dist, projectDir: project, configuration: "release")
+        #expect(audit?.modules.isEmpty == true)
+        #expect(ReleaseArtifacts.icuWarningText(audit!).contains("no object files under .build-wasm"))
+    }
 }
