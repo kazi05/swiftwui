@@ -4,7 +4,7 @@ Swift web UI framework: SwiftUI-inspired declarative API compiled to WebAssembly
 
 ## Project status
 
-**v2 clean-slate rewrite in progress** on `feature/fable-new-vision`. The working tree was deliberately emptied on 2026-07-02 (commit "Clear for empty"). The full v1 implementation (8 modules, 51 tests, Showcase site) lives on branch `master` — **reference material only**: known bugs, WASM workarounds, audited security code. Do not port v1 code wholesale; re-derive per the spec.
+**v2 clean-slate rewrite**, developed on `feature/fable-new-vision` and now merged into `main`. The working tree was deliberately emptied on 2026-07-02 (commit "Clear for empty"). The full v1 implementation (8 modules, 51 tests, Showcase site) is the pre-`main` history under commit `7be0d12` (former `master` branch, deleted 2026-08-13 — history still reachable from `main`) — **reference material only**: known bugs, WASM workarounds, audited security code. Do not port v1 code wholesale; re-derive per the spec.
 
 - Phase 1 spec (approved design): `docs/superpowers/specs/2026-07-02-phase1-core-design.md`
 - Roadmap: 7 phases (core slice → reactivity → styles → routing → full HTML/SSG → toolchain/CLI → docs site). Each phase gets its own brainstorm + spec before implementation.
