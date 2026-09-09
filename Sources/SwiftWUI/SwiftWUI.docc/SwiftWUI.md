@@ -192,6 +192,10 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 ### Browser APIs
 
 - <doc:BrowserAPIs>
+- <doc:FileUploads>
+- <doc:VisibilityRoots>
+- <doc:ViewportObservation>
+- <doc:ScrollPosition>
 - <doc:Modifiers>
 - ``TagModifier``
 - ``ColorScheme``
@@ -204,7 +208,12 @@ See <doc:GettingStarted> for toolchain setup and your first project.
 - ``WebFetchError``
 - ``HTTPMethod``
 - ``WebFile``
+- ``WebBlob``
+- ``WebObjectURL``
+- ``WebBlobError``
+- ``WebUploadError``
 - ``FilesEvent``
+- ``VisualViewportMetrics``
 
 ### PWA
 

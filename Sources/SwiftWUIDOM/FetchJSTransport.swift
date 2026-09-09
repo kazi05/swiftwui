@@ -15,8 +15,22 @@ private struct _AbortControllerBox: @unchecked Sendable { let controller: JSObje
 
 /// fetch()-backed transport. Security invariants (spec 8a): credentials
 /// "same-origin"; scheme/header validation already ran in WebSession.
-final class FetchJSTransport: FetchTransport {
+final class FetchJSTransport: _BlobUploadingTransport {
     func perform(_ request: WebRequest) async throws -> (_FoundationData, WebResponse) {
+        try await execute(request, body: request.body?.jsValue)
+    }
+
+    func upload(_ request: WebRequest, from blob: WebBlob) async throws -> (_FoundationData, WebResponse) {
+        // Retain the source through success, cancellation and response reading.
+        defer { withExtendedLifetime(blob) {} }
+        if let storage = blob.storage as? DOMBlobStorage {
+            return try await execute(request, body: .object(storage.blob))
+        }
+        guard let bytes = blob.uploadData else { throw WebFetchError.unsupported }
+        return try await execute(request, body: bytes.jsValue)
+    }
+
+    private func execute(_ request: WebRequest, body: JSValue?) async throws -> (_FoundationData, WebResponse) {
         let options = JSObject.global.Object.function!.new()
         options.method = .string(request.method.rawValue)
         options.credentials = .string("same-origin")
@@ -25,9 +39,7 @@ final class FetchJSTransport: FetchTransport {
             for (k, v) in request.headers { headers[k] = .string(v) }
             options.headers = .object(headers)
         }
-        if let body = request.body {
-            options.body = body.jsValue
-        }
+        if let body { options.body = body }
         guard let controller = JSObject.global.AbortController.function?.new() else {
             throw WebFetchError.unsupported
         }
@@ -36,16 +48,24 @@ final class FetchJSTransport: FetchTransport {
         final class TimeoutFlag { var fired = false }
         let timedOut = TimeoutFlag()
         var timeoutHandle: JSValue?
+        var timeoutClosure: JSOneshotClosure?
         if let timeout = request.timeout {
             let ms = Double(timeout.components.seconds) * 1000
                    + Double(timeout.components.attoseconds) / 1e15
-            timeoutHandle = JSObject.global.setTimeout!(JSOneshotClosure { _ in
+            let closure = JSOneshotClosure { _ in
                 timedOut.fired = true
                 _ = controller.abort?()
                 return .undefined
-            }, ms)
+            }
+            timeoutClosure = closure
+            timeoutHandle = JSObject.global.setTimeout!(closure, ms)
         }
-        defer { if let t = timeoutHandle { _ = JSObject.global.clearTimeout?(t) } }
+        defer {
+            if let t = timeoutHandle { _ = JSObject.global.clearTimeout?(t) }
+            // An unfired oneshot otherwise remains registered forever. release
+            // is idempotent if the timer already invoked and released itself.
+            timeoutClosure?.release()
+        }
 
         do {
             let controllerBox = _AbortControllerBox(controller: controller)

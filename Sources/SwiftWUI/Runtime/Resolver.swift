@@ -21,6 +21,7 @@ public struct ResolveContext {
     /// Scope marker of the innermost Styled component; appended to every
     /// element resolved in its body. Reset at EVERY component boundary.
     var scopeClass: String? = nil
+    var visibilityRoots: [String: NodeIdentity] = [:]
     var effects: [EffectRequest] = []
     var registry = StyleRegistry()
     /// Monotonic id of the current resolution (one renderPass/subtreePass).
@@ -76,6 +77,8 @@ public struct ResolveContext {
     /// Owning runtime's `.transition(_:)` registry (Task 8); nil in passes
     /// that never seed it (e.g. `_collectRoutes`).
     var transitions: TransitionRegistry? = nil
+    var scrollRegistry: (any _ScrollRegistryContext)? = nil
+    var scrollReaders: [NodeIdentity: ScrollContainer] = [:]
     init(store: StateStore, listeners: ListenerRegistry, invalidate: @escaping (NodeIdentity) -> Void) {
         self.store = store; self.listeners = listeners; self.invalidate = invalidate
     }
@@ -90,7 +93,8 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     let id = path.appending(.type(ObjectIdentifier(T.self)))
     _TypeNameRegistry.register(T.self)     // snapshot keys need the stable name (spec D7)
     ctx.reachable.insert(id)
-    ctx.store.retain(AnyTag(tag), at: id, environment: ctx.environment, scopeClass: ctx.scopeClass)
+    ctx.store.retain(AnyTag(tag), at: id, environment: ctx.environment,
+                     scopeClass: ctx.scopeClass, visibilityRoots: ctx.visibilityRoots)
     let inv = ctx.invalidate
     if ctx.collectedRoutes == nil {                    // collect passes never link (C1: shared Slots would rebind live boxes)
         ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body
@@ -178,6 +182,24 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
         ctx.liveListeners.insert(lid)
         observers[kind] = lid
     }
+    var configured: [_ResolvedVisibilityObservation] = []
+    for (index, request) in bag.configuredVisibility.enumerated() {
+        let id = ListenerID(owner: path, event: "swui:configuredVisibility:\(index)")
+        let root: _ResolvedVisibilityRoot
+        switch request.root {
+        case .viewport:
+            root = .viewport
+        case .ancestor(let name):
+            root = ctx.visibilityRoots[name].map { .ancestor($0) } ?? .unavailable
+        }
+        ctx.listeners.set(id, payloadHandler: { payload in
+            guard let value = payload as? Bool else { return }
+            request.action(value)
+        })
+        ctx.liveListeners.insert(id)
+        configured.append(.init(id: id, root: root,
+                                threshold: request.threshold, margin: request.margin))
+    }
     var effectiveBag = bag
     if !bag.localized.isEmpty {
         let locale = ctx.environment.locale
@@ -197,13 +219,20 @@ func resolveElement(tagName: String, bag: _AttributeBag, content: some Tag,
     if let scope = ctx.scopeClass {
         effectiveBag.appendClasses([scope])
     }
+    let savedRoots = ctx.visibilityRoots
+    if let name = bag.visibilityRootID { ctx.visibilityRoots[name] = path }
     let children = coalesceText(resolve(content, path: path.appending(.child(0)), ctx: &ctx))
+    ctx.visibilityRoots = savedRoots
     var attrs = effectiveBag.flattened()
+    let objectURLs = effectiveBag.objectURLs.filter { !$0.value.isRevoked }
     var style = OrderedStyle(parsing: attrs["style"] ?? "")   // raw `.attribute("style", …)` escape hatch as base
     style.merge(effectiveBag.styles)                          // bag styles on top, last-wins per property
     attrs["style"] = nil                                      // moved onto the typed ElementNode.style
     if let t = ctx.transaction { ctx.effectiveTransactions[path] = t }
-    return [.element(ElementNode(identity: path, tag: tagName, attributes: attrs, style: style,
-                                 properties: effectiveBag.flattenedProperties(),
-                                 listeners: listeners, observers: observers, children: children, key: nil))]
+    var element = ElementNode(identity: path, tag: tagName, attributes: attrs,
+                              objectURLs: objectURLs, style: style,
+                              properties: effectiveBag.flattenedProperties(),
+                              listeners: listeners, observers: observers, children: children, key: nil)
+    element.configuredVisibility = configured
+    return [.element(element)]
 }

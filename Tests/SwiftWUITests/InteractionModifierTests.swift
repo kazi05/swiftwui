@@ -125,7 +125,8 @@ private struct ScrollFixture: Tag {
         let cap = Recorder()
         let (rt, backend, sched) = makeRuntime(KeyFixture(cap: cap))
         let div = findFirst(backend.container, tag: "div")!
-        let down = KeyEvent(key: "a", repeated: true, metaKey: true, ctrlKey: true, shiftKey: true, altKey: true)
+        let down = KeyEvent(key: "a", repeated: true, metaKey: true, ctrlKey: true,
+                            shiftKey: true, altKey: true, isComposing: true)
         rt.dispatch(div.events["keydown"]!, payload: down); sched.pump()
         #expect(cap.keyDownEvents.count == 1)
         #expect(cap.keyDownEvents[0].key == "a")
@@ -134,6 +135,7 @@ private struct ScrollFixture: Tag {
         #expect(cap.keyDownEvents[0].ctrlKey == true)
         #expect(cap.keyDownEvents[0].shiftKey == true)
         #expect(cap.keyDownEvents[0].altKey == true)
+        #expect(cap.keyDownEvents[0].isComposing == true)
 
         let up = KeyEvent(key: "b", repeated: false)
         rt.dispatch(div.events["keyup"]!, payload: up); sched.pump()

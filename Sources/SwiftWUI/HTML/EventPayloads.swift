@@ -4,6 +4,29 @@ public struct InputEvent  { public let value: String
                             public init(value: String) { self.value = value } }
 public struct ChangeEvent { public let value: String; public let checked: Bool
                             public init(value: String, checked: Bool) { self.value = value; self.checked = checked } }
+
+/// Dispatch-local cancellation state shared by copies of a `KeyEvent`.
+///
+/// The DOM backend owns the token's short lifetime. It deliberately contains no
+/// JavaScript event reference, so retaining a copied payload cannot retain a DOM
+/// event after the listener returns.
+@_spi(DOM)
+public final class _KeyEventDispatchToken {
+    nonisolated deinit { }
+
+    @_spi(DOM) public private(set) var isCancellationRequested = false
+    private var isOpen = true
+
+    @_spi(DOM) public init() {}
+
+    func requestCancellation() {
+        guard isOpen else { return }
+        isCancellationRequested = true
+    }
+
+    @_spi(DOM) public func close() { isOpen = false }
+}
+
 public struct KeyEvent {
     public let key: String
     public let repeated: Bool
@@ -11,13 +34,38 @@ public struct KeyEvent {
     public let ctrlKey: Bool
     public let shiftKey: Bool
     public let altKey: Bool
+    /// Whether the key belongs to an IME composition. The DOM backend also
+    /// recognizes the legacy key-code 229 signal when the browser reports it.
+    public let isComposing: Bool
+    private let dispatchToken: _KeyEventDispatchToken?
+
     public init(key: String, repeated: Bool,
                 metaKey: Bool = false, ctrlKey: Bool = false,
-                shiftKey: Bool = false, altKey: Bool = false) {
+                shiftKey: Bool = false, altKey: Bool = false,
+                isComposing: Bool = false) {
+        self.init(key: key, repeated: repeated, metaKey: metaKey, ctrlKey: ctrlKey,
+                  shiftKey: shiftKey, altKey: altKey, isComposing: isComposing,
+                  _dispatchToken: nil)
+    }
+
+    @_spi(DOM)
+    public init(key: String, repeated: Bool,
+                metaKey: Bool = false, ctrlKey: Bool = false,
+                shiftKey: Bool = false, altKey: Bool = false,
+                isComposing: Bool = false,
+                _dispatchToken: _KeyEventDispatchToken?) {
         self.key = key; self.repeated = repeated
         self.metaKey = metaKey; self.ctrlKey = ctrlKey
         self.shiftKey = shiftKey; self.altKey = altKey
+        self.isComposing = isComposing
+        self.dispatchToken = _dispatchToken
     }
+
+    /// Prevents the browser's default keyboard action when called directly from
+    /// the current key-event callback. Calls made after that callback returns,
+    /// or on a manually constructed payload, have no effect.
+    public func preventDefault() { dispatchToken?.requestCancellation() }
+
     public var modifiers: EventModifiers {
         var m: EventModifiers = []
         if metaKey { m.insert(.meta) }

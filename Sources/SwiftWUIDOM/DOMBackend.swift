@@ -1,6 +1,6 @@
 #if arch(wasm32)
 import JavaScriptKit
-import SwiftWUI
+@_spi(DOM) import SwiftWUI
 #if canImport(FoundationEssentials)
 import FoundationEssentials
 #else
@@ -86,6 +86,8 @@ public final class DOMBackend: RendererBackend {
     // visibilitychange) and the lazily-installed page-lifetime listener.
     private var liveAnimationTokens: [ObjectIdentifier: DOMAnimationToken] = [:]
     private var visibilityChangeClosure: JSClosure?
+    private var documentVisibilitySink: ((Bool) -> Void)?
+    private let viewportObservation = DOMViewportObservation()
     private var linearEasingSupported: Bool?    // cached CSS.supports() probe, first animate() call
     // View transitions (spec 2026-07-26 §3.1, §5.3, §7): the FLIP fallback
     // (Task 6) needs the named elements, and every name write already passes
@@ -143,6 +145,16 @@ public final class DOMBackend: RendererBackend {
     public func removeAttribute(_ node: JSObject, name: String) {
         try! SWNode(unsafelyWrapping: node).removeAttribute(name)
     }
+    public func setObjectURL(_ node: JSObject, name: String, value: WebObjectURL?) {
+        let tag = node.tagName.string?.lowercased()
+        guard (name == "src" && (tag == "img" || tag == "video" || tag == "audio"))
+                || (name == "href" && tag == "a") else { return }
+        guard let url = value?.urlString else {
+            removeAttribute(node, name: name)
+            return
+        }
+        setAttribute(node, name: name, value: url)
+    }
     // No bridged CSSStyleDeclaration binding — dynamic JSObject call, same
     // idiom as the other ad hoc DOM calls in this file (e.g. setStylesheet's
     // `el.setAttribute`, setMetaTags' `removeChild`).
@@ -188,8 +200,23 @@ public final class DOMBackend: RendererBackend {
         guard closures[key] == nil else { return }    // fire-time lookup: closure reusable as-is
         let closure = JSClosure { [weak self] args in
             guard let self, let current = self.listenerIDs[key] else { return .undefined }
-            let payload = args.first?.object.map { Self.decodePayload(event: current.event, jsEvent: $0) }
+            let jsEvent = args.first?.object
+            let keyToken: _KeyEventDispatchToken?
+            if jsEvent != nil, current.event == "keydown" || current.event == "keyup" {
+                keyToken = _KeyEventDispatchToken()
+            } else {
+                keyToken = nil
+            }
+            let payload = jsEvent.map {
+                Self.decodePayload(event: current.event, jsEvent: $0,
+                                   keyDispatchToken: keyToken)
+            }
             self.dispatch(current, payload)
+            if let keyToken, let jsEvent {
+                let shouldPreventDefault = keyToken.isCancellationRequested
+                keyToken.close()
+                if shouldPreventDefault { _ = jsEvent.preventDefault?() }
+            }
             return .undefined
         }
         closures[key] = closure                        // Swift retention = lifetime (invariant 1)
@@ -259,7 +286,8 @@ public final class DOMBackend: RendererBackend {
                          targetWidth: tw, targetHeight: th, offsetX: ox, offsetY: oy)
     }
 
-    static func decodePayload(event: String, jsEvent e: JSObject) -> Any {
+    static func decodePayload(event: String, jsEvent e: JSObject,
+                              keyDispatchToken: _KeyEventDispatchToken? = nil) -> Any {
         let target = e.target.object
         switch event {
         case "input":
@@ -275,7 +303,10 @@ public final class DOMBackend: RendererBackend {
                             metaKey: e.metaKey.boolean ?? false,
                             ctrlKey: e.ctrlKey.boolean ?? false,
                             shiftKey: e.shiftKey.boolean ?? false,
-                            altKey: e.altKey.boolean ?? false)
+                            altKey: e.altKey.boolean ?? false,
+                            isComposing: (e.isComposing.boolean ?? false)
+                                || (e.keyCode.number ?? 0) == 229,
+                            _dispatchToken: keyDispatchToken)
         case "submit":
             _ = e.preventDefault?()
             return SubmitEvent()
@@ -362,9 +393,18 @@ public final class DOMBackend: RendererBackend {
         switch kind {
         case .visibility(let threshold):
             closure = JSClosure { [weak self] args in
-                guard let self, let current = self.observerIDs[key] else { return .undefined }
-                let visible = args.first?.object?[0].object?.isIntersecting.boolean ?? false
-                self.dispatch(current, visible)
+                guard let self, let entries = args.first?.object else { return .undefined }
+                // One delivery can contain multiple threshold crossings. Each
+                // entry describes its own state; isIntersecting alone does not
+                // guarantee that the requested visible fraction was reached.
+                for index in 0..<Int(entries.length.number ?? 0) {
+                    guard let current = self.observerIDs[key] else { break }
+                    guard let entry = entries[index].object else { continue }
+                    let intersects = entry.isIntersecting.boolean ?? false
+                    let ratio = entry.intersectionRatio.number ?? 0
+                    let visible = intersects && (threshold == 0 || ratio >= threshold)
+                    self.dispatch(current, visible)
+                }
                 return .undefined
             }
             let opts = JSObject.global.Object.function!.new()
@@ -392,6 +432,22 @@ public final class DOMBackend: RendererBackend {
         guard let observer = domObservers.removeValue(forKey: key) else { return }
         _ = observer.disconnect?()
         observerClosures[key] = nil
+    }
+
+    public func observeVisibility(
+        _ node: JSObject,
+        root: VisibilityObserverRoot<JSObject>,
+        threshold: Double,
+        rootMargin: VisibilityMargin,
+        onChange: @escaping (Bool) -> Void
+    ) -> (() -> Void)? {
+        DOMConfiguredVisibility.start(
+            node,
+            root: root,
+            threshold: threshold,
+            margin: rootMargin,
+            onChange: onChange
+        )
     }
 
     public func insert(_ child: JSObject, into parent: JSObject, before anchor: JSObject?) {
@@ -690,6 +746,16 @@ public final class DOMBackend: RendererBackend {
         windowScrollClosure = scroll
         windowResizeClosure = resize
     }
+    public func beginVisualViewportObservation(
+        _ sink: @escaping (VisualViewportMetrics) -> Void
+    ) -> VisualViewportMetrics? {
+        viewportObservation.begin(sink)
+    }
+    public func beginDocumentVisibilityObservation(_ sink: @escaping (Bool) -> Void) -> Bool? {
+        documentVisibilitySink = sink
+        installVisibilityListenerIfNeeded()
+        return jsDocument.visibilityState.string == "visible"
+    }
     /// preventsAccidentalDropNavigation (DnD task 7): a file dropped anywhere
     /// outside a `data-swui-drop-accepts` zone would otherwise navigate the
     /// tab to that file — the classic DnD-app footgun. Idempotent both ways.
@@ -716,12 +782,12 @@ public final class DOMBackend: RendererBackend {
             dropGuardDropClosure = nil
         }
     }
-    /// Detaches every environment-observation listener and releases its
-    /// closure. Called by DOMRuntime when a mount attempt is discarded
-    /// (hydration mismatch) — symmetric with beginEnvironmentObservation.
-    /// Also tears down the storage-event listener (beginStorageObservation)
-    /// so a discarded mount leaves no dangling window listener.
+    /// Detaches environment, storage, window-event, and viewport-effect
+    /// listeners, releases their closures, and force-finishes live animations.
+    /// Called by DOMRuntime when a mount attempt is discarded (hydration
+    /// mismatch), so the discarded backend leaves no dangling browser work.
     public func endEnvironmentObservation() {
+        endViewportEffectObservation()
         let window = JSObject.global.window.object
         if let mql = colorSchemeQuery, let onChange = schemeClosure {
             _ = mql.removeEventListener?("change", onChange)
@@ -768,6 +834,16 @@ public final class DOMBackend: RendererBackend {
         domObservers = [:]
         observerClosures = [:]
         observerIDs = [:]
+    }
+
+    func endViewportEffectObservation() {
+        viewportObservation.stop()
+        documentVisibilitySink = nil
+        for token in Array(liveAnimationTokens.values) { forceFinish(token) }
+        if let closure = visibilityChangeClosure {
+            _ = jsDocument.removeEventListener("visibilitychange", closure)
+            visibilityChangeClosure = nil
+        }
     }
     public func setLinks(_ links: [LinkTag]) {
         // Churn guard: skip remove-all/re-add-all when the set is unchanged (e.g.
@@ -911,9 +987,13 @@ public final class DOMBackend: RendererBackend {
     private func installVisibilityListenerIfNeeded() {
         guard visibilityChangeClosure == nil else { return }
         let closure = JSClosure { [weak self] _ in
-            guard let self, self.jsDocument.hidden.boolean == true else { return .undefined }
-            for token in Array(self.liveAnimationTokens.values) {   // snapshot: forceFinish mutates the table
-                self.forceFinish(token)
+            guard let self else { return .undefined }
+            let visible = self.jsDocument.visibilityState.string == "visible"
+            self.documentVisibilitySink?(visible)
+            if !visible {
+                for token in Array(self.liveAnimationTokens.values) {
+                    self.forceFinish(token)
+                }
             }
             return .undefined
         }

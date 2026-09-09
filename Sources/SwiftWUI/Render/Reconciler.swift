@@ -2,6 +2,7 @@ enum Patch: Equatable {
     case setText(String)
     case setAttribute(name: String, value: String)
     case removeAttribute(name: String)
+    case setObjectURL(name: String, value: WebObjectURL?)
     case setStyleProperty(name: String, value: String, previous: String?)
     case removeStyleProperty(name: String)
     case setProperty(name: String, value: PropertyValue)
@@ -9,6 +10,7 @@ enum Patch: Equatable {
     case removeListener(event: String)
     case setObserver(kind: ObserverKind, id: ListenerID)
     case removeObserver(kind: ObserverKind)
+    case setConfiguredVisibility([_ResolvedVisibilityObservation])
     case replaceSelf(with: Node)
     case updateChildren(ChildrenPlan)
 }
@@ -52,11 +54,17 @@ struct Reconciler {
                 return [.replaceSelf(with: new)]
             }
             var patches: [Patch] = []
+            for name in o.objectURLs.keys.sorted() where n.objectURLs[name] == nil {
+                patches.append(.setObjectURL(name: name, value: nil))
+            }
             for name in n.attributes.keys.sorted() where o.attributes[name] != n.attributes[name] {
                 patches.append(.setAttribute(name: name, value: n.attributes[name]!))
             }
             for name in o.attributes.keys.sorted() where n.attributes[name] == nil {
                 patches.append(.removeAttribute(name: name))
+            }
+            for name in n.objectURLs.keys.sorted() where o.objectURLs[name] != n.objectURLs[name] {
+                patches.append(.setObjectURL(name: name, value: n.objectURLs[name]!))
             }
             for entry in n.style.entries where o.style[entry.property] != entry.value {
                 patches.append(.setStyleProperty(name: entry.property, value: entry.value,
@@ -88,6 +96,9 @@ struct Reconciler {
             for kind in o.observers.keys.sorted(by: { $0.key < $1.key })
                 where n.observers[kind] == nil {
                 patches.append(.removeObserver(kind: kind))
+            }
+            if o.configuredVisibility != n.configuredVisibility {
+                patches.append(.setConfiguredVisibility(n.configuredVisibility))
             }
             if !o.children.isEmpty || !n.children.isEmpty {
                 let plan = diffChildren(old: o.children, new: n.children)

@@ -4,6 +4,12 @@ System signals, persisted storage, fetch, and file selection — reactive
 browser capabilities available through ``Environment`` and dedicated
 property wrappers.
 
+For effect callbacks that report `document.visibilityState` and coherent visual
+viewport geometry, see <doc:ViewportObservation>.
+
+For layout scroll metrics, preserved reading positions, and explicit scrolling,
+see <doc:ScrollPosition>.
+
 ## Overview
 
 System signals, storage, and fetch all report safe defaults outside a live
@@ -161,6 +167,11 @@ the client, not verified facts — never use `mimeType` to make a security
 decision (validate bytes instead), never build a filesystem path from
 `name`, and check `size` before calling `data()`/`text()`, which buffer the
 whole file into memory.
+
+For uploads and media previews, use `try await file.blob()` and
+`session.upload(for:from:)`. This keeps the original browser File out of Swift's
+byte buffers. See <doc:FileUploads> for typed temporary URLs, selected-range
+reads, cancellation, and separating preview state from hydratable chat state.
 
 ### See it running
 

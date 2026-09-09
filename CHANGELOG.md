@@ -4,6 +4,38 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
+## [Unreleased]
+
+### Fixed
+
+- Visibility callbacks now compare `intersectionRatio` with the requested
+  threshold and process every queued IntersectionObserver entry. Thresholds
+  must be finite and in `0...1`; zero preserves `isIntersecting` semantics.
+- Native HTTP requests preserve fractional timeout values and report URLSession
+  cancellation and timeout as `WebFetchError.cancelled` and `.timeout`.
+
+### Added
+
+- `ScrollReader` and `ScrollProxy` expose fresh layout metrics and explicit
+  anchor restoration/end scrolling after DOM commit. Reader-scoped lookup,
+  hydration and unmount guards preserve host ownership; smooth commands respect
+  reduced motion. Existing scroll events and CSS `ScrollBehavior` remain compatible.
+- `onDocumentVisibilityChange(initial:_:)` and
+  `onVisualViewportChange(initial:_:)` deliver deduplicated, lifecycle-scoped
+  browser visibility and visual viewport snapshots after the client commit.
+- Typed visibility roots and margins let elements observe the viewport or the
+  nearest named ancestor, with exact-host rebinding and logical-unmount cleanup.
+- `KeyEvent.isComposing` and callback-scoped `preventDefault()` support IME-aware
+  Enter handling without a separate JavaScript listener. Existing initializer
+  calls remain compatible; delayed cancellation calls have no effect.
+- `WebFile.blob()`, range-based `WebBlob.slice`, and `WebSession.upload(for:from:)`
+  send browser-selected files without first reading them into WASM. Data-backed
+  blobs support native and browser uploads; existing readers/transports can opt
+  into the new capabilities without changing their existing conformances.
+- Opaque `WebObjectURL` handles work with Img, Video, Audio, and A. Resources are
+  retained through shared use and exit transitions, support explicit idempotent
+  revocation, and are omitted from generated HTML and hydration snapshots.
+
 ## [0.9.2] - 2026-08-05
 
 ### Fixed

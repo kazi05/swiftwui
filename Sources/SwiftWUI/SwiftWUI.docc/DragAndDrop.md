@@ -62,6 +62,9 @@ but the enter event carries no mime information a Swift handler could read,
 and the highlight fires for any file drag. The filter at drop time is the
 authoritative one.
 
+The resulting files support `try await file.blob()` for direct uploads and
+temporary media previews. See <doc:FileUploads> for the upload and lifetime APIs.
+
 Enter and leave events that fire when the cursor crosses between the zone's
 own children are ignored, so `isTargeted` does not flicker off as the
 pointer moves over nested content. A drag carrying no files never targets

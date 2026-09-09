@@ -153,9 +153,25 @@ where Base.HostNode: AnyObject {
     }
 
     // MARK: passthrough
+    public func _scrollMetrics(in target: _ScrollTarget<HostNode>) -> ScrollMetrics? {
+        base._scrollMetrics(in: target)
+    }
+    public func _captureScrollAnchor(in target: _ScrollTarget<HostNode>,
+                                     candidates: [HostNode]) -> _ScrollAnchorGeometry? {
+        base._captureScrollAnchor(in: target, candidates: candidates)
+    }
+    public func _restoreScrollAnchor(in target: _ScrollTarget<HostNode>, element: HostNode, offset: Double) {
+        base._restoreScrollAnchor(in: target, element: element, offset: offset)
+    }
+    public func _scrollToEnd(in target: _ScrollTarget<HostNode>, behavior: ScrollProxy.Behavior) {
+        base._scrollToEnd(in: target, behavior: behavior)
+    }
     public func setText(_ node: HostNode, _ text: String) { base.setText(node, text) }
     public func setAttribute(_ node: HostNode, name: String, value: String) { base.setAttribute(node, name: name, value: value) }
     public func removeAttribute(_ node: HostNode, name: String) { base.removeAttribute(node, name: name) }
+    public func setObjectURL(_ node: HostNode, name: String, value: WebObjectURL?) {
+        base.setObjectURL(node, name: name, value: value)
+    }
     public func setStyleProperty(_ node: HostNode, name: String, value: String) { base.setStyleProperty(node, name: name, value: value) }
     // Must forward: this wrapper stays the runtime's backend for the app's
     // whole lifetime after a successful adoption (DOMRuntime.mount), so
@@ -170,6 +186,12 @@ where Base.HostNode: AnyObject {
     public func removeEventListener(_ node: HostNode, event: String) { base.removeEventListener(node, event: event) }
     public func observe(_ node: Base.HostNode, kind: ObserverKind, id: ListenerID) { base.observe(node, kind: kind, id: id) }
     public func unobserve(_ node: Base.HostNode, kind: ObserverKind) { base.unobserve(node, kind: kind) }
+    public func observeVisibility(_ node: HostNode, root: VisibilityObserverRoot<HostNode>,
+                                  threshold: Double, rootMargin: VisibilityMargin,
+                                  onChange: @escaping (Bool) -> Void) -> (() -> Void)? {
+        base.observeVisibility(node, root: root, threshold: threshold,
+                               rootMargin: rootMargin, onChange: onChange)
+    }
     public func remove(_ child: HostNode, from parent: HostNode) { base.remove(child, from: parent) }
     public func setStylesheet(_ text: String) { base.setStylesheet(text) }
     public func pushState(path: String) { base.pushState(path: path) }
@@ -204,6 +226,13 @@ where Base.HostNode: AnyObject {
     }
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
         base.beginWindowEventObservation(sink)
+    }
+    public func beginDocumentVisibilityObservation(_ sink: @escaping (Bool) -> Void) -> Bool? {
+        base.beginDocumentVisibilityObservation(sink)
+    }
+    public func beginVisualViewportObservation(_ sink: @escaping (VisualViewportMetrics) -> Void)
+        -> VisualViewportMetrics? {
+        base.beginVisualViewportObservation(sink)
     }
     public func observeMediaQuery(_ condition: String, onChange: @escaping (Bool) -> Void) -> Bool {
         base.observeMediaQuery(condition, onChange: onChange)

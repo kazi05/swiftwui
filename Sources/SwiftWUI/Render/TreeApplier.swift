@@ -1,3 +1,11 @@
+struct _MountedVisibilityBinding<N> {
+    let generation: UInt64
+    let request: _ResolvedVisibilityObservation
+    let rootGeneration: ObjectIdentifier?
+    let rootHost: N?
+    var cancel: (() -> Void)?
+}
+
 /// Shadow tree: the single owner of virtual-identity → host-node mapping and
 /// listener bookkeeping (spec §8.4, traps T5/T10).
 final class MountedNode<N> {
@@ -11,6 +19,10 @@ final class MountedNode<N> {
     var children: [MountedNode<N>] = []
     var events: Set<String> = []
     var observerKinds: Set<ObserverKind> = []
+    var objectURLs: [String: WebObjectURL] = [:]
+    var visibilityRequests: [_ResolvedVisibilityObservation] = []
+    var visibilityBindings: [ListenerID: _MountedVisibilityBinding<N>] = [:]
+    var scrollElementID: String?
     init(host: N?, hostParent: N, componentIdentity: NodeIdentity? = nil, elementIdentity: NodeIdentity? = nil) {
         self.host = host; self.hostParent = hostParent
         self.componentIdentity = componentIdentity
@@ -27,6 +39,12 @@ final class TreeApplier<Backend: RendererBackend> {
     let root: MountedNode<Backend.HostNode>
     /// Component shadow-node lookup by identity, kept in sync by mount/unmount.
     private(set) var componentIndex: [NodeIdentity: MountedNode<Backend.HostNode>] = [:]
+    var elementIndex: [NodeIdentity: MountedNode<Backend.HostNode>] = [:]
+    var visibilityTargets: [ObjectIdentifier: MountedNode<Backend.HostNode>] = [:]
+    var visibilityGeneration: UInt64 = 0
+    var visibilityEnabled = true
+    var scheduleVisibility: ((@escaping () -> Void) -> Void)?
+    var dispatchVisibility: ((ListenerID, Bool) -> Void)?
     /// Set by Runtime immediately before each `apply`/`mount` call, cleared
     /// immediately after — never leaks into a later pass (anim spec §6).
     var animationPass: AnimationPassContext?
@@ -63,8 +81,14 @@ final class TreeApplier<Backend: RendererBackend> {
 
         case .element(let el):
             let h = backend.createElement(el.tag)
+            let m = MountedNode(host: h, hostParent: hostParent, elementIdentity: el.identity)
+            m.scrollElementID = el.attributes["id"]
+            m.objectURLs = el.objectURLs
             for name in el.attributes.keys.sorted() {
                 backend.setAttribute(h, name: name, value: el.attributes[name]!)
+            }
+            for name in el.objectURLs.keys.sorted() {
+                backend.setObjectURL(h, name: name, value: el.objectURLs[name]!)
             }
             for e in el.style.entries {
                 backend.setStyleProperty(h, name: e.property, value: e.value)
@@ -79,9 +103,10 @@ final class TreeApplier<Backend: RendererBackend> {
                 backend.observe(h, kind: kind, id: el.observers[kind]!)
             }
             backend.insert(h, into: hostParent, before: anchor)
-            let m = MountedNode(host: h, hostParent: hostParent, elementIdentity: el.identity)
             m.events = Set(el.listeners.keys)
             m.observerKinds = Set(el.observers.keys)
+            m.visibilityRequests = el.configuredVisibility
+            registerVisibility(m)
             for child in el.children {
                 let cm = mount(child, hostParent: h, before: nil)
                 cm.parent = m; cm.indexInParent = m.children.count
@@ -120,6 +145,7 @@ final class TreeApplier<Backend: RendererBackend> {
         removeHosts(m)
     }
     private func unregister(_ m: MountedNode<Backend.HostNode>) {
+        unregisterVisibility(m)
         // mount-before-unmount replace(): only clear the index if it still points at US
         if let id = m.componentIdentity, componentIndex[id] === m { componentIndex[id] = nil }
         for c in m.children { unregister(c) }
@@ -128,6 +154,7 @@ final class TreeApplier<Backend: RendererBackend> {
     /// `componentIndex` for a ghost being adopted back into the live tree. The
     /// ids were freed at exit-start, so this simply re-claims them.
     private func reregister(_ m: MountedNode<Backend.HostNode>) {
+        registerVisibility(m)
         if let id = m.componentIdentity { componentIndex[id] = m }
         for c in m.children { reregister(c) }
     }
@@ -139,8 +166,17 @@ final class TreeApplier<Backend: RendererBackend> {
         }
     }
     private func removeHosts(_ m: MountedNode<Backend.HostNode>) {
-        if let h = m.host { backend.remove(h, from: m.hostParent); return }
+        if let h = m.host {
+            backend.remove(h, from: m.hostParent)
+            releaseObjectURLs(in: m)
+            return
+        }
         for c in m.children { removeHosts(c) }     // component: remove each realized root
+    }
+
+    private func releaseObjectURLs(in m: MountedNode<Backend.HostNode>) {
+        m.objectURLs.removeAll()
+        for child in m.children { releaseObjectURLs(in: child) }
     }
 
     // MARK: Anchors (spec §8.4 — normative algorithm)
@@ -446,8 +482,18 @@ final class TreeApplier<Backend: RendererBackend> {
                 backend.setText(m.host!, s)
             case .setAttribute(let name, let value):
                 backend.setAttribute(m.host!, name: name, value: value)
+                if name == "id" { m.scrollElementID = value }
             case .removeAttribute(let name):
                 backend.removeAttribute(m.host!, name: name)
+                if name == "id" { m.scrollElementID = nil }
+            case .setObjectURL(let name, let value):
+                if let value {
+                    m.objectURLs[name] = value
+                    backend.setObjectURL(m.host!, name: name, value: value)
+                } else {
+                    backend.setObjectURL(m.host!, name: name, value: nil)
+                    m.objectURLs[name] = nil
+                }
             case .setStyleProperty(let name, let value, let previous):
                 backend.setStyleProperty(m.host!, name: name, value: value)   // model final FIRST (anim spec §6.1)
                 if let pass = animationPass,
@@ -482,6 +528,9 @@ final class TreeApplier<Backend: RendererBackend> {
             case .removeObserver(let kind):
                 backend.unobserve(m.host!, kind: kind)
                 m.observerKinds.remove(kind)
+            case .setConfiguredVisibility(let requests):
+                m.visibilityRequests = requests
+                registerVisibility(m)
             case .replaceSelf(let new):
                 replace(m, with: new, endAnchor: endAnchor)
             case .updateChildren(let plan):

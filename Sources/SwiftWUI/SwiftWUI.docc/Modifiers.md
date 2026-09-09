@@ -101,19 +101,49 @@ Input(type: .text)
 - `onSubmit(_:)` — the DOM backend always calls `preventDefault()` on the
   underlying `submit` event.
 
+Use the payload form for an IME-aware editor that sends on Enter and keeps
+Shift+Enter as a newline:
+
+```swift
+Textarea(text: $draft)
+    .onKeyDown { event in
+        guard event.key == "Enter", !event.shiftKey, !event.isComposing else { return }
+        event.preventDefault()
+        guard canSend, !event.repeated else { return }
+        Task { await sendDraft() }
+    }
+```
+
+`KeyEvent.isComposing` includes the browser's composition flag and legacy
+key-code 229. It defaults to `false` for manually constructed events.
+`preventDefault()` cancels the default action synchronously during the current
+keyboard callback. Call it before starting asynchronous work: calls after the
+callback returns (including from a `Task` or after `await`) have no effect.
+Copies of the payload share that callback's cancellation request without
+retaining the JavaScript event. Manually constructed payloads have no browser
+action to cancel. The filtered key convenience form keeps its existing
+key-and-modifier matching; composition handling uses the payload form above.
+
 ### Element observers
 
 ```swift
 Div { /* … */ }
     .onVisibilityChange(threshold: 0.5) { isVisible in print(isVisible) }
 
-TextArea()
+Textarea(text: $draft)
     .onSizeChange { size in print(size.width, size.height) }
 ```
 
 - `onVisibilityChange(threshold:_:)` — backed by `IntersectionObserver`;
-  delivers `true`/`false` as the element enters/leaves the viewport, at
-  `threshold` fraction visible (default `0.0`, i.e. any visibility at all).
+  delivers `true` only when the element intersects and its `intersectionRatio`
+  is at least `threshold`. The threshold must be finite and in `0...1`;
+  invalid values fail a precondition. At the default `0.0`, visibility follows
+  `isIntersecting`, including edge contact. At `1.0`, the full area must
+  intersect. A zero-area intersecting target follows the browser's ratio of
+  `1`. All entries in a queued observer delivery are processed in order.
+- `onVisibilityChange(threshold:root:rootMargin:_:)` — observes against the
+  viewport or the nearest named ancestor with typed margins. See
+  <doc:VisibilityRoots> for root resolution, lifecycle, and geometry semantics.
 - `onSizeChange(_:)` — backed by `ResizeObserver`; delivers a ``SizeEvent``
   on every resize.
 
@@ -133,6 +163,10 @@ Div { /* tall content */ }
 coalesce scroll events to one per animation frame, and the DOM listener is
 registered passive.
 
+Use a ``ScrollReader`` and its ``ScrollProxy`` to read viewport/content sizes
+inside that callback, restore a visible row after an update, or request the end.
+See <doc:ScrollPosition> for complete examples and commit timing.
+
 ### Window-level effects
 
 ```swift
@@ -146,6 +180,12 @@ Div { /* … */ }
 they're available on any tag, including plain composition. The real
 `window` listener attaches lazily, once, on the first subscription anywhere
 in the app, and is never detached.
+
+`onDocumentVisibilityChange(initial:_:)` and
+`onVisualViewportChange(initial:_:)` are also available on any `Tag`. They
+report document visibility and six-field visual viewport snapshots after the
+client commit. See <doc:ViewportObservation> for timing, deduplication,
+fallback, and geometry semantics.
 
 ## `Button(onClick:)` and `.onTap`
 

@@ -129,8 +129,12 @@ public enum DOMRuntime {
                                       globalStyles: globalStyles, themes: themes, fontFaces: fontFaces,
                                       localization: localization)
             seed(runtime, with: payload)
+            runtime._deferViewportEffectsUntilAdoption()
+            runtime._deferScrollUntilAdoption()
             runtime.mount()
             if adopting.finishAdoption() {
+                runtime._acceptViewportEffectsAdoption()
+                runtime._acceptScrollAdoption()
                 // The adopted tree's nodes are already on screen — the next flush
                 // (whenever it comes) must not replay their enter transitions as
                 // if they were freshly inserted (anim spec, Task 9 SPI).
@@ -139,10 +143,9 @@ public enum DOMRuntime {
                 finishMount(runtime: runtime, box: box, raw: raw, container: container, hydrated: true)
                 return
             }
-            // Mismatch: discard everything, cold-boot below. The discarded
-            // runtime's client .task effects already started real Tasks (I1) —
-            // cancel them first or they outlive this runtime and duplicate
-            // side effects when the fallback re-runs the same loaders.
+            // Mismatch: discard everything, cold-boot below. Cancel both effects
+            // and configured visibility observers before the fallback creates
+            // replacement subscriptions and hosts.
             runtime._effects._cancelAll()
             // The discarded runtime already ran beginEnvironmentObservation on `raw`
             // (via the AdoptingBackend forward). `raw` is about to become unreferenced

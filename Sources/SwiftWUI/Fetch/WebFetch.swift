@@ -44,10 +44,24 @@ public enum WebFetchError: Error, Equatable {
     case unsupported
 }
 
+public enum WebUploadError: Error, Equatable {
+    /// The request already contains a body, including an empty body.
+    case conflictingBody
+    /// The request method does not permit this upload body.
+    case invalidMethod
+}
+
 /// Injected per platform: SwiftWUIDOM = fetch(), SwiftWUIStatic = URLSession,
 /// tests = scripted mock. Core ships only the unconfigured default (throws).
 public protocol FetchTransport: AnyObject {
     func perform(_ request: WebRequest) async throws -> (_FoundationData, WebResponse)
+}
+
+@MainActor
+/// Optional transport capability for uploading a blob without a whole-resource read.
+public protocol _BlobUploadingTransport: FetchTransport {
+    func upload(_ request: WebRequest, from blob: WebBlob)
+        async throws -> (_FoundationData, WebResponse)
 }
 
 final class _UnsupportedTransport: FetchTransport {
@@ -73,6 +87,26 @@ public final class WebSession {
     }
     public func data(from url: String) async throws -> (_FoundationData, WebResponse) {
         try await data(for: WebRequest(url: url))
+    }
+    /// Uploads a blob through a capable transport, applying its MIME type as the default content type.
+    public func upload(for request: WebRequest, from blob: WebBlob)
+        async throws -> (_FoundationData, WebResponse) {
+        try Self.validate(request)
+        guard request.body == nil else { throw WebUploadError.conflictingBody }
+        guard request.method != .get, request.method != .head else {
+            throw WebUploadError.invalidMethod
+        }
+        var effective = request
+        if !blob.mimeType.isEmpty,
+           !effective.headers.keys.contains(where: { $0.lowercased() == "content-type" }) {
+            effective.headers["Content-Type"] = blob.mimeType
+        }
+        try Self.validate(effective)
+        guard !Task.isCancelled else { throw WebFetchError.cancelled }
+        guard let uploader = transport as? any _BlobUploadingTransport else {
+            throw WebFetchError.unsupported
+        }
+        return try await uploader.upload(effective, from: blob)
     }
     public func json<T: Decodable>(from url: String, as type: T.Type = T.self) async throws -> T {
         let (data, resp) = try await data(from: url)

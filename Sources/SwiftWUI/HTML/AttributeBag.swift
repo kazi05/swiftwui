@@ -19,9 +19,12 @@ public struct PendingStyleRule {
 
 public struct _AttributeBag {
     private(set) var pairs: [(name: String, value: String)] = []
+    private(set) var objectURLs: [String: WebObjectURL] = [:]
     private(set) var properties: [(name: String, value: PropertyValue)] = []
     private(set) var handlers: [(event: EventName, action: (Any?) -> Void)] = []
     private(set) var observers: [(kind: ObserverKind, action: (Any?) -> Void)] = []
+    private(set) var visibilityRootID: String?
+    private(set) var configuredVisibility: [_VisibilityRequest] = []
     private(set) var styles: [StyleDeclaration] = []
     private(set) var pendingRules: [PendingStyleRule] = []
     private(set) var localized: [(name: String, value: LocalizedText)] = []
@@ -38,7 +41,18 @@ public struct _AttributeBag {
             assertionFailure("invalid attribute name: \(name)")   // debug trap, drop in release
             return
         }
+        objectURLs[Self.canonicalResourceName(name)] = nil
         pairs.append((name, value))
+    }
+
+    mutating func setObjectURL(_ name: String, _ value: WebObjectURL) {
+        guard Self.isValidName(name) else {
+            assertionFailure("invalid attribute name: \(name)")
+            return
+        }
+        let canonical = Self.canonicalResourceName(name)
+        pairs.removeAll { Self.canonicalResourceName($0.name) == canonical }
+        objectURLs[canonical] = value
     }
 
     /// Deferred attribute value: resolved in `resolveElement`, where the
@@ -83,6 +97,9 @@ public struct _AttributeBag {
         observers.append((kind, action))
     }
 
+    mutating func setVisibilityRoot(_ id: String) { visibilityRootID = id }
+    mutating func addVisibility(_ request: _VisibilityRequest) { configuredVisibility.append(request) }
+
     mutating func addStyle(_ d: StyleDeclaration) { styles.append(d) }
 
     /// Last-wins per name, except `class` accumulates space-joined (spec decision 5).
@@ -110,5 +127,11 @@ public struct _AttributeBag {
                 || c == "_" || c == "." || c == ":" || c == "-" else { return false }
         }
         return true
+    }
+
+    /// Attribute names are ASCII-only after validation, so this canonicalizes
+    /// resource collisions without changing the casing rules for plain pairs.
+    private static func canonicalResourceName(_ name: String) -> String {
+        name.lowercased()
     }
 }

@@ -15,12 +15,28 @@ public final class Runtime<Backend: RendererBackend> {
     private let animationValues = AnimationValueStore()
     private let transitions = TransitionRegistry()
     private let windowEvents = WindowEventHub()
+    private lazy var scrollRegistry = ScrollRegistry(
+        backend: applier.backend,
+        mountedRoot: { [weak self] id in self?.applier.componentIndex[id] },
+        operationsAllowed: { [weak self] in self.map { !$0.isRendering } ?? false },
+        reducedMotion: { [weak self] in self?.signals.reduceMotion ?? true },
+        scheduleWork: { [weak self] in self?.scheduleRuntimeWork() }
+    )
+    private lazy var documentVisibilityEvents = SnapshotSubscriptionHub<Bool>(
+        begin: { [weak self] sink in
+            self?.applier.backend.beginDocumentVisibilityObservation(sink)
+        }, schedule: scheduleMicrotask)
+    private lazy var visualViewportEvents = SnapshotSubscriptionHub<VisualViewportMetrics>(
+        begin: { [weak self] sink in
+            self?.applier.backend.beginVisualViewportObservation(sink)
+        }, schedule: scheduleMicrotask)
     private let rootTag: AnyTag
     private let scheduleMicrotask: (@escaping () -> Void) -> Void
     private var current: Node?
     private var dirty: Set<NodeIdentity> = []
     private var scheduled = false
     private var isRendering = false
+    private var passBatchDepth = 0
     private var passCounter = 0     // bumped per render/subtree pass; scopes setStyleWrapper reset
     private let styleRegistry = StyleRegistry()
     private var flushedStyleVersion = 0
@@ -223,9 +239,21 @@ public final class Runtime<Backend: RendererBackend> {
             #endif
         }
         effects._windowHub = windowEvents
+        effects._documentVisibilityHub = documentVisibilityEvents
+        effects._visualViewportHub = visualViewportEvents
         effects._onDropGuardChange = { [weak self] enabled in
             self?.applier.backend.setDropNavigationGuard(enabled)
         }
+        applier.scheduleVisibility = { [weak self] job in
+            self?.scheduleMicrotask(job)
+        }
+        applier.dispatchVisibility = { [weak self] id, value in
+            self?.dispatch(id, payload: value)
+        }
+        effects._onCancelConfiguredVisibility = { [weak self] in
+            self?.applier.cancelVisibility()
+        }
+        effects._onCancelScroll = { [weak self] in self?.scrollRegistry.cancelAll() }
         windowEvents.onFirstSubscriber = { [weak self] in
             guard let self else { return }
             self.applier.backend.beginWindowEventObservation { [weak self] kind, payload in
@@ -250,13 +278,18 @@ public final class Runtime<Backend: RendererBackend> {
             }
         }
         if let vt = ViewTransitionScope._active { armViewTransition(vt, direction: nil) }
-        if !scheduled {
-            scheduled = true
-            scheduleMicrotask { [weak self] in self?.flush() }
-        }
+        scheduleRuntimeWork()
+    }
+
+    private func scheduleRuntimeWork() {
+        guard !scheduled else { return }
+        scheduled = true
+        scheduleMicrotask { [weak self] in self?.flush() }
     }
 
     public func mount() {
+        beginPassBatch()
+        defer { endPassBatch() }
         applier.backend.beginEnvironmentObservation(signals.writer)
         _resolveInitialLocale()
         storage.readBacking = { [weak self] kind, key in
@@ -510,6 +543,7 @@ public final class Runtime<Backend: RendererBackend> {
     }
 
     public func flush() {
+        if passBatchDepth > 0 { scheduled = false; return }
         // A transition's update callback owns the next pass; a flush that lands
         // in the capture window must ALSO clear `scheduled`, or markDirty's
         // `if !scheduled` gate stops queueing microtasks for good.
@@ -524,7 +558,11 @@ public final class Runtime<Backend: RendererBackend> {
         let suppressOnce = _suppressTransitionsOnce
         _suppressTransitionsOnce = false
         guard !dirty.isEmpty else {
-            pendingViewTransition = nil; pendingViewTransitionIsNavigation = false; return
+            pendingViewTransition = nil
+            pendingViewTransitionIsNavigation = false
+            scrollRegistry.drain()
+            if scrollRegistry.shouldScheduleDrain { scheduleRuntimeWork() }
+            return
         }
         let ids = dirty
         dirty.removeAll()
@@ -542,7 +580,7 @@ public final class Runtime<Backend: RendererBackend> {
 
         guard let vt = pendingViewTransition else {
             runPasses(ids, transactionOverrides: drained, groups: drainedGroups,
-                      suppressTransitions: suppressOnce)
+                      suppressTransitions: suppressOnce, allowScrollDuringViewTransition: false)
             return
         }
         pendingViewTransition = nil
@@ -565,7 +603,7 @@ public final class Runtime<Backend: RendererBackend> {
             // view-transition-name in the DOM and would duplicate a name in the
             // new frame, which makes the browser skip the whole transition.
             self.runPasses(ids, transactionOverrides: drained, groups: drainedGroups,
-                           suppressTransitions: true)
+                           suppressTransitions: true, allowScrollDuringViewTransition: true)
         }
         applier.backend.performViewTransition(vt, update: body)
     }
@@ -575,7 +613,10 @@ public final class Runtime<Backend: RendererBackend> {
     private func runPasses(_ ids: Set<NodeIdentity>,
                            transactionOverrides drained: [NodeIdentity: Transaction],
                            groups: [CompletionGroup],
-                           suppressTransitions: Bool) {
+                           suppressTransitions: Bool,
+                           allowScrollDuringViewTransition: Bool) {
+        beginPassBatch()
+        defer { endPassBatch(allowScrollDuringViewTransition: allowScrollDuringViewTransition) }
         // `_buildMode`: a build reads the tree as settled truth, the same
         // reasoning StaticSite already applies with `_disableViewTransitions`.
         // Its drain pumps after every build-task iteration and a `.staticTask`
@@ -600,6 +641,21 @@ public final class Runtime<Backend: RendererBackend> {
         // Armed AFTER all of this flush's passes: an empty group (nothing yet
         // registered against it) fires on the next microtask (anim spec §7.4).
         for g in groups { g.arm(schedule: scheduleMicrotask) }
+    }
+
+    private func beginPassBatch() { passBatchDepth += 1 }
+
+    private func endPassBatch(allowScrollDuringViewTransition: Bool = false) {
+        passBatchDepth -= 1
+        guard passBatchDepth == 0 else { return }
+        if !dirty.isEmpty {
+            scheduleRuntimeWork()
+            return
+        }
+        if !vtInFlight || allowScrollDuringViewTransition {
+            scrollRegistry.drain()
+        }
+        if scrollRegistry.shouldScheduleDrain, !vtInFlight { scheduleRuntimeWork() }
     }
 
     /// Arms `t` for the next flush unless something forbids a transition
@@ -668,6 +724,7 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.registry = styleRegistry
         ctx.animationValues = animationValues
         ctx.transitions = transitions
+        if !effects._buildMode { ctx.scrollRegistry = scrollRegistry }
         passCounter += 1; ctx.pass = passCounter
         // Snapshot is never stale for routeInfo: navigation always marks .root (full pass),
         // which re-retains every row's environment.
@@ -677,6 +734,7 @@ public final class Runtime<Backend: RendererBackend> {
         // without re-seeding, the scope marker would drop from the modifier body
         // and wrapped content on this pass (scoped ≡ full invariant, spec §6/§11).
         ctx.scopeClass = row.scopeClass
+        ctx.visibilityRoots = row.visibilityRoots
         // Carrier (anim spec §4): this cover id's own captured transaction, plus
         // the full drained map so deeper dirty ids under this cover still
         // override at their own component boundary.
@@ -717,6 +775,10 @@ public final class Runtime<Backend: RendererBackend> {
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
         applier.animationPass = nil
         current = splicing(current!, at: id, with: new)
+        scrollRegistry.commit(ctx.scrollReaders, under: id)
+        if !effects._buildMode {
+            applier.commitVisibility()
+        }
         #if DEBUG
         warnOnDuplicateTransitionNames()
         #endif
@@ -732,6 +794,7 @@ public final class Runtime<Backend: RendererBackend> {
         }
 
         let callbacks = effects.reconcile(ctx.effects, under: id)
+        _commitViewportEffects()
         for cb in callbacks { cb() }
         commitRouteEffects(ctx)
         if ctx.routerCount > 0 {
@@ -788,6 +851,7 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.registry = styleRegistry
         ctx.animationValues = animationValues
         ctx.transitions = transitions
+        if !effects._buildMode { ctx.scrollRegistry = scrollRegistry }
         ctx.transactionOverrides = transactionOverrides   // carrier (anim spec §4): applied at each component boundary
         passCounter += 1; ctx.pass = passCounter
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
@@ -836,6 +900,10 @@ public final class Runtime<Backend: RendererBackend> {
         applier.animationPass = nil
         // 5. COMMIT.
         current = new
+        scrollRegistry.commit(ctx.scrollReaders, under: .root)
+        if !effects._buildMode {
+            applier.commitVisibility()
+        }
         #if DEBUG
         warnOnDuplicateTransitionNames()
         #endif
@@ -852,12 +920,33 @@ public final class Runtime<Backend: RendererBackend> {
         }
 
         let callbacks = effects.reconcile(ctx.effects, under: .root)
+        _commitViewportEffects()
         for cb in callbacks { cb() }
         commitRouteEffects(ctx)
         if ctx.routerCount > 0 {
             routerTransitionDefault = ctx.routerTransitionDefault
             routeTransitions = ctx.routeTransitions
         }
+    }
+
+    private func _commitViewportEffects() {
+        guard !effects._buildMode else { return }
+        documentVisibilityEvents.commit()
+        visualViewportEvents.commit()
+    }
+
+    public func _deferViewportEffectsUntilAdoption() {
+        documentVisibilityEvents.deferUntilAdoption()
+        visualViewportEvents.deferUntilAdoption()
+    }
+
+    public func _deferScrollUntilAdoption() { scrollRegistry.deferUntilAdoption() }
+
+    public func _acceptScrollAdoption() { scrollRegistry.acceptAdoption() }
+
+    public func _acceptViewportEffectsAdoption() {
+        documentVisibilityEvents.acceptAdoption()
+        visualViewportEvents.acceptAdoption()
     }
 
     #if DEBUG

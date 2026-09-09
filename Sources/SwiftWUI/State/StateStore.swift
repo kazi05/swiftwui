@@ -7,6 +7,7 @@ struct RetainedComponent {
     /// re-seed it or the scope marker vanishes from the modifier body until the
     /// next full pass ("scoped ≡ full" invariant, spec §6/§11).
     var scopeClass: String?
+    var visibilityRoots: [String: NodeIdentity] = [:]
     /// Transforms applied by enclosing `_StyledTag` wrapper(s) (spec §6, §11).
     /// A `subtreePass` re-resolves this row's tag directly — it never re-runs
     /// the wrappers' own `_resolve` — so each wrapper stashes its transform
@@ -36,7 +37,7 @@ public final class StateStore {
     /// Retains the resolved component value + its environment snapshot so a
     /// later scoped pass can re-invoke its body (spec §2.3).
     func retain(_ tag: AnyTag, at id: NodeIdentity, environment: EnvironmentValues,
-                scopeClass: String?) {
+                scopeClass: String?, visibilityRoots: [String: NodeIdentity] = [:]) {
         // Every resolve of this id re-retains (fresh tag/environment) — preserve
         // previously-stashed style wrappers (only `setStyleWrapper`/sweep touch
         // them) so they survive the many re-retains a scoped-only subtree pass
@@ -44,6 +45,7 @@ public final class StateStore {
         let existing = retained[id]
         retained[id] = RetainedComponent(tag: tag, environment: environment,
                                          scopeClass: scopeClass,
+                                         visibilityRoots: visibilityRoots,
                                          styleWrappers: existing?.styleWrappers ?? [],
                                          styleWrapperPass: existing?.styleWrapperPass ?? -1)
     }
