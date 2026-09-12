@@ -107,10 +107,24 @@ import http.server
 import time
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    protocol_version = "HTTP/1.1"
+    isolation_requests = 0
+
     def log_message(self, format, *args):
         pass
 
     def do_GET(self):
+        if self.path == "/isolation":
+            Handler.isolation_requests += 1
+            cookie = self.headers.get("Cookie", "")
+            body = f"request={Handler.isolation_requests};cookie={cookie}".encode()
+            self.send_response(200)
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("Set-Cookie", "swiftwui_fixture=secret; Path=/")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         body = b"legacy-data"
         self.send_response(207)
         self.send_header("X-Regression", "yes")
@@ -259,6 +273,21 @@ server.serve_forever()
             #expect(body == _FoundationData("legacy-data".utf8))
             #expect(response.status == 207)
             #expect(response.headers["x-regression"] == "yes")
+        }
+    }
+
+    @Test func transportChurnSharesNeitherCacheNorCookies() async throws {
+        try await withServer { server in
+            var first: WebSession? = WebSession(transport: URLSessionTransport())
+            let firstResult = try await first?.data(from: server.baseURL + "/isolation")
+            first = nil
+
+            let second = WebSession(transport: URLSessionTransport())
+            let (secondBody, _) = try await second.data(from: server.baseURL + "/isolation")
+            let (firstBody, _) = try #require(firstResult)
+
+            #expect(String(decoding: firstBody, as: UTF8.self) == "request=1;cookie=")
+            #expect(String(decoding: secondBody, as: UTF8.self) == "request=2;cookie=")
         }
     }
 }

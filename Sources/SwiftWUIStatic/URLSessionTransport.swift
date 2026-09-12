@@ -9,17 +9,27 @@ import SwiftWUI
 /// Ephemeral session, no cookie storage: the same-origin credential invariant.
 final class URLSessionTransport: @MainActor _BlobUploadingTransport {
     nonisolated deinit { }
-    private let session: URLSession
-    init() {
+
+    // Swift 6.3.3's Linux FoundationNetworking can crash or hang while a
+    // short-lived URLSession tears down its libcurl multi handle. Keep one
+    // process-lifetime client until a fixed toolchain ships:
+    // https://github.com/swiftlang/swift-corelibs-foundation/pull/5491
+    private static let processSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.httpCookieStorage = nil
         config.httpShouldSetCookies = false
-        session = URLSession(configuration: config)
-    }
+        config.urlCredentialStorage = nil
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }()
+
+    init() {}
+
     func perform(_ request: WebRequest) async throws -> (_FoundationData, WebResponse) {
         let req = try makeRequest(request, body: request.body)
         do {
-            let result = try await session.data(for: req)
+            let result = try await Self.processSession.data(for: req)
             return try response(from: result)
         } catch {
             throw mapError(error)
@@ -31,7 +41,7 @@ final class URLSessionTransport: @MainActor _BlobUploadingTransport {
         guard let data = blob.uploadData else { throw WebFetchError.unsupported }
         let req = try makeRequest(request, body: nil)
         do {
-            let result = try await session.upload(for: req, from: data)
+            let result = try await Self.processSession.upload(for: req, from: data)
             return try response(from: result)
         } catch {
             throw mapError(error)

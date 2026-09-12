@@ -65,8 +65,12 @@ private struct CompositionFixture: Tag {
 }
 private struct LongPressFixture: Tag {
     let cap: Recorder
+    var onFire: (() -> Void)? = nil
     var body: some Tag {
-        Div().onLongPress(minimumDuration: .milliseconds(50)) { cap.longPressFires += 1 }
+        Div().onLongPress(minimumDuration: .milliseconds(50)) {
+            cap.longPressFires += 1
+            onFire?()
+        }
     }
 }
 private struct ScrollFixture: Tag {
@@ -200,13 +204,24 @@ private struct ScrollFixture: Tag {
         #expect(cap.scrollEvents == [ScrollEvent(x: 0, y: 42)])
     }
 
-    @Test func onLongPressFiresAfterMinimumDuration() async throws {
+    @Test(.timeLimit(.minutes(1))) func onLongPressFiresAfterMinimumDuration() async {
         let cap = Recorder()
-        let (rt, backend, sched) = makeRuntime(LongPressFixture(cap: cap))
+        var fired: CheckedContinuation<Void, Never>?
+        let (rt, backend, sched) = makeRuntime(LongPressFixture(cap: cap, onFire: {
+            fired?.resume()
+            fired = nil
+        }))
         let div = findFirst(backend.container, tag: "div")!
-        rt.dispatch(div.events["pointerdown"]!); sched.pump()
-        try await Task.sleep(for: .milliseconds(2000))
+        let started = ContinuousClock.now
+        // Wait for the callback itself: under parallel load, a fixed sleep can
+        // resume this test before the press task gets its turn on MainActor.
+        await withCheckedContinuation { continuation in
+            fired = continuation
+            rt.dispatch(div.events["pointerdown"]!); sched.pump()
+        }
+        #expect(started.duration(to: .now) >= .milliseconds(50))
         #expect(cap.longPressFires == 1)
+        withExtendedLifetime(rt) {}
     }
 
     /// pointerdown then pointerup dispatched back-to-back with no `await` between

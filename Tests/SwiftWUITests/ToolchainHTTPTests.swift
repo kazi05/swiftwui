@@ -14,8 +14,10 @@ import FoundationNetworking
         try Data([0, 97, 115, 109]).write(to: URL(fileURLWithPath: dir + "/sub/app.wasm"))
         return dir
     }
-    func get(_ port: UInt16, _ path: String) async throws -> (Int, [UInt8], [AnyHashable: Any]) {
-        let (data, resp) = try await URLSession.shared.data(from: URL(string: "http://127.0.0.1:\(port)\(path)")!)
+    func get(_ port: UInt16, _ path: String, timeout: TimeInterval? = nil) async throws -> (Int, [UInt8], [AnyHashable: Any]) {
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)\(path)")!)
+        if let timeout { request.timeoutInterval = timeout }
+        let (data, resp) = try await URLSession.shared.data(for: request)
         let http = resp as! HTTPURLResponse
         return (http.statusCode, Array(data), http.allHeaderFields)
     }
@@ -76,6 +78,24 @@ import FoundationNetworking
         let a = HTTPServer(handlers: []); try a.start(port: 0); defer { a.stop() }
         let b = HTTPServer(handlers: [])
         #expect(throws: ToolchainError.self) { try b.start(port: a.boundPort) }
+    }
+
+    @Test func stopUnblocksAcceptLoopAndReleasesServer() async throws {
+        var server: HTTPServer? = HTTPServer(handlers: [])
+        weak var weakServer = server
+        do {
+            let startedServer = try #require(server)
+            try startedServer.start(port: 0)
+            defer { startedServer.stop() }
+            let (status, _, _) = try await get(startedServer.boundPort, "/", timeout: 5)
+            #expect(status == 404)
+        }
+        server = nil
+
+        for _ in 0..<100 where weakServer != nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(weakServer == nil)
     }
 
     @Test func mimeTableCoversAssetTypes() {

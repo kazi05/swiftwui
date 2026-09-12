@@ -60,6 +60,18 @@ private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
 }
 
 @Suite @MainActor struct StaticDeliveryTests {
+    // Keep the custom session alive across requests: Swift 6.3.3 corelibs has
+    // a teardown bug for short-lived URLSession instances on Linux.
+    private static let responseSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.urlCredentialStorage = nil
+        config.urlCache = nil
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config, delegate: NoRedirectDelegate(), delegateQueue: nil)
+    }()
+
     private func out() -> String { NSTemporaryDirectory() + "swiftwui-delivery-" + UUID().uuidString }
 
     @Test func indexedBuildWritesValidatedManifestAndRedirectFallback() async throws {
@@ -185,9 +197,8 @@ private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
     private func response(port: UInt16, path: String) async throws -> (status: Int, location: String?, body: String) {
         var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)\(path)")!)
         request.httpMethod = "GET"
-        let delegate = NoRedirectDelegate()
-        let session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
-        let (data, response) = try await session.data(for: request)
+        request.timeoutInterval = 5
+        let (data, response) = try await Self.responseSession.data(for: request)
         let http = try #require(response as? HTTPURLResponse)
         return (http.statusCode, http.value(forHTTPHeaderField: "Location"), String(decoding: data, as: UTF8.self))
     }

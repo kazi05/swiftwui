@@ -93,6 +93,10 @@ Notable changes to SwiftWUI. Format loosely follows
 - Tutorial sitemap generation now uses the site origin and avoids duplicated
   `/tutorials/tutorials/` URL prefixes.
 - The CLI HTTP server now uses the platform's socket type correctly on Linux.
+- Stopping the HTTP server shuts down its listening socket before closing it,
+  so a blocked Linux accept loop releases the server.
+- Native build-time fetches reuse a cookie-, credential- and cache-free
+  ephemeral session, avoiding Swift 6.3.3 Linux URLSession teardown failures.
 - Worker buffer ownership changes only after a successful `postMessage`, so a
   synchronous clone failure leaves the source buffer usable. Failed workers now
   complete all pending calls.

@@ -13,6 +13,14 @@ func makeIPv4StreamSocket() -> Int32 {
     #endif
 }
 
+private func shutdownSocket(_ fd: Int32) {
+    #if canImport(Glibc)
+    _ = Glibc.shutdown(fd, CInt(Glibc.SHUT_RDWR))
+    #else
+    _ = Darwin.shutdown(fd, SHUT_RDWR)
+    #endif
+}
+
 public struct HTTPRequest {
     public var method: String
     public var path: String                    // percent-decoded, no query
@@ -122,7 +130,13 @@ public final class HTTPServer: @unchecked Sendable {   // guarded by `lock`
 
     public func stop() {
         lock.lock(); running = false; let fd = listenFD; listenFD = -1; lock.unlock()
-        if fd >= 0 { close(fd) }
+        if fd >= 0 {
+            // On Linux, closing a descriptor from another thread does not
+            // reliably wake an accept() already blocked on it. Shutting the
+            // listening socket down first lets the accept loop observe stop.
+            shutdownSocket(fd)
+            close(fd)
+        }
     }
 
     private var isRunning: Bool { lock.lock(); defer { lock.unlock() }; return running }
