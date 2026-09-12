@@ -1,5 +1,6 @@
 import Testing
 import SwiftWUI
+import SwiftWUIStatic
 @testable import TutorialKit
 
 @Suite @MainActor struct PageTests {
@@ -8,6 +9,18 @@ import SwiftWUI
         // overview is the static root — so paths + 1 == chapters, with no dupes.
         #expect(Curriculum.ssgPaths.count + 1 == Curriculum.chapters.count)
         #expect(Set(Curriculum.ssgPaths).count == Curriculum.ssgPaths.count)
+    }
+
+    @Test func publicOriginDoesNotDuplicateTutorialRoutePrefix() throws {
+        let document = try #require(Sitemap.documents(
+            paths: ["/", "/tutorials/install-the-toolchain"],
+            siteURL: SiteLinks.origin,
+            lastmod: "2026-09-12"
+        ).first)
+
+        #expect(document.xml.contains("<loc>https://swiftwui.dev/</loc>"))
+        #expect(document.xml.contains("<loc>https://swiftwui.dev/tutorials/install-the-toolchain</loc>"))
+        #expect(!document.xml.contains("/tutorials/tutorials/"))
     }
 
     @Test func routerServesAllCurriculumPages() {

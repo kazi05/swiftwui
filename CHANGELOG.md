@@ -90,6 +90,8 @@ Notable changes to SwiftWUI. Format loosely follows
 - Static output rejects traversal, percent-encoded traversal and symlink escape
   paths. Redirects are served as their configured 301, 302 or 308 status, and
   indexed unknown routes return 404 rather than an accidental SPA response.
+- Tutorial sitemap generation now uses the site origin and avoids duplicated
+  `/tutorials/tutorials/` URL prefixes.
 - Worker buffer ownership changes only after a successful `postMessage`, so a
   synchronous clone failure leaves the source buffer usable. Failed workers now
   complete all pending calls.
