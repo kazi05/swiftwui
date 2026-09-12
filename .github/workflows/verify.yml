@@ -16,7 +16,12 @@ jobs:
         with:
           node-version: '22'
       - run: swift --version
-      - run: swift test
+      - name: Build native test bundle
+        timeout-minutes: 15
+        run: swift build --build-tests
+      - name: Run native tests
+        timeout-minutes: 5
+        run: swift test --skip-build
       - run: node --test Tests/RegistrationGenerator/*.test.mjs
       - run: swift build -c release --product swiftwui
       - run: node --experimental-vm-modules --test Tests/BootJS/boot-stall.test.mjs
@@ -56,7 +61,11 @@ jobs:
         run: |
           test -n "$SWIFTWUI_WASM_SDK_URL"
           test -n "$SWIFTWUI_WASM_SDK_SHA256"
-          swift sdk install "$SWIFTWUI_WASM_SDK_URL" --checksum "$SWIFTWUI_WASM_SDK_SHA256"
+          sdk_archive="$RUNNER_TEMP/swift-6.3.3-RELEASE_wasm.artifactbundle.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 --retry-all-errors \
+            "$SWIFTWUI_WASM_SDK_URL" --output "$sdk_archive"
+          printf '%s  %s\n' "$SWIFTWUI_WASM_SDK_SHA256" "$sdk_archive" | sha256sum --check --strict
+          swift sdk install "$sdk_archive"
       - run: swift --version
       - run: swift sdk list
       - name: Install pinned optimizer and compression tools
