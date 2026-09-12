@@ -1,0 +1,9 @@
+{
+  "fixture": "tutorial",
+  "configuration": "release",
+  "maximum": {
+    "rawBytes": 10578000,
+    "gzipBytes": 3767300,
+    "brotliBytes": 2712800
+  }
+}

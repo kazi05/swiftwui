@@ -4,7 +4,12 @@ import Observation
 // in the pipeline is @MainActor (module default isolation), so onChange always
 // fires on the main actor in practice (spec D4).
 struct _InvalidateBox: @unchecked Sendable {
+    let token: _ObservationTrackingToken?
     let fire: () -> Void
+    func fireIfCurrent() {
+        guard token?.isCurrent != false else { return }
+        fire()
+    }
 }
 
 public struct ResolveContext {
@@ -18,6 +23,9 @@ public struct ResolveContext {
     /// outside the component's tracking window (ForEach) bind their own
     /// tracking to this id so model reads still invalidate the right owner.
     var owner: NodeIdentity = .root
+    /// Current component resolution's Observation generation. Primitives such
+    /// as ForEach bind their tracking to this same owner and generation.
+    var ownerObservationToken: _ObservationTrackingToken? = nil
     /// Scope marker of the innermost Styled component; appended to every
     /// element resolved in its body. Reset at EVERY component boundary.
     var scopeClass: String? = nil
@@ -91,7 +99,11 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     }
     // Custom component boundary (spec §7).
     let id = path.appending(.type(ObjectIdentifier(T.self)))
-    _TypeNameRegistry.register(T.self)     // snapshot keys need the stable name (spec D7)
+    if let explicit = T.self as? any ExplicitComponentRegistration.Type {
+        _TypeNameRegistry.register(T.self, name: explicit.componentIdentifier)
+    } else {
+        _TypeNameRegistry.register(T.self)     // snapshot keys need the stable name (spec D7)
+    }
     ctx.reachable.insert(id)
     ctx.store.retain(AnyTag(tag), at: id, environment: ctx.environment,
                      scopeClass: ctx.scopeClass, visibilityRoots: ctx.visibilityRoots)
@@ -99,14 +111,22 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     if ctx.collectedRoutes == nil {                    // collect passes never link (C1: shared Slots would rebind live boxes)
         ctx.store.link(tag, at: id, environment: ctx.environment, invalidate: { inv(id) })          // graft BEFORE body
     }
-    let box = _InvalidateBox(fire: { inv(id) })
+    let observationToken = ctx.store.beginObservation(at: id)
+    let box = _InvalidateBox(token: observationToken, fire: { inv(id) })
     let savedOwner = ctx.owner
+    let savedObservationToken = ctx.ownerObservationToken
     let savedScope = ctx.scopeClass
     let savedTransaction = ctx.transaction
     ctx.owner = id
+    ctx.ownerObservationToken = observationToken
     ctx.scopeClass = nil                       // child components never inherit a parent scope
     if let t = ctx.transactionOverrides[id] { ctx.transaction = t }
-    defer { ctx.owner = savedOwner; ctx.scopeClass = savedScope; ctx.transaction = savedTransaction }
+    defer {
+        ctx.owner = savedOwner
+        ctx.ownerObservationToken = savedObservationToken
+        ctx.scopeClass = savedScope
+        ctx.transaction = savedTransaction
+    }
     // Tracking covers body evaluation; ForEach additionally re-binds tracking
     // for its per-item content closures to ctx.owner (see ForEach._resolve).
     var styledRules: [Rule] = []
@@ -114,7 +134,7 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
         if let styled = tag as? any Styled { styledRules = styled.styles }
         return tag.body
     } onChange: {
-        MainActor.assumeIsolated { box.fire() }
+        MainActor.assumeIsolated { box.fireIfCurrent() }
     }
     if !styledRules.isEmpty {
         let marker = scopeMarker(forTypeName: String(reflecting: T.self))

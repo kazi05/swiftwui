@@ -6,6 +6,21 @@ import time
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        path = self.path.split("?", 1)[0]
+        if path == "/swiftwui-worker.js":
+            source = pathlib.Path(__file__).resolve().parents[2] / "Sources/SwiftWUIToolchain/Resources/swiftwui-worker.js"
+            body = source.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/javascript")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if path in ("/modern", "/modern/second"):
+            self.path = "/index.html"
+        super().do_GET()
+
     def do_PUT(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
         if self.path == "/__blob/slow-headers":

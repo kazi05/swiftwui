@@ -57,6 +57,8 @@ private final class DataBox: @unchecked Sendable {
 
 public enum ToolchainError: Error, CustomStringConvertible {
     case noWasmSDK(hint: String)
+    case incompatibleToolchain(String)
+    case budgetExceeded(String)
     case buildFailed(output: String)
     case portInUse(UInt16)
     case notAProject(String)
@@ -68,6 +70,8 @@ public enum ToolchainError: Error, CustomStringConvertible {
     public var description: String {
         switch self {
         case .noWasmSDK(let hint): "no wasm Swift SDK installed. \(hint)"
+        case .incompatibleToolchain(let message): "incompatible Swift toolchain: \(message)"
+        case .budgetExceeded(let message): "build budget exceeded: \(message)"
         case .buildFailed(let output): "wasm build failed:\n\(output)"
         case .portInUse(let p): "port \(p) is already in use — pass --port to pick another"
         case .notAProject(let d): "'\(d)' does not look like a SwiftWUI project (no Package.swift)"

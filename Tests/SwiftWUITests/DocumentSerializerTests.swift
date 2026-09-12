@@ -32,12 +32,42 @@ import SwiftWUI
             wasmScriptPath: "/app.js"))
         #expect(html.contains("<script type=\"application/swiftwui-state\" data-swiftwui>{\"v\":1}</script>"))
         #expect(html.contains(#"<script type="importmap">{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}</script>"#))
-        #expect(html.contains(#"<script type="module">import { init } from "\/app.js"; await init();</script>"#))
+        #expect(html.contains(#"<script type="module">import { init } from "\/app.js"; await window.__swiftwui_interop_ready; await init();</script>"#))
         let headEnd = html.range(of: "</head>")!.lowerBound
         #expect(html[..<headEnd].contains("<script type=\"module\""))   // boot script lives in head, not body
         let mapRange = html.range(of: "<script type=\"importmap\">")!
         let moduleRange = html.range(of: "<script type=\"module\">import")!
         #expect(mapRange.lowerBound < moduleRange.lowerBound)   // import map must precede the module script
+    }
+
+    @Test func delayedBootDoesNotPreloadAndWaitsForInterop() {
+        let config = BootConfig(wasmURL: "/app/App.wasm?v=abc", entryURL: "/app/index.js",
+                                shimURL: "/app/swiftwui-boot.js", sizeBytes: 12, delayMS: 300,
+                                activation: .visible, activationSelector: "#app")
+        let html = DocumentSerializer.render(.init(bodyHTML: "<main id=\"app\"></main>",
+                                                    bootConfig: config,
+                                                    interopScriptURL: "/app/bridge.js"))
+        #expect(html.contains("data-activation=\"visible\""))
+        #expect(html.contains("data-activation-selector=\"#app\""))
+        #expect(html.contains(#"Promise.race([import("\/app\/bridge.js")"#))
+        #expect(!html.contains("rel=\"modulepreload\""))
+        #expect(!html.contains("as=\"fetch\""))
+    }
+
+    @Test func legacyHydrationBoundsInteropReadiness() throws {
+        let html = DocumentSerializer.render(.init(
+            bodyHTML: "<main></main>",
+            wasmScriptPath: "/app/index.js",
+            interopScriptURL: "/interop/index.js"
+        ))
+
+        let readiness = try #require(html.range(of: "window.__swiftwui_interop_ready=Promise.race"))
+        let hydration = try #require(html.range(of: "await window.__swiftwui_interop_ready; await init()"))
+        #expect(readiness.lowerBound < hydration.lowerBound)
+        #expect(html.contains("JavaScript interop initialization timed out"))
+        #expect(html.contains("30000"))
+        #expect(html.contains("finally(()=>clearTimeout(__swuiInteropTimer))"))
+        #expect(html.contains("console.error('SwiftWUI interop failed:',error)"))
     }
     @Test func bodyContainsExactlyTheFragmentForAdoption() {
         let html = DocumentSerializer.render(.init(

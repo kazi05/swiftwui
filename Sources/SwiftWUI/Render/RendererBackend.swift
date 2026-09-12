@@ -36,6 +36,12 @@ public protocol RendererBackend: AnyObject {
     func setStylesheet(_ text: String)
 
     // MARK: Routing (phase 4, spec §3)
+    /// Gives browser backends a chance to capture focus and scroll state before
+    /// a client-side URL move. `isHistory` is true for back/forward traversal.
+    func navigationWillBegin(isHistory: Bool)
+    /// Called after the destination route's patches and post-commit effects
+    /// have run. Redirect chains emit this only for their settled destination.
+    func navigationDidCommit()
     /// History API. Backends without history (Mock) just record.
     func pushState(path: String)
     func replaceState(path: String)
@@ -144,6 +150,8 @@ public protocol RendererBackend: AnyObject {
 }
 
 extension RendererBackend {
+    public func navigationWillBegin(isHistory: Bool) {}
+    public func navigationDidCommit() {}
     public func _scrollMetrics(in target: _ScrollTarget<HostNode>) -> ScrollMetrics? { nil }
     public func _captureScrollAnchor(in target: _ScrollTarget<HostNode>,
                                      candidates: [HostNode]) -> _ScrollAnchorGeometry? { nil }

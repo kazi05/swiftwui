@@ -71,8 +71,17 @@ struct KeyboardFixture: Tag {
 
 @main
 struct BrowserEventsApp: App {
+    init() {
+        #if DEBUG
+        if JSObject.global.location.search.string == "?diagnostics" {
+            DOMRuntime.enableDevTools(limit: 32)
+        }
+        #endif
+    }
     var body: some Tag {
-        if JSObject.global.location.search.string == "?scroll" {
+        if JSObject.global.location.pathname.string?.hasPrefix("/modern") == true {
+            ModernWebFixture()
+        } else if JSObject.global.location.search.string == "?scroll" {
             ScrollFixture()
         } else {
             VisibilityFixture()

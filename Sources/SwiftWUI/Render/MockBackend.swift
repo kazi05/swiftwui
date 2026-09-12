@@ -150,11 +150,16 @@ public final class MockBackend: RendererBackend {
 
     public private(set) var historyStack: [String] = []
     public private(set) var replacedStates: [String] = []
+    public private(set) var navigationBegins: [Bool] = []
     public private(set) var backCount = 0
     public private(set) var title: String?
     public private(set) var metaTags: [MetaTag] = []
     public private(set) var links: [LinkTag] = []
     public private(set) var structuredData: [String] = []
+    public func navigationWillBegin(isHistory: Bool) {
+        bump("navigationWillBegin"); navigationBegins.append(isHistory)
+    }
+    public func navigationDidCommit() { bump("navigationDidCommit") }
     public func pushState(path: String) { bump("pushState"); historyStack.append(path) }
     public func replaceState(path: String) { bump("replaceState"); replacedStates.append(path) }
     public func historyBack() { bump("historyBack"); backCount += 1 }

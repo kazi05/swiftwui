@@ -91,8 +91,10 @@ swiftwui serve dist    # static preview of the built site
 | `swiftwui init <name> [--template basic\|mvvm\|tca] [--swiftwui-path <path>]` | Scaffold a project (Package.swift, `Sources/Entry.swift`, a starter `Sources/Locales/en.json`, index.html, Dockerfile, vendored wasi-shim). `--swiftwui-path` points the scaffold at a local checkout instead of the GitHub release. |
 | `swiftwui dev [--port 8080]` | Dev server with hot reload (watches `Sources/`) |
 | `swiftwui build [-c release] [--out dist]` | Build the wasm bundle and assemble `dist/` |
+| `swiftwui metrics [--out dist] [--fixture app] [--budget path]` | Report WASM sections/imports and verified raw/gzip/Brotli sizes; enforce a fixture budget. |
+| `swiftwui interop init --target <name>` / `swiftwui interop generate` | Scaffold app-owned BridgeJS bindings and regenerate their typed Swift facade. |
 | `swiftwui ssg [--out dist]` | Prerender pages via the app's native `<App> ssg` entry |
-| `swiftwui serve [dist] [--port 8080]` | Preview a built site (SPA fallback, no watcher) |
+| `swiftwui serve [dist] [--port 8080]` | Preview a built site using generated redirect/404 rules or the default SPA fallback. |
 | `swiftwui l10n generate [--check] [--target <name>]` | Regenerate `Generated/L10n.swift` from `Locales/*.json`; `--check` is the CI gate |
 | `swiftwui l10n add <tag>` | Seed a new `Locales/<tag>.json` from an existing catalog, values marked `TODO` |
 
@@ -135,6 +137,13 @@ The `SwiftWUI` module ships a DocC catalog: open `Package.swift` in Xcode
 and choose **Product → Build Documentation** for the full API reference and
 a getting-started guide.
 
+- [Build reports, size budgets and responsive assets](Documentation/BuildAndAssets.md)
+- [App-owned JavaScript with BridgeJS](Documentation/BridgeJSInterop.md)
+- [Runtime diagnostics, explicit registration and virtual collections](Documentation/RuntimeModernization.md)
+- [Resources, forms, navigation, islands and workers](Documentation/ModernWebAPIs.md)
+- [SEO validation and static delivery](Documentation/StaticDelivery.md)
+- [Modernization measurements and current boundaries](Documentation/ModernizationResults.md)
+
 ## Modules
 
 | Product | Purpose |
@@ -150,5 +159,7 @@ a getting-started guide.
 swift test
 ```
 
-1011 native tests (Swift Testing) — the renderer and reconciler are
+Native tests use Swift Testing — the renderer and reconciler are
 exercised through a mock backend, so no browser or WASM toolchain is needed.
+Run the separate performance comparison with
+`SWIFTWUI_BENCHMARKS=1 swift test --filter RuntimeDirtyCoverBenchmarkTests`.

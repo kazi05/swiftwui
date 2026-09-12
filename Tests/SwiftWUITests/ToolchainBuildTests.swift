@@ -58,6 +58,7 @@ struct MockRunner: ProcessRunner {
         #expect(fm.fileExists(atPath: proj + "/dist/index.html"))
         #expect(fm.fileExists(atPath: proj + "/dist/app/index.js"))
         #expect(fm.fileExists(atPath: proj + "/dist/vendor/wasi-shim/index.js"))   // resource fallback
+        #expect(fm.fileExists(atPath: proj + "/dist/app/swiftwui-worker.js"))
     }
 
     @Test func distLayoutCopiesPublic() throws {

@@ -81,7 +81,7 @@ import Foundation
     @Test func devInjectionWithoutAWasmFallsBackToTheInlineImport() {
         let out = DevInjection.inject(into: "<html><head></head><body></body></html>")
         #expect(!out.contains("swiftwui-boot.js"))
-        #expect(out.contains(#"import { init } from "/app/index.js"; await init();"#))
+        #expect(out.contains(#"import { init } from "/app/index.js"; await window.__swiftwui_interop_ready; await init();"#))
     }
 
     /// `?swui-boot=` is gated on the dev flag, which a built dist/ never carries.

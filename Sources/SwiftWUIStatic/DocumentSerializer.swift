@@ -22,6 +22,7 @@ public enum DocumentSerializer {
         public var wasmScriptPath: String?   // hydrate mode only
         public var bootShell: BootShell?     // rendered markup + css, hydrate mode only
         public var bootConfig: BootConfig?   // wasm url, size, delay, hydrate mode only
+        public var interopScriptURL: String? // module awaited before hydration
         public var lang: String
         public var dir: String?              // "rtl" for right-to-left locales; nil = omit
         public init(bodyHTML: String, css: String? = nil, cssHref: String? = nil,
@@ -29,7 +30,8 @@ public enum DocumentSerializer {
                     prerenderedMeta: [MetaTag] = [],
                     snapshotJSON: String? = nil, importMapJSON: String? = nil,
                     wasmScriptPath: String? = nil, bootShell: BootShell? = nil,
-                    bootConfig: BootConfig? = nil, lang: String = "en", dir: String? = nil) {
+                    bootConfig: BootConfig? = nil, interopScriptURL: String? = nil,
+                    lang: String = "en", dir: String? = nil) {
             self.bodyHTML = bodyHTML; self.css = css; self.cssHref = cssHref
             self.head = head; self.prerenderedLinks = prerenderedLinks
             self.prerenderedMeta = prerenderedMeta
@@ -37,6 +39,7 @@ public enum DocumentSerializer {
             self.importMapJSON = importMapJSON
             self.wasmScriptPath = wasmScriptPath
             self.bootShell = bootShell; self.bootConfig = bootConfig
+            self.interopScriptURL = interopScriptURL
             self.lang = lang; self.dir = dir
         }
     }
@@ -136,6 +139,19 @@ public enum DocumentSerializer {
             // nothing boots at all. The preload scanner makes that deterministic, not a race.
             out += "<script type=\"importmap\">" + HTMLEscaping.scriptJSON(map) + "</script>\n"
         }
+        if let interop = input.interopScriptURL {
+            let url = HTMLEscaping.scriptJSON(SnapshotJSON.jsonString(HTMLEscaping.sanitizeURL(interop)))
+            // The legacy hydrate path below has no boot shim to enforce its own
+            // readiness deadline. Bound the shared promise at its source so both
+            // boot paths either receive a loaded module or a prompt rejection.
+            // Clear the losing timer: otherwise every successful boot retains it
+            // for 30 seconds, keeping test/browser timer queues artificially live.
+            out += "<script>let __swuiInteropTimer;window.__swiftwui_interop_ready="
+            out += "Promise.race([import(" + url + "),new Promise((_,reject)=>{"
+            out += "__swuiInteropTimer=setTimeout(()=>reject(new Error('JavaScript interop initialization timed out')),30000)})])"
+            out += ".finally(()=>clearTimeout(__swuiInteropTimer));"
+            out += "window.__swiftwui_interop_ready.catch((error)=>console.error('SwiftWUI interop failed:',error));</script>\n"
+        }
         if let cfg = input.bootConfig {
             // This whole block MUST stay below the import map above: a processed
             // modulepreload disallows every later import map (see there), and
@@ -152,10 +168,12 @@ public enum DocumentSerializer {
             // Sanitized like the two above, not merely escaped: the shim feeds
             // `data-entry` to a dynamic `import()`, which resolves `data:`.
             let entryURL = HTMLEscaping.text(HTMLEscaping.sanitizeURL(cfg.entryURL))
-            out += "<link rel=\"preload\" as=\"fetch\" crossorigin fetchpriority=\"low\" href=\""
-                + wasmURL + "\">\n"
-            out += "<link rel=\"modulepreload\" href=\"" + shimURL + "\">\n"
-            out += "<link rel=\"modulepreload\" href=\"" + entryURL + "\">\n"
+            if cfg.activation == .eager {
+                out += "<link rel=\"preload\" as=\"fetch\" crossorigin fetchpriority=\"low\" href=\""
+                    + wasmURL + "\">\n"
+                out += "<link rel=\"modulepreload\" href=\"" + shimURL + "\">\n"
+                out += "<link rel=\"modulepreload\" href=\"" + entryURL + "\">\n"
+            }
             // The shim owns the import + init() call the legacy branch below inlines;
             // emitting both would boot the app twice. `data-size` is omitted outright
             // when the size is unknown — the shim reads a missing one as indeterminate.
@@ -167,7 +185,12 @@ public enum DocumentSerializer {
             out += " data-wasm=\"" + wasmURL + "\""
             out += " data-entry=\"" + entryURL + "\""
             out += cfg.sizeBytes.map { " data-size=\"\($0)\"" } ?? ""
-            out += " data-delay=\"\(cfg.delayMS)\"></script>\n"
+            out += " data-delay=\"\(cfg.delayMS)\""
+            out += " data-activation=\"\(cfg.activation.rawValue)\""
+            if let selector = cfg.activationSelector {
+                out += " data-activation-selector=\"" + HTMLEscaping.text(selector) + "\""
+            }
+            out += "></script>\n"
         } else if let src = input.wasmScriptPath {
             // Unchanged legacy boot for documents with no boot config.
             //
@@ -179,7 +202,7 @@ public enum DocumentSerializer {
             // boots. Same raw-text sink as snapshot/importmap above.
             out += "<script type=\"module\">import { init } from "
                 + HTMLEscaping.scriptJSON(SnapshotJSON.jsonString(src))
-                + "; await init();</script>\n"
+                + "; await window.__swiftwui_interop_ready; await init();</script>\n"
         }
         // No trailing newline (or anything) after </body>: per the HTML spec,
         // character tokens after </body> are reparented INTO body, which

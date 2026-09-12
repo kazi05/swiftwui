@@ -241,14 +241,20 @@ public enum StaticFiles {
     /// folder, so `/about` has to become `<root>/ru/about/index.html` here too —
     /// otherwise `swiftwui serve` 404s on every page the edge would serve.
     public static func handler(urlPrefix: String, root: String, spaFallback: Bool = false,
-                               localeSite: LocaleNegotiation.Site? = nil) -> HTTPHandler {
-        let rootResolved = URL(fileURLWithPath: root).standardizedFileURL.path
+                               localeSite: LocaleNegotiation.Site? = nil,
+                               delivery: StaticDelivery? = nil) -> HTTPHandler {
+        let rootResolved = URL(fileURLWithPath: root).standardizedFileURL.resolvingSymlinksInPath().path
         return { request in
             guard request.path.hasPrefix(urlPrefix) else { return nil }
+            // Redirect before disk lookup so a legacy file cannot accidentally
+            // shadow a canonical URL during preview.
+            if urlPrefix == "/", let redirect = delivery?.response(for: request.path) { return redirect }
             let rel = String(request.path.dropFirst(urlPrefix.count))
             func fileResponse(_ fsPath: String, directoryIndex: Bool = true) -> HTTPResponse? {
-                let resolved = URL(fileURLWithPath: fsPath).standardizedFileURL.path
-                guard resolved == rootResolved || resolved.hasPrefix(rootResolved + "/") else { return nil }   // traversal guard (incl. sibling-prefix)
+                // Check the actual target: a symlink inside the public directory
+                // must not expose a file (or directory index) outside it.
+                let resolved = URL(fileURLWithPath: fsPath).standardizedFileURL.resolvingSymlinksInPath().path
+                guard resolved == rootResolved || resolved.hasPrefix(rootResolved + "/") else { return nil }
                 var isDir: ObjCBool = false
                 guard FileManager.default.fileExists(atPath: resolved, isDirectory: &isDir) else { return nil }
                 if isDir.boolValue { return directoryIndex ? fileResponse(resolved + "/index.html") : nil }
@@ -276,6 +282,13 @@ public enum StaticFiles {
             }
             if let r = fileResponse(candidate) { return r }            // assets stay at the root
             if !rel.contains(".") , let r = fileResponse(candidate + "/index.html") { return r }
+            if !rel.contains("."), let delivery, !delivery.permitsSPAFallback(for: request.path) {
+                if var page = fileResponse(rootResolved + "/404.html") {
+                    page.status = 404
+                    return page
+                }
+                return .notFound()
+            }
             if spaFallback, !rel.contains("."), let r = fileResponse(rootResolved + "/index.html") { return r }
             return nil
         }

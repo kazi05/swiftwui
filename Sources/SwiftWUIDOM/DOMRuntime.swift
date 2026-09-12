@@ -29,6 +29,8 @@ import JavaScriptEventLoop
 
 @MainActor
 public enum DOMRuntime {
+    public static var navigationOptions = DOMNavigationOptions()
+    public static var diagnostics: RuntimeDiagnostics? = nil
     private static var retained: [AnyObject] = []      // runtime lives for the page lifetime
 
     private static func makeBackend() -> (backend: DOMBackend, box: DispatchBox) {
@@ -45,7 +47,7 @@ public enum DOMRuntime {
         let runtime = Runtime(backend: backend, container: container, root: root,
                               initialPath: initialPath, scheduleMicrotask: jsMicrotask,
                               globalStyles: globalStyles, themes: themes, fontFaces: fontFaces,
-                              localization: localization)
+                              localization: localization, diagnostics: diagnostics)
         runtime._webSession = WebSession(transport: FetchJSTransport())
         // Boot inputs for the locale chain, read before mount() runs it.
         runtime._servedLanguage = JSObject.global.document.object?.documentElement.object?
@@ -70,6 +72,7 @@ public enum DOMRuntime {
         runtime: Runtime<B>, box: DispatchBox, raw: DOMBackend, container: JSObject, hydrated: Bool
     ) {
         if let session = runtime._webSession { WebSession.bootstrap(session) }
+        raw.prepareNavigation()
         runtime.bootstrapDependencies()
         box.fn = { [weak runtime] in runtime?.dispatch($0, payload: $1) }
         retained.append(runtime)
@@ -123,7 +126,7 @@ public enum DOMRuntime {
         var fallbackPayload: SnapshotBoot.Payload?
         if let payload = SnapshotBoot.read(currentPath: location.pathname.string ?? "/") {
             let (raw, box) = makeBackend()
-            let adopting = AdoptingBackend(base: raw, container: container)
+            let adopting = AdoptingBackend(base: raw, container: container, diagnostics: diagnostics)
             let runtime = makeRuntime(root: root, backend: adopting, container: container,
                                       initialPath: initialPath,
                                       globalStyles: globalStyles, themes: themes, fontFaces: fontFaces,
@@ -178,6 +181,50 @@ public enum DOMRuntime {
         if let payload = fallbackPayload { seed(runtime, with: payload) }
         runtime.mount()
         finishMount(runtime: runtime, box: box, raw: raw, container: container, hydrated: false)
+    }
+
+    /// Mount a separately owned interactive root. Its container must be outside
+    /// any other runtime's reconciled tree. Static children remain usable until
+    /// activation; this initial implementation replaces them when activated.
+    /// Islands share the loaded WASM module; this API does not split its bytes.
+    /// Islands are leaf widgets: keep Router in the document root. @Dependency
+    /// resolves document-level services; use @Environment for island-local state.
+    public static func mountIsland<T: Tag>(_ root: @escaping @MainActor () -> T,
+                                          selector: String, activation: BootActivation = .visible) throws -> DOMIsland {
+        guard let container = JSObject.global.document.object?.querySelector?(selector).object else {
+            throw DOMIslandError.missingContainer(selector)
+        }
+        guard container.hasAttribute?("data-swui-island").boolean != true else {
+            throw DOMIslandError.alreadyMounted(selector)
+        }
+        JavaScriptEventLoop.installGlobalExecutor()
+        assertReflectionAlive(); assertBridgeJSAlive()
+        _ = container.setAttribute?("data-swui-island", "waiting")
+        let island = DOMIsland(container: container)
+        island.whenActivated = { [weak island] in
+            guard let island else { return }
+            let (backend, box) = makeBackend()
+            let loc = JSObject.global.location
+            let runtime = makeRuntime(root: root(), backend: backend, container: container,
+                                      initialPath: (loc.pathname.string ?? "/") + (loc.search.string ?? ""),
+                                      globalStyles: [], themes: [], fontFaces: [], localization: nil)
+            guard runtime._collectRoutes().isEmpty else {
+                island.failure = .unsupportedRouting
+                island.dispose()
+                return
+            }
+            while Int(container.childNodes.length.number ?? 0) > 0 { _ = container.removeChild?(container.firstChild) }
+            box.fn = { [weak runtime] in runtime?.dispatch($0, payload: $1) }
+            runtime.mount()
+            _ = container.setAttribute?("data-swui-island", "mounted")
+            island.whenDisposed = {
+                runtime.unmount()
+                backend.endEnvironmentObservation()
+                _ = container.removeAttribute?("data-swui-island")
+            }
+        }
+        island.schedule(activation)
+        return island
     }
 }
 

@@ -1,0 +1,9 @@
+{
+  "fixture": "counter",
+  "configuration": "release",
+  "maximum": {
+    "rawBytes": 10000000,
+    "gzipBytes": 3600000,
+    "brotliBytes": 2650000
+  }
+}

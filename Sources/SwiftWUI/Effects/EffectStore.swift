@@ -24,6 +24,11 @@ enum EffectRequest {
     }
 }
 
+struct EffectReconcileBatch {
+    let root: NodeIdentity
+    let requests: [EffectRequest]
+}
+
 /// Effect lifecycle (spec §5.3–5.4): keyed by wrapper identity; sweep
 /// set-difference under the pass root = onDisappear / task cancellation.
 ///
@@ -62,6 +67,18 @@ public final class EffectStore {
     /// identity strings written to `StateStore` while that task's action ran.
     public private(set) var _buildWrites: [String: Set<String>] = [:]
 
+    var activeCount: Int {
+        var ids = Set(previousValues.keys)
+        ids.formUnion(tasks.keys)
+        ids.formUnion(appeared)
+        ids.formUnion(disappearActions.keys)
+        ids.formUnion(windowSubscriptions)
+        ids.formUnion(documentVisibilitySubscriptions)
+        ids.formUnion(visualViewportSubscriptions)
+        ids.formUnion(dropGuardIDs)
+        return ids.count
+    }
+
     /// Discards a runtime that never committed (hydration mismatch, spec §8):
     /// client `.task` effects already started real Tasks that hold the runtime
     /// alive and would duplicate side effects when the cold-mount fallback
@@ -84,6 +101,11 @@ public final class EffectStore {
             dropGuardIDs.removeAll()
             _onDropGuardChange?(false)
         }
+        pendingBuild.removeAll()
+        startedBuild.removeAll()
+        _completedBuildKeys.removeAll()
+        _buildWrites.removeAll()
+        _skipBuildTaskKeys.removeAll()
     }
 
     /// Awaits every pending `.build` task in turn, tracking which identities
@@ -118,8 +140,16 @@ public final class EffectStore {
     /// Returns callbacks to run post-commit. Order (normative, spec D6):
     /// disappear/cancel first, then appear/task/onChange in document order.
     func reconcile(_ requests: [EffectRequest], under passRoot: NodeIdentity) -> [() -> Void] {
+        reconcile([EffectReconcileBatch(root: passRoot, requests: requests)])
+    }
+
+    /// Reconciles several disjoint minimal-cover roots with one live-registry
+    /// scan. Teardowns across the whole flush stay ahead of appear/change
+    /// callbacks, preserving the documented lifecycle order.
+    func reconcile(_ batches: [EffectReconcileBatch]) -> [() -> Void] {
         var queue: [() -> Void] = []
-        let requested = Set(requests.map(\.id))
+        let requested = Set(batches.flatMap(\.requests).map(\.id))
+        let roots = Set(batches.map(\.root))
         let hadGuards = !dropGuardIDs.isEmpty
 
         var known = Set(previousValues.keys)
@@ -128,7 +158,7 @@ public final class EffectStore {
         known.formUnion(documentVisibilitySubscriptions)
         known.formUnion(visualViewportSubscriptions)
         known.formUnion(dropGuardIDs)
-        for id in known where id.isSelfOrDescendant(of: passRoot) && !requested.contains(id) {
+        for id in known where id.isSelfOrDescendant(ofAny: roots) && !requested.contains(id) {
             if let t = tasks.removeValue(forKey: id) { t.task.cancel() }
             if let d = disappearActions.removeValue(forKey: id) { queue.append(d) }
             previousValues[id] = nil
@@ -143,7 +173,7 @@ public final class EffectStore {
             dropGuardIDs.remove(id)
         }
 
-        for request in requests {
+        for request in batches.flatMap(\.requests) {
             switch request {
             case .onChange(let id, let new, let isEqual, let initial, let action):
                 if let old = previousValues[id] {

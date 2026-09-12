@@ -27,17 +27,24 @@ public struct ScrollReader<Content: Tag>: Tag, _PrimitiveTag {
 
         let proxy = ctx.scrollRegistry?._proxy(for: id) ?? .inert()
         if ctx.scrollRegistry != nil { ctx.scrollReaders[id] = container }
-        let box = _InvalidateBox(fire: { inv(id) })
+        let observationToken = ctx.store.beginObservation(at: id)
+        let box = _InvalidateBox(token: observationToken, fire: { inv(id) })
         let savedOwner = ctx.owner
+        let savedObservationToken = ctx.ownerObservationToken
         let savedTransaction = ctx.transaction
         ctx.owner = id
+        ctx.ownerObservationToken = observationToken
         if let transaction = ctx.transactionOverrides[id] { ctx.transaction = transaction }
-        defer { ctx.owner = savedOwner; ctx.transaction = savedTransaction }
+        defer {
+            ctx.owner = savedOwner
+            ctx.ownerObservationToken = savedObservationToken
+            ctx.transaction = savedTransaction
+        }
 
         let body = withObservationTracking {
             content(proxy)
         } onChange: {
-            MainActor.assumeIsolated { box.fire() }
+            MainActor.assumeIsolated { box.fireIfCurrent() }
         }
         let children = resolve(body, path: id.appending(.child(0)), ctx: &ctx)
         return [.component(ComponentNode(identity: id,

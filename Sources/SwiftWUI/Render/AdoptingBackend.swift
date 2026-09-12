@@ -48,13 +48,16 @@ where Base.HostNode: AnyObject {
     /// ObjectIdentifier of the container itself — trailing-leftover tolerance
     /// (finishAdoption) is container-level only, this is the comparison target.
     private let containerID: ObjectIdentifier
+    private let diagnostics: RuntimeDiagnostics?
+    private var emittedDiagnostic = false
     /// D6 wants debug-loud mismatches, but the fallback path itself must be
     /// testable in debug — tests that exercise deliberate mismatches set false.
     public var _assertOnMismatch = true
 
-    public init(base: Base, container: HostNode) {
+    public init(base: Base, container: HostNode, diagnostics: RuntimeDiagnostics? = nil) {
         self.base = base
         self.containerID = ObjectIdentifier(container)
+        self.diagnostics = diagnostics
         buildStream(of: container)
         // An empty container is a cold mount, not a mismatch — Task 13's
         // fallback re-wraps a cleared container and must not trap.
@@ -86,6 +89,13 @@ where Base.HostNode: AnyObject {
         (parser drops them). Falling back to a cold render.
         """
         print("[SwiftWUI] " + msg)                        // non-trapping diagnostic, all builds
+        if !emittedDiagnostic {
+            emittedDiagnostic = true
+            diagnostics?.emit(.adoption(RuntimeAdoptionDiagnostic(
+                outcome: .failed, consumedNodes: cursor,
+                availableNodes: stream.count, message: msg
+            )))
+        }
         if _assertOnMismatch { assertionFailure(msg) }    // debug trap preserved
         active = false
     }
@@ -112,16 +122,25 @@ where Base.HostNode: AnyObject {
     /// content, not foreign injections, and still fail → cold render (D6).
     /// Always deactivates adoption — subsequent calls create for real.
     public func finishAdoption() -> Bool {
+        var toleratedTrailing = 0
         if !failed && cursor < stream.count {
             let allContainerLevel = stream[cursor...].allSatisfy { parentOf[ObjectIdentifier($0)] == containerID }
             if allContainerLevel {
-                print("[SwiftWUI] hydration: \(stream.count - cursor) unmanaged trailing node(s) left in container (e.g. browser-extension injections) — tolerated")
+                toleratedTrailing = stream.count - cursor
+                print("[SwiftWUI] hydration: \(toleratedTrailing) unmanaged trailing node(s) left in container (e.g. browser-extension injections) — tolerated")
             } else {
                 fail(expected: "end of stream", found: "leftover nodes")
             }
         }
         let ok = !failed
         active = false
+        if ok && !emittedDiagnostic {
+            emittedDiagnostic = true
+            diagnostics?.emit(.adoption(RuntimeAdoptionDiagnostic(
+                outcome: toleratedTrailing == 0 ? .succeeded : .toleratedTrailingNodes(toleratedTrailing),
+                consumedNodes: cursor, availableNodes: stream.count
+            )))
+        }
         return ok
     }
 
@@ -194,6 +213,10 @@ where Base.HostNode: AnyObject {
     }
     public func remove(_ child: HostNode, from parent: HostNode) { base.remove(child, from: parent) }
     public func setStylesheet(_ text: String) { base.setStylesheet(text) }
+    public func navigationWillBegin(isHistory: Bool) {
+        base.navigationWillBegin(isHistory: isHistory)
+    }
+    public func navigationDidCommit() { base.navigationDidCommit() }
     public func pushState(path: String) { base.pushState(path: path) }
     public func replaceState(path: String) { base.replaceState(path: path) }
     public func historyBack() { base.historyBack() }

@@ -140,10 +140,12 @@ public enum BootSplice {
             let wasmURL = HTMLEscaping.text(config.wasmURL)
             let shimURL = HTMLEscaping.text(config.shimURL)
             let entry = HTMLEscaping.text(config.entryURL)
+            if config.activation == .eager {
             out += "<link rel=\"preload\" as=\"fetch\" crossorigin fetchpriority=\"low\" href=\""
                 + wasmURL + "\">\n"
             out += "<link rel=\"modulepreload\" href=\"" + shimURL + "\">\n"
             out += "<link rel=\"modulepreload\" href=\"" + entry + "\">\n"
+            }
             // The shim owns the import + init() call the else-branch inlines;
             // emitting both would boot the app twice. `data-size` is omitted
             // outright when unknown — the shim reads a missing one as indeterminate.
@@ -151,13 +153,16 @@ public enum BootSplice {
             out += " data-wasm=\"" + wasmURL + "\""
             out += " data-entry=\"" + entry + "\""
             out += config.sizeBytes.map { " data-size=\"\($0)\"" } ?? ""
-            out += " data-delay=\"\(config.delayMS)\"></script>\n"
+            out += " data-delay=\"\(config.delayMS)\""
+            out += " data-activation=\"" + config.activation.rawValue + "\""
+            out += config.activationSelector.map { " data-activation-selector=\"" + HTMLEscaping.text($0) + "\"" } ?? ""
+            out += "></script>\n"
         } else {
             // Inline import, not src=: the PackageToJS bundle's index.js only
             // EXPORTS `init` — a bare `src=` script loads but never boots.
             out += "<script type=\"module\">import { init } from "
                 + HTMLEscaping.scriptJSON(PWAAssets.jsonString(entryURL))
-                + "; await init();</script>\n"
+                + "; await window.__swiftwui_interop_ready; await init();</script>\n"
         }
         // The <template> rides along inert until the shim clones it. It lands in
         // <head> here, where the marker region lives; the shim inserts the clone

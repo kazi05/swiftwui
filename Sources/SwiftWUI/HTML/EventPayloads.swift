@@ -101,7 +101,12 @@ public struct EventModifiers: OptionSet, Equatable {
     public static let alt   = EventModifiers(rawValue: 1 << 3)
 }
 
-public struct SubmitEvent { public init() {} }   // backend always preventDefault()s submit (spec D10)
+public struct SubmitEvent {
+    /// Successful textual controls, including the button that submitted the form.
+    /// Repeated field names preserve order. File uploads use WebSession.upload.
+    public var fields: [(name: String, value: String)]
+    public init(fields: [(name: String, value: String)] = []) { self.fields = fields }
+}
 public struct FocusEvent  { public init() {} }
 
 /// Element scroll offset (spec §2.2).

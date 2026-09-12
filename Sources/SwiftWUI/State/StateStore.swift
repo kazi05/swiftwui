@@ -20,11 +20,40 @@ struct RetainedComponent {
     var styleWrapperPass: Int = -1
 }
 
+/// Public Observation's tracking callback is one-shot but cannot be cancelled.
+/// One gate per structural identity advances on every resolution, making all
+/// callbacks from older generations inert without allocating a class per pass.
+@MainActor
+final class _ObservationTrackingGate {
+    nonisolated deinit { }
+    private var current: UInt64 = 0
+
+    func next() -> _ObservationTrackingToken {
+        current &+= 1
+        return _ObservationTrackingToken(gate: self, generation: current)
+    }
+    func invalidate() { current &+= 1 }
+    func contains(_ generation: UInt64) -> Bool { current == generation }
+}
+
+struct _ObservationTrackingToken {
+    let gate: _ObservationTrackingGate
+    let generation: UInt64
+    var isCurrent: Bool { gate.contains(generation) }
+}
+
+private struct _NamedSnapshotSlot: Codable {
+    let stableID: String
+    let value: String
+}
+
 @MainActor
 public final class StateStore {
     nonisolated deinit { }
     private var rows: [NodeIdentity: [AnyObject]] = [:]
+    private var rowStableIDs: [NodeIdentity: [String]] = [:]
     private var retained: [NodeIdentity: RetainedComponent] = [:]
+    private var observationGates: [NodeIdentity: _ObservationTrackingGate] = [:]
     public init() {}
 
     /// Snapshot seed (spec §7): canonical id → slot JSON fragments, consumed on
@@ -50,6 +79,16 @@ public final class StateStore {
                                          styleWrapperPass: existing?.styleWrapperPass ?? -1)
     }
     func retainedRow(at id: NodeIdentity) -> RetainedComponent? { retained[id] }
+
+    /// Starts a fresh Observation generation for one component resolution.
+    /// The registrar may retain older callbacks until their property changes;
+    /// their value tokens share one gate and cannot schedule stale work.
+    func beginObservation(at id: NodeIdentity) -> _ObservationTrackingToken {
+        if let gate = observationGates[id] { return gate.next() }
+        let gate = _ObservationTrackingGate()
+        observationGates[id] = gate
+        return gate.next()
+    }
 
     /// Accumulates an enclosing `_StyledTag`'s transform for replay on later
     /// subtree passes (see `RetainedComponent.styleWrappers`). Call after
@@ -78,15 +117,42 @@ public final class StateStore {
     func link(_ component: Any, at id: NodeIdentity,
               environment: EnvironmentValues, invalidate: @escaping () -> Void) {
         var props: [_StateProperty] = []
-        for child in Mirror(reflecting: component).children {
-            if let p = child.value as? _StateProperty { props.append(p) }
-            if let e = child.value as? _EnvironmentProperty { e._inject(environment) }
+        var stableIDs: [String]?
+        if let explicit = component as? any ExplicitComponentRegistration {
+            var registered = ComponentProperties()
+            explicit.registerProperties(&registered)
+            props = registered.stateProperties
+            stableIDs = registered.completeStateStableIDs
+            for property in registered.environmentProperties { property._inject(environment) }
+        } else {
+            for child in Mirror(reflecting: component).children {
+                if let p = child.value as? _StateProperty { props.append(p) }
+                if let e = child.value as? _EnvironmentProperty { e._inject(environment) }
+            }
         }
         guard !props.isEmpty else { return }
 
         if rows[id] == nil, !_pendingRows.isEmpty, let decode = _decodeSlot,
            let key = id._canonicalString, let slots = _pendingRows.removeValue(forKey: key) {
-            if slots.count == props.count {
+            let named = slots.compactMap {
+                decode($0, _NamedSnapshotSlot.self) as? _NamedSnapshotSlot
+            }
+            if let stableIDs, named.count == slots.count,
+               Set(named.map(\.stableID)).count == named.count {
+                let values = Dictionary(uniqueKeysWithValues: named.map { ($0.stableID, $0.value) })
+                var boxes: [AnyObject] = []
+                boxes.reserveCapacity(props.count)
+                for (stableID, property) in zip(stableIDs, props) {
+                    if let json = values[stableID],
+                       let box = property._boxDecoding(json: json, decode: decode) {
+                        boxes.append(box)
+                    } else {
+                        boxes.append(property._box)
+                    }
+                }
+                rows[id] = boxes
+                rowStableIDs[id] = stableIDs
+            } else if slots.count == props.count {
                 var boxes: [AnyObject] = []
                 boxes.reserveCapacity(slots.count)
                 var ok = true
@@ -118,6 +184,8 @@ public final class StateStore {
         } else {
             rows[id] = props.map { $0._box }                       // first mount or count change
         }
+        if let stableIDs { rowStableIDs[id] = stableIDs }
+        else { rowStableIDs[id] = nil }
         // Tap writes for SSG build-task attribution (phase-6 I3) — nil observer
         // outside a build-task drain, so this costs nothing at runtime.
         let tracked: () -> Void = { [weak self] in
@@ -128,17 +196,44 @@ public final class StateStore {
     }
 
     func sweep(under root: NodeIdentity, reachable: Set<NodeIdentity>) {
+        sweep(under: [root], reachable: reachable)
+    }
+
+    /// Sweeps several disjoint minimal-cover roots in one registry scan.
+    func sweep(under roots: Set<NodeIdentity>, reachable: Set<NodeIdentity>) {
         for id in Array(rows.keys)
-        where id.isSelfOrDescendant(of: root) && !reachable.contains(id) {
-            rows.removeValue(forKey: id)
+        where id.isSelfOrDescendant(ofAny: roots) && !reachable.contains(id) {
+            clearInvalidations(in: rows.removeValue(forKey: id))
+            rowStableIDs.removeValue(forKey: id)
         }
         for id in Array(retained.keys)
-        where id.isSelfOrDescendant(of: root) && !reachable.contains(id) {
+        where id.isSelfOrDescendant(ofAny: roots) && !reachable.contains(id) {
             retained.removeValue(forKey: id)
+            observationGates.removeValue(forKey: id)?.invalidate()
         }
     }
 
     var rowCount: Int { rows.count }
+    var retainedCount: Int { retained.count }
+
+    func removeAll() {
+        for boxes in rows.values {
+            clearInvalidations(in: boxes)
+        }
+        for gate in observationGates.values { gate.invalidate() }
+        rows.removeAll()
+        rowStableIDs.removeAll()
+        retained.removeAll()
+        observationGates.removeAll()
+        _pendingRows.removeAll()
+    }
+
+    private func clearInvalidations(in boxes: [AnyObject]?) {
+        guard let boxes else { return }
+        for object in boxes {
+            (object as? any _InvalidationClearableBox)?.clearInvalidation()
+        }
+    }
 
     /// Identities of grafted `@State` rows. `BootProbe` needs the identities and
     /// not just `rowCount`: a `.whileBooting` placeholder shares this store with
@@ -159,10 +254,18 @@ public final class StateStore {
             #endif
             var slots: [String] = []
             slots.reserveCapacity(boxes.count)
-            for box in boxes {
+            let stableIDs = rowStableIDs[id]
+            for (index, box) in boxes.enumerated() {
                 guard let enc = box as? _SnapshotEncodableBox,
                       let json = enc._encodeJSON(encode) else { continue outer }
-                slots.append(json)
+                if let stableIDs, stableIDs.indices.contains(index) {
+                    guard let envelope = encode(_NamedSnapshotSlot(
+                        stableID: stableIDs[index], value: json
+                    )) else { continue outer }
+                    slots.append(envelope)
+                } else {
+                    slots.append(json)
+                }
             }
             out[key] = slots
         }

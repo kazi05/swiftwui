@@ -114,10 +114,25 @@ import Foundation
         #expect(again == conf)
     }
 
+    @Test func deploymentManifestGeneratesExactNginxRedirects() throws {
+        let dist = try scratchDist()
+        defer { try? FileManager.default.removeItem(atPath: dist) }
+        let manifest = #"{"version":1,"trailingSlash":"never","redirects":[{"from":"/old","to":"/new","status":301}],"routes":["/new"]}"#
+        try manifest.write(toFile: dist + "/swiftwui-delivery.json", atomically: true, encoding: .utf8)
+        try ReleaseArtifacts.writeNginxConf(distDir: dist, wasmVersioned: false)
+        let redirects = try String(contentsOfFile: dist + "/swiftwui-redirects.conf", encoding: .utf8)
+        #expect(redirects.contains("location = /old { return 301 /new; }"))
+        #expect(redirects.contains("location = /new/ { return 308 /new; }"))
+        let nginx = try String(contentsOfFile: dist + "/nginx.conf", encoding: .utf8)
+        #expect(nginx.contains("location = /old { return 301 /new; }"))
+    }
+
     // 7. nginx.conf reserved; public/nginx.conf collides.
     @Test func nginxConfIsReservedPublicName() throws {
         #expect(DistLayout.reservedNames.contains("nginx.conf"))
         #expect(DistLayout.reservedNames.contains("swiftwui-site.json"))   // SSG writes it into dist
+        #expect(DistLayout.reservedNames.contains("swiftwui-delivery.json"))
+        #expect(DistLayout.reservedNames.contains("swiftwui-redirects.conf"))
         let root = try scratchDist()
         defer { try? FileManager.default.removeItem(atPath: root) }
         try FileManager.default.createDirectory(atPath: root + "/public", withIntermediateDirectories: true)

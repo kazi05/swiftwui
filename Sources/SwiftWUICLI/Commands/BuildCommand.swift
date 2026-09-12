@@ -12,6 +12,8 @@ struct Build: ParsableCommand {
     var config: String = "release"
     @Option(name: .long, help: "Output directory.") var out: String = "dist"
     @Option(name: .long, help: "Swift SDK id (default: auto-detect).") var swiftSdk: String?
+    @Option(name: .long, help: "Name of the fixture recorded in the build report.") var fixture: String = "app"
+    @Option(name: .long, help: "Optional JSON size budget (default: swiftwui-wasm-budget.json when present).") var budget: String?
 
     func run() throws {
         let runner = FoundationProcessRunner()
@@ -19,7 +21,9 @@ struct Build: ParsableCommand {
         if let l10n = try L10nGenerator.generate(projectDir: cwd), l10n.changed {
             print("regenerated \(l10n.path)")
         }
-        let sdk = try swiftSdk ?? WasmSDK.detect(runner: runner)
+        let preflight = try WasmSDK.preflight(selectedSDK: swiftSdk, runner: runner, cwd: cwd)
+        let sdk = preflight.sdk
+        print("toolchain: swift \(preflight.hostVersion ?? "unknown") · sdk \(sdk)")
         if config == "release" && !ReleaseArtifacts.toolAvailable("wasm-opt", runner: runner) {
             print("""
 
@@ -37,10 +41,16 @@ struct Build: ParsableCommand {
         // sources, and a project that fails to compile exits non-zero here with
         // its diagnostics swallowed. The wasm build then prints the real error.
         let shell = try BootShellRunner.run(projectDir: cwd, runner: runner)
+        // Variants are written under public/ and must exist before assembly copies
+        // public/ into dist. Manifest generation below runs after assembly.
+        _ = try AssetPipeline.prepare(projectDir: cwd, runner: runner)
         let bundle = try WasmBuilder(runner: runner, projectDir: cwd, sdk: sdk)
             .build(configuration: config)
         let outDir = cwd + "/" + out
         try DistLayout.assemble(projectDir: cwd, bundleDir: bundle, outDir: outDir)
+        if let assets = try AssetPipeline.writePreparedManifest(projectDir: cwd, outDir: outDir) {
+            print("generated \(AssetPipeline.manifestName) (\(assets.images.count) responsive image set(s))")
+        }
         // Between `assemble` and `generateManifest`, and the order is not
         // negotiable: `assemble` re-copies index.html over any earlier splice;
         // after `generateManifest` the manifest's SRI covers the pre-splice
@@ -68,6 +78,18 @@ struct Build: ParsableCommand {
         } else {
             try ReleaseArtifacts.clean(distDir: outDir)
         }
+        let report = try WasmMetrics.report(distDir: outDir, fixture: fixture, configuration: config,
+                                            preflight: preflight, runner: runner)
+        let reportPath = outDir + "/swiftwui-build-report.json"
+        try WasmMetrics.write(report, to: reportPath)
+        let budgetPath = budget.map { path in path.hasPrefix("/") ? path : cwd + "/" + path } ?? cwd + "/swiftwui-wasm-budget.json"
+        if let configured = try WasmMetrics.readBudget(path: budgetPath) {
+            try WasmMetrics.enforce(configured, against: report)
+            print("validated WASM budget \(budgetPath)")
+        } else if budget != nil {
+            throw ToolchainError.io("budget file does not exist: \(budgetPath)")
+        }
+        print("WASM: \(report.rawBytes) raw, \(report.gzipBytes.map(String.init) ?? "n/a") gzip, \(report.brotliBytes.map(String.init) ?? "n/a") brotli; report: \(out)/swiftwui-build-report.json")
         print("built \(out)/ (app bundle + vendor shim + index.html)")
         // Last, and after the success line on purpose: the wasm-opt warning above
         // gets buried under the build's own output, and 36 MB of ICU data is not

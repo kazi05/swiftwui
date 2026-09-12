@@ -35,6 +35,11 @@ final class DOMAnimationToken: AnimationToken {
 @MainActor
 public final class DOMBackend: RendererBackend {
     public typealias HostNode = JSObject
+    private lazy var navigation = DOMNavigationController(options: DOMRuntime.navigationOptions)
+    func prepareNavigation() { _ = navigation }
+
+    public func navigationWillBegin(isHistory: Bool) { navigation.begin(isHistory: isHistory) }
+    public func navigationDidCommit() { navigation.commit() }
 
     private let jsDocument = JSObject.global.document
     // The bridged `document` global is a computed getter — two bridge crossings
@@ -309,7 +314,18 @@ public final class DOMBackend: RendererBackend {
                             _dispatchToken: keyDispatchToken)
         case "submit":
             _ = e.preventDefault?()
-            return SubmitEvent()
+            var fields: [(name: String, value: String)] = []
+            if let form = e.target.object, let constructor = JSObject.global.FormData.function {
+                let data = e.submitter.object.map { constructor.new(form, $0) } ?? constructor.new(form)
+                let callback = JSClosure { args in
+                    if args.count >= 2, let value = args[0].string, let name = args[1].string {
+                        fields.append((name, value))
+                    }
+                    return .undefined
+                }
+                _ = data.forEach?(callback)
+            }
+            return SubmitEvent(fields: fields)
         case "focus", "blur":
             return FocusEvent()
         case "scroll":
@@ -495,9 +511,11 @@ public final class DOMBackend: RendererBackend {
     // DOMBridge.swift:387-416) — do not "modernize" them.
     public func pushState(path: String) {
         _ = JSObject.global.history.object!.pushState!(JSValue.null, "", path)
+        navigation.moved(replace: false)
     }
     public func replaceState(path: String) {
         _ = JSObject.global.history.object!.replaceState!(JSValue.null, "", path)
+        navigation.moved(replace: true)
     }
     public func historyBack() {
         _ = JSObject.global.history.object!.back!()

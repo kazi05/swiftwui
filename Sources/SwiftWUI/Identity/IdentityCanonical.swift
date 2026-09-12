@@ -5,9 +5,13 @@
 /// NEVER use hashValue anywhere in this file (seed-randomized per process).
 enum _TypeNameRegistry {
     private(set) static var names: [ObjectIdentifier: String] = [:]
-    static func register(_ type: Any.Type) {
+    static func register(_ type: Any.Type, name: String? = nil) {
         let oid = ObjectIdentifier(type)
-        if names[oid] == nil { names[oid] = String(reflecting: type) }
+        if let name, !name.isEmpty {
+            names[oid] = name
+        } else if names[oid] == nil {
+            names[oid] = String(reflecting: type)
+        }
     }
 }
 
