@@ -22,14 +22,23 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Tag>:
         var seen = Set<NodeKey>()
         let ownerID = ctx.owner
         let inv = ctx.invalidate
-        let box = _InvalidateBox(fire: { inv(ownerID) })
+        // A primitive root has no enclosing component to install a generation.
+        // Lazily give that root the same stale-callback protection.
+        let observationToken: _ObservationTrackingToken
+        if let current = ctx.ownerObservationToken {
+            observationToken = current
+        } else {
+            observationToken = ctx.store.beginObservation(at: ownerID)
+            ctx.ownerObservationToken = observationToken
+        }
+        let box = _InvalidateBox(token: observationToken, fire: { inv(ownerID) })
         for item in data {
             let key = NodeKey(item[keyPath: id])
             assert(seen.insert(key).inserted, "ForEach: duplicate id \(item[keyPath: id])")
             let built = withObservationTracking {
                 content(item)
             } onChange: {
-                MainActor.assumeIsolated { box.fire() }
+                MainActor.assumeIsolated { box.fireIfCurrent() }
             }
             var nodes = resolve(built, path: path.appending(.keyed(key)), ctx: &ctx)
             for i in nodes.indices {

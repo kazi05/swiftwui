@@ -22,6 +22,7 @@
     /// Cheap guard for the mount-path lookup (Task 9): skip the per-element
     /// dictionary probe entirely when nothing is registered.
     var isEmpty: Bool { byIdentity.isEmpty }
+    func removeAll() { byIdentity.removeAll(); seenThisPass.removeAll() }
 
     func register(_ t: AnyTransition, for id: NodeIdentity) {
         seenThisPass.insert(id)
@@ -35,8 +36,12 @@
     /// MUST run AFTER commit (`current` updated): `stillExists` is queried
     /// against the freshly committed tree.
     func sweep(under root: NodeIdentity, stillExists: (NodeIdentity) -> Bool) {
+        sweep(under: [root], stillExists: stillExists)
+    }
+
+    func sweep(under roots: Set<NodeIdentity>, stillExists: (NodeIdentity) -> Bool) {
         for id in Array(byIdentity.keys)
-        where id.isSelfOrDescendant(of: root) && !seenThisPass.contains(id) && !stillExists(id) {
+        where id.isSelfOrDescendant(ofAny: roots) && !seenThisPass.contains(id) && !stillExists(id) {
             byIdentity.removeValue(forKey: id)
         }
         seenThisPass.removeAll()

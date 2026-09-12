@@ -1,0 +1,4 @@
+{
+  "compilerOptions": { "noEmit": true, "strict": true },
+  "files": ["Sources/AppInterop/bridge-js.d.ts", "Sources/AppInterop/bridge-js.global.d.ts"]
+}

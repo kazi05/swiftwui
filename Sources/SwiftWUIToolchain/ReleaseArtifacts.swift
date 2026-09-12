@@ -272,19 +272,47 @@ public enum ReleaseArtifacts {
     /// enforcement available for this wiring.
     public static func writeNginxConf(distDir: String, site: LocaleNegotiation.Site? = nil,
                                       wasmVersioned: Bool) throws {
-        try nginxConfText(site: site, wasmVersioned: wasmVersioned)
+        let delivery = StaticDelivery.read(distDir: distDir)
+        try writeRedirectsConf(distDir: distDir, delivery: delivery)
+        try nginxConfText(site: site, wasmVersioned: wasmVersioned, delivery: delivery)
             .write(toFile: distDir + "/nginx.conf", atomically: true, encoding: .utf8)
     }
 
+    /// Exact nginx locations for the portable delivery manifest. An empty file
+    /// is still written because nginx `include` treats a missing file as a
+    /// configuration error; this lets `swiftwui build` run before `ssg`.
+    public static func writeRedirectsConf(distDir: String, delivery: StaticDelivery?) throws {
+        var lines = ["# Generated from swiftwui-delivery.json; do not edit."]
+        if let delivery {
+            for redirect in delivery.redirects {
+                lines.append("location = \(redirect.from) { return \(redirect.status) \(redirect.to); }")
+            }
+            switch delivery.trailingSlash {
+            case .preserve: break
+            case .always:
+                for path in delivery.routes where path != "/" {
+                    lines.append("location = \(path) { return 308 \(path)/; }")
+                }
+            case .never:
+                for path in delivery.routes where path != "/" {
+                    lines.append("location = \(path)/ { return 308 \(path); }")
+                }
+            }
+        }
+        try (lines.joined(separator: "\n") + "\n")
+            .write(toFile: distDir + "/swiftwui-redirects.conf", atomically: true, encoding: .utf8)
+    }
+
     /// The generated config, so tests can read it without a temp directory.
-    static func nginxConfText(site: LocaleNegotiation.Site? = nil, wasmVersioned: Bool) -> String {
+    static func nginxConfText(site: LocaleNegotiation.Site? = nil, wasmVersioned: Bool,
+                              delivery: StaticDelivery? = nil) -> String {
         // `map` is only legal in the http block, `location` only inside
         // `server` — hence separate anchors rather than one.
         var maps = ""
-        var location = defaultLocationBlock
+        var location = delivery?.fallback == .notFound ? strictLocationBlock : defaultLocationBlock
         if let site, site.isNegotiated, !site.locales.isEmpty {
             maps = negotiationMaps(site: site) + "\n"
-            location = negotiationLocation
+            location = delivery?.fallback == .notFound ? strictNegotiationLocation : negotiationLocation
         }
         // The map defines $swui_wasm_cc; emitting the location block without it
         // makes nginx refuse to start on an unknown variable, so the two are one
@@ -295,6 +323,7 @@ public enum ReleaseArtifacts {
         text = text.replacingOccurrences(of: locationAnchor, with: location)
         text = text.replacingOccurrences(of: wasmAnchor,
                                          with: wasmVersioned ? versionedWasmBlocks : plainWasmBlock)
+        text = text.replacingOccurrences(of: redirectsAnchor, with: nginxRedirectLocations(delivery))
         return text
     }
 
@@ -302,6 +331,31 @@ public enum ReleaseArtifacts {
     static let mapsAnchor = "#__SWIFTWUI_MAPS__\n"
     static let locationAnchor = "#__SWIFTWUI_LOCATION__"
     static let wasmAnchor = "#__SWIFTWUI_WASM__"
+    static let redirectsAnchor = "#__SWIFTWUI_REDIRECTS__"
+
+    static func nginxRedirectLocations(_ delivery: StaticDelivery?) -> String {
+        guard let delivery else { return "" }
+        var lines: [String] = []
+        var emitted = Set<String>()
+        func append(_ line: String) {
+            if emitted.insert(line).inserted { lines.append(line) }
+        }
+        for redirect in delivery.redirects {
+            append("location = \(redirect.from) { return \(redirect.status) \(redirect.to); }")
+        }
+        switch delivery.trailingSlash {
+        case .preserve: break
+            case .always:
+                for path in delivery.routes where path != "/" {
+                    append("location = \(path) { return 308 \(path)/; }")
+                }
+            case .never:
+                for path in delivery.routes where path != "/" {
+                    append("location = \(path)/ { return 308 \(path); }")
+            }
+        }
+        return lines.map { "    " + $0 }.joined(separator: "\n")
+    }
 
     /// `$arg_v` is the empty string when the URL carries no `?v=`, and `~.`
     /// needs one character — so only a stamped request is ever pinned.
@@ -367,10 +421,25 @@ public enum ReleaseArtifacts {
         location / { try_files $uri $uri/ /index.html; }
     """
 
+    /// A real 404 for indexed static sites. `error_page` serves an optional
+    /// user-provided root `404.html` while retaining the original 404 status.
+    static let strictLocationBlock = """
+    error_page 404 /404.html;
+        location = /404.html { internal; }
+        location / { try_files $uri $uri/ =404; }
+    """
+
     static let negotiationLocation = """
     add_header Vary "Accept-Language, Cookie";
         # $uri first: root-level assets are never locale-prefixed.
         location / { try_files $uri /$swui_locale$uri/index.html /$swui_locale/index.html /index.html; }
+    """
+
+    static let strictNegotiationLocation = """
+    add_header Vary "Accept-Language, Cookie";
+        error_page 404 /404.html;
+        location = /404.html { internal; }
+        location / { try_files $uri /$swui_locale$uri/index.html =404; }
     """
 
     /// The http-block half of the negotiation: cookie first, then the first tag
@@ -469,6 +538,10 @@ public enum ReleaseArtifacts {
         add_header Cache-Control "no-cache";
 
         location = /nginx.conf { return 404; }  # this file ships inside dist/
+        location = /swiftwui-delivery.json { return 404; }
+        location = /swiftwui-redirects.conf { return 404; }
+
+        #__SWIFTWUI_REDIRECTS__
 
         #__SWIFTWUI_WASM__
 

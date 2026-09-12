@@ -9,9 +9,13 @@ import Foundation
 #endif
 
 /// Wraps a JS `File`. Retains the JSObject; reads via its promise APIs.
-final class DOMFileReader: _FileReading {
+final class DOMFileReader: _FileBlobProviding {
     private let file: JSObject
     init(file: JSObject) { self.file = file }
+
+    func blob() async throws -> WebBlob {
+        WebBlob(storage: DOMBlobStorage(blob: file))
+    }
 
     func data() async throws -> _FoundationData {
         guard let promise = JSPromise((file.arrayBuffer!()).object ?? JSObject()) else {

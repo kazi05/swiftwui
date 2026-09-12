@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-12T12:18:46.059Z",
+  "scope": "Existing compiled Tests/BrowserEvents /modern fixture in headless Chromium",
+  "observationCaveat": "Local, non-isolated observation while other build agents could consume CPU; use the script in a quiet controlled environment for release comparisons.",
+  "host": {
+    "platform": "darwin",
+    "release": "25.6.0",
+    "logicalCPUCount": 12,
+    "loadAverageAtCompletion": [
+      5.359375,
+      5.4921875,
+      5.33544921875
+    ]
+  },
+  "browser": {
+    "name": "chromium",
+    "version": "149.0.7827.55",
+    "headless": true,
+    "viewport": {
+      "width": 800,
+      "height": 600
+    }
+  },
+  "virtualCollection": {
+    "configuredItemCount": 10000,
+    "scrollHeightPx": 300000,
+    "viewportHeightPx": 180,
+    "initialRenderedRows": 10,
+    "initialRenderedRange": [
+      0,
+      9
+    ],
+    "minimumRenderedRows": 9,
+    "maximumRenderedRows": 13,
+    "finalRenderedRows": 9,
+    "finalRenderedRange": [
+      9991,
+      9999
+    ],
+    "frameIntervalsMs": {
+      "samples": 144,
+      "minMs": 6.4,
+      "medianMs": 8.3,
+      "p95Ms": 9.7,
+      "maxMs": 10.4,
+      "totalMs": 1200.4
+    },
+    "intervalsOverTwoFrameBudgets": 0,
+    "scrollSweeps": 3,
+    "stepsPerSweep": 48
+  },
+  "cpuOffload": {
+    "iterationsPerRepeat": 8000000,
+    "repetitions": 5,
+    "checksum": 3010354136,
+    "heartbeatPeriodMs": 8,
+    "mainThread": {
+      "totalWallTimeMs": 68.5,
+      "computeDurationsMs": {
+        "samples": 5,
+        "minMs": 13,
+        "medianMs": 13.4,
+        "p95Ms": 15.3,
+        "maxMs": 15.3,
+        "totalMs": 68.4
+      },
+      "zeroDelayHeartbeatLatencyMs": 68.59999999403954,
+      "maximumHeartbeatGapMs": 68.59999999403954,
+      "estimatedBlockedHeartbeatMs": 60.599999994039536,
+      "heartbeatGapsMs": {
+        "samples": 10,
+        "minMs": 1.3,
+        "medianMs": 8.1,
+        "p95Ms": 68.6,
+        "maxMs": 68.6,
+        "totalMs": 137.6
+      }
+    },
+    "moduleWorker": {
+      "totalWallTimeMs": 68.90000000596046,
+      "workerComputeDurationsMs": {
+        "samples": 5,
+        "minMs": 13,
+        "medianMs": 13.4,
+        "p95Ms": 14.2,
+        "maxMs": 14.2,
+        "totalMs": 67.2
+      },
+      "roundTripDurationsMs": {
+        "samples": 5,
+        "minMs": 13,
+        "medianMs": 13.4,
+        "p95Ms": 15.6,
+        "maxMs": 15.6,
+        "totalMs": 68.8
+      },
+      "zeroDelayHeartbeatLatencyMs": 0.20000000298023224,
+      "maximumHeartbeatGapMs": 10,
+      "estimatedBlockedHeartbeatMs": 2,
+      "heartbeatGapsMs": {
+        "samples": 17,
+        "minMs": 6.4,
+        "medianMs": 7.9,
+        "p95Ms": 10,
+        "maxMs": 10,
+        "totalMs": 138.2
+      }
+    }
+  }
+}

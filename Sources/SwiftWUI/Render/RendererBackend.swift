@@ -1,3 +1,9 @@
+public enum VisibilityObserverRoot<Host> {
+    case viewport
+    case ancestor(Host)
+    case unavailable
+}
+
 /// Host primitives a live renderer provides (spec §8.1). Deliberately dumb:
 /// no diffing, no bookkeeping, no handler storage.
 @MainActor
@@ -8,6 +14,7 @@ public protocol RendererBackend: AnyObject {
     func setText(_ node: HostNode, _ text: String)
     func setAttribute(_ node: HostNode, name: String, value: String)
     func removeAttribute(_ node: HostNode, name: String)
+    func setObjectURL(_ node: HostNode, name: String, value: WebObjectURL?)
     // MARK: Typed inline style (spec 2026-07-13, animations)
     func setStyleProperty(_ node: HostNode, name: String, value: String)
     func removeStyleProperty(_ node: HostNode, name: String)
@@ -18,6 +25,9 @@ public protocol RendererBackend: AnyObject {
     // MARK: Element observers (spec 2026-07-12)
     func observe(_ node: HostNode, kind: ObserverKind, id: ListenerID)
     func unobserve(_ node: HostNode, kind: ObserverKind)
+    func observeVisibility(_ node: HostNode, root: VisibilityObserverRoot<HostNode>,
+                           threshold: Double, rootMargin: VisibilityMargin,
+                           onChange: @escaping (Bool) -> Void) -> (() -> Void)?
 
     func insert(_ child: HostNode, into parent: HostNode, before anchor: HostNode?)
     func remove(_ child: HostNode, from parent: HostNode)
@@ -26,6 +36,12 @@ public protocol RendererBackend: AnyObject {
     func setStylesheet(_ text: String)
 
     // MARK: Routing (phase 4, spec §3)
+    /// Gives browser backends a chance to capture focus and scroll state before
+    /// a client-side URL move. `isHistory` is true for back/forward traversal.
+    func navigationWillBegin(isHistory: Bool)
+    /// Called after the destination route's patches and post-commit effects
+    /// have run. Redirect chains emit this only for their settled destination.
+    func navigationDidCommit()
     /// History API. Backends without history (Mock) just record.
     func pushState(path: String)
     func replaceState(path: String)
@@ -88,6 +104,19 @@ public protocol RendererBackend: AnyObject {
     /// subscription ever (page lifetime — like environment observation).
     func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void)
 
+    // MARK: Viewport effects (spec 2026-09-09)
+    func beginDocumentVisibilityObservation(_ sink: @escaping (Bool) -> Void) -> Bool?
+    func beginVisualViewportObservation(_ sink: @escaping (VisualViewportMetrics) -> Void)
+        -> VisualViewportMetrics?
+
+    // MARK: Scroll capability (backend SPI)
+    func _scrollMetrics(in target: _ScrollTarget<HostNode>) -> ScrollMetrics?
+    func _captureScrollAnchor(in target: _ScrollTarget<HostNode>,
+                              candidates: [HostNode]) -> _ScrollAnchorGeometry?
+    /// Measures layout before reading the base offset, then performs one instant residual correction.
+    func _restoreScrollAnchor(in target: _ScrollTarget<HostNode>, element: HostNode, offset: Double)
+    func _scrollToEnd(in target: _ScrollTarget<HostNode>, behavior: ScrollProxy.Behavior)
+
     // MARK: Drop-navigation guard (spec 2026-07-16, DnD task 7)
     /// Enabled while `.preventsAccidentalDropNavigation()` is mounted anywhere
     /// in the tree; toggled only on 0↔some subscriber-count transitions.
@@ -121,8 +150,19 @@ public protocol RendererBackend: AnyObject {
 }
 
 extension RendererBackend {
+    public func navigationWillBegin(isHistory: Bool) {}
+    public func navigationDidCommit() {}
+    public func _scrollMetrics(in target: _ScrollTarget<HostNode>) -> ScrollMetrics? { nil }
+    public func _captureScrollAnchor(in target: _ScrollTarget<HostNode>,
+                                     candidates: [HostNode]) -> _ScrollAnchorGeometry? { nil }
+    public func _restoreScrollAnchor(in target: _ScrollTarget<HostNode>, element: HostNode, offset: Double) {}
+    public func _scrollToEnd(in target: _ScrollTarget<HostNode>, behavior: ScrollProxy.Behavior) {}
+    public func setObjectURL(_ node: HostNode, name: String, value: WebObjectURL?) {}
     public func observe(_ node: HostNode, kind: ObserverKind, id: ListenerID) {}
     public func unobserve(_ node: HostNode, kind: ObserverKind) {}
+    public func observeVisibility(_ node: HostNode, root: VisibilityObserverRoot<HostNode>,
+                                  threshold: Double, rootMargin: VisibilityMargin,
+                                  onChange: @escaping (Bool) -> Void) -> (() -> Void)? { nil }
     public func setStyleProperty(_ node: HostNode, name: String, value: String) {}
     public func removeStyleProperty(_ node: HostNode, name: String) {}
     public func beginEnvironmentObservation(_ writer: EnvironmentSignals.Writer) {}
@@ -132,6 +172,9 @@ extension RendererBackend {
     public func beginStorageObservation(onExternalChange: @escaping (StorageKind, String, String?) -> Void) {}
     public func reloadForUpdate() {}
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {}
+    public func beginDocumentVisibilityObservation(_ sink: @escaping (Bool) -> Void) -> Bool? { nil }
+    public func beginVisualViewportObservation(_ sink: @escaping (VisualViewportMetrics) -> Void)
+        -> VisualViewportMetrics? { nil }
     public func setDropNavigationGuard(_ enabled: Bool) {}
     public func setStructuredData(_ blocks: [String]) {}
     public func dropPrerenderedHeadLinks() {}

@@ -25,7 +25,7 @@ import SwiftWUIStatic
         var out = "dist"
         // Canonical links and sitemap.xml both need an absolute origin. It stays
         // a flag rather than a constant so a preview deploy can claim its own.
-        var siteURL: String? = "https://swiftwui.dev/tutorials"
+        var siteURL: String? = SiteLinks.origin
         var i = 0
         while i < args.count {
             switch args[i] {

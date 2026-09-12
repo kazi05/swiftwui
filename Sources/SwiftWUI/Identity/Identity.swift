@@ -21,4 +21,21 @@ public struct NodeIdentity: Hashable {
         segments.count >= p.segments.count
             && segments.prefix(p.segments.count).elementsEqual(p.segments)
     }
+
+    /// Expected O(depth) ancestor membership check used by dirty-cover
+    /// selection. The first removal pays the array's copy-on-write cost; later
+    /// removals mutate the same unique buffer instead of rebuilding every
+    /// prefix or scanning the growing cover.
+    func hasStrictAncestor(in candidates: Set<NodeIdentity>) -> Bool {
+        var ancestor = self
+        while !ancestor.segments.isEmpty {
+            ancestor.segments.removeLast()
+            if candidates.contains(ancestor) { return true }
+        }
+        return false
+    }
+
+    func isSelfOrDescendant(ofAny candidates: Set<NodeIdentity>) -> Bool {
+        candidates.contains(self) || hasStrictAncestor(in: candidates)
+    }
 }

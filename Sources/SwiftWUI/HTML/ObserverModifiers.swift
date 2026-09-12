@@ -17,10 +17,14 @@ public enum ObserverKind: Hashable {
 }
 
 extension HTMLTag {
-    /// Fires with `true`/`false` as the element enters/leaves the viewport
-    /// (IntersectionObserver).
+    /// Reports whether the element intersects the viewport with at least
+    /// `threshold` of its area visible. Threshold must be finite and in 0...1.
+    /// At zero, uses IntersectionObserver's `isIntersecting` semantics,
+    /// including edge contact; at one, the entire area must intersect.
     public func onVisibilityChange(threshold: Double = 0.0,
                                    _ action: @escaping (Bool) -> Void) -> Self {
+        precondition(threshold.isFinite && (0...1).contains(threshold),
+                     "Visibility threshold must be finite and in 0...1")
         var copy = self
         copy._attributes.addObserver(.visibility(threshold: threshold)) { any in
             guard let v = any as? Bool else { return }

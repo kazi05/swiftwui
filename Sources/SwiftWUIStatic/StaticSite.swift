@@ -6,6 +6,59 @@ public enum StaticSiteMode: Sendable {
     case staticOnly
 }
 
+/// Search-engine validation is deliberately opt-in. A private dashboard may
+/// legitimately have no public origin, title, or crawlable link graph.
+public enum SearchIndexing: Sendable, Equatable {
+    case `private`
+    /// Treat the generated documents as public, indexable pages and fail the
+    /// build when their crawl contract is incomplete.
+    case indexed
+}
+
+/// The status code used for a generated redirect. `308` is the default for
+/// permanent URL migrations because it preserves a non-GET method at hosts
+/// that receive one; preview only serves GET/HEAD, but the deployment contract
+/// must not silently weaken at the edge.
+public enum StaticRedirectStatus: Int, Sendable, Equatable {
+    case found = 302
+    case movedPermanently = 301
+    case permanentRedirect = 308
+}
+
+public struct StaticRedirect: Sendable, Equatable {
+    public var from: String
+    public var to: String
+    public var status: StaticRedirectStatus
+    public init(from: String, to: String, status: StaticRedirectStatus = .permanentRedirect) {
+        self.from = from; self.to = to; self.status = status
+    }
+}
+
+public enum TrailingSlashPolicy: String, Sendable, Equatable {
+    case preserve, always, never
+}
+
+/// Whether an unmatched clean URL falls back to the SPA shell or is a real
+/// HTTP 404. Indexed static sites default to `.notFound`; private apps retain
+/// the historical SPA fallback unless they opt out.
+public enum StaticFallbackPolicy: String, Sendable, Equatable {
+    case spa, notFound
+}
+
+/// Edge behavior written to `swiftwui-delivery.json`. The file is consumed by
+/// `swiftwui serve` and translated to a small nginx include by the toolchain;
+/// it avoids meta-refresh being the only representation of a URL migration.
+public struct StaticDeliveryConfig: Sendable, Equatable {
+    public var redirects: [StaticRedirect]
+    public var trailingSlash: TrailingSlashPolicy
+    /// nil selects `.notFound` for `.indexed` and `.spa` for private apps.
+    public var fallback: StaticFallbackPolicy?
+    public init(redirects: [StaticRedirect] = [], trailingSlash: TrailingSlashPolicy = .preserve,
+                fallback: StaticFallbackPolicy? = nil) {
+        self.redirects = redirects; self.trailingSlash = trailingSlash; self.fallback = fallback
+    }
+}
+
 public struct StaticSiteConfig: Sendable {
     public var outDir: String
     public var mode: StaticSiteMode
@@ -31,6 +84,20 @@ public struct StaticSiteConfig: Sendable {
     /// to `BootStamp.read(outDir:)`, and no wasm there means no boot config is
     /// emitted at all — the document takes the legacy inline boot.
     public var bootStamp: BootStamp?
+    /// Private is the compatibility default. Public sites opt in to build-time
+    /// checks for metadata, canonical URLs, JSON-LD and local crawl links.
+    public var indexing: SearchIndexing
+    /// Host-visible redirect and URL-normalization rules.
+    public var delivery: StaticDeliveryConfig
+    /// Hydrated sites may defer the one shared client runtime. This affects
+    /// start time, not module byte size; `.staticOnly` ignores it.
+    public var activation: BootActivation
+    /// Required by visible/interaction policies to select the activation
+    /// target. The boot shim treats a missing target as a safe eager fallback.
+    public var activationSelector: String?
+    /// App-owned ES module loaded before hydration, for example a BridgeJS
+    /// wrapper which installs globals consumed by generated bindings.
+    public var interopScriptURL: String?
 
     public init(outDir: String, mode: StaticSiteMode, paths: [String] = [], cssFile: Bool = false,
                 importMapJSON: String? = #"{"imports":{"@bjorn3/browser_wasi_shim":"/vendor/wasi-shim/index.js"}}"#,
@@ -38,7 +105,12 @@ public struct StaticSiteConfig: Sendable {
                 defaultPrerender: Prerender? = nil,
                 prerenderEnabled: Bool = true,
                 synthesizeCanonical: Bool = true,
-                bootStamp: BootStamp? = nil) {
+                bootStamp: BootStamp? = nil,
+                indexing: SearchIndexing = .private,
+                delivery: StaticDeliveryConfig = .init(),
+                activation: BootActivation = .eager,
+                activationSelector: String? = nil,
+                interopScriptURL: String? = nil) {
         self.outDir = outDir
         self.mode = mode
         self.paths = paths
@@ -49,6 +121,11 @@ public struct StaticSiteConfig: Sendable {
         self.prerenderEnabled = prerenderEnabled
         self.synthesizeCanonical = synthesizeCanonical
         self.bootStamp = bootStamp
+        self.indexing = indexing
+        self.delivery = delivery
+        self.activation = activation
+        self.activationSelector = activationSelector
+        self.interopScriptURL = interopScriptURL
     }
 }
 
@@ -67,6 +144,9 @@ public enum StaticSiteError: Error, CustomStringConvertible {
     /// so `@State`, `.task` and event handlers inside it are inert — and every
     /// one of those produces a green build and a dead loader (boot spec §5.6).
     case bootUIUnsupported([String])
+    case invalidSearchIndexing([String])
+    case invalidDelivery([String])
+    case unavailableDelayedActivation
     public var description: String {
         switch self {
         case .buildTaskOverflow(let page, let iterations):
@@ -83,6 +163,13 @@ public enum StaticSiteError: Error, CustomStringConvertible {
         case .bootUIUnsupported(let problems):
             return "StaticSite: boot UI cannot do this — it is rendered once, natively, at build "
                 + "time:\n  - " + problems.joined(separator: "\n  - ")
+        case .invalidSearchIndexing(let problems):
+            return "StaticSite: public indexing contract is incomplete:\n  - "
+                + problems.joined(separator: "\n  - ")
+        case .invalidDelivery(let problems):
+            return "StaticSite: invalid delivery contract:\n  - " + problems.joined(separator: "\n  - ")
+        case .unavailableDelayedActivation:
+            return "StaticSite: delayed activation requires a stamped WASM bundle; run 'swiftwui build' before 'swiftwui ssg' or provide bootStamp"
         }
     }
 }
@@ -104,6 +191,11 @@ public struct StaticSiteReport {
     public var notFoundPages: [String] = []
     /// Output files actually written, relative to outDir.
     public var writtenFiles: [String] = []
+    /// Redirect status by source path. `redirects` remains for source
+    /// compatibility with callers that only need the target.
+    public var redirectStatuses: [String: Int] = [:]
+    /// The host-neutral deployment contract, when one was written.
+    public var deliveryManifest: String?
 }
 
 /// One rendered page (spec §7). `outcome` is what a server maps to a status.
@@ -256,7 +348,7 @@ public enum StaticSite {
     /// `ReservedNameDriftTests` is what keeps the two copies equal.
     static let reservedDistNames: Set<String> =
         ["app", "vendor", "index.html", "styles.css", "__swiftwui", "sw-assets.js",
-         "nginx.conf", "swiftwui-site.json"]
+         "nginx.conf", "swiftwui-site.json", "swiftwui-delivery.json", "swiftwui-redirects.conf", "swiftwui-assets-manifest.json", "swiftwui-build-report.json"]
 
     /// The one gate on `routePaths`. `_validate` is a reporting pass by design
     /// — the table is built during `static let` initialization, where a trap
@@ -284,6 +376,14 @@ public enum StaticSite {
     @MainActor
     public static func generate<A: App>(_ app: A.Type,
                                         config: StaticSiteConfig) async throws -> StaticSiteReport {
+        let deliveryProblems = config.delivery.redirects.compactMap { redirect -> String? in
+            guard StaticDeliveryManifest.isLocalPath(redirect.from),
+                  StaticDeliveryManifest.isLocalPath(redirect.to) else {
+                return "redirect '\(redirect.from)' → '\(redirect.to)' must use local absolute paths without query or fragment"
+            }
+            return nil
+        }
+        guard deliveryProblems.isEmpty else { throw StaticSiteError.invalidDelivery(deliveryProblems) }
         let session = WebSession(transport: URLSessionTransport())
         WebSession.bootstrap(session)
 
@@ -305,6 +405,17 @@ public enum StaticSite {
         var providerUnmatched: [String] = []
         var claimed = Set<String>()
 
+        // SSG input often comes from a copied browser URL. Fragments never
+        // reach a server, while a query still reaches the runtime but identifies
+        // the same output document. Keep those two concerns separate.
+        func withoutFragment(_ input: String) -> String {
+            String(input.prefix { $0 != "#" })
+        }
+        func documentPath(_ input: String) -> String {
+            let head = String(withoutFragment(input).prefix { $0 != "?" })
+            return RouteURL._normalize(head)
+        }
+
         for route in collected {
             let pattern = route.pattern
             let policy = PrerenderResolution.effective(route: route.prerender,
@@ -320,8 +431,10 @@ public enum StaticSite {
             if let provider = policy?._pathProvider {
                 let produced = try await provider()
                 var addedAny = false
-                for path in produced where !claimed.contains(RouteURL._normalize(path)) {
-                    guard pattern.match(path) != nil else { providerUnmatched.append(path); continue }
+                for input in produced {
+                    let path = withoutFragment(input)
+                    guard !claimed.contains(RouteURL._normalize(path)) else { continue }
+                    guard pattern.match(documentPath(path)) != nil else { providerUnmatched.append(input); continue }
                     pagePaths.append(path)
                     claimed.insert(RouteURL._normalize(path))
                     addedAny = true
@@ -337,8 +450,8 @@ public enum StaticSite {
                 pagePaths.append(pattern.raw)
                 claimed.insert(RouteURL._normalize(pattern.raw))   // M3: static pattern claims its exact path
             } else {
-                let matching = config.paths.filter {
-                    pattern.match($0) != nil && !claimed.contains(RouteURL._normalize($0))
+                let matching = config.paths.map(withoutFragment).filter {
+                    pattern.match(documentPath($0)) != nil && !claimed.contains(RouteURL._normalize($0))
                 }
                 if matching.isEmpty {
                     if policy?._onDemandEnabled == true { onDemand.append(pattern.raw) }
@@ -349,7 +462,7 @@ public enum StaticSite {
                 }
             }
         }
-        let unmatched = config.paths.filter { !claimed.contains(RouteURL._normalize($0)) } + providerUnmatched   // M2
+        let unmatched = config.paths.filter { !claimed.contains(RouteURL._normalize(withoutFragment($0))) } + providerUnmatched   // M2
         // The second half of the gate, and it has to be here: `config.paths`
         // entries AND `.paths` provider output both land in `pagePaths`, and
         // the providers only just ran. Inert without a table.
@@ -368,6 +481,7 @@ public enum StaticSite {
         // `claim` is who asked for this document — the page and the locale, not
         // the URL it landed on. The write loop keys the collision check on it.
         var documents: [(path: String, subdir: String, html: String, claim: String)] = []
+        var indexedDocuments: [(path: String, head: PageHead?, html: String)] = []
         var sitemapPaths: [String] = []   // .page only — .notFound stays out (review finding)
 
         let localization = A.localization
@@ -387,7 +501,7 @@ public enum StaticSite {
             for path in pagePaths {
                 let tree = try await renderTree(A.self, path: path, config: config,
                                                 session: session, locale: locale)
-                let canonical = RouteURL._normalize(path)
+                let canonical = documentPath(path)
                 // Who ASKED for this document, which is the identity the write
                 // loop's collision check keys on. Query first, THEN normalize:
                 // `_normalize` only strips a trailing slash at the very end of
@@ -399,8 +513,7 @@ public enum StaticSite {
                 // elsewhere (a `.staticTask` calling `setLocale`) lands on
                 // another locale's file and must still be told apart from the
                 // page that legitimately owns it.
-                let claim = "'" + RouteURL._normalize(path.firstIndex(of: "?")
-                        .map { String(path[..<$0]) } ?? path) + "'"
+                let claim = "'" + documentPath(path) + "'"
                     + (locale.map { " in \($0.identifier)" } ?? "")
                 trees.append((tree, canonical, claim))
             }
@@ -427,8 +540,11 @@ public enum StaticSite {
         // will name the wasm: hashing a multi-megabyte binary is ~2.5 s in the
         // -Onone binary `swiftwui ssg` actually runs, and a project that never
         // opts into a boot UI must not pay it.
-        let stamp = trees.contains { $0.tree.bootShell != nil }
+        let stamp = (trees.contains { $0.tree.bootShell != nil } || config.activation != .eager)
             ? (config.bootStamp ?? BootStamp.read(outDir: config.outDir)) : nil
+        if case .hydrate = config.mode, config.activation != .eager, stamp == nil {
+            throw StaticSiteError.unavailableDelayedActivation
+        }
         for (tree, canonical, claim) in trees {
             let rendered = serialize(A.self, tree, alternates: alternates[canonical] ?? [:],
                                      config: config, stamp: stamp)
@@ -439,8 +555,10 @@ public enum StaticSite {
             let outputPath = rendered.path
             let subdir = rendered.subdir
             switch rendered.outcome {
-            case .redirect(let target, _):
+            case .redirect(let target, let permanent):
                 report.redirects[outputPath] = target
+                report.redirectStatuses[outputPath] = permanent
+                    ? StaticRedirectStatus.permanentRedirect.rawValue : StaticRedirectStatus.found.rawValue
                 documents.append((outputPath, subdir, redirectStub(to: target), claim))
             case .error:
                 // generate() keeps its existing throwing contract; only the
@@ -459,6 +577,9 @@ public enum StaticSite {
                 }
                 if case .notFound = rendered.outcome, !report.notFoundPages.contains(outputPath) {
                     report.notFoundPages.append(outputPath)
+                }
+                if case .page = rendered.outcome {
+                    indexedDocuments.append((outputPath, rendered.head, rendered.html))
                 }
                 if config.cssFile, !rendered.css.isEmpty, cssSeen.insert(rendered.css).inserted {
                     cssUnion.append(rendered.css)
@@ -484,9 +605,32 @@ public enum StaticSite {
             // would redirect into a 404.
             where rendered.contains(canonical) && !report.pages.contains(retired) {
                 report.redirects[retired] = current
+                report.redirectStatuses[retired] = StaticRedirectStatus.permanentRedirect.rawValue
                 documents.append((retired, "", redirectStub(to: current),
                                   "the retired-prefix stub '\(retired)'"))
             }
+        }
+
+        // Explicit deployment redirects are rendered as a no-JS fallback as
+        // well as exported below. This makes local file previews useful while
+        // keeping search engines and real hosts on HTTP redirects.
+        if config.prerenderEnabled {
+            for redirect in config.delivery.redirects {
+                let from = StaticDeliveryManifest.normalize(redirect.from)
+                let to = StaticDeliveryManifest.normalize(redirect.to)
+                guard from != to else { continue }
+                report.redirects[from] = to
+                report.redirectStatuses[from] = redirect.status.rawValue
+                documents.append((from, "", redirectStub(to: to),
+                                  "the configured redirect '\(from)'"))
+            }
+        }
+
+        if config.indexing == .indexed {
+            let problems = searchIndexingProblems(documents: indexedDocuments,
+                                                  redirects: report.redirects,
+                                                  config: config)
+            guard problems.isEmpty else { throw StaticSiteError.invalidSearchIndexing(problems) }
         }
 
         // --- write files ---
@@ -513,6 +657,20 @@ public enum StaticSite {
             report.writtenFiles.append(outputFile(path: path, subdir: subdir))
         }
         try SiteDescriptor.write(localization: localization, outDir: config.outDir)
+        let deliveryRedirects = report.redirects.keys.sorted().compactMap { from -> StaticRedirect? in
+            guard let to = report.redirects[from], let raw = report.redirectStatuses[from],
+                  let status = StaticRedirectStatus(rawValue: raw) else { return nil }
+            return StaticRedirect(from: from, to: to, status: status)
+        }
+        let fallback = config.delivery.fallback ?? (config.indexing == .indexed ? .notFound : .spa)
+        if !deliveryRedirects.isEmpty || config.delivery.trailingSlash != .preserve || fallback == .notFound {
+            try StaticDeliveryManifest.write(redirects: deliveryRedirects, routes: report.pages,
+                                             trailingSlash: config.delivery.trailingSlash,
+                                             fallback: fallback,
+                                             outDir: config.outDir)
+            report.deliveryManifest = StaticDeliveryManifest.fileName
+            report.writtenFiles.append(StaticDeliveryManifest.fileName)
+        }
         if config.cssFile {
             let cssPath = config.outDir + "/styles.css"
             do { try cssUnion.joined(separator: "\n").write(toFile: cssPath, atomically: true, encoding: .utf8) }
@@ -542,21 +700,78 @@ public enum StaticSite {
     /// while every URL inside it stays clean, and the edge picks the folder.
     public static func writeDocument(_ html: String, path: String, outDir: String,
                                      subdir: String = "") throws {
-        let dir = outDir + "/" + outputFile(path: path, subdir: subdir)
-            .dropLast("/index.html".count)
+        let documentPath = RouteURL._normalize(String(path.prefix { $0 != "?" && $0 != "#" }))
+        guard StaticDeliveryManifest.isLocalPath(documentPath) else {
+            throw StaticSiteError.io(path: path,
+                                     underlying: "refusing to write an unsafe static document path")
+        }
+        let relative = outputFile(path: path, subdir: subdir)
+        let requested = outDir + "/" + relative
+        let lexicalRoot = URL(fileURLWithPath: outDir, isDirectory: true).standardizedFileURL
+        let lexicalDestination = URL(fileURLWithPath: requested).standardizedFileURL
+        guard contains(lexicalDestination, in: lexicalRoot) else {
+            throw StaticSiteError.io(path: requested,
+                                     underlying: "refusing to write outside the static output directory")
+        }
+        do {
+            try FileManager.default.createDirectory(at: lexicalRoot, withIntermediateDirectories: true)
+        } catch {
+            throw StaticSiteError.io(path: lexicalRoot.path, underlying: "\(error)")
+        }
+        let root = lexicalRoot.resolvingSymlinksInPath()
+        let destination = resolvingExistingAncestors(of: lexicalDestination)
+        guard contains(destination, in: root) else {
+            throw StaticSiteError.io(path: requested,
+                                     underlying: "refusing to write outside the static output directory")
+        }
+        let dir = destination.deletingLastPathComponent().path
         do {
             try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-            try html.write(toFile: dir + "/index.html", atomically: true, encoding: .utf8)
+            // Resolve again after directory creation. This also catches an
+            // existing in-tree symlink whose target is outside `outDir`.
+            let resolved = URL(fileURLWithPath: requested)
+                .standardizedFileURL.resolvingSymlinksInPath()
+            guard contains(resolved, in: root) else {
+                throw StaticSiteError.io(path: requested,
+                                         underlying: "refusing to write through a symlink outside the static output directory")
+            }
+            try html.write(toFile: resolved.path, atomically: true, encoding: .utf8)
         } catch {
+            if let siteError = error as? StaticSiteError { throw siteError }
             throw StaticSiteError.io(path: dir + "/index.html", underlying: "\(error)")
         }
     }
 
+    private static func contains(_ candidate: URL, in root: URL) -> Bool {
+        let rootPath = root.path
+        let candidatePath = candidate.path
+        return candidatePath == rootPath || rootPath == "/" || candidatePath.hasPrefix(rootPath + "/")
+    }
+
+    /// `URL.resolvingSymlinksInPath()` may leave an intermediate symlink alone
+    /// when the final file does not exist yet. Resolve the deepest existing
+    /// ancestor first, then append the still-missing suffix lexically.
+    private static func resolvingExistingAncestors(of url: URL) -> URL {
+        var existing = url.standardizedFileURL
+        var suffix: [String] = []
+        while !FileManager.default.fileExists(atPath: existing.path) {
+            let parent = existing.deletingLastPathComponent()
+            guard parent.path != existing.path else { break }
+            suffix.append(existing.lastPathComponent)
+            existing = parent
+        }
+        var resolved = existing.resolvingSymlinksInPath()
+        for component in suffix.reversed() {
+            resolved.appendPathComponent(component)
+        }
+        return resolved.standardizedFileURL
+    }
+
     /// The one place "which folder" and "which URL" are joined into a path on
-    /// disk, relative to outDir. Query strings are stripped here, so every
-    /// caller agrees on where a query-variant page collapses to.
+    /// disk, relative to outDir. Query strings and fragments are stripped here,
+    /// so every caller agrees on where a copied browser URL collapses to.
     static func outputFile(path: String, subdir: String) -> String {
-        let clean = path.firstIndex(of: "?").map { String(path[..<$0]) } ?? path
+        let clean = RouteURL._normalize(String(path.prefix { $0 != "?" && $0 != "#" }))
         let dir = clean == "/" ? "" : String(clean.dropFirst())
         return ([subdir, dir].filter { !$0.isEmpty } + ["index.html"]).joined(separator: "/")
     }
@@ -565,6 +780,107 @@ public enum StaticSite {
     static func redirectStub(to target: String) -> String {
         "<!doctype html>\n<meta http-equiv=\"refresh\" content=\"0; url="
             + HTMLEscaping.text(target) + "\">\n"
+    }
+
+    /// Validate the subset of SEO signals SwiftWUI can prove from generated
+    /// output. Search Console crawl/render data remains an environment check;
+    /// this catches broken deployment inputs before an artifact is published.
+    private static func searchIndexingProblems(documents: [(path: String, head: PageHead?, html: String)],
+                                               redirects: [String: String],
+                                               config: StaticSiteConfig) -> [String] {
+        guard let origin = normalizedOrigin(config.siteURL) else {
+            return ["indexed sites require an absolute http(s) siteURL (for example https://example.com)"]
+        }
+        // Browser hrefs commonly percent-encode Unicode while route tables use
+        // readable literals. Routing decodes each segment after splitting, so
+        // compare the same identity here. Keeping an array preserves segment
+        // boundaries: `/a%2Fb` must not become the two-segment route `/a/b`.
+        let known = Set(documents.map { routeIdentity($0.path) })
+            .union(redirects.keys.map(routeIdentity))
+        var problems: [String] = []
+        for document in documents {
+            let path = RouteURL._normalize(document.path)
+            let label = "\(path):"
+            let head = document.head
+            if head?.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                problems.append("\(label) missing a non-empty <title>")
+            }
+            let description = head?.meta.first {
+                $0.attributes["name"]?.lowercased() == "description"
+            }?.attributes["content"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if description?.isEmpty != false {
+                problems.append("\(label) missing a non-empty meta description")
+            }
+            let expectedCanonical = origin + path
+            let canonical = canonicalHref(in: document.html)
+            if canonical != expectedCanonical {
+                problems.append("\(label) canonical must be \(expectedCanonical), got \(canonical ?? "none")")
+            }
+            for block in head?.structuredData ?? [] {
+                guard let data = block.data(using: .utf8),
+                      (try? JSONSerialization.jsonObject(with: data)) != nil else {
+                    problems.append("\(label) contains invalid JSON-LD")
+                    continue
+                }
+            }
+            for href in localHrefs(in: document.html) {
+                let target = routeIdentity(String(href.prefix { $0 != "?" && $0 != "#" }))
+                if !known.contains(target) {
+                    problems.append("\(label) internal link \(href) has no generated page or redirect")
+                }
+            }
+        }
+        return problems
+    }
+
+    private static func routeIdentity(_ path: String) -> [String] {
+        RouteURL._normalize(path).split(separator: "/").map {
+            let raw = String($0)
+            return raw.removingPercentEncoding ?? raw
+        }
+    }
+
+    private static func normalizedOrigin(_ siteURL: String?) -> String? {
+        guard let siteURL, let url = URL(string: siteURL),
+              (url.scheme == "https" || url.scheme == "http"), url.host != nil,
+              url.path.isEmpty || url.path == "/", url.query == nil, url.fragment == nil else { return nil }
+        return siteURL.hasSuffix("/") ? String(siteURL.dropLast()) : siteURL
+    }
+
+    private static func canonicalHref(in html: String) -> String? {
+        capture(#"<link[^>]*\brel="canonical"[^>]*\bhref="([^"]+)"|<link[^>]*\bhref="([^"]+)"[^>]*\brel="canonical""#, in: html)
+            .compactMap { $0.first(where: { !$0.isEmpty }) }
+            .map(decodedHTMLAttribute).first
+    }
+
+    private static func localHrefs(in html: String) -> [String] {
+        capture(#"<a\b[^>]*\bhref="([^"]+)""#, in: html).compactMap { $0.first }
+            .map(decodedHTMLAttribute)
+            .filter { $0.hasPrefix("/") && !$0.hasPrefix("//") }
+    }
+
+    /// Captures run over serialized HTML, so compare the parsed attribute
+    /// value rather than its source representation. Decode exactly the five
+    /// entities emitted by `HTMLEscaping.text`; `&amp;` stays last to preserve
+    /// one HTML-parser pass for source such as `&amp;lt;`.
+    private static func decodedHTMLAttribute(_ value: String) -> String {
+        value.replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&amp;", with: "&")
+    }
+
+    private static func capture(_ pattern: String, in text: String) -> [[String]] {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.matches(in: text, range: range).map { match in
+            (1..<match.numberOfRanges).compactMap { index -> String? in
+                let range = match.range(at: index)
+                guard range.location != NSNotFound, let swift = Range(range, in: text) else { return nil }
+                return String(text[swift])
+            }
+        }
     }
 
     /// "styles.css" for the root page, "../../styles.css" for /todo/1/index.html, etc.
@@ -662,10 +978,14 @@ public enum StaticSite {
         }
         let backend = MockBackend()
         let localization = A.localization
-        // Query-stripped up front: it is what routing, the output file and the
-        // canonical all key on, and `LocalePath` must never see a query string.
-        let requestedPath = path.firstIndex(of: "?").map { String(path[..<$0]) } ?? path
-        let querySuffix = path.firstIndex(of: "?").map { String(path[$0...]) } ?? ""
+        // Fragments never reach a server. Queries do reach it, but identify
+        // variants of one static document, so routing/output/canonical use only
+        // the path while the runtime still receives the query at boot.
+        let fragmentless = String(path.prefix { $0 != "#" })
+        let requestedPath = RouteURL._normalize(fragmentless.firstIndex(of: "?")
+            .map { String(fragmentless[..<$0]) } ?? fragmentless)
+        let querySuffix = fragmentless.firstIndex(of: "?")
+            .map { String(fragmentless[$0...]) } ?? ""
         let target: LocaleID? = {
             guard let localization else { return nil }
             guard let locale, localization.supported.contains(locale) else { return localization.default }
@@ -896,7 +1216,7 @@ public enum StaticSite {
         // document to `DocumentSerializer`'s legacy inline boot and it loads
         // normally; the shell's `<template>`/`<style>` ride along inert, since
         // nothing ever sets `data-swui-boot` on <html> to trigger them.
-        if let entry = tree.wasmPath, let shell = tree.bootShell, let stamp {
+        if let entry = tree.wasmPath, let stamp, tree.bootShell != nil || config.activation != .eager {
             // The bundle — entry, wasm and the copied shim — is one directory,
             // so take the entry's OWN directory. Matching on "index.js" would
             // send every renamed entry back to a hardcoded "/app/", which is the
@@ -906,7 +1226,9 @@ public enum StaticSite {
                                     entryURL: entry,
                                     shimURL: dir + "swiftwui-boot.js",
                                     sizeBytes: stamp.sizeBytes,
-                                    delayMS: shell.delayMS)
+                                    delayMS: tree.bootShell?.delayMS ?? 300,
+                                    activation: config.activation,
+                                    activationSelector: config.activationSelector)
         }
         let doc = DocumentSerializer.render(.init(
             bodyHTML: body,
@@ -923,6 +1245,7 @@ public enum StaticSite {
             wasmScriptPath: tree.wasmPath,
             bootShell: tree.bootShell,
             bootConfig: bootConfig,
+            interopScriptURL: tree.wasmPath == nil ? nil : config.interopScriptURL,
             lang: localization == nil ? "en" : tree.renderLocale.identifier,
             dir: localization != nil && tree.renderLocale.isRTL ? "rtl" : nil))
         return RenderedPage(html: doc, css: tree.css, head: head, outcome: tree.outcome,

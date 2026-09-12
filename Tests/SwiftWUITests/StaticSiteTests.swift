@@ -105,7 +105,7 @@ private struct BuildAttributionApp: App {
         let scriptEnd = try #require(snapshotRegion.range(of: "</script>"))
         #expect(snapshotRegion[..<scriptEnd.lowerBound].contains("prerendered-fact"))
         #expect(about.contains("\"tasks\":[\""))                  // completed loader recorded (non-empty list)
-        #expect(about.contains(#"<script type="module">import { init } from "\/app.js"; await init();</script>"#))
+        #expect(about.contains(#"<script type="module">import { init } from "\/app.js"; await window.__swiftwui_interop_ready; await init();</script>"#))
         #expect(about.contains("<script type=\"importmap\">"))    // dist bundle's bare wasi-shim import needs this
         let mapRange = try #require(about.range(of: "<script type=\"importmap\">"))
         let moduleRange = try #require(about.range(of: "<script type=\"module\">import"))
@@ -119,16 +119,43 @@ private struct BuildAttributionApp: App {
         struct TodoApp: App {
             init() {}
             var body: some Tag {
-                Router { Route("/todo/:id") { params in Text("todo \(params["id"] ?? "?")") } }
+                Router { Route("/todo/:id") { _ in TodoPage() } }
             }
+        }
+        struct TodoPage: Tag {
+            @QueryParam("tab") var tab: String?
+            var body: some Tag { Text("tab \(tab ?? "missing")") }
         }
         let out = tempDir()
         let report = try await StaticSite.generate(TodoApp.self, config: .init(
             outDir: out, mode: .staticOnly, paths: ["/todo/1?tab=all"]))
         #expect(report.redirects.isEmpty)
         let todo = try String(contentsOfFile: out + "/todo/1/index.html", encoding: .utf8)
-        #expect(todo.contains("todo 1"))
+        #expect(todo.contains("tab all"))  // query remains available to static tasks/pages
         #expect(!todo.contains("http-equiv=\"refresh\""))
+    }
+
+    @Test func fragmentInCopiedBrowserURLUsesTheUnderlyingRoute() async throws {
+        // Fragments are client-only. A copied URL must not become a false 404
+        // during enumeration or a literal `#...` directory in dist.
+        struct TodoApp: App {
+            init() {}
+            var body: some Tag {
+                Router { Route("/todo/:id") { params in Text("todo \(params["id"] ?? "?")") } }
+            }
+        }
+        let out = tempDir()
+        let report = try await StaticSite.generate(TodoApp.self, config: .init(
+            outDir: out, mode: .staticOnly, paths: ["/todo/1?tab=all#details"]))
+        #expect(report.pages == ["/todo/1"])
+        #expect(report.unmatchedPaths.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: out + "/todo/1/index.html"))
+        #expect(!FileManager.default.fileExists(atPath: out + "/todo/1?tab=all#details/index.html"))
+
+        let direct = try await StaticSite.render(TodoApp.self, path: "/todo/1#details",
+                                                  config: .init(outDir: out, mode: .staticOnly))
+        #expect(direct.outcome == .page)
+        #expect(direct.path == "/todo/1")
     }
 
     @Test func dynamicPatternWithoutPathsIsSkippedWithWarning() async throws {

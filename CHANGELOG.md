@@ -4,6 +4,130 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
+## [Unreleased]
+
+## [0.10.0] - 2026-09-12
+
+### Added
+
+- `VirtualForEach` provides fixed-height, keyed virtual collections with an
+  overscan window and bounded initial HTML. Use `.complete` where every item
+  must remain in the document; variable-height rows are not supported.
+- Opt-in `RuntimeDiagnostics` reports render reasons, dirty-cover counts,
+  lifetime counts and optional tree metadata. Debug WASM builds can expose the
+  bounded metadata ring through `DOMRuntime.enableDevTools()`.
+- `ExplicitComponentRegistration` gives components stable identifiers and named
+  state slots for hydration snapshots. The dependency-free
+  `Scripts/generate-component-registration.mjs` prototype emits same-file
+  registrations, including for private wrapper storage.
+- `WebResourceCache`, `AsyncResource` and `AsyncBoundary` add keyed GET caching,
+  request deduplication, TTL, cancellation, invalidation and explicit hydration
+  seeds. `EnhancedForm`/`FormSubmission` add asynchronous form state and field
+  errors while ordinary form submission remains available without JavaScript.
+- `StaticSiteMode.staticOnly` emits no boot loader, import map, state snapshot
+  or WASM resource. Hydrated static sites may defer activation with
+  `BootActivation.idle`, `.visible` or `.interaction`; `DOMRuntime.mountIsland`
+  adds disposable, selectively activated leaf widgets.
+- Public static-delivery validation supports indexed metadata, canonical URLs,
+  JSON-LD and generated local links. `StaticSiteConfig.delivery` exports exact
+  redirects, trailing-slash policy and 404 behavior for preview and nginx.
+- `DOMNavigationOptions` adds post-commit focus, polite title announcements and
+  back/forward scroll restoration.
+- `ComputeWorker` supports typed `Sendable` messages, cancellation, explicit
+  `WorkerBuffer` transfer ownership, compiled-module reuse and terminal teardown.
+- `swiftwui build` writes `swiftwui-build-report.json` with toolchain,
+  raw/gzip/Brotli, section and import data. `swiftwui metrics` validates a
+  built artifact against a fixture/configuration-specific size budget. Optional
+  `swiftwui-assets.json` produces responsive image variants and asset metadata.
+- `swiftwui interop init --target <target>` scaffolds an app-owned BridgeJS
+  boundary pinned to JavaScriptKit 0.56.1. The sample facade covers synchronous
+  calls, promises, errors and explicitly disposable callbacks.
+- `ScrollReader` and `ScrollProxy` expose fresh layout metrics and explicit
+  anchor restoration/end scrolling after DOM commit. Reader-scoped lookup,
+  hydration and unmount guards preserve host ownership; smooth commands respect
+  reduced motion. Existing scroll events and CSS `ScrollBehavior` remain compatible.
+- `onDocumentVisibilityChange(initial:_:)` and
+  `onVisualViewportChange(initial:_:)` deliver deduplicated, lifecycle-scoped
+  browser visibility and visual viewport snapshots after the client commit.
+- Typed visibility roots and margins let elements observe the viewport or the
+  nearest named ancestor, with exact-host rebinding and logical-unmount cleanup.
+- `KeyEvent.isComposing` and callback-scoped `preventDefault()` support IME-aware
+  Enter handling without a separate JavaScript listener. Existing initializer
+  calls remain compatible; delayed cancellation calls have no effect.
+- `WebFile.blob()`, range-based `WebBlob.slice`, and `WebSession.upload(for:from:)`
+  send browser-selected files without first reading them into WASM. Data-backed
+  blobs support native and browser uploads; existing readers/transports can opt
+  into the new capabilities without changing their existing conformances.
+- Opaque `WebObjectURL` handles work with Img, Video, Audio, and A. Resources are
+  retained through shared use and exit transitions, support explicit idempotent
+  revocation, and are omitted from generated HTML and hydration snapshots.
+
+### Changed
+
+- Dirty runtime updates now use ancestor-based minimal cover selection and one
+  indexed batched tree replacement. In the repository's serialized native
+  debug fixture, a 500-row coalesced flush fell from 739.92 ms to 31.59 ms
+  (23.4x). This is not a browser, release-mode, or Core Web Vitals claim.
+- `Runtime.unmount()` is terminal and drains listeners, effects, state,
+  observation gates and browser subscriptions. It is safe to call repeatedly;
+  a disposed runtime cannot be mounted again.
+- Build preflight records the resolved `swift` and `swiftc` paths and rejects
+  missing, Embedded, malformed or known mismatched host/compiler/SDK selections.
+- The modernized Counter release is 9,611,359 bytes raw, 3,433,088 gzip and
+  2,497,701 Brotli 11, versus 9,407,550 / 3,353,472 / 2,415,062 before this
+  work. The default shared WASM module is therefore about 2.2% larger raw;
+  this release does not claim a general WASM-size reduction.
+
+### Fixed
+
+- Visibility callbacks now compare `intersectionRatio` with the requested
+  threshold and process every queued IntersectionObserver entry. Thresholds
+  must be finite and in `0...1`; zero preserves `isIntersecting` semantics.
+- Native HTTP requests preserve fractional timeout values and report URLSession
+  cancellation and timeout as `WebFetchError.cancelled` and `.timeout`.
+- State/observation callbacks, async resource completions and deferred work
+  now reject stale generations after unmount or replacement.
+- Static output rejects traversal, percent-encoded traversal and symlink escape
+  paths. Redirects are served as their configured 301, 302 or 308 status, and
+  indexed unknown routes return 404 rather than an accidental SPA response.
+- Tutorial sitemap generation now uses the site origin and avoids duplicated
+  `/tutorials/tutorials/` URL prefixes.
+- The CLI HTTP server now uses the platform's socket type correctly on Linux.
+- Stopping the HTTP server shuts down its listening socket before closing it,
+  so a blocked Linux accept loop releases the server.
+- Native build-time fetches reuse a cookie-, credential- and cache-free
+  ephemeral session, avoiding Swift 6.3.3 Linux URLSession teardown failures.
+- Worker buffer ownership changes only after a successful `postMessage`, so a
+  synchronous clone failure leaves the source buffer usable. Failed workers now
+  complete all pending calls.
+- Delayed boot activation, interop loading, malformed history fragments, focus
+  restoration and responsive-image regeneration have regression coverage.
+
+### Migration
+
+- Existing applications remain source compatible by default. To retain stable
+  component state across wrapper reorder/add/remove, opt into
+  `ExplicitComponentRegistration` and give each state slot a unique `stableID`;
+  do not mix named and unnamed slots within a component.
+- Virtual collections require a truthful `rowHeight`. Keep variable-height,
+  searchable or fully crawlable collections on `ForEach`/`.complete` or publish
+  paginated static pages.
+- Retain every returned `DOMIsland` and call `dispose()` when its container is
+  removed. Islands require a dedicated container outside a reconciled root,
+  cannot contain `Router`, replace their initial static children on activation,
+  and share the document's module bytes.
+- Public sites should opt into `StaticSiteConfig(indexing: .indexed)` only after
+  providing an absolute origin, title, description and valid local links. Set
+  `activationSelector` for visible/interaction activation. Regenerate hosting
+  adapter files after each SSG run.
+- BridgeJS is opt-in experimental integration. Run `swiftwui interop init`,
+  commit generated bindings, retain and dispose subscriptions, and pin the Node
+  environment used for TS2Swift generation. It is not automatic npm-package
+  binding generation.
+- Swift 6.3.3 remains the supported compiler. The Swift 6.4 continuous
+  Observation and Embedded Swift work are isolated experiments: no compatible
+  full SwiftWUI Embedded/browser profile is included.
+
 ## [0.9.2] - 2026-08-05
 
 ### Fixed

@@ -48,13 +48,16 @@ where Base.HostNode: AnyObject {
     /// ObjectIdentifier of the container itself — trailing-leftover tolerance
     /// (finishAdoption) is container-level only, this is the comparison target.
     private let containerID: ObjectIdentifier
+    private let diagnostics: RuntimeDiagnostics?
+    private var emittedDiagnostic = false
     /// D6 wants debug-loud mismatches, but the fallback path itself must be
     /// testable in debug — tests that exercise deliberate mismatches set false.
     public var _assertOnMismatch = true
 
-    public init(base: Base, container: HostNode) {
+    public init(base: Base, container: HostNode, diagnostics: RuntimeDiagnostics? = nil) {
         self.base = base
         self.containerID = ObjectIdentifier(container)
+        self.diagnostics = diagnostics
         buildStream(of: container)
         // An empty container is a cold mount, not a mismatch — Task 13's
         // fallback re-wraps a cleared container and must not trap.
@@ -86,6 +89,13 @@ where Base.HostNode: AnyObject {
         (parser drops them). Falling back to a cold render.
         """
         print("[SwiftWUI] " + msg)                        // non-trapping diagnostic, all builds
+        if !emittedDiagnostic {
+            emittedDiagnostic = true
+            diagnostics?.emit(.adoption(RuntimeAdoptionDiagnostic(
+                outcome: .failed, consumedNodes: cursor,
+                availableNodes: stream.count, message: msg
+            )))
+        }
         if _assertOnMismatch { assertionFailure(msg) }    // debug trap preserved
         active = false
     }
@@ -112,16 +122,25 @@ where Base.HostNode: AnyObject {
     /// content, not foreign injections, and still fail → cold render (D6).
     /// Always deactivates adoption — subsequent calls create for real.
     public func finishAdoption() -> Bool {
+        var toleratedTrailing = 0
         if !failed && cursor < stream.count {
             let allContainerLevel = stream[cursor...].allSatisfy { parentOf[ObjectIdentifier($0)] == containerID }
             if allContainerLevel {
-                print("[SwiftWUI] hydration: \(stream.count - cursor) unmanaged trailing node(s) left in container (e.g. browser-extension injections) — tolerated")
+                toleratedTrailing = stream.count - cursor
+                print("[SwiftWUI] hydration: \(toleratedTrailing) unmanaged trailing node(s) left in container (e.g. browser-extension injections) — tolerated")
             } else {
                 fail(expected: "end of stream", found: "leftover nodes")
             }
         }
         let ok = !failed
         active = false
+        if ok && !emittedDiagnostic {
+            emittedDiagnostic = true
+            diagnostics?.emit(.adoption(RuntimeAdoptionDiagnostic(
+                outcome: toleratedTrailing == 0 ? .succeeded : .toleratedTrailingNodes(toleratedTrailing),
+                consumedNodes: cursor, availableNodes: stream.count
+            )))
+        }
         return ok
     }
 
@@ -153,9 +172,25 @@ where Base.HostNode: AnyObject {
     }
 
     // MARK: passthrough
+    public func _scrollMetrics(in target: _ScrollTarget<HostNode>) -> ScrollMetrics? {
+        base._scrollMetrics(in: target)
+    }
+    public func _captureScrollAnchor(in target: _ScrollTarget<HostNode>,
+                                     candidates: [HostNode]) -> _ScrollAnchorGeometry? {
+        base._captureScrollAnchor(in: target, candidates: candidates)
+    }
+    public func _restoreScrollAnchor(in target: _ScrollTarget<HostNode>, element: HostNode, offset: Double) {
+        base._restoreScrollAnchor(in: target, element: element, offset: offset)
+    }
+    public func _scrollToEnd(in target: _ScrollTarget<HostNode>, behavior: ScrollProxy.Behavior) {
+        base._scrollToEnd(in: target, behavior: behavior)
+    }
     public func setText(_ node: HostNode, _ text: String) { base.setText(node, text) }
     public func setAttribute(_ node: HostNode, name: String, value: String) { base.setAttribute(node, name: name, value: value) }
     public func removeAttribute(_ node: HostNode, name: String) { base.removeAttribute(node, name: name) }
+    public func setObjectURL(_ node: HostNode, name: String, value: WebObjectURL?) {
+        base.setObjectURL(node, name: name, value: value)
+    }
     public func setStyleProperty(_ node: HostNode, name: String, value: String) { base.setStyleProperty(node, name: name, value: value) }
     // Must forward: this wrapper stays the runtime's backend for the app's
     // whole lifetime after a successful adoption (DOMRuntime.mount), so
@@ -170,8 +205,18 @@ where Base.HostNode: AnyObject {
     public func removeEventListener(_ node: HostNode, event: String) { base.removeEventListener(node, event: event) }
     public func observe(_ node: Base.HostNode, kind: ObserverKind, id: ListenerID) { base.observe(node, kind: kind, id: id) }
     public func unobserve(_ node: Base.HostNode, kind: ObserverKind) { base.unobserve(node, kind: kind) }
+    public func observeVisibility(_ node: HostNode, root: VisibilityObserverRoot<HostNode>,
+                                  threshold: Double, rootMargin: VisibilityMargin,
+                                  onChange: @escaping (Bool) -> Void) -> (() -> Void)? {
+        base.observeVisibility(node, root: root, threshold: threshold,
+                               rootMargin: rootMargin, onChange: onChange)
+    }
     public func remove(_ child: HostNode, from parent: HostNode) { base.remove(child, from: parent) }
     public func setStylesheet(_ text: String) { base.setStylesheet(text) }
+    public func navigationWillBegin(isHistory: Bool) {
+        base.navigationWillBegin(isHistory: isHistory)
+    }
+    public func navigationDidCommit() { base.navigationDidCommit() }
     public func pushState(path: String) { base.pushState(path: path) }
     public func replaceState(path: String) { base.replaceState(path: path) }
     public func historyBack() { base.historyBack() }
@@ -204,6 +249,13 @@ where Base.HostNode: AnyObject {
     }
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
         base.beginWindowEventObservation(sink)
+    }
+    public func beginDocumentVisibilityObservation(_ sink: @escaping (Bool) -> Void) -> Bool? {
+        base.beginDocumentVisibilityObservation(sink)
+    }
+    public func beginVisualViewportObservation(_ sink: @escaping (VisualViewportMetrics) -> Void)
+        -> VisualViewportMetrics? {
+        base.beginVisualViewportObservation(sink)
     }
     public func observeMediaQuery(_ condition: String, onChange: @escaping (Bool) -> Void) -> Bool {
         base.observeMediaQuery(condition, onChange: onChange)

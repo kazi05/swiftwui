@@ -103,6 +103,8 @@ public enum BootProbe {
                 case .scroll: name = ".onWindowScroll"
                 case .resize: name = ".onWindowResize"
                 }
+            case .documentVisibility: name = ".onDocumentVisibilityChange"
+            case .visualViewport: name = ".onVisualViewportChange"
             // NOT `.dropDestination`, which is a different modifier entirely
             // (it registers attributes, not this effect).
             case .dropGuard:   name = ".preventsAccidentalDropNavigation"

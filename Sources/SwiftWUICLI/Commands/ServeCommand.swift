@@ -15,7 +15,9 @@ struct Serve: ParsableCommand {
         let root = URL(fileURLWithPath: dir, relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath)).path
         guard FileManager.default.fileExists(atPath: root) else { throw ToolchainError.io("'\(dir)' not found — run swiftwui build/ssg first") }
         let site = LocaleNegotiation.read(distDir: root)
-        var files = StaticFiles.handler(urlPrefix: "/", root: root, spaFallback: true, localeSite: site)
+        let delivery = StaticDelivery.read(distDir: root)
+        var files = StaticFiles.handler(urlPrefix: "/", root: root, spaFallback: true,
+                                        localeSite: site, delivery: delivery)
         if bootDebug {
             files = DevInjection.bootDebugFlag(wrapping: files)
             // `__swiftwui_dev` is not single-purpose: DOMBackend also skips

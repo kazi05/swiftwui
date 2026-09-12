@@ -5,6 +5,14 @@ final class StateBox<Value> {
     init(_ value: Value) { self.value = value }
 }
 
+protocol _InvalidationClearableBox: AnyObject {
+    func clearInvalidation()
+}
+
+extension StateBox: _InvalidationClearableBox {
+    func clearInvalidation() { invalidate = nil }
+}
+
 /// Resolver-facing seam (spec §6). Machinery, not user API.
 public protocol _StateProperty {
     var _box: AnyObject { get }

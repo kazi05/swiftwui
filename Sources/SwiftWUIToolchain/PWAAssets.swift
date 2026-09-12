@@ -10,7 +10,8 @@ public enum PWAAssets {
     /// (spec §SSG; sitemap exclusion is final-review #2).
     static func isExcluded(relPath: String) -> Bool {
         if relPath == "sw.js" || relPath == "sw-assets.js" { return true }
-        if relPath == "nginx.conf" { return true }
+        if relPath == "nginx.conf" || relPath == "swiftwui-delivery.json"
+            || relPath == "swiftwui-redirects.conf" || relPath == "swiftwui-build-report.json" { return true }
         if relPath == LocaleNegotiation.descriptorName { return true }   // build descriptor, read by the toolchain
         if relPath.hasSuffix("/index.html") { return true }
         if relPath == "sitemap.xml" { return true }

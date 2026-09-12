@@ -18,6 +18,10 @@ public nonisolated struct BootShell: Codable, Equatable {
 ///
 /// `nonisolated` like `BootShell` above: `swiftwui build` constructs one from a
 /// nonisolated command body to stamp it into `dist/index.html`.
+public nonisolated enum BootActivation: String, Codable, Sendable {
+    case eager, idle, visible, interaction
+}
+
 public nonisolated struct BootConfig: Codable, Equatable {
     public var wasmURL: String
     public var entryURL: String
@@ -29,9 +33,26 @@ public nonisolated struct BootConfig: Codable, Equatable {
     public var shimURL: String
     public var sizeBytes: Int?
     public var delayMS: Int
+    public var activation: BootActivation = .eager
+    public var activationSelector: String? = nil
     public init(wasmURL: String, entryURL: String, shimURL: String,
-                sizeBytes: Int?, delayMS: Int) {
+                sizeBytes: Int?, delayMS: Int, activation: BootActivation = .eager,
+                activationSelector: String? = nil) {
         self.wasmURL = wasmURL; self.entryURL = entryURL; self.shimURL = shimURL
         self.sizeBytes = sizeBytes; self.delayMS = delayMS
+        self.activation = activation; self.activationSelector = activationSelector
+    }
+    private enum CodingKeys: String, CodingKey {
+        case wasmURL, entryURL, shimURL, sizeBytes, delayMS, activation, activationSelector
+    }
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        wasmURL = try values.decode(String.self, forKey: .wasmURL)
+        entryURL = try values.decode(String.self, forKey: .entryURL)
+        shimURL = try values.decode(String.self, forKey: .shimURL)
+        sizeBytes = try values.decodeIfPresent(Int.self, forKey: .sizeBytes)
+        delayMS = try values.decode(Int.self, forKey: .delayMS)
+        activation = try values.decodeIfPresent(BootActivation.self, forKey: .activation) ?? .eager
+        activationSelector = try values.decodeIfPresent(String.self, forKey: .activationSelector)
     }
 }

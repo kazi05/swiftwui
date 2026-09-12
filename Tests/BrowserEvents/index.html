@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>SwiftWUI browser event regressions</title></head>
+<body>
+  <script type="importmap">
+    {"imports":{"@bjorn3/browser_wasi_shim":"/.build/plugins/PackageToJS/outputs/Package/node_modules/@bjorn3/browser_wasi_shim/dist/index.js"}}
+  </script>
+  <script type="module">
+    window.__browserEvents = {
+      zero: [], half: [], full: [], zeroSize: [],
+      composition: [], keyUpComposition: [], late: []
+    };
+    window.__rootProbe ??= { clipped: [], margin: [], scoped: [], offscreenRoot: [],
+      offscreenViewport: [], exiting: [] };
+    window.__viewportProbe ??= { document: [], metrics: [], added: {}, removed: {} };
+    import { init } from "/.build/plugins/PackageToJS/outputs/Package/index.js";
+    await init();
+    document.documentElement.dataset.ready = "true";
+  </script>
+</body>
+</html>

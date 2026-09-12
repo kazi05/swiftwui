@@ -15,13 +15,42 @@ public final class Runtime<Backend: RendererBackend> {
     private let animationValues = AnimationValueStore()
     private let transitions = TransitionRegistry()
     private let windowEvents = WindowEventHub()
+    private lazy var scrollRegistry = ScrollRegistry(
+        backend: applier.backend,
+        mountedRoot: { [weak self] id in self?.applier.componentIndex[id] },
+        operationsAllowed: { [weak self] in self.map { !$0.isRendering } ?? false },
+        reducedMotion: { [weak self] in self?.signals.reduceMotion ?? true },
+        scheduleWork: { [weak self] in self?.scheduleRuntimeWork() }
+    )
+    private lazy var documentVisibilityEvents = SnapshotSubscriptionHub<Bool>(
+        begin: { [weak self] sink in
+            self?.applier.backend.beginDocumentVisibilityObservation(sink)
+        }, schedule: scheduleMicrotask)
+    private lazy var visualViewportEvents = SnapshotSubscriptionHub<VisualViewportMetrics>(
+        begin: { [weak self] sink in
+            self?.applier.backend.beginVisualViewportObservation(sink)
+        }, schedule: scheduleMicrotask)
     private let rootTag: AnyTag
     private let scheduleMicrotask: (@escaping () -> Void) -> Void
     private var current: Node?
     private var dirty: Set<NodeIdentity> = []
     private var scheduled = false
     private var isRendering = false
+    public var diagnostics: RuntimeDiagnostics?
+    private var pendingDiagnosticReasons: [RuntimeRenderReason] = []
+    private var mounted = false
+    private var disposed = false
+    private var passBatchDepth = 0
     private var passCounter = 0     // bumped per render/subtree pass; scopes setStyleWrapper reset
+
+    private struct ScopedRegistryCleanup {
+        let root: NodeIdentity
+        let newNode: Node
+        let reachable: Set<NodeIdentity>
+        let listeners: Set<ListenerID>
+        let effects: [EffectRequest]
+        let context: ResolveContext
+    }
     private let styleRegistry = StyleRegistry()
     private var flushedStyleVersion = 0
     private let globalStyles: [Rule]
@@ -66,6 +95,11 @@ public final class Runtime<Backend: RendererBackend> {
     private var _lastEnvironment = EnvironmentValues()
     private var redirectHops = 0
     private var routeMatched = true
+    /// Set by a URL move and consumed only after the destination pass commits.
+    /// A guard redirect dirties root during the intermediate pass, so the hook
+    /// naturally waits for the redirected destination rather than announcing
+    /// content that was never presented as a settled route.
+    private var navigationCommitPending = false
     private let themes: [ThemeDefinition]
     private let fontFaces: [FontFace]
     var _forceFullPasses = false     // test hook (Task 7): bypass scoping
@@ -123,6 +157,7 @@ public final class Runtime<Backend: RendererBackend> {
     var _current: Node? { current }
     public var _registryText: String { styleRegistry.text }        // test hook + SPI (spec §5)
     public var _effects: EffectStore { effects }            // SPI: SSG driver (Task 11) / hydration boot (Task 13)
+    public var _isMounted: Bool { mounted }
 
     // SSG/hydration SPI (spec §5): stable underscore-public surface for
     // SwiftWUIStatic and SwiftWUIDOM. Not API.
@@ -180,7 +215,8 @@ public final class Runtime<Backend: RendererBackend> {
                 initialPath: String = "/",
                 scheduleMicrotask: @escaping (@escaping () -> Void) -> Void,
                 globalStyles: [Rule] = [], themes: [ThemeDefinition] = [], fontFaces: [FontFace] = [],
-                localization: Localization? = nil) {
+                localization: Localization? = nil,
+                diagnostics: RuntimeDiagnostics? = nil) {
         // Routing never sees the locale segment: it is split off here and
         // re-applied only at the output boundaries (`_externalPath`).
         let (rawPath, query, search) = RouteURL.split(initialPath)
@@ -203,6 +239,7 @@ public final class Runtime<Backend: RendererBackend> {
         self.themes = themes
         self.fontFaces = fontFaces
         self._localization = localization
+        self.diagnostics = diagnostics
         if let localization {
             signals._setDefaultLocale(localization.default)
             signals._setLocale(urlLocale ?? localization.default)   // the URL wins over the default
@@ -223,9 +260,21 @@ public final class Runtime<Backend: RendererBackend> {
             #endif
         }
         effects._windowHub = windowEvents
+        effects._documentVisibilityHub = documentVisibilityEvents
+        effects._visualViewportHub = visualViewportEvents
         effects._onDropGuardChange = { [weak self] enabled in
             self?.applier.backend.setDropNavigationGuard(enabled)
         }
+        applier.scheduleVisibility = { [weak self] job in
+            self?.scheduleMicrotask(job)
+        }
+        applier.dispatchVisibility = { [weak self] id, value in
+            self?.dispatch(id, payload: value)
+        }
+        effects._onCancelConfiguredVisibility = { [weak self] in
+            self?.applier.cancelVisibility()
+        }
+        effects._onCancelScroll = { [weak self] in self?.scrollRegistry.cancelAll() }
         windowEvents.onFirstSubscriber = { [weak self] in
             guard let self else { return }
             self.applier.backend.beginWindowEventObservation { [weak self] kind, payload in
@@ -240,9 +289,13 @@ public final class Runtime<Backend: RendererBackend> {
         listeners.handler(for: id)?(payload)
     }
 
-    func markDirty(_ id: NodeIdentity) {
+    func markDirty(_ id: NodeIdentity, reason: RuntimeRenderReason? = nil) {
         assert(!isRendering, "State write during body evaluation")
+        guard mounted else { return }
         dirty.insert(id)
+        if diagnostics != nil {
+            pendingDiagnosticReasons.append(reason ?? .dependency(id))
+        }
         if let t = Transaction._active {
             pendingTransactions[id] = t
             if let g = t._group, !_pendingCompletionGroups.contains(where: { $0 === g }) {
@@ -250,13 +303,22 @@ public final class Runtime<Backend: RendererBackend> {
             }
         }
         if let vt = ViewTransitionScope._active { armViewTransition(vt, direction: nil) }
-        if !scheduled {
-            scheduled = true
-            scheduleMicrotask { [weak self] in self?.flush() }
-        }
+        scheduleRuntimeWork()
+    }
+
+    private func scheduleRuntimeWork() {
+        guard !scheduled else { return }
+        scheduled = true
+        scheduleMicrotask { [weak self] in self?.flush() }
     }
 
     public func mount() {
+        guard !mounted && !disposed else { return }
+        mounted = true
+        let diagnosticStart = diagnostics.map { _ in ContinuousClock.now }
+        let passBefore = passCounter
+        beginPassBatch()
+        defer { endPassBatch() }
         applier.backend.beginEnvironmentObservation(signals.writer)
         _resolveInitialLocale()
         storage.readBacking = { [weak self] kind, key in
@@ -272,10 +334,48 @@ public final class Runtime<Backend: RendererBackend> {
         for theme in themes { styleRegistry.registerRaw(theme.ruleText) }
         for rule in globalStyles { rule.register(into: styleRegistry, scope: nil) }
         renderPass()
+        emitRenderDiagnostic(kind: .mount, reasons: [.mount], dirtyCount: 0,
+                             coveredRootCount: 1, passCount: passCounter - passBefore,
+                             started: diagnosticStart)
+    }
+
+    /// Disposes the managed render tree while leaving the caller-owned
+    /// container in place. Pending microtasks become inert and every runtime
+    /// registry releases its handlers, state invalidations and subscriptions.
+    public func unmount() {
+        guard mounted else { return }
+        mounted = false
+        disposed = true
+        scheduled = false
+        dirty.removeAll()
+        pendingTransactions.removeAll()
+        pendingDiagnosticReasons.removeAll()
+        _pendingCompletionGroups.removeAll()
+        pendingViewTransition = nil
+        pendingViewTransitionIsNavigation = false
+        pendingNavigationDirection = nil
+        navigationCommitPending = false
+        vtInFlight = false
+
+        let disappearCallbacks = effects.reconcile([], under: .root)
+        if let mountedRoot = applier.root.children.first {
+            applier.unmount(mountedRoot)
+        }
+        applier.root.children.removeAll()
+        current = nil
+        for callback in disappearCallbacks { callback() }
+        effects._cancelAll()
+        scrollRegistry.cancelAll()
+        listeners.removeAll()
+        animationValues.removeAll()
+        transitions.removeAll()
+        store.removeAll()
+        diagnostics = nil
     }
 
     /// One data-theme attribute write on the mount container; zero re-render.
     public func setTheme(_ name: String?) {
+        guard mounted else { return }
         let container = applier.root.host!
         if let name {
             applier.backend.setAttribute(container, name: "data-theme", value: name)
@@ -289,6 +389,7 @@ public final class Runtime<Backend: RendererBackend> {
     public func navigate(to url: String, replace: Bool = false,
                          transition: PageTransition? = nil,
                          ambient: PageTransition? = nil) {
+        guard mounted else { return }
         assert(!RouteURL.isExternal(url),
                "navigate() expects an app-internal path, got '\(url)' — use a plain A/Link for external URLs")
         let (rawPath, query, search) = RouteURL.split(url)
@@ -304,6 +405,8 @@ public final class Runtime<Backend: RendererBackend> {
         }
         #endif
         guard path != currentPath || query != currentQuery else { redirectHops = 0; return }  // arriving at the current location ends any redirect chain
+        applier.backend.navigationWillBegin(isHistory: false)
+        navigationCommitPending = true
         currentPath = path; currentQuery = query; _currentSearch = search
         let externalPath = _externalPath(path)
         let full = search.isEmpty ? externalPath : externalPath + "?" + search
@@ -328,7 +431,7 @@ public final class Runtime<Backend: RendererBackend> {
         let resolved = transition
             ?? (replace ? nil : (routeDeclaredTransition(for: path) ?? ambient))
         armViewTransition(resolved, direction: replace ? nil : .push, isNavigation: true)
-        markDirty(.root)
+        markDirty(.root, reason: .navigation(path: path, isHistory: false))
     }
 
     /// The single client-side URL move. Everything the prerender wrote about
@@ -364,6 +467,9 @@ public final class Runtime<Backend: RendererBackend> {
     /// Browser back/forward: the location already changed — no pushState.
     /// A back/forward step across locale prefixes also adopts the URL's locale.
     public func handlePopState(url: String) {
+        guard mounted else { return }
+        applier.backend.navigationWillBegin(isHistory: true)
+        navigationCommitPending = true
         // The URL moved without going through `moveURL` (the browser did it).
         applier.backend.dropPrerenderedHeadLinks()
         let (rawPath, query, search) = RouteURL.split(url)
@@ -399,7 +505,7 @@ public final class Runtime<Backend: RendererBackend> {
         _currentSearch = search
         armViewTransition(routeDeclaredTransition(for: currentPath) ?? routerTransitionDefault,
                           direction: .pop, isNavigation: true)
-        markDirty(.root)
+        markDirty(.root, reason: .navigation(path: currentPath, isHistory: true))
     }
 
     /// Internal route path → browser-visible path. The single place that
@@ -475,6 +581,7 @@ public final class Runtime<Backend: RendererBackend> {
     /// to `signals.locale` would not invalidate the components displaying
     /// translated text.
     public func setLocale(_ locale: LocaleID) {
+        guard mounted else { return }
         guard let localization = _localization else { return }
         guard localization.supported.contains(locale) else {
             #if DEBUG
@@ -510,6 +617,8 @@ public final class Runtime<Backend: RendererBackend> {
     }
 
     public func flush() {
+        guard mounted else { scheduled = false; return }
+        if passBatchDepth > 0 { scheduled = false; return }
         // A transition's update callback owns the next pass; a flush that lands
         // in the capture window must ALSO clear `scheduled`, or markDirty's
         // `if !scheduled` gate stops queueing microtasks for good.
@@ -524,10 +633,16 @@ public final class Runtime<Backend: RendererBackend> {
         let suppressOnce = _suppressTransitionsOnce
         _suppressTransitionsOnce = false
         guard !dirty.isEmpty else {
-            pendingViewTransition = nil; pendingViewTransitionIsNavigation = false; return
+            pendingViewTransition = nil
+            pendingViewTransitionIsNavigation = false
+            scrollRegistry.drain()
+            if scrollRegistry.shouldScheduleDrain { scheduleRuntimeWork() }
+            return
         }
         let ids = dirty
         dirty.removeAll()
+        let diagnosticReasons = pendingDiagnosticReasons
+        pendingDiagnosticReasons.removeAll(keepingCapacity: true)
         let drained = pendingTransactions
         pendingTransactions.removeAll()
         let drainedGroups = _pendingCompletionGroups
@@ -542,7 +657,8 @@ public final class Runtime<Backend: RendererBackend> {
 
         guard let vt = pendingViewTransition else {
             runPasses(ids, transactionOverrides: drained, groups: drainedGroups,
-                      suppressTransitions: suppressOnce)
+                      suppressTransitions: suppressOnce, allowScrollDuringViewTransition: false,
+                      diagnosticReasons: diagnosticReasons)
             return
         }
         pendingViewTransition = nil
@@ -565,7 +681,8 @@ public final class Runtime<Backend: RendererBackend> {
             // view-transition-name in the DOM and would duplicate a name in the
             // new frame, which makes the browser skip the whole transition.
             self.runPasses(ids, transactionOverrides: drained, groups: drainedGroups,
-                           suppressTransitions: true)
+                           suppressTransitions: true, allowScrollDuringViewTransition: true,
+                           diagnosticReasons: diagnosticReasons)
         }
         applier.backend.performViewTransition(vt, update: body)
     }
@@ -575,7 +692,14 @@ public final class Runtime<Backend: RendererBackend> {
     private func runPasses(_ ids: Set<NodeIdentity>,
                            transactionOverrides drained: [NodeIdentity: Transaction],
                            groups: [CompletionGroup],
-                           suppressTransitions: Bool) {
+                           suppressTransitions: Bool,
+                           allowScrollDuringViewTransition: Bool,
+                           diagnosticReasons: [RuntimeRenderReason]) {
+        let diagnosticStart = diagnostics.map { _ in ContinuousClock.now }
+        let passBefore = passCounter
+        var coveredRootCount = 1
+        beginPassBatch()
+        defer { endPassBatch(allowScrollDuringViewTransition: allowScrollDuringViewTransition) }
         // `_buildMode`: a build reads the tree as settled truth, the same
         // reasoning StaticSite already applies with `_disableViewTransitions`.
         // Its drain pumps after every build-task iteration and a `.staticTask`
@@ -591,15 +715,79 @@ public final class Runtime<Backend: RendererBackend> {
         if current == nil || _forceFullPasses || effects._buildMode || ids.contains(.root) {
             renderPass(transactionOverrides: drained, suppressTransitionsOnce: suppressTransitions)
         } else {
-            for id in minimalCover(ids) {
+            var cleanup: [ScopedRegistryCleanup] = []
+            let cover = minimalCover(ids)
+            coveredRootCount = cover.count
+            let oldNodes = findNodes(current!, at: Set(cover))
+            for id in cover {
                 guard let row = store.retainedRow(at: id) else { continue }   // removed this flush
-                subtreePass(id, row, transactionOverrides: drained,
-                            suppressTransitionsOnce: suppressTransitions)
+                guard let pass = subtreePass(id, row, transactionOverrides: drained,
+                                             suppressTransitionsOnce: suppressTransitions,
+                                             deferRegistryCleanup: true,
+                                             indexedOldNode: oldNodes[id]) else {
+                    cleanup.removeAll()
+                    break
+                }
+                cleanup.append(pass)
+            }
+            if !cleanup.isEmpty {
+                current = splicing(current!, with: Dictionary(
+                    uniqueKeysWithValues: cleanup.map { ($0.root, $0.newNode) }
+                ))
+                let roots = Set(cleanup.map(\.root))
+                let reachable = cleanup.reduce(into: Set<NodeIdentity>()) { $0.formUnion($1.reachable) }
+                let liveListeners = cleanup.reduce(into: Set<ListenerID>()) { $0.formUnion($1.listeners) }
+                store.sweep(under: roots, reachable: reachable)
+                listeners.sweep(under: roots, keep: liveListeners)
+                animationValues.sweep(under: roots, reachable: reachable)
+                if !effects._buildMode { applier.commitVisibility() }
+                sweepTransitions(under: roots)
+                #if DEBUG
+                warnOnDuplicateTransitionNames()
+                #endif
+                if styleRegistry.version != flushedStyleVersion {
+                    flushedStyleVersion = styleRegistry.version
+                    applier.backend.setStylesheet(styleRegistry.text)
+                }
+                let callbacks = effects.reconcile(cleanup.map {
+                    EffectReconcileBatch(root: $0.root, requests: $0.effects)
+                })
+                _commitViewportEffects()
+                for callback in callbacks { callback() }
+                for pass in cleanup {
+                    commitRouteEffects(pass.context)
+                    if pass.context.routerCount > 0 {
+                        routerTransitionDefault = pass.context.routerTransitionDefault
+                        routeTransitions = pass.context.routeTransitions
+                    }
+                }
             }
         }
+        if navigationCommitPending && dirty.isEmpty {
+            navigationCommitPending = false
+            applier.backend.navigationDidCommit()
+        }
+        emitRenderDiagnostic(kind: .update, reasons: diagnosticReasons,
+                             dirtyCount: ids.count, coveredRootCount: coveredRootCount,
+                             passCount: passCounter - passBefore, started: diagnosticStart)
         // Armed AFTER all of this flush's passes: an empty group (nothing yet
         // registered against it) fires on the next microtask (anim spec §7.4).
         for g in groups { g.arm(schedule: scheduleMicrotask) }
+    }
+
+    private func beginPassBatch() { passBatchDepth += 1 }
+
+    private func endPassBatch(allowScrollDuringViewTransition: Bool = false) {
+        passBatchDepth -= 1
+        guard passBatchDepth == 0 else { return }
+        if !dirty.isEmpty {
+            scheduleRuntimeWork()
+            return
+        }
+        if !vtInFlight || allowScrollDuringViewTransition {
+            scrollRegistry.drain()
+        }
+        if scrollRegistry.shouldScheduleDrain, !vtInFlight { scheduleRuntimeWork() }
     }
 
     /// Arms `t` for the next flush unless something forbids a transition
@@ -647,20 +835,19 @@ public final class Runtime<Backend: RendererBackend> {
 
     /// Drops ids that are descendants of other dirty ids (spec §2.2).
     func minimalCover(_ ids: Set<NodeIdentity>) -> [NodeIdentity] {
-        var cover: [NodeIdentity] = []
-        for id in ids.sorted(by: { $0.segments.count < $1.segments.count }) {
-            if !cover.contains(where: { id.isSelfOrDescendant(of: $0) }) { cover.append(id) }
-        }
-        return cover
+        ids.filter { !$0.hasStrictAncestor(in: ids) }
+            .sorted { $0.segments.count < $1.segments.count }
     }
 
     private func subtreePass(_ id: NodeIdentity, _ row: RetainedComponent,
                              transactionOverrides: [NodeIdentity: Transaction] = [:],
-                             suppressTransitionsOnce: Bool = false) {
-        guard let old = findNode(current!, at: id),
+                             suppressTransitionsOnce: Bool = false,
+                             deferRegistryCleanup: Bool = false,
+                             indexedOldNode: Node? = nil) -> ScopedRegistryCleanup? {
+        guard let old = indexedOldNode ?? findNode(current!, at: id),
               let mounted = applier.componentIndex[id] else {
             renderPass(transactionOverrides: transactionOverrides,
-                      suppressTransitionsOnce: suppressTransitionsOnce); return   // defensive: fall back to full — forward the flush's captures so animated writes don't silently degrade
+                      suppressTransitionsOnce: suppressTransitionsOnce); return nil   // defensive: fall back to full — forward the flush's captures so animated writes don't silently degrade
         }
         var ctx = ResolveContext(store: store, listeners: listeners,
                                  invalidate: { [weak self] in self?.markDirty($0) })
@@ -668,6 +855,7 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.registry = styleRegistry
         ctx.animationValues = animationValues
         ctx.transitions = transitions
+        if !effects._buildMode { ctx.scrollRegistry = scrollRegistry }
         passCounter += 1; ctx.pass = passCounter
         // Snapshot is never stale for routeInfo: navigation always marks .root (full pass),
         // which re-retains every row's environment.
@@ -677,6 +865,7 @@ public final class Runtime<Backend: RendererBackend> {
         // without re-seeding, the scope marker would drop from the modifier body
         // and wrapped content on this pass (scoped ≡ full invariant, spec §6/§11).
         ctx.scopeClass = row.scopeClass
+        ctx.visibilityRoots = row.visibilityRoots
         // Carrier (anim spec §4): this cover id's own captured transaction, plus
         // the full drained map so deeper dirty ids under this cover still
         // override at their own component boundary.
@@ -705,9 +894,11 @@ public final class Runtime<Backend: RendererBackend> {
             }
         }
 
-        store.sweep(under: id, reachable: ctx.reachable)
-        listeners.sweep(under: id, keep: ctx.liveListeners)
-        animationValues.sweep(under: id, reachable: ctx.reachable)
+        if !deferRegistryCleanup {
+            store.sweep(under: id, reachable: ctx.reachable)
+            listeners.sweep(under: id, keep: ctx.liveListeners)
+            animationValues.sweep(under: id, reachable: ctx.reachable)
+        }
 
         let patches = Reconciler().diff(old: old, new: new)
         applier.animationPass = AnimationPassContext(transactions: ctx.effectiveTransactions,
@@ -716,28 +907,40 @@ public final class Runtime<Backend: RendererBackend> {
                                                       defaultTransaction: ctx.transaction)
         applier.apply(patches, to: mounted)          // top-level per pass → shadow anchors safe
         applier.animationPass = nil
-        current = splicing(current!, at: id, with: new)
+        if !deferRegistryCleanup {
+            current = splicing(current!, at: id, with: new)
+        }
+        scrollRegistry.commit(ctx.scrollReaders, under: id)
+        if !effects._buildMode && !deferRegistryCleanup {
+            applier.commitVisibility()
+        }
         #if DEBUG
-        warnOnDuplicateTransitionNames()
+        if !deferRegistryCleanup { warnOnDuplicateTransitionNames() }
         #endif
         // Post-commit (see renderPass): survive an entry whose element is
         // still live even though the registering wrapper is above this pass root.
-        transitions.sweep(under: id, stillExists: { [weak self] eid in
-            self.flatMap { $0.current.flatMap { findNode($0, at: eid) != nil } } ?? false
-        })
+        if !deferRegistryCleanup {
+            sweepTransitions(under: [id])
+        }
 
-        if styleRegistry.version != flushedStyleVersion {
+        if !deferRegistryCleanup && styleRegistry.version != flushedStyleVersion {
             flushedStyleVersion = styleRegistry.version
             applier.backend.setStylesheet(styleRegistry.text)
         }
 
-        let callbacks = effects.reconcile(ctx.effects, under: id)
-        for cb in callbacks { cb() }
-        commitRouteEffects(ctx)
-        if ctx.routerCount > 0 {
-            routerTransitionDefault = ctx.routerTransitionDefault
-            routeTransitions = ctx.routeTransitions
+        if !deferRegistryCleanup {
+            let callbacks = effects.reconcile(ctx.effects, under: id)
+            _commitViewportEffects()
+            for cb in callbacks { cb() }
+            commitRouteEffects(ctx)
+            if ctx.routerCount > 0 {
+                routerTransitionDefault = ctx.routerTransitionDefault
+                routeTransitions = ctx.routeTransitions
+            }
         }
+        return ScopedRegistryCleanup(root: id, newNode: new, reachable: ctx.reachable,
+                                     listeners: ctx.liveListeners,
+                                     effects: ctx.effects, context: ctx)
     }
 
     /// Applies Router by-products after a pass (spec §5, §9): head writes when
@@ -788,6 +991,7 @@ public final class Runtime<Backend: RendererBackend> {
         ctx.registry = styleRegistry
         ctx.animationValues = animationValues
         ctx.transitions = transitions
+        if !effects._buildMode { ctx.scrollRegistry = scrollRegistry }
         ctx.transactionOverrides = transactionOverrides   // carrier (anim spec §4): applied at each component boundary
         passCounter += 1; ctx.pass = passCounter
         ctx.environment.setTheme = { [weak self] name in self?.setTheme(name) }
@@ -836,15 +1040,17 @@ public final class Runtime<Backend: RendererBackend> {
         applier.animationPass = nil
         // 5. COMMIT.
         current = new
+        scrollRegistry.commit(ctx.scrollReaders, under: .root)
+        if !effects._buildMode {
+            applier.commitVisibility()
+        }
         #if DEBUG
         warnOnDuplicateTransitionNames()
         #endif
         // Transition sweep runs post-commit: an entry survives while its
         // element is still in the tree even if this pass didn't re-run its
         // registering wrapper (wrapper above a subtree pass root).
-        transitions.sweep(under: .root, stillExists: { [weak self] id in
-            self.flatMap { $0.current.flatMap { findNode($0, at: id) != nil } } ?? false
-        })
+        sweepTransitions(under: [.root])
 
         if styleRegistry.version != flushedStyleVersion {
             flushedStyleVersion = styleRegistry.version
@@ -852,12 +1058,73 @@ public final class Runtime<Backend: RendererBackend> {
         }
 
         let callbacks = effects.reconcile(ctx.effects, under: .root)
+        _commitViewportEffects()
         for cb in callbacks { cb() }
         commitRouteEffects(ctx)
         if ctx.routerCount > 0 {
             routerTransitionDefault = ctx.routerTransitionDefault
             routeTransitions = ctx.routeTransitions
         }
+    }
+
+    private func _commitViewportEffects() {
+        guard !effects._buildMode else { return }
+        documentVisibilityEvents.commit()
+        visualViewportEvents.commit()
+    }
+
+    /// Transition existence used to run a recursive `findNode` for every live
+    /// registration. Indexing the candidates in one traversal keeps a large
+    /// transition-bearing sibling batch linear while preserving post-commit
+    /// sweep semantics.
+    private func sweepTransitions(under roots: Set<NodeIdentity>) {
+        guard !transitions.isEmpty, let current else {
+            transitions.sweep(under: roots, stillExists: { _ in false })
+            return
+        }
+        let existing = findNodes(current, at: Set(transitions.byIdentity.keys))
+        transitions.sweep(under: roots, stillExists: { existing[$0] != nil })
+    }
+
+    private func emitRenderDiagnostic(kind: RuntimeRenderDiagnostic.Kind,
+                                      reasons: [RuntimeRenderReason],
+                                      dirtyCount: Int, coveredRootCount: Int,
+                                      passCount: Int,
+                                      started: ContinuousClock.Instant?) {
+        guard let diagnostics, let started else { return }
+        var uniqueReasons: [RuntimeRenderReason] = []
+        for reason in reasons where !uniqueReasons.contains(reason) { uniqueReasons.append(reason) }
+        let lifetimes = RuntimeLifetimeCounts(
+            stateRows: store.rowCount,
+            retainedComponents: store.retainedCount,
+            listeners: listeners.count,
+            effects: effects.activeCount,
+            animationValues: animationValues.count,
+            transitions: transitions.byIdentity.count,
+            mountedComponents: applier.componentIndex.count
+        )
+        let tree = diagnostics.includeTreeStatistics ? current.map(runtimeTreeStatistics) : nil
+        let componentTree = diagnostics.includeComponentTree ? current.map(runtimeComponentTree) : nil
+        diagnostics.emit(.render(RuntimeRenderDiagnostic(
+            kind: kind, reasons: uniqueReasons, dirtyIdentityCount: dirtyCount,
+            coveredRootCount: coveredRootCount, passCount: passCount,
+            duration: started.duration(to: ContinuousClock.now), lifetimes: lifetimes,
+            tree: tree, componentTree: componentTree
+        )))
+    }
+
+    public func _deferViewportEffectsUntilAdoption() {
+        documentVisibilityEvents.deferUntilAdoption()
+        visualViewportEvents.deferUntilAdoption()
+    }
+
+    public func _deferScrollUntilAdoption() { scrollRegistry.deferUntilAdoption() }
+
+    public func _acceptScrollAdoption() { scrollRegistry.acceptAdoption() }
+
+    public func _acceptViewportEffectsAdoption() {
+        documentVisibilityEvents.acceptAdoption()
+        visualViewportEvents.acceptAdoption()
     }
 
     #if DEBUG

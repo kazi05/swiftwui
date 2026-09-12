@@ -11,8 +11,7 @@
 //   [data-swui-boot-veil]                                 real content, CSS-hidden
 //   [data-swui-boot-retry]                                delegated reload
 //
-// No JS test harness exists in this repo, so this file carries its reasoning in
-// comments; the only other coverage is the browser acceptance checklist.
+// Behavioral coverage: Tests/BootJS (Node VM) and browser acceptance fixtures.
 
 const root = document.documentElement;
 const tag = document.querySelector("script[data-swui-boot-config]");
@@ -27,6 +26,8 @@ const cfg = {
   // silently becomes 300. `data-size` is omitted outright when unknown.
   size: Number(tag.dataset.size ?? 0),
   delay: Number(tag.dataset.delay ?? 300),
+  activation: tag.dataset.activation ?? "eager",
+  activationSelector: tag.dataset.activationSelector,
 };
 const MIN_SHOW_MS = 300;    // once shown, stay shown this long (§6.3)
 const STALL_MS = 30000;     // no byte for this long === failed (§6.4)
@@ -199,26 +200,71 @@ const debug = window.__swiftwui_dev === true
   ? new URLSearchParams(location.search).get("swui-boot")
   : null;
 
-showTimer = setTimeout(show, cfg.delay);
+// Gate the download as well as init. Native links and forms keep working while
+// waiting; the triggering event is never cancelled or replayed synthetically.
+function awaitActivation() {
+  const target = cfg.activationSelector ? document.querySelector(cfg.activationSelector) : document.body;
+  if (!target) {
+    console.warn?.("SwiftWUI activation target not found; starting eagerly:", cfg.activationSelector);
+    return Promise.resolve();
+  }
+  if (cfg.activation === "idle") return new Promise((resolve) => {
+    if (window.requestIdleCallback) window.requestIdleCallback(resolve, { timeout: 2000 });
+    else setTimeout(resolve, 1);
+  });
+  if (cfg.activation === "visible") return new Promise((resolve) => {
+    if (!window.IntersectionObserver) { resolve(); return; }
+    const observer = new window.IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) { observer.disconnect(); resolve(); }
+    });
+    observer.observe(target);
+  });
+  if (cfg.activation === "interaction") return new Promise((resolve) => {
+    const events = ["pointerdown", "keydown", "focusin"];
+    const activate = () => {
+      for (const event of events) target.removeEventListener(event, activate, true);
+      resolve();
+    };
+    for (const event of events) target.addEventListener(event, activate, { capture: true, passive: true });
+  });
+  return Promise.resolve();
+}
+const mark = (phase) => performance.mark?.("swiftwui:" + phase);
 
 (async () => {
   try {
+    if (cfg.activation !== "eager") await awaitActivation();
+    showTimer = setTimeout(show, cfg.delay);
+    if (window.__swiftwui_interop_ready) {
+      let timeout;
+      try {
+        await Promise.race([window.__swiftwui_interop_ready, new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error("JavaScript interop initialization timed out")), STALL_MS);
+        })]);
+      } finally { clearTimeout(timeout); }
+    }
+    mark("network-start");
     if (debug === "fail") throw new Error("forced by ?swui-boot=fail");
+    let lastByteAt = performance.now();
+    // Start before fetch resolves too: a connection that stalls before response
+    // headers is just as unrecoverable as a body that stops yielding bytes.
+    stallTimer = setInterval(() => {
+      if (performance.now() - lastByteAt > STALL_MS) fail("stalled");
+    }, 1000);
     // No credentials option: a bare `crossorigin` on the preload link is the
     // Anonymous keyword — cors + same-origin — which is fetch's default.
     // credentials:"omit" mismatches the preload key and downloads the binary a
     // second time; dropping crossorigin makes the preload no-cors, whose opaque
     // response has a null body and cannot be read at all (§8.1).
     const res = await fetch(cfg.wasm);
+    mark("response");
     if (!res.ok) throw new Error("HTTP " + res.status + " for " + cfg.wasm);
 
     let loaded = 0;
-    let lastByteAt = performance.now();
+    // Headers prove the request progressed; give its body a fresh stall window.
+    lastByteAt = performance.now();
     // A stall, not a wall-clock timeout: a 3G client legitimately spends a
     // minute on this download, and failing it mid-transfer is self-inflicted.
-    stallTimer = setInterval(() => {
-      if (performance.now() - lastByteAt > STALL_MS) fail("stalled");
-    }, 1000);
 
     const reader = res.body.getReader();
     const counted = new ReadableStream({
@@ -243,6 +289,7 @@ showTimer = setTimeout(show, cfg.delay);
           c.enqueue(value);
         }
         clearInterval(stallTimer);
+        mark("download-end");
         // Deliberately unguarded against `failed`: a stall that recovers walks
         // back out of the failure UI and the page heals, rather than sitting
         // dead while the app boots behind it. mount()'s strip takes the failure
@@ -260,6 +307,7 @@ showTimer = setTimeout(show, cfg.delay);
     });
 
     const { init } = await import(cfg.entry);
+    mark("init-start");
     // The content-type is mandatory: instantiateStreaming rejects without it,
     // and the fallback buffers the whole binary before compiling — which is the
     // streaming compile this whole design is built around.
@@ -269,6 +317,8 @@ showTimer = setTimeout(show, cfg.delay);
 
     clearTimeout(showTimer);
     state = "ready";
+    mark("ready");
+    performance.measure?.("swiftwui:boot", "swiftwui:network-start", "swiftwui:ready");
     delete root.dataset.swuiBoot;
     delete root.dataset.swuiBootProgress;
     root.style.removeProperty("--swui-boot-progress");

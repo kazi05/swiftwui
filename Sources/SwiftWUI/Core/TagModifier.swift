@@ -30,22 +30,29 @@ public struct ModifiedTag<C: Tag, M: TagModifier>: Tag, _PrimitiveTag {
         _TypeNameRegistry.register(Self.self)
         let id = path.appending(.type(ObjectIdentifier(Self.self)))
         ctx.reachable.insert(id)
-        ctx.store.retain(AnyTag(self), at: id, environment: ctx.environment, scopeClass: ctx.scopeClass)
+        ctx.store.retain(AnyTag(self), at: id, environment: ctx.environment,
+                         scopeClass: ctx.scopeClass, visibilityRoots: ctx.visibilityRoots)
         let inv = ctx.invalidate
         if ctx.collectedRoutes == nil {          // same guard as component resolve (C1)
             ctx.store.link(modifier, at: id, environment: ctx.environment,
                            invalidate: { inv(id) })
         }
-        let box = _InvalidateBox(fire: { inv(id) })
+        let observationToken = ctx.store.beginObservation(at: id)
+        let box = _InvalidateBox(token: observationToken, fire: { inv(id) })
         let savedOwner = ctx.owner
+        let savedObservationToken = ctx.ownerObservationToken
         ctx.owner = id
-        defer { ctx.owner = savedOwner }
+        ctx.ownerObservationToken = observationToken
+        defer {
+            ctx.owner = savedOwner
+            ctx.ownerObservationToken = savedObservationToken
+        }
         // Unlike a component boundary, ctx.scopeClass is deliberately preserved:
         // modifier-wrapped content keeps the caller's Styled scope.
         let body = withObservationTracking {
             modifier.body(content: _ModifierContent(content: AnyTag(content)))
         } onChange: {
-            MainActor.assumeIsolated { box.fire() }
+            MainActor.assumeIsolated { box.fireIfCurrent() }
         }
         let children = resolve(body, path: id.appending(.child(0)), ctx: &ctx)
         return [.component(ComponentNode(identity: id,

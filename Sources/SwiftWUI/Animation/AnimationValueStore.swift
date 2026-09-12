@@ -13,6 +13,8 @@ final class AnimationValueStore {
     nonisolated deinit { }
     private var values: [NodeIdentity: Any] = [:]
     private var seenThisPass: Set<NodeIdentity> = []
+    var count: Int { values.count }
+    func removeAll() { values.removeAll(); seenThisPass.removeAll() }
 
     /// Compares `newValue` against the stored value for `id` (if any), then
     /// unconditionally overwrites the stored value with `newValue`.
@@ -28,8 +30,14 @@ final class AnimationValueStore {
     /// `root` that this pass's `changed()` calls didn't touch (and isn't in
     /// `reachable`) is no longer part of the resolved tree — drop its row.
     func sweep(under root: NodeIdentity, reachable: Set<NodeIdentity>) {
+        sweep(under: [root], reachable: reachable)
+    }
+
+    /// Sweeps several disjoint minimal-cover roots after their resolutions so
+    /// `seenThisPass` represents the union of the whole coalesced flush.
+    func sweep(under roots: Set<NodeIdentity>, reachable: Set<NodeIdentity>) {
         for id in Array(values.keys)
-        where id.isSelfOrDescendant(of: root) && !seenThisPass.contains(id) && !reachable.contains(id) {
+        where id.isSelfOrDescendant(ofAny: roots) && !seenThisPass.contains(id) && !reachable.contains(id) {
             values.removeValue(forKey: id)
         }
         seenThisPass.removeAll()

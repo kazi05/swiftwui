@@ -1,0 +1,9 @@
+{
+  "fixture": "todomvc",
+  "configuration": "release",
+  "maximum": {
+    "rawBytes": 10122000,
+    "gzipBytes": 3615400,
+    "brotliBytes": 2630400
+  }
+}

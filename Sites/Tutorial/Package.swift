@@ -26,6 +26,7 @@ let package = Package(
         .testTarget(name: "TutorialKitTests", dependencies: [
             "TutorialKit",
             .product(name: "SwiftWUI", package: "SwiftWUI"),
+            .product(name: "SwiftWUIStatic", package: "SwiftWUI"),
         ], swiftSettings: [.defaultIsolation(MainActor.self)]),
     ]
 )

@@ -3,6 +3,7 @@ public final class MockNode {
     public var tag: String?
     public var text: String?
     public var attrs: [String: String] = [:]
+    public var objectURLs: [String: WebObjectURL] = [:]
     public var style = OrderedStyle()
     public var props: [String: PropertyValue] = [:]
     public var events: [String: ListenerID] = [:]
@@ -21,6 +22,27 @@ public struct RecordedAnimation {
     public let token: AnimationToken
 }
 
+public final class MockVisibilityObservation {
+    nonisolated deinit { }
+    public let target: MockNode
+    public let root: VisibilityObserverRoot<MockNode>
+    public let threshold: Double
+    public let margin: VisibilityMargin
+    public let attachedAfterInsertion: Bool
+    public internal(set) var cancelled = false
+    let onChange: (Bool) -> Void
+
+    init(target: MockNode, root: VisibilityObserverRoot<MockNode>, threshold: Double,
+         margin: VisibilityMargin, onChange: @escaping (Bool) -> Void) {
+        self.target = target
+        self.root = root
+        self.threshold = threshold
+        self.margin = margin
+        self.onChange = onChange
+        attachedAfterInsertion = target.parent != nil
+    }
+}
+
 /// Native reference backend: counts every primitive call (churn assertions)
 /// and serializes to HTML for the cross-check property (spec §10.4).
 @MainActor
@@ -29,6 +51,25 @@ public final class MockBackend: RendererBackend {
     public typealias HostNode = MockNode
     public let container = MockNode()
     public private(set) var counts: [String: Int] = [:]
+    /// Injectable geometry sources and command sinks for deterministic runtime tests.
+    public var scrollMetrics: ((_ScrollTarget<MockNode>) -> ScrollMetrics?)?
+    public var scrollCapture: ((_ScrollTarget<MockNode>, [MockNode]) -> _ScrollAnchorGeometry?)?
+    public var scrollRestore: ((_ScrollTarget<MockNode>, MockNode, Double) -> Void)?
+    public var scrollEnd: ((_ScrollTarget<MockNode>, ScrollProxy.Behavior) -> Void)?
+
+    public func _scrollMetrics(in target: _ScrollTarget<MockNode>) -> ScrollMetrics? {
+        scrollMetrics?(target)
+    }
+    public func _captureScrollAnchor(in target: _ScrollTarget<MockNode>,
+                                     candidates: [MockNode]) -> _ScrollAnchorGeometry? {
+        scrollCapture?(target, candidates)
+    }
+    public func _restoreScrollAnchor(in target: _ScrollTarget<MockNode>, element: MockNode, offset: Double) {
+        scrollRestore?(target, element, offset)
+    }
+    public func _scrollToEnd(in target: _ScrollTarget<MockNode>, behavior: ScrollProxy.Behavior) {
+        scrollEnd?(target, behavior)
+    }
     public init() {}
     private func bump(_ k: String) { counts[k, default: 0] += 1 }
 
@@ -44,6 +85,9 @@ public final class MockBackend: RendererBackend {
     }
     public func removeAttribute(_ node: MockNode, name: String) {
         bump("removeAttribute"); node.attrs[name] = nil
+    }
+    public func setObjectURL(_ node: MockNode, name: String, value: WebObjectURL?) {
+        bump("setObjectURL"); node.objectURLs[name] = value
     }
     public func setStyleProperty(_ node: MockNode, name: String, value: String) {
         bump("setStyleProperty"); node.style.set(name, value)
@@ -66,6 +110,21 @@ public final class MockBackend: RendererBackend {
     public func unobserve(_ node: MockNode, kind: ObserverKind) {
         bump("unobserve"); node.observers[kind] = nil
     }
+    public private(set) var visibilityObservations: [MockVisibilityObservation] = []
+    public func observeVisibility(_ node: MockNode, root: VisibilityObserverRoot<MockNode>,
+                                  threshold: Double, rootMargin: VisibilityMargin,
+                                  onChange: @escaping (Bool) -> Void) -> (() -> Void)? {
+        let record = MockVisibilityObservation(target: node, root: root, threshold: threshold,
+                                               margin: rootMargin, onChange: onChange)
+        visibilityObservations.append(record)
+        bump("observeVisibility")
+        return { record.cancelled = true }
+    }
+    public func emitVisibility(at index: Int, value: Bool, includingCancelled: Bool = false) {
+        let record = visibilityObservations[index]
+        guard includingCancelled || !record.cancelled else { return }
+        record.onChange(value)
+    }
     public func insert(_ child: MockNode, into parent: MockNode, before anchor: MockNode?) {
         bump("insert")
         child.parent?.children.removeAll { $0 === child }          // DOM move semantics
@@ -80,17 +139,27 @@ public final class MockBackend: RendererBackend {
         bump("remove")
         parent.children.removeAll { $0 === child }
         child.parent = nil
+        clearObjectURLs(in: child)
+    }
+    private func clearObjectURLs(in node: MockNode) {
+        node.objectURLs.removeAll()
+        for child in node.children { clearObjectURLs(in: child) }
     }
     public private(set) var stylesheetText: String?
     public func setStylesheet(_ text: String) { bump("setStylesheet"); stylesheetText = text }
 
     public private(set) var historyStack: [String] = []
     public private(set) var replacedStates: [String] = []
+    public private(set) var navigationBegins: [Bool] = []
     public private(set) var backCount = 0
     public private(set) var title: String?
     public private(set) var metaTags: [MetaTag] = []
     public private(set) var links: [LinkTag] = []
     public private(set) var structuredData: [String] = []
+    public func navigationWillBegin(isHistory: Bool) {
+        bump("navigationWillBegin"); navigationBegins.append(isHistory)
+    }
+    public func navigationDidCommit() { bump("navigationDidCommit") }
     public func pushState(path: String) { bump("pushState"); historyStack.append(path) }
     public func replaceState(path: String) { bump("replaceState"); replacedStates.append(path) }
     public func historyBack() { bump("historyBack"); backCount += 1 }
@@ -181,6 +250,22 @@ public final class MockBackend: RendererBackend {
     public private(set) var windowEventSink: ((WindowEventKind, Any) -> Void)?
     public func beginWindowEventObservation(_ sink: @escaping (WindowEventKind, Any) -> Void) {
         bump("beginWindowEventObservation"); windowEventSink = sink
+    }
+
+    public var documentVisibilitySnapshot: Bool?
+    public var visualViewportSnapshot: VisualViewportMetrics?
+    public private(set) var documentVisibilitySink: ((Bool) -> Void)?
+    public private(set) var visualViewportSink: ((VisualViewportMetrics) -> Void)?
+    public func beginDocumentVisibilityObservation(_ sink: @escaping (Bool) -> Void) -> Bool? {
+        bump("beginDocumentVisibilityObservation")
+        documentVisibilitySink = sink
+        return documentVisibilitySnapshot
+    }
+    public func beginVisualViewportObservation(_ sink: @escaping (VisualViewportMetrics) -> Void)
+        -> VisualViewportMetrics? {
+        bump("beginVisualViewportObservation")
+        visualViewportSink = sink
+        return visualViewportSnapshot
     }
 
     public private(set) var dropNavigationGuard = false

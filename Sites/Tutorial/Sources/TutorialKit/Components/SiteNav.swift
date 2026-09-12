@@ -1,6 +1,10 @@
 import SwiftWUI
 
 public enum SiteLinks {
+    /// Public origin used for canonical links and sitemap entries. Tutorial
+    /// routes already carry the `/tutorials` prefix where appropriate, so the
+    /// origin itself must not include that path segment.
+    public static let origin = "https://swiftwui.dev"
     public static let repo = "https://github.com/kazi05/swiftwui"
     public static let docs = repo + "/tree/main/docs"
     public static let examples = repo + "/tree/main/Examples"

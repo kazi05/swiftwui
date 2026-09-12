@@ -11,11 +11,17 @@ public final class ListenerRegistry {
     /// Keep-set = ListenerIDs present in the newly resolved tree (spec decision 21).
     /// NEVER ctx.reachable (component ids only — would empty the registry).
     func sweep(under root: NodeIdentity, keep: Set<ListenerID>) {
+        sweep(under: [root], keep: keep)
+    }
+
+    /// Sweeps several disjoint minimal-cover roots in one registry scan.
+    func sweep(under roots: Set<NodeIdentity>, keep: Set<ListenerID>) {
         for id in Array(handlers.keys)
-        where id.owner.isSelfOrDescendant(of: root) && !keep.contains(id) {
+        where id.owner.isSelfOrDescendant(ofAny: roots) && !keep.contains(id) {
             handlers.removeValue(forKey: id)
         }
     }
 
     var count: Int { handlers.count }
+    func removeAll() { handlers.removeAll() }
 }

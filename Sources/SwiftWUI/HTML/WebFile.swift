@@ -10,6 +10,13 @@ public protocol _FileReading: AnyObject {
     func text() async throws -> String
 }
 
+@MainActor
+/// Optional reader capability that preserves the selected file as blob storage.
+public protocol _FileBlobProviding: _FileReading {
+    /// Returns a blob without requiring a whole-file Swift `Data` read.
+    func blob() async throws -> WebBlob
+}
+
 /// A user-picked file. TRUST: `name`/`mimeType`/`size`/`lastModified` are
 /// client claims — attacker-controlled. Never make a security/content decision
 /// on `mimeType` (validate bytes); never build a filesystem path from `name`;
@@ -28,6 +35,13 @@ public struct WebFile {
     }
     public func data() async throws -> _FoundationData { try await reader.data() }
     public func text() async throws -> String { try await reader.text() }
+    /// Returns storage-backed blob access when supplied by the platform reader.
+    public func blob() async throws -> WebBlob {
+        guard let provider = reader as? any _FileBlobProviding else {
+            throw WebFetchError.unsupported
+        }
+        return try await provider.blob()
+    }
 }
 
 /// `change` payload for input[type=file]. The backend emits THIS instead of

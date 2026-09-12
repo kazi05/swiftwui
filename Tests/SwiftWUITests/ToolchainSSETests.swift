@@ -25,7 +25,7 @@ import Darwin
         let server = HTTPServer(handlers: [hub.handler()])
         try server.start(port: 0); defer { server.stop() }
         // Raw-socket client: URLSession buffers SSE; a plain socket shows frames as written.
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        let fd = makeIPv4StreamSocket()
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = server.boundPort.bigEndian
@@ -54,7 +54,7 @@ import Darwin
         let hub = SSEHub()
         let server = HTTPServer(handlers: [hub.handler()])
         try server.start(port: 0); defer { server.stop() }
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        let fd = makeIPv4StreamSocket()
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
         addr.sin_port = server.boundPort.bigEndian

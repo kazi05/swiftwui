@@ -1,5 +1,5 @@
 import Testing
-@testable import SwiftWUI
+@_spi(DOM) @testable import SwiftWUI
 
 private final class Capture { var generic: [GenericEvent] = []; var voids = 0 }
 
@@ -15,6 +15,45 @@ private struct PayloadFixture: Tag {
 }
 
 @MainActor @Suite struct EventPayloadTests {
+    @Test func keyEventDefaultsToNotComposing() {
+        let event = KeyEvent(key: "a", repeated: false)
+        #expect(event.isComposing == false)
+    }
+
+    @Test func keyEventCarriesCompositionState() {
+        let event = KeyEvent(key: "Process", repeated: false, isComposing: true)
+        #expect(event.isComposing)
+    }
+
+    @Test func preventDefaultRequestsCancellationDuringDispatch() {
+        let token = _KeyEventDispatchToken()
+        let event = KeyEvent(key: "Enter", repeated: false, _dispatchToken: token)
+
+        event.preventDefault()
+
+        #expect(token.isCancellationRequested)
+    }
+
+    @Test func preventDefaultAfterDispatchHasClosedDoesNothing() {
+        let token = _KeyEventDispatchToken()
+        let event = KeyEvent(key: "Enter", repeated: false, _dispatchToken: token)
+        token.close()
+
+        event.preventDefault()
+
+        #expect(token.isCancellationRequested == false)
+    }
+
+    @Test func copiedKeyEventsShareTheDispatchCancellationRequest() {
+        let token = _KeyEventDispatchToken()
+        let original = KeyEvent(key: "Enter", repeated: false, _dispatchToken: token)
+        let copy = original
+
+        copy.preventDefault()
+
+        #expect(token.isCancellationRequested)
+    }
+
     @Test func typedHandlerReceivesPayload() {
         var bag = _AttributeBag()
         var got: [InputEvent] = []

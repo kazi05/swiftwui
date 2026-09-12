@@ -9,16 +9,24 @@ enum EffectRequest {
     case appear(id: NodeIdentity, action: () -> Void)
     case disappear(id: NodeIdentity, action: () -> Void)
     case windowEvent(id: NodeIdentity, kind: WindowEventKind, action: (Any) -> Void)
+    case documentVisibility(id: NodeIdentity, initial: Bool, action: (Bool) -> Void)
+    case visualViewport(id: NodeIdentity, initial: Bool, action: (VisualViewportMetrics) -> Void)
     case dropGuard(id: NodeIdentity)
 
     var id: NodeIdentity {
         switch self {
         case .onChange(let id, _, _, _, _), .task(let id, _, _, _),
              .appear(let id, _), .disappear(let id, _),
-             .windowEvent(let id, _, _): return id
+             .windowEvent(let id, _, _), .documentVisibility(let id, _, _),
+             .visualViewport(let id, _, _): return id
         case .dropGuard(let id): return id
         }
     }
+}
+
+struct EffectReconcileBatch {
+    let root: NodeIdentity
+    let requests: [EffectRequest]
 }
 
 /// Effect lifecycle (spec §5.3–5.4): keyed by wrapper identity; sweep
@@ -37,9 +45,15 @@ public final class EffectStore {
     /// though `EffectStore` is public).
     var _windowHub: WindowEventHub?
     private var windowSubscriptions: Set<NodeIdentity> = []
+    var _documentVisibilityHub: SnapshotSubscriptionHub<Bool>?
+    var _visualViewportHub: SnapshotSubscriptionHub<VisualViewportMetrics>?
+    private var documentVisibilitySubscriptions: Set<NodeIdentity> = []
+    private var visualViewportSubscriptions: Set<NodeIdentity> = []
     private var dropGuardIDs: Set<NodeIdentity> = []
     /// Set by Runtime → backend.setDropNavigationGuard.
     var _onDropGuardChange: ((Bool) -> Void)?
+    var _onCancelConfiguredVisibility: (() -> Void)?
+    var _onCancelScroll: (() -> Void)?
 
     /// SSG driver mode (spec §6): .build tasks are collected, not started;
     /// .client tasks don't run at all.
@@ -53,11 +67,25 @@ public final class EffectStore {
     /// identity strings written to `StateStore` while that task's action ran.
     public private(set) var _buildWrites: [String: Set<String>] = [:]
 
+    var activeCount: Int {
+        var ids = Set(previousValues.keys)
+        ids.formUnion(tasks.keys)
+        ids.formUnion(appeared)
+        ids.formUnion(disappearActions.keys)
+        ids.formUnion(windowSubscriptions)
+        ids.formUnion(documentVisibilitySubscriptions)
+        ids.formUnion(visualViewportSubscriptions)
+        ids.formUnion(dropGuardIDs)
+        return ids.count
+    }
+
     /// Discards a runtime that never committed (hydration mismatch, spec §8):
     /// client `.task` effects already started real Tasks that hold the runtime
     /// alive and would duplicate side effects when the cold-mount fallback
     /// re-runs them — cancel and forget everything before the fallback mounts.
     public func _cancelAll() {
+        _onCancelConfiguredVisibility?()
+        _onCancelScroll?()
         for (_, entry) in tasks { entry.task.cancel() }
         tasks.removeAll()
         previousValues.removeAll()
@@ -65,10 +93,19 @@ public final class EffectStore {
         disappearActions.removeAll()
         for id in windowSubscriptions { _windowHub?.unsubscribe(id: id) }
         windowSubscriptions.removeAll()
+        documentVisibilitySubscriptions.removeAll()
+        visualViewportSubscriptions.removeAll()
+        _documentVisibilityHub?.cancelAll()
+        _visualViewportHub?.cancelAll()
         if !dropGuardIDs.isEmpty {
             dropGuardIDs.removeAll()
             _onDropGuardChange?(false)
         }
+        pendingBuild.removeAll()
+        startedBuild.removeAll()
+        _completedBuildKeys.removeAll()
+        _buildWrites.removeAll()
+        _skipBuildTaskKeys.removeAll()
     }
 
     /// Awaits every pending `.build` task in turn, tracking which identities
@@ -103,24 +140,40 @@ public final class EffectStore {
     /// Returns callbacks to run post-commit. Order (normative, spec D6):
     /// disappear/cancel first, then appear/task/onChange in document order.
     func reconcile(_ requests: [EffectRequest], under passRoot: NodeIdentity) -> [() -> Void] {
+        reconcile([EffectReconcileBatch(root: passRoot, requests: requests)])
+    }
+
+    /// Reconciles several disjoint minimal-cover roots with one live-registry
+    /// scan. Teardowns across the whole flush stay ahead of appear/change
+    /// callbacks, preserving the documented lifecycle order.
+    func reconcile(_ batches: [EffectReconcileBatch]) -> [() -> Void] {
         var queue: [() -> Void] = []
-        let requested = Set(requests.map(\.id))
+        let requested = Set(batches.flatMap(\.requests).map(\.id))
+        let roots = Set(batches.map(\.root))
         let hadGuards = !dropGuardIDs.isEmpty
 
         var known = Set(previousValues.keys)
         known.formUnion(tasks.keys); known.formUnion(appeared); known.formUnion(disappearActions.keys)
         known.formUnion(windowSubscriptions)
+        known.formUnion(documentVisibilitySubscriptions)
+        known.formUnion(visualViewportSubscriptions)
         known.formUnion(dropGuardIDs)
-        for id in known where id.isSelfOrDescendant(of: passRoot) && !requested.contains(id) {
+        for id in known where id.isSelfOrDescendant(ofAny: roots) && !requested.contains(id) {
             if let t = tasks.removeValue(forKey: id) { t.task.cancel() }
             if let d = disappearActions.removeValue(forKey: id) { queue.append(d) }
             previousValues[id] = nil
             appeared.remove(id)
             if windowSubscriptions.remove(id) != nil { _windowHub?.unsubscribe(id: id) }
+            if documentVisibilitySubscriptions.remove(id) != nil {
+                _documentVisibilityHub?.unsubscribe(id: id)
+            }
+            if visualViewportSubscriptions.remove(id) != nil {
+                _visualViewportHub?.unsubscribe(id: id)
+            }
             dropGuardIDs.remove(id)
         }
 
-        for request in requests {
+        for request in batches.flatMap(\.requests) {
             switch request {
             case .onChange(let id, let new, let isEqual, let initial, let action):
                 if let old = previousValues[id] {
@@ -159,6 +212,16 @@ public final class EffectStore {
             case .windowEvent(let id, let kind, let action):
                 windowSubscriptions.insert(id)
                 _windowHub?.subscribe(id: id, kind: kind, action: action)
+            case .documentVisibility(let id, let initial, let action):
+                if !_buildMode {
+                    documentVisibilitySubscriptions.insert(id)
+                    _documentVisibilityHub?.subscribe(id: id, initial: initial, action: action)
+                }
+            case .visualViewport(let id, let initial, let action):
+                if !_buildMode {
+                    visualViewportSubscriptions.insert(id)
+                    _visualViewportHub?.subscribe(id: id, initial: initial, action: action)
+                }
             case .dropGuard(let id):
                 dropGuardIDs.insert(id)
             }

@@ -13,10 +13,12 @@ public struct ElementNode: Equatable {
     public var identity: NodeIdentity
     public var tag: String
     public var attributes: [String: String]
+    public var objectURLs: [String: WebObjectURL] = [:]
     public var style: OrderedStyle = OrderedStyle()
     public var properties: [String: PropertyValue] = [:]
     public var listeners: [String: ListenerID]
     public var observers: [ObserverKind: ListenerID]
+    var configuredVisibility: [_ResolvedVisibilityObservation] = []
     public var children: [Node]
     public var key: NodeKey?
 }

@@ -91,6 +91,22 @@ import SwiftWUI          // SHA256 lives in the core now
 
     @Test func buildDescriptorIsNeverPrecached() {
         #expect(PWAAssets.isExcluded(relPath: "swiftwui-site.json"))
+        #expect(PWAAssets.isExcluded(relPath: "swiftwui-delivery.json"))
+        #expect(PWAAssets.isExcluded(relPath: "swiftwui-redirects.conf"))
+    }
+
+    @Test func aPreviousBuildReportCannotPoisonTheNextPrecacheIntegrity() throws {
+        let dir = try makeDist(withSW: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try "old-report".write(toFile: dir + "/swiftwui-build-report.json", atomically: true, encoding: .utf8)
+        try PWAAssets.generateManifest(distDir: dir)
+        let manifest = try String(contentsOfFile: dir + "/sw-assets.js", encoding: .utf8)
+        // Build writes the new report after generating precache integrity. A
+        // prior report must never be an install dependency of the service worker.
+        #expect(!manifest.contains("swiftwui-build-report"))
+        try "new-report".write(toFile: dir + "/swiftwui-build-report.json", atomically: true, encoding: .utf8)
+        try PWAAssets.generateManifest(distDir: dir)
+        #expect(try String(contentsOfFile: dir + "/sw-assets.js", encoding: .utf8) == manifest)
     }
 
     @Test func swAssetsIsReservedPublicName() {

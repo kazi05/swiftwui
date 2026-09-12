@@ -4,14 +4,99 @@ public enum WasmSDK {
     /// Repo pin (CLAUDE.md): host toolchain and SDK versions must match exactly.
     public static let pinned = "swift-6.3.3-RELEASE_wasm"
 
-    public static func detect(runner: ProcessRunner) throws -> String {
-        let r = try runner.run("swift", ["sdk", "list"], cwd: nil, streamOutput: false)
+    public struct Preflight: Equatable, Sendable {
+        public var sdk: String
+        public var hostVersion: String?
+        public var sdkVersion: String?
+        public var compilerVersion: String?
+        /// Executables resolved in the build process environment. Keeping these
+        /// in the report makes a PATH/shim mismatch actionable in CI logs.
+        public var hostExecutable: String?
+        public var compilerExecutable: String?
+
+        public init(sdk: String, hostVersion: String?, sdkVersion: String?, compilerVersion: String?, hostExecutable: String? = nil, compilerExecutable: String? = nil) {
+            self.sdk = sdk; self.hostVersion = hostVersion; self.sdkVersion = sdkVersion; self.compilerVersion = compilerVersion
+            self.hostExecutable = hostExecutable; self.compilerExecutable = compilerExecutable
+        }
+    }
+
+    public static func detect(runner: ProcessRunner, cwd: String? = nil) throws -> String {
+        let r = try runner.run("swift", ["sdk", "list"], cwd: cwd, streamOutput: false)
+        guard r.exitCode == 0 else {
+            throw ToolchainError.noWasmSDK(hint: "`swift sdk list` failed: \(r.stderr.isEmpty ? r.stdout : r.stderr)")
+        }
         let ids = r.stdout.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
         if ids.contains(pinned) { return pinned }
         if let id = ids.first(where: { $0.contains("wasm") && !$0.contains("embedded") }) { return id }
         throw ToolchainError.noWasmSDK(hint:
             "Install the Swift.org WASM SDK matching your toolchain exactly (expected \(pinned)): " +
             "see the Swift SDK bundles on swift.org/download, then `swift sdk install <artifactbundle url>`.")
+    }
+
+    /// Resolves the SDK and the compiler through the same process environment used
+    /// for the build. This deliberately accepts future matching toolchains: the
+    /// repository pin is a supported default, not a ceiling on user overrides.
+    public static func preflight(selectedSDK: String?, runner: ProcessRunner, cwd: String?) throws -> Preflight {
+        let listed = try runner.run("swift", ["sdk", "list"], cwd: cwd, streamOutput: false)
+        guard listed.exitCode == 0 else {
+            throw ToolchainError.noWasmSDK(hint: "`swift sdk list` failed: \(listed.stderr.isEmpty ? listed.stdout : listed.stderr)")
+        }
+        let installed = listed.stdout.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        let sdk = try selectedSDK ?? detect(runner: runner, cwd: cwd)
+        guard installed.contains(sdk) else {
+            throw ToolchainError.noWasmSDK(hint: "'\(sdk)' is not installed for the selected swift executable. Run `swift sdk list`, install that SDK, or pass an installed --swift-sdk id.")
+        }
+        guard sdk.contains("wasm"), !sdk.contains("embedded") else {
+            throw ToolchainError.incompatibleToolchain("'\(sdk)' is not a WASM web SDK")
+        }
+        let host = try runner.run("swift", ["--version"], cwd: cwd, streamOutput: false)
+        guard host.exitCode == 0 else {
+            throw ToolchainError.incompatibleToolchain("`swift --version` failed: \(host.stderr.isEmpty ? host.stdout : host.stderr)")
+        }
+        // SwiftPM honors SWIFT_EXEC. Query that exact executable when it is set;
+        // checking a different `swiftc` on PATH would give a false green result.
+        let compilerCommand = ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? "swiftc"
+        let compiler = try runner.run(compilerCommand, ["--version"], cwd: cwd, streamOutput: false)
+        guard compiler.exitCode == 0 else {
+            throw ToolchainError.incompatibleToolchain("`\(compilerCommand) --version` failed: \(compiler.stderr.isEmpty ? compiler.stdout : compiler.stderr)")
+        }
+        let hostVersion = swiftVersion(in: host.stdout + host.stderr)
+        let compilerVersion = swiftVersion(in: compiler.stdout + compiler.stderr)
+        let sdkVersion = swiftVersion(in: sdk)
+        guard let hostVersion else {
+            throw ToolchainError.incompatibleToolchain("could not parse a Swift release from `swift --version`: \(host.stdout + host.stderr)")
+        }
+        guard let compilerVersion else {
+            throw ToolchainError.incompatibleToolchain("could not parse a Swift release from `\(compilerCommand) --version`: \(compiler.stdout + compiler.stderr)")
+        }
+        guard let sdkVersion else {
+            throw ToolchainError.incompatibleToolchain("could not parse a Swift release from SDK id '\(sdk)'")
+        }
+        if hostVersion != compilerVersion {
+            throw ToolchainError.incompatibleToolchain("swift is \(hostVersion), but swiftc is \(compilerVersion). Select one toolchain (for example set PATH and SWIFT_EXEC together).")
+        }
+        if hostVersion != sdkVersion {
+            throw ToolchainError.incompatibleToolchain("swift is \(hostVersion), but SDK '\(sdk)' is \(sdkVersion). Install/select matching releases; mixed host/SDK builds are not reproducible.")
+        }
+        let hostExecutable = resolved("swift", runner: runner, cwd: cwd)
+        let compilerExecutable = ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? resolved("swiftc", runner: runner, cwd: cwd)
+        return Preflight(sdk: sdk, hostVersion: hostVersion, sdkVersion: sdkVersion, compilerVersion: compilerVersion,
+                         hostExecutable: hostExecutable, compilerExecutable: compilerExecutable)
+    }
+
+    private static func resolved(_ executable: String, runner: ProcessRunner, cwd: String?) -> String {
+        guard let result = try? runner.run("which", [executable], cwd: cwd, streamOutput: false), result.exitCode == 0 else { return executable }
+        let value = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty ? executable : value
+    }
+
+    private static func swiftVersion(in text: String) -> String? {
+        let pattern = #"(?:swift[- ]|Swift version )([0-9]+\.[0-9]+(?:\.[0-9]+)?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text) else { return nil }
+        return String(text[range])
     }
 }
 
@@ -78,13 +163,15 @@ public enum DistLayout {
     /// top-level public/ entries, and the shim lives under the already-reserved
     /// `app`.
     static func copyBootShim(outDir: String) throws {
-        let src = ToolchainResources.url("swiftwui-boot.js").path
-        let dst = outDir + "/app/swiftwui-boot.js"
-        try? FileManager.default.removeItem(atPath: dst)
-        try FileManager.default.copyItem(atPath: src, toPath: dst)
+        for name in ["swiftwui-boot.js", "swiftwui-worker.js"] {
+            let src = ToolchainResources.url(name).path
+            let dst = outDir + "/app/" + name
+            try? FileManager.default.removeItem(atPath: dst)
+            try FileManager.default.copyItem(atPath: src, toPath: dst)
+        }
     }
 
-    public static let reservedNames: Set<String> = ["app", "vendor", "index.html", "styles.css", "__swiftwui", "sw-assets.js", "nginx.conf", "swiftwui-site.json"]
+    public static let reservedNames: Set<String> = ["app", "vendor", "index.html", "styles.css", "__swiftwui", "sw-assets.js", "nginx.conf", "swiftwui-site.json", "swiftwui-delivery.json", "swiftwui-redirects.conf", "swiftwui-build-report.json", AssetPipeline.manifestName]
 
     /// Top-level public/ entries that would shadow the framework's dist layout (spec §1).
     public static func reservedCollisions(projectDir: String) -> [String] {
