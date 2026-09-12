@@ -5,6 +5,14 @@ import Glibc
 import Darwin
 #endif
 
+func makeIPv4StreamSocket() -> Int32 {
+    #if canImport(Glibc)
+    socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
+    #else
+    socket(AF_INET, SOCK_STREAM, 0)
+    #endif
+}
+
 public struct HTTPRequest {
     public var method: String
     public var path: String                    // percent-decoded, no query
@@ -85,7 +93,7 @@ public final class HTTPServer: @unchecked Sendable {   // guarded by `lock`
     public init(handlers: [HTTPHandler]) { self.handlers = handlers }
 
     public func start(port: UInt16) throws {
-        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        let fd = makeIPv4StreamSocket()
         guard fd >= 0 else { throw ToolchainError.io("socket() failed: errno \(errno)") }
         var yes: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, socklen_t(MemoryLayout<Int32>.size))
