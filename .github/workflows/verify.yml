@@ -10,9 +10,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: '6.3.3'
+      - name: Install verified Swift 6.3.3 toolchain
+        run: bash Scripts/install-swift-ci.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -48,9 +47,8 @@ jobs:
       SWIFTWUI_BROWSER_SDK: swift-6.3.3-RELEASE_wasm
     steps:
       - uses: actions/checkout@v4
-      - uses: swift-actions/setup-swift@v2
-        with:
-          swift-version: '6.3.3'
+      - name: Install verified Swift 6.3.3 toolchain
+        run: bash Scripts/install-swift-ci.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
