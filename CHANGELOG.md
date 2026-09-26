@@ -28,6 +28,11 @@ Notable changes to SwiftWUI. Format loosely follows
 - `@container` rules are ordered by width like `@media` rules.
 - SSG writes percent-encoded paths to the decoded folder static servers serve.
 - A view transition completing after `unmount()` no longer remounts the tree.
+- Fragment-only history steps (`#anchor` links) no longer re-render the page,
+  play a pop transition or reset the scroll position.
+- Islands no longer take over the document's prerendered stylesheet.
+- Cancelling or force-finishing a WAAPI animation no longer logs an unhandled
+  "JSClosure has been already released" rejection.
 - `ModifiedTag` honors `withAnimation` transactions for its own state.
 - `swiftwui build --out .` no longer deletes project files; absolute `--out`
   paths work for `build` and `ssg`.

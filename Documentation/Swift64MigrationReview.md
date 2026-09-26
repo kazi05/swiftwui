@@ -58,6 +58,9 @@ re-verified against the code before it was fixed or deferred.
 | --- | --- | --- |
 | High | Raw-string CSS (e.g. `fontFamily(String)`) could contain `</style>`; SSG wrote registry CSS into `<style>` guarded only by a debug `assert` | `HTMLEscaping.rawTextElement` at every `<style>` sink (`DocumentSerializer`, `BootSplice`) |
 | High | `isSafeValue` allowed `;`, `)` and quotes, so `url(x); position: fixed …` smuggled declarations into registry rules and SSG `style=""` | Tokenizer-aware `isSafeValue` (no top-level `;`, balanced parens/quotes, no trailing `\`); inline declarations gated in `_AttributeBag.addStyle` |
+| High | Same-document fragment moves (`#faq` links, skip links) fire `popstate`; `handlePopState` re-rendered, played a `.pop` transition, stole focus and scrolled to (0,0) | `handlePopState` returns early when path and query are unchanged |
+| High | An island's `DOMBackend` adopted the document's prerendered `<style data-swiftwui>` and replaced the page's CSS with the island's rules | Island backends never adopt; they own a `<style data-swui-island-styles>` |
+| Medium | WAAPI `finished.then` handlers were released synchronously by `settleOnce` while cancel/finish had already queued the reaction → unhandled "JSClosure has been already released" rejections | One self-releasing handler for both outcomes |
 | Medium | `@container` blocks sorted as strings: `(min-width: 1000px)` before `(min-width: 400px)` | Numeric container key in `StyleRegistry.text` |
 | Medium | `Link("/docs#install")` click pushed `/docs` (fragment dropped); no-op on `/docs` | Fragment links are left to the browser |
 | Medium | SSG wrote `/caf%C3%A9` to a literal `caf%C3%A9/` folder that decoding servers never look up | `StaticSite.outputFile` decodes each segment once |
@@ -85,7 +88,21 @@ re-verified against the code before it was fixed or deferred.
   image should run the CLI instead of hand-assembling `dist/`.
 - **SPA navigation to `path#fragment`.** The fix above falls back to a document
   load for cross-page anchors; a full solution keeps the fragment through
-  `navigate` and scrolls after commit in `DOMBackend`.
+  `navigate`/`moveURL` so `DOMNavigationController.commit()`'s existing
+  `scrollIntoView` branch becomes reachable.
+- **`JSClosure` lifetime on the resolved JavaScriptKit** (0.56.x, WeakRefs
+  mode): `JSClosure` instances are effectively immortal, so per-call closures
+  (`FormData.forEach` per enhanced-form submit, `Headers.forEach` per fetch) and
+  per-(node, event) listener closures accumulate for the page lifetime. Fix by
+  iterating with `Array.from` and delegating one listener closure per event
+  name; the CLAUDE.md "retain Swift-side" rule should be revisited too.
+- `storage` events are forwarded as `.local` even for `sessionStorage` changes
+  from same-origin frames (checking `storageArea` must not touch a throwing
+  `localStorage` getter in sandboxed frames — needs a browser test).
+- History entry ids restart at 0 per page load, so scroll positions can be
+  restored from a different entry after a reload.
+- Comment nodes in prerendered markup are adopted where text nodes are
+  expected (hardening; the framework itself never emits comments).
 - `Rule` bodies and element rule modifiers silently drop nested `.media { }` /
   `.container { }` blocks; `Rule(media:container:)` drops the media condition.
 - Router guard and route builder closures run outside observation tracking
