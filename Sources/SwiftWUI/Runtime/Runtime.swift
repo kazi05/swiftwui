@@ -468,11 +468,17 @@ public final class Runtime<Backend: RendererBackend> {
     /// A back/forward step across locale prefixes also adopts the URL's locale.
     public func handlePopState(url: String) {
         guard mounted else { return }
+        let (rawPath, query, search) = RouteURL.split(url)
+        // Same-document fragment moves (`#faq` links, skip links, Back/Forward
+        // between fragments of one page) fire popstate too, with path and
+        // query unchanged. There is nothing to route: leave scrolling and focus
+        // to the browser instead of re-rendering, replaying a `.pop`
+        // transition and jumping to another entry's stored scroll position.
+        if RouteURL.normalizePath(rawPath) == _lastExternalPath && search == _currentSearch { return }
         applier.backend.navigationWillBegin(isHistory: true)
         navigationCommitPending = true
         // The URL moved without going through `moveURL` (the browser did it).
         applier.backend.dropPrerenderedHeadLinks()
-        let (rawPath, query, search) = RouteURL.split(url)
         _lastExternalPath = RouteURL.normalizePath(rawPath)
         if let localization = _localization, localization.strategy.usesURLPrefix {
             let (internalPath, urlLocale) = LocalePath.internalize(rawPath, supported: localization.supported,

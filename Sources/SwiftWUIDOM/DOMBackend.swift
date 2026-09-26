@@ -490,16 +490,24 @@ public final class DOMBackend: RendererBackend {
     }
 
     private var styleElement: JSObject?
+    /// False for island backends. The prerendered `<style data-swiftwui>` is
+    /// the document's stylesheet; an island adopting it replaced the page's
+    /// whole CSS with the island's few rules. Islands own a separate element.
+    var adoptsDocumentStylesheet = true
     public func setStylesheet(_ text: String) {
         if styleElement == nil {
             let document = JSObject.global.document
             // The SSG-inlined stylesheet (spec §5) becomes the managed one —
             // reuse it instead of appending a duplicate <style>.
-            if let existing = document.querySelector("style[data-swiftwui]").object {
+            if adoptsDocumentStylesheet, let existing = document.querySelector("style[data-swiftwui]").object {
                 styleElement = existing
             } else {
                 let el = document.createElement("style")
-                _ = el.setAttribute("id", "swiftwui-styles")
+                if adoptsDocumentStylesheet {
+                    _ = el.setAttribute("id", "swiftwui-styles")
+                } else {
+                    _ = el.setAttribute("data-swui-island-styles", "")
+                }
                 _ = document.head.appendChild(el)
                 styleElement = el.object
             }
@@ -923,18 +931,19 @@ public final class DOMBackend: RendererBackend {
         liveAnimationTokens[ObjectIdentifier(token)] = token
         installVisibilityListenerIfNeeded()
 
-        let onFinished = JSOneshotClosure { [weak self, weak token] _ in
+        // ONE handler for both outcomes, never released by `settleOnce`:
+        // `finished` settles exactly once, so the one-shot fires exactly once
+        // and frees itself. With a separate pair, cancel()/finish() queued the
+        // reaction and `settleOnce` then released it synchronously, so every
+        // cancel/force-finish/timeout logged an unhandled "JSClosure has been
+        // already released" rejection.
+        let onSettled = JSOneshotClosure { [weak self, weak token] _ in
             guard let self, let token else { return .undefined }
-            self.settleOnce(token, reason: .finished)
+            let finished = token.animation.playState.string == "finished"
+            self.settleOnce(token, reason: finished ? .finished : .cancelled)
             return .undefined
         }
-        let onRejected = JSOneshotClosure { [weak self, weak token] _ in
-            guard let self, let token else { return .undefined }
-            self.settleOnce(token, reason: .cancelled)
-            return .undefined
-        }
-        _ = anim.finished.object?.then?(onFinished, onRejected)
-        token.closures = [onFinished, onRejected]
+        _ = anim.finished.object?.then?(onSettled, onSettled)
 
         // Timeout race (anim spec §7.3.3): the `finished` promise can hang
         // (e.g. a display:none ancestor pauses the animation) — force it after
@@ -988,10 +997,10 @@ public final class DOMBackend: RendererBackend {
         liveAnimationTokens[ObjectIdentifier(token)] = nil
         if let t = token.timeoutID { _ = JSObject.global.clearTimeout?(t) }
         token.timeoutID = nil
-        // Deterministically free every host-func box, whichever fired or not.
-        // JSOneshotClosure.release() is an idempotent dict removal — releasing
-        // the already-fired one again is harmless (the `settled` guard above
-        // makes this whole block run once regardless).
+        // Free the timeout closure, fired or not (a cleared timer never calls
+        // it). JSOneshotClosure.release() is an idempotent dict removal —
+        // releasing the already-fired one again is harmless. The `finished`
+        // handler is NOT in this list: its reaction may still be queued.
         for c in token.closures { c.release() }
         token.closures = []
         let settle = token.settle
