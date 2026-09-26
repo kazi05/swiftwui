@@ -112,7 +112,7 @@ public enum WasmSDK {
 
     /// Since 6.4.0, x.y.0 release tags (and so SDK ids such as
     /// `swift-6.4.0-RELEASE_wasm`) spell the patch component, while a compiler
-    /// may still print `Swift version 6.4`. Both name the same release.
+    /// prints `Swift version 6.4 (swift-6.4-RELEASE)`. Both name the same release.
     static func sameRelease(_ lhs: String, _ rhs: String) -> Bool {
         func canonical(_ version: String) -> [Substring] {
             var parts = version.split(separator: ".")

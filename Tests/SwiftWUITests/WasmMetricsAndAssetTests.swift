@@ -43,7 +43,8 @@ import Foundation
     /// patch component; the compiler banner may omit it.
     @Test func preflightTreatsImplicitPatchZeroAsTheSameRelease() throws {
         let compiler = (ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? "swiftc") + " --version"
-        let banner = "Swift version 6.4 (swift-6.4.0-RELEASE)\nTarget: x86_64-unknown-linux-gnu\n"
+        // Verbatim 6.4.0 Linux banner (CI): even its tag omits the ".0".
+        let banner = "Swift version 6.4 (swift-6.4-RELEASE)\nTarget: x86_64-unknown-linux-gnu\n"
         let shortHost = MockRunner(results: [
             "swift sdk list": .init(exitCode: 0, stdout: "swift-6.4.0-RELEASE_wasm\n", stderr: ""),
             "swift --version": .init(exitCode: 0, stdout: banner, stderr: ""),
