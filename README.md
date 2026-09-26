@@ -46,7 +46,7 @@ struct CounterApp: App {
 # 1. Swift toolchain
 swiftly install 6.4.0
 swiftly use 6.4.0
-swift --version        # → Swift version 6.4… (swift-6.4.0-RELEASE)
+swift --version        # → Swift version 6.4 (swift-6.4-RELEASE)
 
 # 2. WASM SDK (official bundle and checksum from swift.org)
 swift sdk install https://download.swift.org/swift-6.4.0-release/wasm-sdk/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE_wasm.artifactbundle.tar.gz \

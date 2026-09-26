@@ -26,7 +26,8 @@ Bugs found while migrating:
 
 - **`x.y` vs `x.y.0`.** 6.4.0 is the first x.y.0 release whose tag, and so SDK
   id, spells the patch component (`swift-6.4.0-RELEASE_wasm`), while
-  `swift --version` may print `6.4`. `WasmSDK.preflight` compared strings
+  `swift --version` prints `Swift version 6.4 (swift-6.4-RELEASE)` (confirmed
+  by the first CI run). `WasmSDK.preflight` compared strings
   verbatim and would have rejected a correct pair. It now compares with
   `WasmSDK.sameRelease` and, without `--swift-sdk`, prefers the installed web
   SDK built for the selected host.
@@ -38,7 +39,8 @@ Bugs found while migrating:
   a later release signed with a refreshed key needs the pinned block updated,
   and the script says so.
 - The installer's banner check matched `Swift version 6.3.3 (…)`; it now
-  matches the release tag in parentheses, which is stable across both banners.
+  matches the release tag in parentheses, accepting the short `swift-6.4-RELEASE`
+  form the 6.4.0 compiler actually prints.
 
 Not changed, deliberately: the `nonisolated deinit { }` requirement and its
 guard test stay until a 6.4 Apple-target release build proves the SIL-inliner

@@ -130,10 +130,12 @@ tar --extract --gzip --file "$archive_path" \
   --directory "$install_dir" \
   --strip-components 1
 
-# Match the release tag, not the short version: x.y.0 releases may print either
-# "Swift version 6.4" or "Swift version 6.4.0" before "(swift-6.4.0-RELEASE)".
+# Match the release tag in the banner, not the short version. For x.y.0 the
+# download tag spells the patch (swift-6.4.0-RELEASE) but the compiler banner
+# does not: 6.4.0 prints "Swift version 6.4 (swift-6.4-RELEASE)".
+readonly banner_release="swift-${swift_version%.0}-RELEASE"
 version_output="$("${install_dir}/usr/bin/swift" --version)"
-if [[ "$version_output" != *"(${swift_release})"* ]]; then
+if [[ "$version_output" != *"(${swift_release})"* && "$version_output" != *"(${banner_release})"* ]]; then
   echo "Installed toolchain does not match ${swift_release}:" >&2
   echo "$version_output" >&2
   exit 1
