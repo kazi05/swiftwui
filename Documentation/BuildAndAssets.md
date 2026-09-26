@@ -8,7 +8,7 @@ toolchain `usr/bin` first in `PATH` and set `SWIFT_EXEC` to its `swiftc` before
 running the command.
 
 ```sh
-swiftwui build -c release --swift-sdk swift-6.3.3-RELEASE_wasm --fixture counter
+swiftwui build -c release --swift-sdk swift-6.4.0-RELEASE_wasm --fixture counter
 ```
 
 Every build writes `dist/swiftwui-build-report.json`. It records raw, gzip, and

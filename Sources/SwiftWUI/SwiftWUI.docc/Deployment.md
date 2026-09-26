@@ -34,9 +34,10 @@ detected WASM SDK, then lays out `dist/`:
   check it in so they build offline and inside containers.
 - every top-level entry of `public/`, copied to the `dist/` root.
 
-The SDK is auto-detected: the pinned `swift-6.3.3-RELEASE_wasm` if
-`swift sdk list` reports it, otherwise the first non-embedded id containing
-`wasm`. `--swift-sdk <id>` overrides. `--out <dir>` moves the output
+The SDK is auto-detected: the installed non-embedded `wasm` SDK built for the
+selected `swift` (the pinned `swift-6.4.0-RELEASE_wasm` when several match),
+otherwise the pinned id, otherwise the first non-embedded id containing
+`wasm`. `6.4` and `6.4.0` name the same release. `--swift-sdk <id>` overrides. `--out <dir>` moves the output
 directory; `-c debug` builds unoptimized.
 
 The wasm build uses its own `.build-wasm` scratch directory rather than the
@@ -142,12 +143,13 @@ with a `scratch` stage, so the output is the directory itself rather than an
 image:
 
 ```sh
-docker build --build-arg WASM_SDK_URL=<artifactbundle url> \
-             --output type=local,dest=dist-docker .
+docker build --output type=local,dest=dist-docker .
 ```
 
-The SDK URL must match the toolchain in the base image exactly — the build
-stage installs it with `swift sdk install`, builds the wasm bundle, copies
+The `WASM_SDK_URL` and `WASM_SDK_CHECKSUM` build args default to the official
+bundle for the base image's toolchain. Override both together, matching that
+toolchain exactly — the build stage installs the SDK with
+`swift sdk install --checksum`, builds the wasm bundle, copies
 `app/`, `vendor/`, and `index.html` into `dist/`, then runs `swift run <App>
 ssg --out dist`.
 

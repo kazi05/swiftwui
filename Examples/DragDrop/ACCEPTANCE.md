@@ -1,6 +1,6 @@
 # DnD browser acceptance (manual)
 
-Build/run: `cd Examples/DragDrop && swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug` + Vite dev server.
+Build/run: `cd Examples/DragDrop && swift package --swift-sdk swift-6.4.0-RELEASE_wasm js -c debug` + Vite dev server.
 
 - [ ] Drag an image from Finder over the file zone → zone highlights (targeted), cursor = copy.
 - [ ] Drag a .zip over the file zone → NO highlight, cursor = not-allowed (rejected state).

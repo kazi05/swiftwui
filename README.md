@@ -31,24 +31,27 @@ struct CounterApp: App {
 
 ## Requirements
 
-- Swift **6.3.3** via [swiftly](https://swift.org/install) (macOS 14+ or Linux)
-- The official Swift.org WASM SDK `swift-6.3.3-RELEASE_wasm`
+- Swift **6.4.0** via [swiftly](https://swift.org/install) (macOS 14+ or Linux)
+- The official Swift.org WASM SDK `swift-6.4.0-RELEASE_wasm`
 - Node.js — optional, only for the Vite-based example dev servers
 
-> Host toolchain and WASM SDK versions must match **exactly** (6.3.3 with
-> 6.3.3). A mismatched pair fails at link time with confusing errors.
+> Host toolchain and WASM SDK versions must match **exactly** (6.4.0 with
+> 6.4.0). A mismatched pair fails at link time with confusing errors. The
+> package manifest still builds natively with Swift 6.3.3, which CI keeps
+> verifying; for WebAssembly use one matching host/SDK pair.
 
 ## Installation
 
 ```sh
 # 1. Swift toolchain
-swiftly install 6.3.3
-swiftly use 6.3.3
-swift --version        # → Swift version 6.3.3 (swift-6.3.3-RELEASE)
+swiftly install 6.4.0
+swiftly use 6.4.0
+swift --version        # → Swift version 6.4… (swift-6.4.0-RELEASE)
 
-# 2. WASM SDK (bundle URL from swift.org/download)
-swift sdk install <swift-6.3.3-RELEASE_wasm bundle URL>
-swift sdk list         # → swift-6.3.3-RELEASE_wasm
+# 2. WASM SDK (official bundle and checksum from swift.org)
+swift sdk install https://download.swift.org/swift-6.4.0-release/wasm-sdk/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE_wasm.artifactbundle.tar.gz \
+  --checksum f07b7be3c586d92d7a07051fc6d303b87ebea67eadc40640ba59d5a8b79aa86d
+swift sdk list         # → swift-6.4.0-RELEASE_wasm
 
 # 3. The `swiftwui` CLI — via Homebrew
 brew tap kazi05/swiftwui
@@ -109,7 +112,7 @@ Templates: `basic` (counter + two routes + `.staticTask`), `mvvm`
 
   ```sh
   cd Examples/Counter
-  swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug
+  swift package --swift-sdk swift-6.4.0-RELEASE_wasm js -c debug
   npm install && npm run dev
   ```
 
