@@ -96,7 +96,7 @@ private struct SelfRedirectApp: Tag {
         let (rt, backend, sched) = make()
         let sets = backend.counts["setTitle", default: 0]
         clickFirst(backend, rt, tag: "button", index: 2, sched: sched)   // navigate to current → no-op
-        rt.handlePopState(url: "/")                                       // re-render same page
+        rt.markDirty(.root)                                               // re-render same page
         sched.pump()
         #expect(backend.counts["setTitle", default: 0] == sets, "unchanged head → no backend writes")
     }
