@@ -17,8 +17,8 @@ struct MockRunner: ProcessRunner {
 @Suite struct ToolchainBuildTests {
     @Test func sdkDetectPrefersPinnedAndSkipsEmbedded() throws {
         let both = MockRunner(results: ["swift sdk list": .init(
-            exitCode: 0, stdout: "swift-6.3.3-RELEASE_wasm\nswift-6.3.3-RELEASE_wasm-embedded\n", stderr: "")])
-        #expect(try WasmSDK.detect(runner: both) == "swift-6.3.3-RELEASE_wasm")
+            exitCode: 0, stdout: "swift-6.4.0-RELEASE_wasm-embedded\nswift-6.4.0-RELEASE_wasm\n", stderr: "")])
+        #expect(try WasmSDK.detect(runner: both) == "swift-6.4.0-RELEASE_wasm")
         let other = MockRunner(results: ["swift sdk list": .init(
             exitCode: 0, stdout: "swift-7.0-RELEASE_wasm-embedded\nswift-7.0-RELEASE_wasm\n", stderr: "")])
         #expect(try WasmSDK.detect(runner: other) == "swift-7.0-RELEASE_wasm")
