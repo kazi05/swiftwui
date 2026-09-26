@@ -19,7 +19,9 @@ struct SSG: ParsableCommand {
         let name = try product ?? PackageInfo.executableProduct(in: cwd, runner: runner)
         let r = try runner.run("swift", ["run", name, "ssg", "--out", out], cwd: cwd, streamOutput: true)
         guard r.exitCode == 0 else { throw ExitCode(r.exitCode) }
-        let outDir = cwd + "/" + out
+        // The child resolves `--out` against the same cwd; an absolute path
+        // must not be re-rooted under the project for the post-processing.
+        let outDir = out.hasPrefix("/") ? out : cwd + "/" + out
         try DistLayout.copyPublic(projectDir: cwd, outDir: outDir)
         if try PWAAssets.generateManifest(distDir: outDir) {
             print("generated sw-assets.js (PWA precache manifest)")

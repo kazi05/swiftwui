@@ -27,12 +27,20 @@ public struct Link<Content: Tag>: Tag {
         } else {
             let _ = assert(dest.hasPrefix("/"),
                            "Link destination must be root-relative ('/docs/intro'), got '\(dest)' — relative paths resolve against the SSG file location, not the route")
-            A(href: externalize(dest)) { content }     // locale prefix lives in the href only
-                .attribute("data-swui-link", "")
-                .onClickEvent { e in
-                    guard e?.isModified != true else { return }   // browser: new tab etc.
-                    nav(dest)                                     // …navigate still takes the INTERNAL path
-                }
+            if dest.contains("#") {
+                // `navigate` routes on path + query and drops the fragment, so an
+                // intercepted click pushed "/docs" for "/docs#install" (and did
+                // nothing at all on /docs itself). The browser scrolls to the
+                // anchor — in place on the same page, via a load otherwise.
+                A(href: externalize(dest)) { content }
+            } else {
+                A(href: externalize(dest)) { content }     // locale prefix lives in the href only
+                    .attribute("data-swui-link", "")
+                    .onClickEvent { e in
+                        guard e?.isModified != true else { return }   // browser: new tab etc.
+                        nav(dest)                                     // …navigate still takes the INTERNAL path
+                    }
+            }
         }
     }
 }

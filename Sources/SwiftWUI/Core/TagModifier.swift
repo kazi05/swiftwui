@@ -41,11 +41,17 @@ public struct ModifiedTag<C: Tag, M: TagModifier>: Tag, _PrimitiveTag {
         let box = _InvalidateBox(token: observationToken, fire: { inv(id) })
         let savedOwner = ctx.owner
         let savedObservationToken = ctx.ownerObservationToken
+        let savedTransaction = ctx.transaction
         ctx.owner = id
         ctx.ownerObservationToken = observationToken
+        // Same as a component boundary: a `withAnimation` write to the
+        // modifier's own @State must keep its transaction when an ancestor is
+        // dirty in the same flush and becomes the pass root.
+        if let t = ctx.transactionOverrides[id] { ctx.transaction = t }
         defer {
             ctx.owner = savedOwner
             ctx.ownerObservationToken = savedObservationToken
+            ctx.transaction = savedTransaction
         }
         // Unlike a component boundary, ctx.scopeClass is deliberately preserved:
         // modifier-wrapped content keeps the caller's Styled scope.

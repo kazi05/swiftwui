@@ -668,6 +668,11 @@ public final class Runtime<Backend: RendererBackend> {
         let body: () -> Void = { [weak self] in
             guard let self, !ran else { return }   // idempotent: at most one commit per transition
             ran = true
+            // Disposed while the browser captured the old frame (an island torn
+            // down in the same frame): the backend still delivers the update, and
+            // committing now would rebuild the tree — DOM, state, listeners,
+            // tasks — into a runtime that will never unmount it again.
+            guard self.mounted else { return }
             // Clearing the flag and scheduling the follow-up from a `defer`
             // keeps both correct if `runPasses` exits abnormally. Order matters:
             // clear first, THEN schedule — an immediate scheduler (SSG, tests)

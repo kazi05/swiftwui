@@ -41,4 +41,20 @@ import Testing
         #expect(!CSSSanitize.isSafeValue("red } body { display: none"))
         #expect(!CSSSanitize.isSafeValue("a\u{0}b"))
     }
+    /// A value may not leave its own declaration: a top-level `;`, unbalanced
+    /// parentheses/quotes and a trailing backslash all let attacker-shaped data
+    /// (e.g. an avatar URL in `.url(…)`) add sibling declarations.
+    @Test func sanitizeRejectsDeclarationSmuggling() {
+        #expect(!CSSSanitize.isSafeValue("x.png); position: fixed; inset: 0; background: url(y"))
+        #expect(!CSSSanitize.isSafeValue("red; position: fixed"))
+        #expect(!CSSSanitize.isSafeValue("url(x.png"))
+        #expect(!CSSSanitize.isSafeValue("x.png)"))
+        #expect(!CSSSanitize.isSafeValue("\"unterminated"))
+        #expect(!CSSSanitize.isSafeValue("red\\"))
+        #expect(CSSSanitize.isSafeValue("url(data:image/png;base64,AA)"))
+        #expect(CSSSanitize.isSafeValue("\"a;b)\""))
+        #expect(CSSSanitize.isSafeValue("\"it\\\"s\""))
+        #expect(CSSSanitize.isSafeValue("'Inter', system-ui, sans-serif"))
+        #expect(CSSSanitize.isSafeValue("calc(100% - (2 * 8px))"))
+    }
 }

@@ -119,13 +119,18 @@ public final class StyleRegistry {
         return nil
     }
 
-    /// Canonical order: (media width semantics, media string, container, hash) —
-    /// deterministic regardless of which pass registered first (spec §7: scoped ≡
-    /// full byte-identical text).
+    /// Canonical order: (media width semantics, container width semantics,
+    /// media string, container, hash) — deterministic regardless of which pass
+    /// registered first (spec §7: scoped ≡ full byte-identical text). Container
+    /// conditions get the same numeric ordering as media ones: a string sort put
+    /// `(min-width: 1000px)` before `(min-width: 400px)`, so the narrower block
+    /// won on source order inside a wide container.
     public var text: String {
         let sorted = byHash.values.sorted {
             let a = Self.mediaOrderKey($0.media), b = Self.mediaOrderKey($1.media)
             if a != b { return a < b }
+            let ca = Self.mediaOrderKey($0.container), cb = Self.mediaOrderKey($1.container)
+            if ca != cb { return ca < cb }
             return ($0.media, $0.container, $0.hash) < ($1.media, $1.container, $1.hash)
         }
         return sorted.map { e in

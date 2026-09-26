@@ -100,7 +100,16 @@ public struct _AttributeBag {
     mutating func setVisibilityRoot(_ id: String) { visibilityRootID = id }
     mutating func addVisibility(_ request: _VisibilityRequest) { configuredVisibility.append(request) }
 
-    mutating func addStyle(_ d: StyleDeclaration) { styles.append(d) }
+    /// Inline declarations reach SSG `style=""` as one concatenated string, so
+    /// raw-string modifiers (`fontFamily(String)`, `gridTemplateColumns`, …) get
+    /// the same assert-and-drop value gate the registry applies to rule bodies.
+    mutating func addStyle(_ d: StyleDeclaration) {
+        guard CSSSanitize.isSafeValue(d.value) else {
+            assertionFailure("unsafe inline style value dropped: \(d.property): \(d.value)")
+            return
+        }
+        styles.append(d)
+    }
 
     /// Last-wins per name, except `class` accumulates space-joined (spec decision 5).
     func flattened() -> [String: String] {

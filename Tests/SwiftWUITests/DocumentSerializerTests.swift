@@ -24,6 +24,16 @@ import SwiftWUI
         """)
         #expect(!html.contains("importmap"))   // static mode: no wasm bundle, no import map
     }
+    /// Regression: registry values may legally contain `</style>` (raw-string
+    /// style APIs such as `fontFamily(String)`), and the inline sink was guarded
+    /// only by a debug assert — a release SSG build closed the element early.
+    @Test func inlineCSSCannotCloseTheStyleElement() {
+        let html = DocumentSerializer.render(.init(
+            bodyHTML: "<p></p>",
+            css: ".swui-x:hover { font-family: </style><script>alert(1)</script> }"))
+        #expect(!html.contains("</style><script>"))
+        #expect(html.contains("font-family: <\\/style><script>alert(1)<\\/script> }"))
+    }
     @Test func hydrateModeIncludesSnapshotAndBootScript() {
         let html = DocumentSerializer.render(.init(
             bodyHTML: "<div></div>",
