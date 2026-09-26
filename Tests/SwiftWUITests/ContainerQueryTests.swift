@@ -10,6 +10,21 @@ import Testing
         #expect(reg.text.hasPrefix("@container sidebar (min-width: 400px) { .swui-"))
         #expect(reg.text.contains("flex-direction: row"))
     }
+    /// Regression: container conditions were ordered as strings, emitting the
+    /// 1000px block before the 400px one, so at a 1200px container the narrower
+    /// rule won on source order (mobile-first stacks cascaded backwards).
+    @Test func minWidthContainerBlocksEmitAscending() throws {
+        let reg = StyleRegistry()
+        for (width, pad) in [(1000.0, 32.0), (400.0, 8.0)] {
+            _ = reg.registerAnonymous(pseudo: nil, media: nil,
+                                      container: MediaQuery.minWidth(.px(width)).condition,
+                                      declarations: [.padding(.px(pad))])
+        }
+        let text = reg.text
+        let narrow = try #require(text.firstRange(of: "@container (min-width: 400px)"))
+        let wide = try #require(text.firstRange(of: "@container (min-width: 1000px)"))
+        #expect(narrow.lowerBound < wide.lowerBound)
+    }
     @Test func mediaPathUnchanged() {
         let reg = StyleRegistry()
         _ = reg.registerAnonymous(pseudo: nil, media: "(max-width: 600px)", container: nil,

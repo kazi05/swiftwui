@@ -673,7 +673,12 @@ public enum StaticSite {
         }
         if config.cssFile {
             let cssPath = config.outDir + "/styles.css"
-            do { try cssUnion.joined(separator: "\n").write(toFile: cssPath, atomically: true, encoding: .utf8) }
+            // A build whose routes are all dynamic writes no document, so
+            // nothing else has created outDir yet.
+            do {
+                try FileManager.default.createDirectory(atPath: config.outDir, withIntermediateDirectories: true)
+                try cssUnion.joined(separator: "\n").write(toFile: cssPath, atomically: true, encoding: .utf8)
+            }
             catch { throw StaticSiteError.io(path: cssPath, underlying: "\(error)") }
         }
         if let siteURL = config.siteURL, !siteURL.isEmpty, !sitemapPaths.isEmpty {
@@ -770,9 +775,17 @@ public enum StaticSite {
     /// The one place "which folder" and "which URL" are joined into a path on
     /// disk, relative to outDir. Query strings and fragments are stripped here,
     /// so every caller agrees on where a copied browser URL collapses to.
+    ///
+    /// Segments are percent-decoded once: static servers (nginx, `swiftwui
+    /// serve`) decode the request path before the disk lookup, so an enumerated
+    /// `/caf%C3%A9` written to a literal `caf%C3%A9/` folder was never found.
+    /// `writeDocument` has already rejected paths whose decoded form is unsafe.
     static func outputFile(path: String, subdir: String) -> String {
         let clean = RouteURL._normalize(String(path.prefix { $0 != "?" && $0 != "#" }))
-        let dir = clean == "/" ? "" : String(clean.dropFirst())
+        let dir = clean == "/" ? "" : clean.dropFirst()
+            .split(separator: "/", omittingEmptySubsequences: false)
+            .map { segment in String(segment).removingPercentEncoding ?? String(segment) }
+            .joined(separator: "/")
         return ([subdir, dir].filter { !$0.isEmpty } + ["index.html"]).joined(separator: "/")
     }
 

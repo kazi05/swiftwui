@@ -163,6 +163,7 @@ public enum DistLayout {
     /// Shim source: the project's checked-in vendor/ dir (scaffolded by init, Task 10),
     /// falling back to the CLI's bundled resources for non-scaffolded projects.
     public static func assemble(projectDir: String, bundleDir: String, outDir: String) throws {
+        try requireSeparateOutput(projectDir: projectDir, outDir: outDir)
         let fm = FileManager.default
         guard fm.fileExists(atPath: projectDir + "/index.html") else {
             throw ToolchainError.io("'\(projectDir)' has no index.html — swiftwui build needs the project's index.html to assemble dist/")
@@ -181,6 +182,32 @@ public enum DistLayout {
         try fm.createDirectory(atPath: outDir + "/vendor", withIntermediateDirectories: true)
         try fm.copyItem(atPath: shimSource, toPath: outDir + "/vendor/wasi-shim")
         try copyPublic(projectDir: projectDir, outDir: outDir)
+    }
+
+    /// `--out .`, `--out ""` or `--out ..` would aim the removals in `assemble`
+    /// and `copyPublic` at the project's own index.html, vendored shim and
+    /// public entries — deleted before the copy that follows fails. Paths are
+    /// compared after resolving the deepest existing ancestor, like
+    /// `StaticSite.writeDocument` does, since `dist/` may not exist yet.
+    static func requireSeparateOutput(projectDir: String, outDir: String) throws {
+        func canonical(_ path: String) -> String {
+            var url = URL(fileURLWithPath: path).standardizedFileURL
+            var missing: [String] = []
+            while !FileManager.default.fileExists(atPath: url.path) {
+                let parent = url.deletingLastPathComponent()
+                guard parent.path != url.path else { break }
+                missing.append(url.lastPathComponent)
+                url = parent
+            }
+            var resolved = url.resolvingSymlinksInPath()
+            for component in missing.reversed() { resolved.appendPathComponent(component) }
+            return resolved.standardizedFileURL.path
+        }
+        let project = canonical(projectDir), out = canonical(outDir)
+        let outPrefix = out.hasSuffix("/") ? out : out + "/"
+        guard out != project, !project.hasPrefix(outPrefix) else {
+            throw ToolchainError.io("output directory '\(outDir)' is the project directory or one of its parents; choose a separate directory such as dist")
+        }
     }
 
     /// Part of the bundle directory, not of the boot opt-in: `A.bootUI` may be
@@ -213,6 +240,7 @@ public enum DistLayout {
     /// Copy every top-level child of public/ into outDir (spec §4). Replaces
     /// each target child; never wipes outDir itself (it holds app/ + vendor/).
     public static func copyPublic(projectDir: String, outDir: String) throws {
+        try requireSeparateOutput(projectDir: projectDir, outDir: outDir)
         let fm = FileManager.default
         let publicDir = projectDir + "/public"
         guard fm.fileExists(atPath: publicDir) else { return }

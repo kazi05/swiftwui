@@ -63,6 +63,24 @@ private struct VTCounter: Tag {
         #expect(backend.viewTransitions.count == 1)          // the second write armed nothing
     }
 
+    /// Regression: an update callback delivered after `unmount()` re-ran the
+    /// passes with `current == nil`, remounting the whole tree as a zombie
+    /// that nothing could ever tear down again.
+    @Test func updateDeliveredAfterUnmountCommitsNothing() {
+        let (runtime, backend, sched) = makeRuntime(VTCounter())
+        backend.deferViewTransition = true
+        let button = findFirst(backend.container, tag: "button")!
+        withViewTransition(.fade) { runtime.dispatch(button.events["click"]!) }
+        sched.pump()
+        #expect(backend._heldViewTransitionUpdate != nil)
+        runtime.unmount()
+        #expect(findFirst(backend.container, tag: "button") == nil)
+        backend.runPendingViewTransition()                  // watchdog/platform still calls back
+        sched.pump()
+        #expect(findFirst(backend.container, tag: "button") == nil)
+        #expect(!backend.serializeHTML().contains("<span>"))
+    }
+
     @Test func droppedUpdateCallbackDoesNotFreezeTheRenderer() {
         let (runtime, backend, sched) = makeRuntime(VTCounter())
         backend.deferViewTransition = true

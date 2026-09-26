@@ -106,11 +106,11 @@ public enum DocumentSerializer {
         if let href = input.cssHref {
             out += "<link rel=\"stylesheet\" href=\"" + HTMLEscaping.text(href) + "\">\n"
         } else if let css = input.css, !css.isEmpty {
-            // Raw-text context: CSS comes from our own registry (already
-            // sanitized at registration — phase-3 sink guards); assert-guard
-            // the impossible breakout anyway.
-            assert(!css.contains("</style"), "registry CSS must never contain </style")
-            out += "<style data-swiftwui>\n" + css + "\n</style>\n"
+            // Raw-text sink. The registry only rejects values that could leave
+            // a rule body (`{`, `}`, controls); raw-string style APIs may still
+            // carry `</style>`, so neutralise every `</` here (`<\/` is inert
+            // CSS). The live DOM path writes textContent and needs no escaping.
+            out += "<style data-swiftwui>\n" + HTMLEscaping.rawTextElement(css) + "\n</style>\n"
         }
         if let shell = input.bootShell, !shell.css.isEmpty {
             // Its own element, and deliberately NOT marked data-swiftwui:
@@ -118,8 +118,7 @@ public enum DocumentSerializer {
             // managed stylesheet and replaces its textContent at mount, which
             // would delete the veil/placeholder rules mid-boot. Emitted whether
             // or not the app has a stylesheet of its own.
-            assert(!shell.css.contains("</style"), "boot CSS must never contain </style")
-            out += "<style data-swui-boot>\n" + shell.css + "\n</style>\n"
+            out += "<style data-swui-boot>\n" + HTMLEscaping.rawTextElement(shell.css) + "\n</style>\n"
         }
         if let snapshot = input.snapshotJSON {
             // "\/" alone can't stop "<!--<script" (script-data-double-escaped state

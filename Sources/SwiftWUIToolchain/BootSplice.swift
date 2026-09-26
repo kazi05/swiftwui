@@ -124,7 +124,7 @@ public enum BootSplice {
         if let shell, !shell.css.isEmpty {
             // Not `data-swiftwui`: that is the stylesheet DOMBackend adopts and
             // overwrites at mount, which would delete the veil rules mid-boot.
-            out += "<style data-swui-boot>\n" + shell.css + "\n</style>\n"
+            out += "<style data-swui-boot>\n" + HTMLEscaping.rawTextElement(shell.css) + "\n</style>\n"
         }
         if let config {
             // Every link below MUST stay under the import map the template keeps
