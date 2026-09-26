@@ -49,6 +49,23 @@ private struct PathProbe: Tag {
         #expect(backend.historyStack.isEmpty)
         #expect(backend.serializeHTML().contains("at:/popped q:9"))
     }
+    /// Regression: browsers fire popstate for same-document fragment moves
+    /// (`<a href="#faq">`); handling them as history navigations re-rendered
+    /// the page, played a pop transition and reset the scroll position.
+    @Test func fragmentOnlyPopStateIsLeftToTheBrowser() {
+        let (rt, backend, sched) = make(initialPath: "/docs?x=2")
+        rt.handlePopState(url: "/docs?x=2")                // location.hash changed only
+        sched.pump()
+        #expect(backend.navigationBegins.isEmpty)
+        #expect(backend.serializeHTML().contains("at:/docs q:2"))
+        rt.handlePopState(url: "/docs/?x=2")               // trailing slash is the same route
+        sched.pump()
+        #expect(backend.navigationBegins.isEmpty)
+        rt.handlePopState(url: "/docs?x=3")                // a real history step still routes
+        sched.pump()
+        #expect(backend.navigationBegins == [true])
+        #expect(backend.serializeHTML().contains("at:/docs q:3"))
+    }
     @Test func sameLocationNavigationIsNoOp() {
         let (rt, backend, sched) = make(initialPath: "/here")
         rt.navigate(to: "/here")

@@ -30,6 +30,9 @@ private struct LProbe: Tag {
         #expect(!Link<Text>.isExternal("/q?x=1"))
         #expect(!Link<Text>.isExternal("relative/path"))
         #expect(!Link<Text>.isExternal("justtext"))
+        #expect(Link<Text>.isExternal("/\\evil.example"))    // WHATWG: `\` is `/` for http(s)
+        #expect(Link<Text>.isExternal("\\\\evil.example"))
+        #expect(!Link<Text>.isExternal("/docs\\x"))
     }
     @Test func internalLinkNavigatesOnPlainClick() {
         let (rt, backend, sched) = make()
@@ -65,6 +68,13 @@ private struct LProbe: Tag {
             #expect(a.attrs["data-swui-link"] == nil)
         }
         #expect(anchors[2].attrs["target"] == "_blank")
+    }
+    /// Regression: an intercepted "/docs#install" pushed "/docs" (navigate
+    /// drops fragments), losing the anchor — and was a no-op on /docs itself.
+    @Test func pathWithFragmentIsLeftToTheBrowser() {
+        let html = HTMLRenderer.render(Link("/docs#install") { Text("Install") })
+        #expect(html.contains("href=\"/docs#install\""))
+        #expect(!html.contains("data-swui-link"))
     }
     @Test func anchorLinkIsNotIntercepted() {
         let html = HTMLRenderer.render(Link("#features") { Text("Features") })

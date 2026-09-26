@@ -204,6 +204,7 @@ public enum DOMRuntime {
         island.whenActivated = { [weak island] in
             guard let island else { return }
             let (backend, box) = makeBackend()
+            backend.adoptsDocumentStylesheet = false
             let loc = JSObject.global.location
             let runtime = makeRuntime(root: root(), backend: backend, container: container,
                                       initialPath: (loc.pathname.string ?? "/") + (loc.search.string ?? ""),

@@ -1,6 +1,6 @@
 # Swift 6.4 and Embedded experiments
 
-These experiments are isolated from the library's supported Swift 6.3.3/WASI
+These experiments are isolated from the library's supported Swift 6.4.0/WASI
 build. They are evidence gathering, not feature flags and not a new deployment
 profile.
 
@@ -16,8 +16,10 @@ cd Experiments/Swift64
 SWIFT64=/path/to/swift SWIFTC64=/path/to/swiftc ./run-se0506.sh
 ```
 
-The host at audit time has Swift 6.3.3 and no Swift 6.4 toolchain, so this probe
-has not been compiled or reported as passing. The script rejects older or
+The host at audit time (12 September 2026) had Swift 6.3.3 and no Swift 6.4
+toolchain. Swift 6.4.0 was released on 14 September 2026, and the
+`native-and-release` CI job now runs this probe with the pinned 6.4.0 toolchain
+as a non-gating step; read its result there before building on it. The script rejects older or
 mismatched compilers before compilation. The continuous API uses a single
 closure that both reads dependencies and receives an event; it does not use
 the separate `onChange` closure from one-shot tracking. The probe checks

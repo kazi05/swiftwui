@@ -54,6 +54,13 @@ private func parseLinearValues(_ easing: String) -> [Double] {
         #expect(ms.isFinite && ms >= 0)
         #expect(!easing.lowercased().contains("nan") && !easing.lowercased().contains("inf"))
     }
+    /// Regression: the settle scan is 5x duration in 1 ms steps on the main
+    /// thread; an unbounded duration hung the render (and could trap `Int`).
+    @Test func springHugeDurationIsClamped() {
+        let (ms, easing) = SpringSolver.solve(duration: 1_000_000, bounce: 0.2)
+        #expect(ms.isFinite && ms <= SpringSolver.maxDuration * 5 * 1000)
+        #expect(easing.hasPrefix("linear("))
+    }
     @Test func linearNegativeDurationIsSane() {
         assertSane(Animation.linear(duration: -1).resolved())
     }

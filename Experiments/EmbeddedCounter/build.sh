@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Uses an isolated scratch path so this experiment never races the repository's
 # native build directory. `swift sdk list` must show the requested SDK first.
-sdk="${SWIFTWUI_EMBEDDED_SDK:-swift-6.3.3-RELEASE_wasm-embedded}"
-regular_sdk="${SWIFTWUI_WASM_SDK:-swift-6.3.3-RELEASE_wasm}"
+sdk="${SWIFTWUI_EMBEDDED_SDK:-swift-6.4.0-RELEASE_wasm-embedded}"
+regular_sdk="${SWIFTWUI_WASM_SDK:-swift-6.4.0-RELEASE_wasm}"
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/swiftwui-embedded.XXXXXX")"
 trap 'rm -rf "$scratch"' EXIT

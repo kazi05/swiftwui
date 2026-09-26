@@ -2,7 +2,7 @@ import Foundation
 
 public enum WasmSDK {
     /// Repo pin (CLAUDE.md): host toolchain and SDK versions must match exactly.
-    public static let pinned = "swift-6.3.3-RELEASE_wasm"
+    public static let pinned = "swift-6.4.0-RELEASE_wasm"
 
     public struct Preflight: Equatable, Sendable {
         public var sdk: String
@@ -25,9 +25,12 @@ public enum WasmSDK {
         guard r.exitCode == 0 else {
             throw ToolchainError.noWasmSDK(hint: "`swift sdk list` failed: \(r.stderr.isEmpty ? r.stdout : r.stderr)")
         }
-        let ids = r.stdout.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        return try detect(in: sdkIDs(r.stdout))
+    }
+
+    static func detect(in ids: [String]) throws -> String {
         if ids.contains(pinned) { return pinned }
-        if let id = ids.first(where: { $0.contains("wasm") && !$0.contains("embedded") }) { return id }
+        if let id = ids.first(where: isWebSDK) { return id }
         throw ToolchainError.noWasmSDK(hint:
             "Install the Swift.org WASM SDK matching your toolchain exactly (expected \(pinned)): " +
             "see the Swift SDK bundles on swift.org/download, then `swift sdk install <artifactbundle url>`.")
@@ -41,18 +44,23 @@ public enum WasmSDK {
         guard listed.exitCode == 0 else {
             throw ToolchainError.noWasmSDK(hint: "`swift sdk list` failed: \(listed.stderr.isEmpty ? listed.stdout : listed.stderr)")
         }
-        let installed = listed.stdout.split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-        let sdk = try selectedSDK ?? detect(runner: runner, cwd: cwd)
-        guard installed.contains(sdk) else {
-            throw ToolchainError.noWasmSDK(hint: "'\(sdk)' is not installed for the selected swift executable. Run `swift sdk list`, install that SDK, or pass an installed --swift-sdk id.")
-        }
-        guard sdk.contains("wasm"), !sdk.contains("embedded") else {
-            throw ToolchainError.incompatibleToolchain("'\(sdk)' is not a WASM web SDK")
-        }
+        let installed = sdkIDs(listed.stdout)
         let host = try runner.run("swift", ["--version"], cwd: cwd, streamOutput: false)
         guard host.exitCode == 0 else {
             throw ToolchainError.incompatibleToolchain("`swift --version` failed: \(host.stderr.isEmpty ? host.stdout : host.stderr)")
+        }
+        guard let hostVersion = swiftVersion(in: host.stdout + host.stderr) else {
+            throw ToolchainError.incompatibleToolchain("could not parse a Swift release from `swift --version`: \(host.stdout + host.stderr)")
+        }
+        // An explicit --swift-sdk always wins. Otherwise prefer the installed web
+        // SDK built for this host, so a machine that also has the pinned SDK of
+        // another release does not fail preflight with a needless mismatch.
+        let sdk = try selectedSDK ?? webSDK(matching: hostVersion, in: installed) ?? detect(in: installed)
+        guard installed.contains(sdk) else {
+            throw ToolchainError.noWasmSDK(hint: "'\(sdk)' is not installed for the selected swift executable. Run `swift sdk list`, install that SDK, or pass an installed --swift-sdk id.")
+        }
+        guard isWebSDK(sdk) else {
+            throw ToolchainError.incompatibleToolchain("'\(sdk)' is not a WASM web SDK")
         }
         // SwiftPM honors SWIFT_EXEC. Query that exact executable when it is set;
         // checking a different `swiftc` on PATH would give a false green result.
@@ -61,22 +69,18 @@ public enum WasmSDK {
         guard compiler.exitCode == 0 else {
             throw ToolchainError.incompatibleToolchain("`\(compilerCommand) --version` failed: \(compiler.stderr.isEmpty ? compiler.stdout : compiler.stderr)")
         }
-        let hostVersion = swiftVersion(in: host.stdout + host.stderr)
         let compilerVersion = swiftVersion(in: compiler.stdout + compiler.stderr)
         let sdkVersion = swiftVersion(in: sdk)
-        guard let hostVersion else {
-            throw ToolchainError.incompatibleToolchain("could not parse a Swift release from `swift --version`: \(host.stdout + host.stderr)")
-        }
         guard let compilerVersion else {
             throw ToolchainError.incompatibleToolchain("could not parse a Swift release from `\(compilerCommand) --version`: \(compiler.stdout + compiler.stderr)")
         }
         guard let sdkVersion else {
             throw ToolchainError.incompatibleToolchain("could not parse a Swift release from SDK id '\(sdk)'")
         }
-        if hostVersion != compilerVersion {
+        if !sameRelease(hostVersion, compilerVersion) {
             throw ToolchainError.incompatibleToolchain("swift is \(hostVersion), but swiftc is \(compilerVersion). Select one toolchain (for example set PATH and SWIFT_EXEC together).")
         }
-        if hostVersion != sdkVersion {
+        if !sameRelease(hostVersion, sdkVersion) {
             throw ToolchainError.incompatibleToolchain("swift is \(hostVersion), but SDK '\(sdk)' is \(sdkVersion). Install/select matching releases; mixed host/SDK builds are not reproducible.")
         }
         let hostExecutable = resolved("swift", runner: runner, cwd: cwd)
@@ -91,7 +95,34 @@ public enum WasmSDK {
         return value.isEmpty ? executable : value
     }
 
-    private static func swiftVersion(in text: String) -> String? {
+    private static func sdkIDs(_ listing: String) -> [String] {
+        listing.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private static func isWebSDK(_ id: String) -> Bool {
+        id.contains("wasm") && !id.contains("embedded")
+    }
+
+    static func webSDK(matching hostVersion: String, in ids: [String]) -> String? {
+        let matching = ids.filter { id in
+            isWebSDK(id) && swiftVersion(in: id).map { sameRelease($0, hostVersion) } == true
+        }
+        return matching.contains(pinned) ? pinned : matching.first
+    }
+
+    /// Since 6.4.0, x.y.0 release tags (and so SDK ids such as
+    /// `swift-6.4.0-RELEASE_wasm`) spell the patch component, while a compiler
+    /// prints `Swift version 6.4 (swift-6.4-RELEASE)`. Both name the same release.
+    static func sameRelease(_ lhs: String, _ rhs: String) -> Bool {
+        func canonical(_ version: String) -> [Substring] {
+            var parts = version.split(separator: ".")
+            while parts.count > 2, parts.last == "0" { parts.removeLast() }
+            return parts
+        }
+        return canonical(lhs) == canonical(rhs)
+    }
+
+    static func swiftVersion(in text: String) -> String? {
         let pattern = #"(?:swift[- ]|Swift version )([0-9]+\.[0-9]+(?:\.[0-9]+)?)"#
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
@@ -132,6 +163,7 @@ public enum DistLayout {
     /// Shim source: the project's checked-in vendor/ dir (scaffolded by init, Task 10),
     /// falling back to the CLI's bundled resources for non-scaffolded projects.
     public static func assemble(projectDir: String, bundleDir: String, outDir: String) throws {
+        try requireSeparateOutput(projectDir: projectDir, outDir: outDir)
         let fm = FileManager.default
         guard fm.fileExists(atPath: projectDir + "/index.html") else {
             throw ToolchainError.io("'\(projectDir)' has no index.html — swiftwui build needs the project's index.html to assemble dist/")
@@ -150,6 +182,32 @@ public enum DistLayout {
         try fm.createDirectory(atPath: outDir + "/vendor", withIntermediateDirectories: true)
         try fm.copyItem(atPath: shimSource, toPath: outDir + "/vendor/wasi-shim")
         try copyPublic(projectDir: projectDir, outDir: outDir)
+    }
+
+    /// `--out .`, `--out ""` or `--out ..` would aim the removals in `assemble`
+    /// and `copyPublic` at the project's own index.html, vendored shim and
+    /// public entries — deleted before the copy that follows fails. Paths are
+    /// compared after resolving the deepest existing ancestor, like
+    /// `StaticSite.writeDocument` does, since `dist/` may not exist yet.
+    static func requireSeparateOutput(projectDir: String, outDir: String) throws {
+        func canonical(_ path: String) -> String {
+            var url = URL(fileURLWithPath: path).standardizedFileURL
+            var missing: [String] = []
+            while !FileManager.default.fileExists(atPath: url.path) {
+                let parent = url.deletingLastPathComponent()
+                guard parent.path != url.path else { break }
+                missing.append(url.lastPathComponent)
+                url = parent
+            }
+            var resolved = url.resolvingSymlinksInPath()
+            for component in missing.reversed() { resolved.appendPathComponent(component) }
+            return resolved.standardizedFileURL.path
+        }
+        let project = canonical(projectDir), out = canonical(outDir)
+        let outPrefix = out.hasSuffix("/") ? out : out + "/"
+        guard out != project, !project.hasPrefix(outPrefix) else {
+            throw ToolchainError.io("output directory '\(outDir)' is the project directory or one of its parents; choose a separate directory such as dist")
+        }
     }
 
     /// Part of the bundle directory, not of the boot opt-in: `A.bootUI` may be
@@ -182,6 +240,7 @@ public enum DistLayout {
     /// Copy every top-level child of public/ into outDir (spec §4). Replaces
     /// each target child; never wipes outDir itself (it holds app/ + vendor/).
     public static func copyPublic(projectDir: String, outDir: String) throws {
+        try requireSeparateOutput(projectDir: projectDir, outDir: outDir)
         let fm = FileManager.default
         let publicDir = projectDir + "/public"
         guard fm.fileExists(atPath: publicDir) else { return }

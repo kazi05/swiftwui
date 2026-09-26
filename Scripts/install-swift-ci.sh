@@ -4,7 +4,9 @@ set -euo pipefail
 
 # Keep the native compiler and the WebAssembly SDK on the same Swift release.
 # Source: https://www.swift.org/install/linux/ubuntu/24_04/
-readonly swift_version="6.3.3"
+# SWIFTWUI_SWIFT_VERSION selects another signed 6.x release (the compatibility
+# CI leg uses it); the default is the repository pin in .swift-version.
+readonly swift_version="${SWIFTWUI_SWIFT_VERSION:-6.4.0}"
 readonly swift_release="swift-${swift_version}-RELEASE"
 readonly swift_archive="${swift_release}-ubuntu24.04.tar.gz"
 readonly swift_base_url="https://download.swift.org/swift-${swift_version}-release/ubuntu2404/${swift_release}"
@@ -105,13 +107,35 @@ if [[ "$verified_fingerprint" != "$swift_signing_fingerprint" ]]; then
   exit 1
 fi
 
+# The pinned 6.x key expired on 2026-09-16. gpg still reports VALIDSIG (and
+# exits 0) for an expired key, so explicitly require the signature to predate
+# the expiry: a release signed with this key after it expired is not genuine.
+signature_created="$(awk '$1 == "[GNUPG:]" && $2 == "VALIDSIG" { print $5; exit }' "$verification_status")"
+key_expires="$({
+  gpg --homedir "$keyring_dir" --batch --with-colons --fixed-list-mode \
+    --list-keys "$swift_signing_fingerprint"
+} | awk -F: '$1 == "pub" { print $7; exit }')"
+if [[ ! "$signature_created" =~ ^[0-9]+$ ]]; then
+  echo "Could not read the Swift archive signature timestamp" >&2
+  exit 1
+fi
+if [[ -n "$key_expires" && "$signature_created" -ge "$key_expires" ]]; then
+  echo "Swift archive signature (${signature_created}) postdates the pinned key expiry (${key_expires})." >&2
+  echo "Refresh the pinned key block from https://www.swift.org/keys/all-keys.asc if swift.org extended it." >&2
+  exit 1
+fi
+
 echo "Extracting Swift ${swift_version} toolchain"
 tar --extract --gzip --file "$archive_path" \
   --directory "$install_dir" \
   --strip-components 1
 
+# Match the release tag in the banner, not the short version. For x.y.0 the
+# download tag spells the patch (swift-6.4.0-RELEASE) but the compiler banner
+# does not: 6.4.0 prints "Swift version 6.4 (swift-6.4-RELEASE)".
+readonly banner_release="swift-${swift_version%.0}-RELEASE"
 version_output="$("${install_dir}/usr/bin/swift" --version)"
-if [[ "$version_output" != *"Swift version ${swift_version} (${swift_release})"* ]]; then
+if [[ "$version_output" != *"(${swift_release})"* && "$version_output" != *"(${banner_release})"* ]]; then
   echo "Installed toolchain does not match ${swift_release}:" >&2
   echo "$version_output" >&2
   exit 1

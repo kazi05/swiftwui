@@ -6,7 +6,7 @@ fixture_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_dir="$(cd "$fixture_dir/../.." && pwd)"
 harness_dir="$repo_dir/Sites/Tutorial/tools/screenshots"
 port="${SWIFTWUI_BROWSER_PORT:-4175}"
-sdk="${SWIFTWUI_BROWSER_SDK:-swift-6.3.3-RELEASE_wasm}"
+sdk="${SWIFTWUI_BROWSER_SDK:-swift-6.4.0-RELEASE_wasm}"
 
 # SwiftPM's nested plugin build can otherwise fall back to Xcode's compiler,
 # which has no wasm target. Derive both compilers from the selected Swift SDK host.

@@ -6,6 +6,41 @@ Notable changes to SwiftWUI. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- The supported toolchain is Swift 6.4.0 with the `swift-6.4.0-RELEASE_wasm`
+  SDK (CI, `WasmSDK.pinned`, scaffolds, docs). The manifest stays at
+  `swift-tools-version: 6.2`, and CI keeps a native Swift 6.3.3 job.
+- Scaffolded Dockerfiles pin the official SDK bundle and its checksum as
+  `WASM_SDK_URL`/`WASM_SDK_CHECKSUM` build-arg defaults.
+- `CSSSanitize.isSafeValue` also rejects a top-level `;`, unbalanced
+  parentheses or quotes and a trailing backslash; inline style declarations
+  pass through the same gate. Values that relied on these were invalid CSS.
+- `Link` destinations with a `#fragment` are no longer intercepted for SPA
+  navigation, so the browser honors the anchor.
+
+### Fixed
+
+- WASM preflight treats `6.4` and `6.4.0` as the same release and prefers the
+  installed SDK that matches the host toolchain.
+- Prerendered `<style>` blocks can no longer be closed by CSS values containing
+  `</style>`.
+- `@container` rules are ordered by width like `@media` rules.
+- SSG writes percent-encoded paths to the decoded folder static servers serve.
+- A view transition completing after `unmount()` no longer remounts the tree.
+- Fragment-only history steps (`#anchor` links) no longer re-render the page,
+  play a pop transition or reset the scroll position.
+- Islands no longer take over the document's prerendered stylesheet.
+- Cancelling or force-finishing a WAAPI animation no longer logs an unhandled
+  "JSClosure has been already released" rejection.
+- `ModifiedTag` honors `withAnimation` transactions for its own state.
+- `swiftwui build --out .` no longer deletes project files; absolute `--out`
+  paths work for `build` and `ssg`.
+- Scroll commands drain in a deterministic order; spring durations are clamped
+  to 10 s; the dev server backs off on accept errors.
+
+See `Documentation/Swift64MigrationReview.md` for the full review.
+
 ## [0.10.0] - 2026-09-12
 
 ### Added

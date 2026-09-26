@@ -8,8 +8,8 @@ screenshots.
 
 ## Prerequisites
 
-- Swift 6.3.3 (swiftly) with the matching official WASM SDK
-  `swift-6.3.3-RELEASE_wasm`.
+- Swift 6.4.0 (swiftly) with the matching official WASM SDK
+  `swift-6.4.0-RELEASE_wasm`.
 - Node.js — only needed for the screenshot/smoke tooling under
   `tools/screenshots`.
 

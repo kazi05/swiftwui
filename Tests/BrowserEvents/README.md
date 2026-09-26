@@ -5,7 +5,7 @@ listeners, IntersectionObserver callback, Blob storage, upload transport, and
 typed temporary URL rendering. The test suite reuses the
 Playwright dependency in `Sites/Tutorial/tools/screenshots`.
 
-Requirements: Swift 6.3.3 with `swift-6.3.3-RELEASE_wasm`, Node/npm, Python 3,
+Requirements: Swift 6.4.0 with `swift-6.4.0-RELEASE_wasm`, Node/npm, Python 3,
 curl, and Playwright's Chromium browser. If Chromium is not installed, run
 `npx playwright install chromium` from the existing screenshots harness after
 `npm ci` there.

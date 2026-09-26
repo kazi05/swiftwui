@@ -179,6 +179,16 @@ private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
         #expect(!FileManager.default.fileExists(atPath: base + "/%2e%2e%2fescape/index.html"))
     }
 
+    /// Regression: an enumerated `/caf%C3%A9` landed in a literal `caf%C3%A9/`
+    /// folder, which decoding servers never look up (404 locally and in prod).
+    @Test func writeDocumentDecodesPercentEncodedSegments() throws {
+        let base = out(); defer { try? FileManager.default.removeItem(atPath: base) }
+        try StaticSite.writeDocument("cafe", path: "/menu/caf%C3%A9", outDir: base)
+        #expect(FileManager.default.fileExists(atPath: base + "/menu/caf\u{E9}/index.html"))
+        #expect(!FileManager.default.fileExists(atPath: base + "/menu/caf%C3%A9/index.html"))
+        #expect(StaticSite.outputFile(path: "/menu/caf%C3%A9?x=1", subdir: "ru") == "ru/menu/caf\u{E9}/index.html")
+    }
+
     @Test func previewRejectsEncodedDotSegmentsAndSeparators() throws {
         let dir = out(); defer { try? FileManager.default.removeItem(atPath: dir) }
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)

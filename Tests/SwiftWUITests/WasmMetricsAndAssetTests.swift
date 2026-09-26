@@ -9,7 +9,7 @@ import Foundation
         try FileManager.default.createDirectory(atPath: root + "/app", withIntermediateDirectories: true)
         // Magic/version plus an empty custom section: enough for the structural parser.
         try Data([0, 97, 115, 109, 1, 0, 0, 0, 0, 0]).write(to: URL(fileURLWithPath: root + "/app/a.wasm"))
-        let preflight = WasmSDK.Preflight(sdk: "swift-6.3.3-RELEASE_wasm", hostVersion: "6.3.3", sdkVersion: "6.3.3", compilerVersion: "6.3.3")
+        let preflight = WasmSDK.Preflight(sdk: "swift-6.4.0-RELEASE_wasm", hostVersion: "6.4", sdkVersion: "6.4.0", compilerVersion: "6.4")
         let report = try WasmMetrics.report(distDir: root, fixture: "fixture", configuration: "release", preflight: preflight, runner: MockRunner(results: [:]))
         #expect(report.rawBytes == 10)
         #expect(report.sections["custom"] == 0)
@@ -37,6 +37,43 @@ import Foundation
             (ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? "swiftc") + " --version": .init(exitCode: 0, stdout: "Swift version 7.1", stderr: "")
         ])
         #expect(throws: ToolchainError.self) { try WasmSDK.preflight(selectedSDK: "swift-7.0-RELEASE_wasm", runner: wrong, cwd: "/tmp") }
+    }
+
+    /// 6.4.0 is the first x.y.0 release whose tag, and so SDK id, spells the
+    /// patch component; the compiler banner may omit it.
+    @Test func preflightTreatsImplicitPatchZeroAsTheSameRelease() throws {
+        let compiler = (ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? "swiftc") + " --version"
+        // Verbatim 6.4.0 Linux banner (CI): even its tag omits the ".0".
+        let banner = "Swift version 6.4 (swift-6.4-RELEASE)\nTarget: x86_64-unknown-linux-gnu\n"
+        let shortHost = MockRunner(results: [
+            "swift sdk list": .init(exitCode: 0, stdout: "swift-6.4.0-RELEASE_wasm\n", stderr: ""),
+            "swift --version": .init(exitCode: 0, stdout: banner, stderr: ""),
+            compiler: .init(exitCode: 0, stdout: banner, stderr: "")
+        ])
+        let preflight = try WasmSDK.preflight(selectedSDK: nil, runner: shortHost, cwd: "/tmp")
+        #expect(preflight.sdk == "swift-6.4.0-RELEASE_wasm")
+        #expect(preflight.hostVersion == "6.4")
+        #expect(preflight.sdkVersion == "6.4.0")
+
+        #expect(WasmSDK.sameRelease("6.4", "6.4.0"))
+        #expect(WasmSDK.sameRelease("7.0", "7.0.0"))
+        #expect(!WasmSDK.sameRelease("6.4", "6.4.1"))
+        #expect(!WasmSDK.sameRelease("6.4", "6.3"))
+        #expect(!WasmSDK.sameRelease("6.4.0", "6.40"))
+    }
+
+    @Test func preflightPrefersTheInstalledSDKMatchingTheHost() throws {
+        let compiler = (ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? "swiftc") + " --version"
+        let banner = "Swift version 6.3.3 (swift-6.3.3-RELEASE)\n"
+        let listing = "\(WasmSDK.pinned)\nswift-6.3.3-RELEASE_wasm-embedded\nswift-6.3.3-RELEASE_wasm\n"
+        let olderHost = MockRunner(results: [
+            "swift sdk list": .init(exitCode: 0, stdout: listing, stderr: ""),
+            "swift --version": .init(exitCode: 0, stdout: banner, stderr: ""),
+            compiler: .init(exitCode: 0, stdout: banner, stderr: "")
+        ])
+        #expect(try WasmSDK.preflight(selectedSDK: nil, runner: olderHost, cwd: "/tmp").sdk == "swift-6.3.3-RELEASE_wasm")
+        // An explicit override is never replaced by the host-matching choice.
+        #expect(throws: ToolchainError.self) { try WasmSDK.preflight(selectedSDK: WasmSDK.pinned, runner: olderHost, cwd: "/tmp") }
     }
 
     @Test func preflightRejectsFailedOrUnparseableVersionCommands() {

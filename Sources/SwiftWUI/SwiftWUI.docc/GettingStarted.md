@@ -5,17 +5,18 @@ Install the toolchain, scaffold a project, and run it with hot reload.
 ## Overview
 
 SwiftWUI targets WebAssembly through the official Swift.org WASM SDK. The
-host toolchain and the SDK versions must match exactly — 6.3.3 with 6.3.3.
+host toolchain and the SDK versions must match exactly — 6.4.0 with 6.4.0.
 
 ### Install the toolchain
 
 ```sh
-swiftly install 6.3.3
-swiftly use 6.3.3
+swiftly install 6.4.0
+swiftly use 6.4.0
 
-# WASM SDK — bundle URL from swift.org/download
-swift sdk install <swift-6.3.3-RELEASE_wasm bundle URL>
-swift sdk list        # → swift-6.3.3-RELEASE_wasm
+# WASM SDK — official bundle and checksum from swift.org
+swift sdk install https://download.swift.org/swift-6.4.0-release/wasm-sdk/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE_wasm.artifactbundle.tar.gz \
+  --checksum f07b7be3c586d92d7a07051fc6d303b87ebea67eadc40640ba59d5a8b79aa86d
+swift sdk list        # → swift-6.4.0-RELEASE_wasm
 ```
 
 ### Install the CLI
