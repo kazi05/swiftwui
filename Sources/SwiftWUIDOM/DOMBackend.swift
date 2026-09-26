@@ -19,10 +19,11 @@ final class DOMAnimationToken: AnimationToken {
     var settled = false
     var settle: ((AnimationSettle) -> Void)?
     var timeoutID: JSValue?
-    // finished.then(onFinished, onRejected) + the timeout oneshot. A
-    // JSOneshotClosure self-releases only when INVOKED, so the unfired ones
-    // (the losing .then branch, and the timeout on a happy-path finish) would
-    // leak their host-func box. Retained here; released in settleOnce.
+    // The timeout oneshot only. A JSOneshotClosure self-releases only when
+    // INVOKED, and a cleared timer never invokes it, so it is retained here and
+    // released in settleOnce. The `finished` handler is deliberately absent:
+    // one closure serves both .then branches, fires exactly once and frees
+    // itself — releasing it early raced its already-queued reaction.
     var closures: [JSOneshotClosure] = []
     init(animation: JSObject, isInfinite: Bool) {
         self.animation = animation
