@@ -356,6 +356,34 @@ import Foundation
         #expect(ReleaseArtifacts.auditICU(distDir: dist, projectDir: project, configuration: "release") == nil)
     }
 
+    /// SwiftPM 6.4 builds with Swift Build by default, which keeps objects under
+    /// `out/Intermediates.noindex` with `-t` (library) / `-p` (executable) dirs.
+    @Test func icuAuditNamesModulesInTheSwiftBuildLayout() throws {
+        let project = try scratchDist()
+        defer { try? FileManager.default.removeItem(atPath: project) }
+        let fm = FileManager.default
+        let dist = project + "/dist"
+        let release = project + "/.build-wasm/out/Intermediates.noindex"
+        let app = release + "/MyApp.build/Release-webassembly-wasm32/MyApp-p.build/Objects-normal/wasm32"
+        let models = release + "/MyApp.build/Release-webassembly-wasm32/MyModels-t.build/Objects-normal/wasm32"
+        let debugOnly = release + "/MyApp.build/Debug-webassembly-wasm32/Stale-t.build/Objects-normal/wasm32"
+        let innocent = release + "/Dep.build/Release-webassembly-wasm32/Innocent-t.build/Objects-normal/wasm32"
+        for dir in [app, models, debugOnly, innocent] {
+            try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        }
+        try "…FoundationInternationalization…".write(toFile: app + "/App.o", atomically: true, encoding: .utf8)
+        try "…FoundationInternationalization…".write(toFile: models + "/Model.o", atomically: true, encoding: .utf8)
+        // Another configuration's leftovers must not be blamed for this build.
+        try "…FoundationInternationalization…".write(toFile: debugOnly + "/Old.o", atomically: true, encoding: .utf8)
+        try "nothing to see".write(toFile: innocent + "/Pure.o", atomically: true, encoding: .utf8)
+        try fm.createDirectory(atPath: dist + "/app", withIntermediateDirectories: true)
+        try fakeWasm(dataBytes: 3000, autolink: ["-l_FoundationICU"])
+            .write(to: URL(fileURLWithPath: dist + "/app/MyApp.wasm"))
+
+        let audit = ReleaseArtifacts.auditICU(distDir: dist, projectDir: project, configuration: "release")
+        #expect(audit?.modules == ["MyApp", "MyModels"])
+    }
+
     /// A dist built somewhere without `.build-wasm` still warns — it just cannot
     /// name names, and says so instead of printing an empty list.
     @Test func icuWarningSurvivesAMissingObjectTree() throws {

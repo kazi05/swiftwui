@@ -1,7 +1,7 @@
 import Foundation
 
 /// Installs an app-owned BridgeJS boundary. The generated ABI glue is never
-/// authored here: it is produced by the JavaScriptKit 0.56.1 command plugin.
+/// authored here: it is produced by the pinned JavaScriptKit's command plugin.
 public enum InteropScaffolder {
     public static let markerBegin = "// swiftwui-interop:begin"
     public static let markerEnd = "// swiftwui-interop:end"

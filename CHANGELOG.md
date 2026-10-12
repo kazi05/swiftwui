@@ -26,9 +26,23 @@ Notable changes to SwiftWUI. Format loosely follows
   relied on the implicit `Codable` now needs it spelled out.
 - `RendererBackend` refines `SendableMetatype`: backend conformances are never
   actor-isolated.
+- SwiftWUI requires JavaScriptKit 0.59.x (minor-pinned, because the committed
+  BridgeJS glue matches one minor's ABI) and ships glue regenerated with it.
+  Apps that use `swiftwui interop` set `exact: "0.59.0"` in
+  `Interop/Package.swift` and run `swiftwui interop generate`.
 
 ### Fixed
 
+- Apps built with Swift 6.4 load in the browser again. SwiftPM 6.4 builds with
+  Swift Build by default, and PackageToJS before JavaScriptKit 0.58 misread its
+  artifact layout and emitted JS without the WASI imports, so instantiation
+  failed with `Import #… "wasi_snapshot_preview1": module is not an object or
+  function`.
+- Native builds with Xcode 27's Swift 6.4 compile: `JavaScriptEventLoop`, which
+  needs custom-executor SPI that Apple's SDK does not ship, is linked for WASI
+  only.
+- `swiftwui build -c release` names the modules behind an ICU warning in Swift
+  Build's object layout too.
 - WASM preflight treats `6.4` and `6.4.0` as the same release and prefers the
   installed SDK that matches the host toolchain.
 - Prerendered `<style>` blocks can no longer be closed by CSS values containing

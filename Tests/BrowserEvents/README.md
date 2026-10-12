@@ -55,5 +55,5 @@ The viewport coverage uses desktop Chromium. Controlled events validate payload
 plumbing, but the suite does not exercise a physical software keyboard, pinch
 zoom on a device, or Safari.
 
-The fixture uses JavaScriptKit 0.56.1, matching the repository's resolved
+The fixture uses JavaScriptKit 0.59.0, matching the repository's pinned
 dependency, and installs only the WASI runtime emitted by its packager.

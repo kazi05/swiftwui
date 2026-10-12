@@ -194,19 +194,38 @@ public enum ReleaseArtifacts {
     /// a line.
     ///
     /// `.build-wasm` is the fixed scratch path `WasmBuilder.build` sets, so the
-    /// object directory is deterministic; an absent one (a `dist` built
-    /// elsewhere) simply yields no names.
+    /// object directories are deterministic for both SwiftPM build systems; an
+    /// absent one (a `dist` built elsewhere) simply yields no names.
     static func icuRequestingModules(projectDir: String, configuration: String) -> [String] {
         let fm = FileManager.default
-        let root = projectDir + "/.build-wasm/wasm32-unknown-wasip1/" + configuration
+        let scratch = projectDir + "/.build-wasm"
+        func entries(_ dir: String) -> [String] { (try? fm.contentsOfDirectory(atPath: dir)) ?? [] }
+        var objectDirs: [(module: String, dir: String)] = []
+        // Native build system: wasm32-unknown-wasip1/<config>/<Module>.build/*.o
+        let native = scratch + "/wasm32-unknown-wasip1/" + configuration
+        for entry in entries(native) where entry.hasSuffix(".build") {
+            objectDirs.append((String(entry.dropLast(".build".count)), native + "/" + entry))
+        }
+        // Swift Build (SwiftPM 6.4's default): out/Intermediates.noindex/<Package>.build/
+        // <Config>-webassembly-wasm32/<Module>-{t,p}.build/Objects-normal/wasm32/*.o
+        let intermediates = scratch + "/out/Intermediates.noindex"
+        let platformDir = configuration.prefix(1).uppercased() + configuration.dropFirst() + "-webassembly-wasm32"
+        for package in entries(intermediates) where package.hasSuffix(".build") {
+            let root = intermediates + "/" + package + "/" + platformDir
+            for entry in entries(root) {
+                for suffix in ["-t.build", "-p.build"] where entry.hasSuffix(suffix) {
+                    objectDirs.append((String(entry.dropLast(suffix.count)),
+                                       root + "/" + entry + "/Objects-normal/wasm32"))
+                }
+            }
+        }
         let needle = Data("FoundationInternationalization".utf8)
-        guard let entries = try? fm.contentsOfDirectory(atPath: root) else { return [] }
-        var out: [String] = []
-        for entry in entries where entry.hasSuffix(".build") {
-            let dir = root + "/" + entry
-            let objects = ((try? fm.contentsOfDirectory(atPath: dir)) ?? []).filter { $0.hasSuffix(".o") }
-            let hit = objects.contains { fm.contents(atPath: dir + "/" + $0)?.range(of: needle) != nil }
-            if hit { out.append(String(entry.dropLast(".build".count))) }
+        var out: Set<String> = []
+        for (module, dir) in objectDirs {
+            let objects = entries(dir).filter { $0.hasSuffix(".o") }
+            if objects.contains(where: { fm.contents(atPath: dir + "/" + $0)?.range(of: needle) != nil }) {
+                out.insert(module)
+            }
         }
         return out.sorted()
     }

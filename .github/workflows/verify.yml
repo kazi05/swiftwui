@@ -105,6 +105,19 @@ jobs:
       - name: Clean ${{ matrix.fixture }} WASM release build
         working-directory: ${{ matrix.project }}
         run: swift package --swift-sdk "$SWIFTWUI_WASM_SDK" --scratch-path .build-wasm-ci js -c release
+      # PackageToJS < 0.58 misread Swift Build's artifact layout and silently
+      # dropped WASI from the JS glue; the bundle then fails only in a browser.
+      - name: Check ${{ matrix.fixture }} bundle provides its WASI imports
+        working-directory: ${{ matrix.project }}/.build-wasm-ci/plugins/PackageToJS/outputs/Package
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const wasm = fs.readdirSync(".").find(f => f.endsWith(".wasm"));
+            const modules = WebAssembly.Module.imports(new WebAssembly.Module(fs.readFileSync(wasm))).map(i => i.module);
+            if (modules.includes("wasi_snapshot_preview1") && !fs.readFileSync("instantiate.js", "utf8").includes("wasi_snapshot_preview1")) {
+              console.error(`${wasm} imports wasi_snapshot_preview1 but instantiate.js never provides it`);
+              process.exit(1);
+            }'
       - name: Build metrics command
         run: swift build --product swiftwui
       - name: Enforce ${{ matrix.fixture }} release budget
