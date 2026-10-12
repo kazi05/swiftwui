@@ -81,23 +81,23 @@ final class FetchJSTransport: _BlobUploadingTransport {
                 nonisolated(unsafe) let optionsValue: JSValue = .object(options)
                 let resp = try await fetch(request.url, optionsValue)
                 let status = Int(try resp.status)
-                final class HeaderBox { var dict: [String: String] = [:] }
-                let box = HeaderBox()
-                let collect = JSClosure { args in
-                    // Headers.forEach already yields lowercase keys per spec; lowercase
-                    // again anyway — WebResponse.headers keys are lowercase-normalized
-                    // across transports (invariant, not a fetch() implementation detail).
-                    if let v = args.first?.string, args.count > 1, let k = args[1].string {
-                        box.dict[k.lowercased()] = v
-                    }
-                    return .undefined
-                }
+                var headers: [String: String] = [:]
                 // Headers aren't part of the bridged SWResponse surface (spec §1.2
-                // hybrid boundary) — reach the raw JSObject via .jsObject for this
-                // one dynamic call.
-                _ = resp.jsObject.headers.object?.forEach?(collect)   // synchronous iteration
+                // hybrid boundary) — reach the raw JSObject via .jsObject. Array.from,
+                // not forEach(JSClosure): that closure, and the dictionary it captured,
+                // was never freed.
+                if let pairs = JSObject.global.Array.function?.from?(resp.jsObject.headers).object {
+                    for i in 0..<Int(pairs.length.number ?? 0) {
+                        // Iteration already yields lowercase names per spec; lowercase
+                        // again anyway — WebResponse.headers keys are lowercase-normalized
+                        // across transports (invariant, not a fetch() implementation detail).
+                        if let pair = pairs[i].object, let k = pair[0].string, let v = pair[1].string {
+                            headers[k.lowercased()] = v
+                        }
+                    }
+                }
                 let buf = try await resp.arrayBuffer()
-                return (_dataFromArrayBuffer(buf), WebResponse(status: status, headers: box.dict))
+                return (_dataFromArrayBuffer(buf), WebResponse(status: status, headers: headers))
             } onCancel: {
                 // nonisolated @Sendable — safe on single-threaded wasm.
                 MainActor.assumeIsolated { _ = controllerBox.controller.abort?() }

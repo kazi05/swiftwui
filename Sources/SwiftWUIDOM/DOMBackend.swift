@@ -48,13 +48,13 @@ public final class DOMBackend: RendererBackend {
     // createElement/createTextNode reuses it.
     private lazy var swDocument: SWDocument = try! document
     private let dispatch: (ListenerID, Any?) -> Void
-    private var closures: [String: JSClosure] = [:]   // "\(uid)#\(event)" → retained
+    private var installedListeners: Set<String> = []  // "\(uid)#\(event)" with the trampoline attached
     private var listenerIDs: [String: ListenerID] = [:]
     private var nextUID = 0
-    // Element observers (IntersectionObserver/ResizeObserver) — same retention
-    // discipline as `closures`/`listenerIDs`, keyed "\(uid)#\(kind.key)".
+    // Element observers (IntersectionObserver/ResizeObserver) — same fire-time
+    // lookup as `listenerIDs`, keyed "\(uid)#\(kind.key)".
     private var domObservers: [String: JSObject] = [:]
-    private var observerClosures: [String: JSClosure] = [:]
+    private var observerTrampolines: [String: JSClosure] = [:]   // one per ObserverKind.key
     private var observerIDs: [String: ListenerID] = [:]
     // Environment observation closures — named (not positional) so teardown pairs
     // each with its exact target; retained for backend lifetime (v1 leak lesson).
@@ -200,39 +200,35 @@ public final class DOMBackend: RendererBackend {
         }
     }
 
+    // One JSClosure for every element listener: JavaScriptKit never frees one in
+    // WeakRefs builds, so a closure per (node, event) leaked on every removal.
+    private lazy var listenerTrampoline = JSClosure { [weak self] args in
+        guard let self, let e = args.first?.object, let target = e.currentTarget.object,
+              let type = e.type.string, let current = self.listenerIDs[self.closureKey(target, type)]
+        else { return .undefined }
+        let keyToken: _KeyEventDispatchToken? =
+            current.event == "keydown" || current.event == "keyup" ? _KeyEventDispatchToken() : nil
+        let payload = Self.decodePayload(event: current.event, jsEvent: e, keyDispatchToken: keyToken)
+        self.dispatch(current, payload)
+        if let keyToken {
+            let shouldPreventDefault = keyToken.isCancellationRequested
+            keyToken.close()
+            if shouldPreventDefault { _ = e.preventDefault?() }
+        }
+        return .undefined
+    }
+
     public func setEventListener(_ node: JSObject, event: String, id: ListenerID) {
         let key = closureKey(node, event)
         listenerIDs[key] = id
-        guard closures[key] == nil else { return }    // fire-time lookup: closure reusable as-is
-        let closure = JSClosure { [weak self] args in
-            guard let self, let current = self.listenerIDs[key] else { return .undefined }
-            let jsEvent = args.first?.object
-            let keyToken: _KeyEventDispatchToken?
-            if jsEvent != nil, current.event == "keydown" || current.event == "keyup" {
-                keyToken = _KeyEventDispatchToken()
-            } else {
-                keyToken = nil
-            }
-            let payload = jsEvent.map {
-                Self.decodePayload(event: current.event, jsEvent: $0,
-                                   keyDispatchToken: keyToken)
-            }
-            self.dispatch(current, payload)
-            if let keyToken, let jsEvent {
-                let shouldPreventDefault = keyToken.isCancellationRequested
-                keyToken.close()
-                if shouldPreventDefault { _ = jsEvent.preventDefault?() }
-            }
-            return .undefined
-        }
-        closures[key] = closure                        // Swift retention = lifetime (invariant 1)
+        guard installedListeners.insert(key).inserted else { return }   // fire-time lookup
         if event == "scroll" {
             // Never preventDefault()s — passive avoids blocking the scroll thread.
             let opts = JSObject.global.Object.function!.new()
             opts.passive = .boolean(true)
-            _ = node.addEventListener?(event, closure, opts)
+            _ = node.addEventListener?(event, listenerTrampoline, opts)
         } else {
-            _ = node.addEventListener?(event, closure)
+            _ = node.addEventListener?(event, listenerTrampoline)
         }
     }
 
@@ -318,13 +314,14 @@ public final class DOMBackend: RendererBackend {
             var fields: [(name: String, value: String)] = []
             if let form = e.target.object, let constructor = JSObject.global.FormData.function {
                 let data = e.submitter.object.map { constructor.new(form, $0) } ?? constructor.new(form)
-                let callback = JSClosure { args in
-                    if args.count >= 2, let value = args[0].string, let name = args[1].string {
-                        fields.append((name, value))
+                // Array.from, not forEach(JSClosure): that closure was never freed.
+                if let entries = JSObject.global.Array.function?.from?(data).object {
+                    for i in 0..<Int(entries.length.number ?? 0) {
+                        if let entry = entries[i].object, let name = entry[0].string, let value = entry[1].string {
+                            fields.append((name, value))
+                        }
                     }
-                    return .undefined
                 }
-                _ = data.forEach?(callback)
             }
             return SubmitEvent(fields: fields)
         case "focus", "blur":
@@ -393,54 +390,59 @@ public final class DOMBackend: RendererBackend {
     public func removeEventListener(_ node: JSObject, event: String) {
         let key = closureKey(node, event)
         listenerIDs[key] = nil
-        guard let closure = closures.removeValue(forKey: key) else { return }
-        _ = node.removeEventListener?(event, closure)  // same function object (invariant 2)
+        guard installedListeners.remove(key) != nil else { return }
+        _ = node.removeEventListener?(event, listenerTrampoline)  // same function object (invariant 2)
     }
 
     private func observerKey(_ node: JSObject, _ kind: ObserverKind) -> String {
-        "\(Int(node.__swuid.number ?? -1))#\(kind.key)"
+        "\(uid(of: node))#\(kind.key)"
     }
 
     public func observe(_ node: JSObject, kind: ObserverKind, id: ListenerID) {
         let key = observerKey(node, kind)
         observerIDs[key] = id
         guard domObservers[key] == nil else { return }   // fire-time lookup, reusable
-        let closure: JSClosure
+        let callback = observerTrampoline(kind)
         let observer: JSObject?
         switch kind {
         case .visibility(let threshold):
-            closure = JSClosure { [weak self] args in
-                guard let self, let entries = args.first?.object else { return .undefined }
-                // One delivery can contain multiple threshold crossings. Each
-                // entry describes its own state; isIntersecting alone does not
-                // guarantee that the requested visible fraction was reached.
-                for index in 0..<Int(entries.length.number ?? 0) {
-                    guard let current = self.observerIDs[key] else { break }
-                    guard let entry = entries[index].object else { continue }
-                    let intersects = entry.isIntersecting.boolean ?? false
-                    let ratio = entry.intersectionRatio.number ?? 0
-                    let visible = intersects && (threshold == 0 || ratio >= threshold)
-                    self.dispatch(current, visible)
-                }
-                return .undefined
-            }
             let opts = JSObject.global.Object.function!.new()
             opts.threshold = .number(threshold)
-            observer = JSObject.global.IntersectionObserver.function?.new(closure, opts)
+            observer = JSObject.global.IntersectionObserver.function?.new(callback, opts)
         case .size:
-            closure = JSClosure { [weak self] args in
-                guard let self, let current = self.observerIDs[key] else { return .undefined }
-                let rect = args.first?.object?[0].object?.contentRect.object
-                self.dispatch(current, SizeEvent(width: rect?.width.number ?? 0,
-                                                 height: rect?.height.number ?? 0))
-                return .undefined
-            }
-            observer = JSObject.global.ResizeObserver.function?.new(closure)
+            observer = JSObject.global.ResizeObserver.function?.new(callback)
         }
         guard let observer else { return }               // API absent (old browser) → no-op
         _ = observer.observe?(node)
         domObservers[key] = observer
-        observerClosures[key] = closure                  // Swift retention = lifetime
+    }
+
+    /// Shared per kind, like `listenerTrampoline`; each entry's target routes it.
+    private func observerTrampoline(_ kind: ObserverKind) -> JSClosure {
+        if let existing = observerTrampolines[kind.key] { return existing }
+        let closure = JSClosure { [weak self] args in
+            guard let self, let entries = args.first?.object else { return .undefined }
+            // One delivery can contain multiple threshold crossings. Each
+            // entry describes its own state; isIntersecting alone does not
+            // guarantee that the requested visible fraction was reached.
+            for index in 0..<Int(entries.length.number ?? 0) {
+                guard let entry = entries[index].object, let target = entry.target.object,
+                      let current = self.observerIDs[self.observerKey(target, kind)] else { continue }
+                switch kind {
+                case .visibility(let threshold):
+                    let intersects = entry.isIntersecting.boolean ?? false
+                    let ratio = entry.intersectionRatio.number ?? 0
+                    self.dispatch(current, intersects && (threshold == 0 || ratio >= threshold))
+                case .size:
+                    let rect = entry.contentRect.object
+                    self.dispatch(current, SizeEvent(width: rect?.width.number ?? 0,
+                                                     height: rect?.height.number ?? 0))
+                }
+            }
+            return .undefined
+        }
+        observerTrampolines[kind.key] = closure
+        return closure
     }
 
     public func unobserve(_ node: JSObject, kind: ObserverKind) {
@@ -448,7 +450,6 @@ public final class DOMBackend: RendererBackend {
         observerIDs[key] = nil
         guard let observer = domObservers.removeValue(forKey: key) else { return }
         _ = observer.disconnect?()
-        observerClosures[key] = nil
     }
 
     public func observeVisibility(
@@ -487,7 +488,11 @@ public final class DOMBackend: RendererBackend {
     }
 
     private func closureKey(_ node: JSObject, _ event: String) -> String {
-        "\(Int(node.__swuid.number ?? -1))#\(event)"
+        "\(uid(of: node))#\(event)"
+    }
+    /// -1 = unstamped.
+    private func uid(of node: JSObject) -> Int {
+        Int(node.__swuid.number ?? -1)
     }
 
     private var styleElement: JSObject?
@@ -859,7 +864,6 @@ public final class DOMBackend: RendererBackend {
         dragDepth = 0
         for observer in domObservers.values { _ = observer.disconnect?() }
         domObservers = [:]
-        observerClosures = [:]
         observerIDs = [:]
     }
 

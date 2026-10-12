@@ -92,12 +92,15 @@ re-verified against the code before it was fixed or deferred.
   load for cross-page anchors; a full solution keeps the fragment through
   `navigate`/`moveURL` so `DOMNavigationController.commit()`'s existing
   `scrollIntoView` branch becomes reachable.
-- **`JSClosure` lifetime on the resolved JavaScriptKit** (0.56.x, WeakRefs
-  mode): `JSClosure` instances are effectively immortal, so per-call closures
-  (`FormData.forEach` per enhanced-form submit, `Headers.forEach` per fetch) and
-  per-(node, event) listener closures accumulate for the page lifetime. Fix by
-  iterating with `Array.from` and delegating one listener closure per event
-  name; the CLAUDE.md "retain Swift-side" rule should be revisited too.
+- **`JSClosure` lifetime** (fixed 2026-10-13). In JavaScriptKit's default
+  WeakRefs mode (0.56.x through 0.59.0) a `JSClosure` is never freed, so
+  per-call closures (`FormData.forEach` per enhanced-form submit,
+  `Headers.forEach` per fetch), per-(node, event) listener closures and
+  per-binding visibility closures accumulated for the page lifetime. Submit
+  and fetch now iterate with `Array.from`. Element listeners share one closure
+  per backend, element observers one per backend and kind, and configured
+  visibility one per page; each routes at fire time. `Tests/BrowserEvents`
+  pins the listener case with `?remount`.
 - `storage` events are forwarded as `.local` even for `sessionStorage` changes
   from same-origin frames (checking `storageArea` must not touch a throwing
   `localStorage` getter in sandboxed frames — needs a browser test).
