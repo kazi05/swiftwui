@@ -22,7 +22,13 @@ function runGenerator(configPath) {
 
 async function findSwiftWUIModules() {
   const build = path.join(repository, '.build');
-  const candidates = [path.join(build, 'debug', 'Modules')];
+  const candidates = [];
+  // Swift Build (SwiftPM 6.4's default) keeps modules beside the products.
+  const products = path.join(build, 'out', 'Products');
+  for (const entry of await readdir(products, { withFileTypes: true }).catch(() => [])) {
+    if (entry.isDirectory() && entry.name.startsWith('Debug')) candidates.push(path.join(products, entry.name));
+  }
+  candidates.push(path.join(build, 'debug', 'Modules'));
   for (const entry of await readdir(build, { withFileTypes: true })) {
     if (entry.isDirectory()) candidates.push(path.join(build, entry.name, 'debug', 'Modules'));
   }
