@@ -5,7 +5,7 @@ import FoundationNetworking
 #endif
 @testable import SwiftWUIToolchain
 
-@Suite struct ToolchainHTTPTests {
+@Suite(.timeLimit(.minutes(1))) struct ToolchainHTTPTests {
     func tempSite() throws -> String {
         let dir = NSTemporaryDirectory() + "swiftwui-http-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: dir + "/sub", withIntermediateDirectories: true)

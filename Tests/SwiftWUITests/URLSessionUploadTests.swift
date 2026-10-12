@@ -164,7 +164,7 @@ server.serve_forever()
 """#
 }
 
-@Suite(.serialized) @MainActor struct URLSessionUploadTests {
+@Suite(.serialized, .timeLimit(.minutes(1))) @MainActor struct URLSessionUploadTests {
     private func withServer<T>(_ operation: (UploadFixtureServer) async throws -> T) async throws -> T {
         let server = try await UploadFixtureServer.start()
         defer { server.stop() }

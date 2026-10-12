@@ -7,7 +7,7 @@ import Glibc
 import Darwin
 #endif
 
-@Suite struct ToolchainSSETests {
+@Suite(.timeLimit(.minutes(1))) struct ToolchainSSETests {
     @Test func injectionAfterHeadAndHeadlessPrepend() {
         let doc = "<!doctype html>\n<html>\n<HEAD><title>x</title></HEAD><body></body></html>"
         let out = DevInjection.inject(into: doc)

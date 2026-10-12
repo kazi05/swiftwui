@@ -5,7 +5,7 @@ import FoundationNetworking
 #endif
 @testable import SwiftWUIToolchain
 
-@Suite struct ToolchainDevTests {
+@Suite(.timeLimit(.minutes(1))) struct ToolchainDevTests {
     @Test func devURLSpaceServesInjectedIndexBundleAndShim() async throws {
         let fm = FileManager.default
         let proj = NSTemporaryDirectory() + "swiftwui-dev-\(UUID().uuidString)"
