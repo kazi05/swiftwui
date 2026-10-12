@@ -20,7 +20,7 @@ to pass before merging.
 | WASM SDK bundle + checksum | CI env, scaffold/tutorial Dockerfiles (`WASM_SDK_URL`/`WASM_SDK_CHECKSUM` defaults, `swift sdk install --checksum`) |
 | Docs and tutorial | README, DocC GettingStarted/Deployment, tutorial chapters 2/5/11, BrowserEvents, experiments |
 | Compatibility | Manifest stays `swift-tools-version: 6.2`; new `native-compat-6-3` CI job builds and tests on 6.3.3 |
-| SE-0506 | `Experiments/Swift64/run-se0506.sh` runs on 6.4.0 in CI as a non-gating step |
+| SE-0506 | One-shot `.didSet` tracking in `_trackInvalidation` (`Sources/SwiftWUI/Runtime/Resolver.swift`); the earlier CI probe is retired (`Experiments/README.md`) |
 
 Bugs found while migrating:
 
@@ -109,9 +109,11 @@ re-verified against the code before it was fixed or deferred.
   `.container { }` blocks; `Rule(media:container:)` drops the media condition.
 - Router guard and route builder closures run outside observation tracking
   (an `@Observable` session change does not re-run a guard until navigation).
-- Observation `onChange` is willSet-time: a synchronous `scheduleMicrotask`
-  renders the old value. Harmless with the shipped schedulers; SE-0506
-  `.didSet` would remove it by construction.
+- Observation `onChange` was willSet-time, so a synchronous `scheduleMicrotask`
+  rendered the old value. Fixed where SE-0506 is available (Swift 6.4 on
+  macOS 27+, Linux, WASI): `_trackInvalidation` tracks at `.didSet`. Still
+  willSet-time on macOS 26 and older and on Swift 6.3, where it stays harmless
+  with the shipped schedulers.
 - L10n: a placeholder named `locale`, or a key mapping to `supportedLocales`,
   generates Swift that does not compile.
 - `.indexed` link validation rejects links to non-page assets (`/feed.xml`).
@@ -124,12 +126,11 @@ re-verified against the code before it was fixed or deferred.
 
 ## Swift 6.4 opportunities
 
-- **SE-0506 continuous observation** (`withContinuousObservationTracking`,
-  `.didSet`, cancellable `~Copyable` token) is the one 6.4 feature with a clear
-  payoff: it would replace the generation gate in `_ObservationTrackingGate`
-  and remove the willSet ordering hazard. Start with cheap per-key reads
-  (`EnvironmentSignals`, `StorageStore.Box`, `MediaMatchStore`) behind
-  `#if compiler(>=6.4)`, after the CI probe passes, and measure against the
-  current gate.
+- **SE-0506.** One-shot `withObservationTracking(options: .didSet)` removes
+  the willSet ordering hazard where it is available (see Deferred). The
+  continuous form, `withContinuousObservation(options:apply:)`, delivers
+  `.initial` and every event asynchronously from a detached runner, so it
+  cannot wrap a synchronous body evaluation or replace the generation gate in
+  `_ObservationTrackingGate`. `Experiments/README.md` records the probe.
 - Raising the manifest to `swift-tools-version: 6.4` is only worth it together
   with an API that needs it; today it would only drop 6.3.3 users.

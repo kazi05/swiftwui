@@ -30,7 +30,7 @@ Each workstream needs behavioral tests, a runnable example or fixture where brow
 | Resources and enhanced forms | Coordinator | Implemented | Deduplication, TTL, bounded storage, cancellation, snapshot seed, async form state; native/browser tests |
 | Image/font pipeline | Build agent + coordinator | Implemented | Source-to-variant commands, dimensions, srcset, regeneration and symlink containment |
 | Explicit registration | Runtime agent + coordinator | Implemented | Stable component/state IDs, legacy snapshots, generator and actual Swift typecheck |
-| Swift 6.4 and Embedded | Static agent + coordinator | Isolated experiments | Embedded counter ABI test passed; SE-0506 probe follows published API but cannot run without Swift 6.4 |
+| Swift 6.4 and Embedded | Static agent + coordinator | Isolated experiments | Embedded counter ABI test passed; SE-0506 probe compiled and passed on 6.4.0 under `withContinuousObservation`, then retired |
 | Static-only and selective activation | Static agent + coordinator | Implemented | No-runtime static documents, gated WASM requests, disposable leaf islands |
 | Virtual collection | Runtime agent | Implemented and browser-verified | 10,000-row fixture stays below 30 DOM rows; fixed-height contract |
 | Compute workers | Coordinator | Implemented and browser-verified | Typed Sendable messages, cancellation, module reuse, atomic buffer transfer, terminal failure/teardown |

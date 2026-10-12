@@ -26,11 +26,6 @@ jobs:
       - run: node --test Tests/RegistrationGenerator/*.test.mjs
       - run: swift build -c release --product swiftwui -Xswiftc -warnings-as-errors
       - run: node --experimental-vm-modules --test Tests/BootJS/boot-stall.test.mjs
-      # Evidence for a future Observation adapter (Experiments/README.md); it is
-      # not part of the supported target graph, so it reports without gating.
-      - name: Swift 6.4 SE-0506 continuous observation probe (experiment)
-        continue-on-error: true
-        run: SWIFT64="$(command -v swift)" SWIFTC64="$(command -v swiftc)" bash Experiments/Swift64/run-se0506.sh
 
   # The manifest stays at swift-tools-version 6.2, so keep proving that the
   # previous pinned release still builds and passes the native suite.
