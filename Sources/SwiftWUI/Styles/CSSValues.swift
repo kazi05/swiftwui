@@ -178,8 +178,38 @@ public enum CSSSanitize {
             alpha($0) || ("0"..."9").contains($0) || $0 == "_" || $0 == "-"
         }
     }
-    /// Declaration values must not be able to escape a rule body.
+    /// Declaration values must not be able to escape a rule body — or their
+    /// own declaration. Besides braces and control characters this rejects a
+    /// top-level `;` (`url(x.png); position: fixed` would smuggle a sibling
+    /// declaration into registry rules and SSG `style=""`), unbalanced
+    /// parentheses or quotes (an unterminated `url(` or string swallows the
+    /// following text, including a rule's closing brace) and a trailing
+    /// backslash (it would escape the `;` the serializer appends). No valid CSS
+    /// value has any of these; `;` inside `url(data:…;base64,…)` or a quoted
+    /// string stays allowed.
     public static func isSafeValue(_ s: String) -> Bool {
-        !s.unicodeScalars.contains { $0 == "{" || $0 == "}" || $0.properties.generalCategory == .control }
+        var depth = 0
+        var quote: Unicode.Scalar?
+        var escaped = false
+        for c in s.unicodeScalars {
+            if c == "{" || c == "}" || c.properties.generalCategory == .control { return false }
+            if escaped { escaped = false; continue }
+            if c == "\\" { escaped = true; continue }
+            if let open = quote {
+                if c == open { quote = nil }
+                continue
+            }
+            switch c {
+            case "\"", "'": quote = c
+            case "(": depth += 1
+            case ")":
+                guard depth > 0 else { return false }
+                depth -= 1
+            case ";":
+                guard depth > 0 else { return false }
+            default: break
+            }
+        }
+        return depth == 0 && quote == nil && !escaped
     }
 }

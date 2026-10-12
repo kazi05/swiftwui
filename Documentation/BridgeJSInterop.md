@@ -17,9 +17,12 @@ swiftwui interop generate
 ```
 
 Commit `Interop/Sources/AppInterop/Generated/`; it is generated ABI glue for the
-resolved JavaScriptKit 0.56.1 release and must not be edited. `Interop` pins that
-release because BridgeJS remains experimental. The app's existing `from: 0.22.0`
-dependency resolves to the same compatible 0.56.1 version.
+JavaScriptKit 0.59.0 release and must not be edited. `Interop` pins that release
+because BridgeJS remains experimental and its ABI changes between minor releases.
+SwiftWUI itself requires JavaScriptKit 0.59.x, so the app's existing
+`from: 0.22.0` dependency resolves to the same version. After upgrading from a
+SwiftWUI release that pinned an older JavaScriptKit, set `exact: "0.59.0"` in
+`Interop/Package.swift` and run `swiftwui interop generate`.
 
 The public Swift facade is `AppInterop`: use `try AppInterop.greet("Ada")`,
 `try await AppInterop.greeting("Ada")`, and

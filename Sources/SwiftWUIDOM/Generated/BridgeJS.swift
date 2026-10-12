@@ -37,8 +37,8 @@ private enum _BJS_Closure_11SwiftWUIDOMs10SWResponseC_y {
         let callback = JSObject.bridgeJSLiftParameter(callbackId)
         return { [callback] param0 in
             #if arch(wasm32)
-            let callbackValue = callback.bridgeJSLowerParameter()
             let param0Value = param0.bridgeJSLowerParameter()
+            let callbackValue = callback.bridgeJSLowerParameter()
             invoke_js_callback_SwiftWUIDOM_11SwiftWUIDOMs10SWResponseC_y(callbackValue, param0Value)
             #else
             fatalError("Only available on WebAssembly")
@@ -98,8 +98,8 @@ private enum _BJS_Closure_11SwiftWUIDOMs7JSValueV_y {
         let callback = JSObject.bridgeJSLiftParameter(callbackId)
         return { [callback] param0 in
             #if arch(wasm32)
-            let callbackValue = callback.bridgeJSLowerParameter()
             let (param0Kind, param0Payload1, param0Payload2) = param0.bridgeJSLowerParameter()
+            let callbackValue = callback.bridgeJSLowerParameter()
             invoke_js_callback_SwiftWUIDOM_11SwiftWUIDOMs7JSValueV_y(callbackValue, param0Kind, param0Payload1, param0Payload2)
             #else
             fatalError("Only available on WebAssembly")
@@ -201,8 +201,8 @@ fileprivate func bjs_SWDocument_createTextNode_extern(_ self: Int32, _ dataBytes
 }
 
 func _$SWDocument_createElement(_ self: JSObject, _ tag: String) throws(JSException) -> SWNode {
-    let selfValue = self.bridgeJSLowerParameter()
     let ret0 = tag.bridgeJSWithLoweredParameter { (tagBytes, tagLength) in
+        let selfValue = self.bridgeJSLowerParameter()
         let ret = bjs_SWDocument_createElement(selfValue, tagBytes, tagLength)
         return ret
     }
@@ -214,8 +214,8 @@ func _$SWDocument_createElement(_ self: JSObject, _ tag: String) throws(JSExcept
 }
 
 func _$SWDocument_createTextNode(_ self: JSObject, _ data: String) throws(JSException) -> SWNode {
-    let selfValue = self.bridgeJSLowerParameter()
     let ret0 = data.bridgeJSWithLoweredParameter { (dataBytes, dataLength) in
+        let selfValue = self.bridgeJSLowerParameter()
         let ret = bjs_SWDocument_createTextNode(selfValue, dataBytes, dataLength)
         return ret
     }
@@ -320,8 +320,8 @@ func _$SWNode_data_get(_ self: JSObject) throws(JSException) -> String {
 }
 
 func _$SWNode_data_set(_ self: JSObject, _ newValue: String) throws(JSException) -> Void {
-    let selfValue = self.bridgeJSLowerParameter()
     newValue.bridgeJSWithLoweredParameter { (newValueBytes, newValueLength) in
+        let selfValue = self.bridgeJSLowerParameter()
         bjs_SWNode_data_set(selfValue, newValueBytes, newValueLength)
     }
     if let error = _swift_js_take_exception() {
@@ -330,8 +330,8 @@ func _$SWNode_data_set(_ self: JSObject, _ newValue: String) throws(JSException)
 }
 
 func _$SWNode_appendChild(_ self: JSObject, _ child: SWNode) throws(JSException) -> Void {
-    let selfValue = self.bridgeJSLowerParameter()
     let childValue = child.bridgeJSLowerParameter()
+    let selfValue = self.bridgeJSLowerParameter()
     bjs_SWNode_appendChild(selfValue, childValue)
     if let error = _swift_js_take_exception() {
         throw error
@@ -339,9 +339,9 @@ func _$SWNode_appendChild(_ self: JSObject, _ child: SWNode) throws(JSException)
 }
 
 func _$SWNode_insertBefore(_ self: JSObject, _ node: SWNode, _ anchor: SWNode) throws(JSException) -> Void {
-    let selfValue = self.bridgeJSLowerParameter()
-    let nodeValue = node.bridgeJSLowerParameter()
     let anchorValue = anchor.bridgeJSLowerParameter()
+    let nodeValue = node.bridgeJSLowerParameter()
+    let selfValue = self.bridgeJSLowerParameter()
     bjs_SWNode_insertBefore(selfValue, nodeValue, anchorValue)
     if let error = _swift_js_take_exception() {
         throw error
@@ -349,8 +349,8 @@ func _$SWNode_insertBefore(_ self: JSObject, _ node: SWNode, _ anchor: SWNode) t
 }
 
 func _$SWNode_removeChild(_ self: JSObject, _ child: SWNode) throws(JSException) -> Void {
-    let selfValue = self.bridgeJSLowerParameter()
     let childValue = child.bridgeJSLowerParameter()
+    let selfValue = self.bridgeJSLowerParameter()
     bjs_SWNode_removeChild(selfValue, childValue)
     if let error = _swift_js_take_exception() {
         throw error
@@ -358,9 +358,9 @@ func _$SWNode_removeChild(_ self: JSObject, _ child: SWNode) throws(JSException)
 }
 
 func _$SWNode_setAttribute(_ self: JSObject, _ name: String, _ value: String) throws(JSException) -> Void {
-    let selfValue = self.bridgeJSLowerParameter()
     name.bridgeJSWithLoweredParameter { (nameBytes, nameLength) in
         value.bridgeJSWithLoweredParameter { (valueBytes, valueLength) in
+            let selfValue = self.bridgeJSLowerParameter()
             bjs_SWNode_setAttribute(selfValue, nameBytes, nameLength, valueBytes, valueLength)
         }
     }
@@ -370,8 +370,8 @@ func _$SWNode_setAttribute(_ self: JSObject, _ name: String, _ value: String) th
 }
 
 func _$SWNode_removeAttribute(_ self: JSObject, _ name: String) throws(JSException) -> Void {
-    let selfValue = self.bridgeJSLowerParameter()
     name.bridgeJSWithLoweredParameter { (nameBytes, nameLength) in
+        let selfValue = self.bridgeJSLowerParameter()
         bjs_SWNode_removeAttribute(selfValue, nameBytes, nameLength)
     }
     if let error = _swift_js_take_exception() {

@@ -82,6 +82,7 @@ public func writeAll(_ fd: Int32, _ bytes: [UInt8]) {
             #else
             let n = write(fd, buf.baseAddress! + off, buf.count - off)
             #endif
+            if n < 0 && errno == EINTR { continue }      // interrupted, nothing written: retry
             if n <= 0 { return }
             off += n
         }
@@ -144,7 +145,13 @@ public final class HTTPServer: @unchecked Sendable {   // guarded by `lock`
     private func acceptLoop(_ fd: Int32) {
         while isRunning {
             let client = accept(fd, nil, nil)
-            guard client >= 0 else { continue }
+            guard client >= 0 else {
+                // EMFILE/ENFILE persist until some connection closes (idle dev
+                // tabs hold theirs open): back off instead of spinning this
+                // thread at 100% CPU. Interrupted or aborted accepts retry now.
+                if errno != EINTR && errno != ECONNABORTED { usleep(10_000) }
+                continue
+            }
             #if canImport(Darwin)
             var yes: Int32 = 1
             setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &yes, socklen_t(MemoryLayout<Int32>.size))

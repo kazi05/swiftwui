@@ -38,12 +38,7 @@ public enum PWAAssets {
             // Check for symlinked directories (silently broken manifest → loud error)
             let attrs: [FileAttributeKey: Any]
             do {
-                guard let a = try fm.attributesOfItem(atPath: full) as? [FileAttributeKey: Any] else {
-                    throw ToolchainError.io("cannot stat \(full) while generating sw-assets.js")
-                }
-                attrs = a
-            } catch let err as ToolchainError {
-                throw err
+                attrs = try fm.attributesOfItem(atPath: full)
             } catch {
                 throw ToolchainError.io("cannot stat \(full) while generating sw-assets.js")
             }

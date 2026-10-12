@@ -13,7 +13,7 @@ public enum Ch05 {
         ],
         quiz: Quiz(questions: [
             Question(prompt: "Which target does SwiftWUI compile to for the browser?",
-                     options: ["x86_64 native", "WebAssembly via the swift-6.3.3-RELEASE_wasm SDK", "The JVM"],
+                     options: ["x86_64 native", "WebAssembly via the swift-6.4.0-RELEASE_wasm SDK", "The JVM"],
                      correctIndex: 1,
                      explanation: "The app compiles to wasm; JavaScriptKit bridges it to the DOM."),
             Question(prompt: "What happens to sibling DOM nodes when one @State value changes?",

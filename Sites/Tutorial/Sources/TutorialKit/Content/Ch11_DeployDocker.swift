@@ -2,12 +2,13 @@
 public enum Ch11 {
     // verbatim contiguous block of Samples/ShipCounter/Dockerfile (Task 11 Step 3)
     static let dockerCode = #"""
-FROM swift:6.3.3 AS build
-ARG WASM_SDK_URL
+FROM swift:6.4.0-noble AS build
+ARG WASM_SDK_URL=https://download.swift.org/swift-6.4.0-release/wasm-sdk/swift-6.4.0-RELEASE/swift-6.4.0-RELEASE_wasm.artifactbundle.tar.gz
+ARG WASM_SDK_CHECKSUM=f07b7be3c586d92d7a07051fc6d303b87ebea67eadc40640ba59d5a8b79aa86d
 WORKDIR /src
 COPY . .
-RUN swift sdk install "$WASM_SDK_URL"
-RUN swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c release
+RUN swift sdk install "$WASM_SDK_URL" --checksum "$WASM_SDK_CHECKSUM"
+RUN swift package --swift-sdk swift-6.4.0-RELEASE_wasm js -c release
 RUN mkdir -p dist/app dist/vendor \
  && cp -r .build/plugins/PackageToJS/outputs/Package/. dist/app/ \
  && cp -r vendor/. dist/vendor/ \
@@ -28,8 +29,8 @@ COPY --from=build /src/dist /
                     title: "One multi-stage build",
                     intro: "Swift builds in stage one; only static files leave the image.",
                     steps: [
-                        Step("Stage one: a swift:6.3.3 image installs the WASM SDK, builds the release bundle, and runs ssg.",
-                             detail: "The SDK artifactbundle URL arrives as a build arg — it must match the image’s toolchain exactly."),
+                        Step("Stage one: a swift:6.4.0 image installs the WASM SDK, builds the release bundle, and runs ssg.",
+                             detail: "The SDK artifactbundle URL and its checksum are pinned build args — override both together, matching the image’s toolchain exactly."),
                         Step("Stage two is FROM scratch: docker build --output exports dist/ as plain files."),
                         Step("The template Dockerfile ships with every swiftwui init scaffold."),
                     ],
@@ -48,7 +49,7 @@ COPY --from=build /src/dist /
                         Step("Local preview without Docker: swiftwui serve dist."),
                     ],
                     panel: .terminal(title: "zsh — shipcounter", lines: [
-                        TermLine(.command, "docker build --build-arg WASM_SDK_URL=<url> --output type=local,dest=dist-docker ."),
+                        TermLine(.command, "docker build --output type=local,dest=dist-docker ."),
                         TermLine(.output, "  precompressed 25 file(s) (gzip + brotli); wrote nginx.conf"),
                         TermLine(.command, "swiftwui serve dist-docker"),
                     ])),

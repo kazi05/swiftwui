@@ -6,7 +6,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [.library(name: "AppInterop", targets: ["AppInterop"])],
     dependencies: [
-        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", exact: "0.56.1"),
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", exact: "0.59.0"),
     ],
     targets: [
         .target(name: "AppInterop", dependencies: ["JavaScriptKit"], exclude: [

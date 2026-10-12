@@ -11,6 +11,9 @@ import WASILibc
 
 /// Closed-form damped harmonic oscillator sampled into a CSS `linear()` easing (anim spec §6.3).
 enum SpringSolver {
+    /// Perceptual durations above this are clamped; real springs are 0.2–2 s.
+    static let maxDuration = 10.0
+
     /// Apple spring parameter convention: `duration` sets the natural frequency,
     /// `bounce` maps to damping ratio (`bounce > 0` underdamped/overshoots,
     /// `bounce < 0` overdamped).
@@ -21,7 +24,9 @@ enum SpringSolver {
         // propagates into the `linear()` string, which `element.animate` rejects
         // (TypeError → wasm trap via the non-throwing JS dynamic call). Clamp to a
         // tiny positive floor; `isFinite` also catches nan/inf that `max` lets through.
-        let duration = rawDuration.isFinite ? max(rawDuration, 0.01) : 0.01
+        // The ceiling bounds `settleSeconds`, which scans 5x duration in 1 ms steps
+        // on the main thread for every resolved spring (100 s was 500k samples).
+        let duration = rawDuration.isFinite ? min(max(rawDuration, 0.01), maxDuration) : 0.01
         let zeta = 1 - min(1, max(-1, bounce.isFinite ? bounce : 0))
         let omega = 2 * Double.pi / duration
         let settle = settleSeconds(omega: omega, zeta: zeta, duration: duration)

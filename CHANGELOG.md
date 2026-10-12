@@ -6,6 +6,63 @@ Notable changes to SwiftWUI. Format loosely follows
 
 ## [Unreleased]
 
+### Changed
+
+- The supported toolchain is Swift 6.4.0 with the `swift-6.4.0-RELEASE_wasm`
+  SDK (CI, `WasmSDK.pinned`, scaffolds, docs). The manifest stays at
+  `swift-tools-version: 6.2`, and CI keeps a native Swift 6.3.3 job.
+- Scaffolded Dockerfiles pin the official SDK bundle and its checksum as
+  `WASM_SDK_URL`/`WASM_SDK_CHECKSUM` build-arg defaults.
+- `CSSSanitize.isSafeValue` also rejects a top-level `;`, unbalanced
+  parentheses or quotes and a trailing backslash; inline style declarations
+  pass through the same gate. Values that relied on these were invalid CSS.
+- `Link` destinations with a `#fragment` are no longer intercepted for SPA
+  navigation, so the browser honors the anchor.
+- `DragPayload` no longer refines `Codable`: its JSON defaults apply to
+  payloads that also conform to `Codable` (`struct Card: DragPayload, Codable`,
+  as the documentation shows). Swift 6.4 isolates a main-actor type's
+  synthesized `Codable` conformance, so the refinement made such payloads fail
+  to compile in apps with `.defaultIsolation(MainActor.self)`. A payload that
+  relied on the implicit `Codable` now needs it spelled out.
+- `RendererBackend` refines `SendableMetatype`: backend conformances are never
+  actor-isolated.
+- SwiftWUI requires JavaScriptKit 0.59.x (minor-pinned, because the committed
+  BridgeJS glue matches one minor's ABI) and ships glue regenerated with it.
+  Apps that use `swiftwui interop` set `exact: "0.59.0"` in
+  `Interop/Package.swift` and run `swiftwui interop generate`.
+
+### Fixed
+
+- Apps built with Swift 6.4 load in the browser again. SwiftPM 6.4 builds with
+  Swift Build by default, and PackageToJS before JavaScriptKit 0.58 misread its
+  artifact layout and emitted JS without the WASI imports, so instantiation
+  failed with `Import #… "wasi_snapshot_preview1": module is not an object or
+  function`.
+- Native builds with Xcode 27's Swift 6.4 compile: `JavaScriptEventLoop`, which
+  needs custom-executor SPI that Apple's SDK does not ship, is linked for WASI
+  only.
+- `swiftwui build -c release` names the modules behind an ICU warning in Swift
+  Build's object layout too.
+- WASM preflight treats `6.4` and `6.4.0` as the same release and prefers the
+  installed SDK that matches the host toolchain.
+- Prerendered `<style>` blocks can no longer be closed by CSS values containing
+  `</style>`.
+- `@container` rules are ordered by width like `@media` rules.
+- SSG writes percent-encoded paths to the decoded folder static servers serve.
+- A view transition completing after `unmount()` no longer remounts the tree.
+- Fragment-only history steps (`#anchor` links) no longer re-render the page,
+  play a pop transition or reset the scroll position.
+- Islands no longer take over the document's prerendered stylesheet.
+- Cancelling or force-finishing a WAAPI animation no longer logs an unhandled
+  "JSClosure has been already released" rejection.
+- `ModifiedTag` honors `withAnimation` transactions for its own state.
+- `swiftwui build --out .` no longer deletes project files; absolute `--out`
+  paths work for `build` and `ssg`.
+- Scroll commands drain in a deterministic order; spring durations are clamped
+  to 10 s; the dev server backs off on accept errors.
+
+See `Documentation/Swift64MigrationReview.md` for the full review.
+
 ## [0.10.0] - 2026-09-12
 
 ### Added

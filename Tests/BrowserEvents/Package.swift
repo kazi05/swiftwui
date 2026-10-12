@@ -7,7 +7,7 @@ let package = Package(
     dependencies: [
         .package(name: "SwiftWUI", path: "../.."),
         // Match the repository's resolved version for repeatable browser tests.
-        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", exact: "0.56.1"),
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", exact: "0.59.0"),
     ],
     targets: [
         .executableTarget(name: "BrowserEvents", dependencies: [

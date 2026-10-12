@@ -5,7 +5,7 @@ listeners, IntersectionObserver callback, Blob storage, upload transport, and
 typed temporary URL rendering. The test suite reuses the
 Playwright dependency in `Sites/Tutorial/tools/screenshots`.
 
-Requirements: Swift 6.3.3 with `swift-6.3.3-RELEASE_wasm`, Node/npm, Python 3,
+Requirements: Swift 6.4.0 with `swift-6.4.0-RELEASE_wasm`, Node/npm, Python 3,
 curl, and Playwright's Chromium browser. If Chromium is not installed, run
 `npx playwright install chromium` from the existing screenshots harness after
 `npm ci` there.
@@ -55,5 +55,5 @@ The viewport coverage uses desktop Chromium. Controlled events validate payload
 plumbing, but the suite does not exercise a physical software keyboard, pinch
 zoom on a device, or Safari.
 
-The fixture uses JavaScriptKit 0.56.1, matching the repository's resolved
+The fixture uses JavaScriptKit 0.59.0, matching the repository's pinned
 dependency, and installs only the WASI runtime emitted by its packager.

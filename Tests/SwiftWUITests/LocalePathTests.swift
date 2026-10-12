@@ -191,7 +191,9 @@ private struct SlugApp: Tag {
         let (runtime, backend, sched) = make("/ru/contact")
         runtime.navigate(to: "/about"); sched.pump()
         #expect(backend.historyStack.last == "/o-nas")     // pushed the slug, not /ru/about
-        runtime.handlePopState(url: "/o-nas"); sched.pump()
+        runtime.handlePopState(url: "/ru/contact"); sched.pump()   // Back…
+        #expect(runtime._locationPath == "/contact")
+        runtime.handlePopState(url: "/o-nas"); sched.pump()        // …and Forward onto the slug
         #expect(runtime._locationPath == "/about")         // and read it back
         #expect(runtime._signals.locale == ru)
     }

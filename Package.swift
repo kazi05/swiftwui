@@ -11,7 +11,9 @@ let package = Package(
         .executable(name: "swiftwui", targets: ["SwiftWUICLI"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.22.0"),
+        // Minor-pinned: Generated/ BridgeJS glue matches one JavaScriptKit minor's ABI.
+        // 0.58+ also reads Swift Build's artifact layout (SwiftPM 6.4's default).
+        .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", .upToNextMinor(from: "0.59.0")),
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.3.0"),
     ],
     targets: [
@@ -21,8 +23,12 @@ let package = Package(
         .target(name: "SwiftWUIDOM", dependencies: [
             "SwiftWUI",
             .product(name: "JavaScriptKit", package: "JavaScriptKit"),
-            .product(name: "JavaScriptEventLoop", package: "JavaScriptKit"),
-            .product(name: "JavaScriptFoundationCompat", package: "JavaScriptKit"),
+            // WASI-only: every importer is `#if arch(wasm32)`, and JavaScriptEventLoop
+            // does not compile natively against Xcode 27's SDK (no custom-executor SPI).
+            .product(name: "JavaScriptEventLoop", package: "JavaScriptKit",
+                     condition: .when(platforms: [.wasi])),
+            .product(name: "JavaScriptFoundationCompat", package: "JavaScriptKit",
+                     condition: .when(platforms: [.wasi])),
         ], exclude: [
             "bridge-js.config.json",
             "bridge-js.d.ts",

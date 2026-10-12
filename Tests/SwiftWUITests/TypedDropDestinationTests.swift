@@ -1,7 +1,7 @@
 import Testing
 @testable import SwiftWUI
 
-private struct TaskCard: DragPayload, Equatable { let id: Int; let pad: String? = nil }
+private struct TaskCard: DragPayload, Codable, Equatable { let id: Int; var pad: String? = nil }
 
 private final class Recorder {
     var targeted: [Bool] = []
@@ -17,7 +17,7 @@ private struct BoardFixture: Tag {
     }
 }
 
-private struct CustomTypeCard: DragPayload, Equatable {
+private struct CustomTypeCard: DragPayload, Codable, Equatable {
     let id: Int
     static var dragContentType: String { "application/X-Custom" }
 }

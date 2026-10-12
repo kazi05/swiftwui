@@ -95,10 +95,13 @@ final class ScrollRegistry<Backend: RendererBackend>: _ScrollRegistryContext {
     func drain() {
         guard adoptionAccepted, !cancelled, !isDraining, operationsAllowed() else { return }
         isDraining = true
+        // Creation order, not Dictionary order: when two readers target the same
+        // scroller, the last command executed decides the final position, and
+        // hash-seeded iteration made that differ from run to run.
         let pending = entries.compactMap { id, entry -> (NodeIdentity, UInt64, ScrollCommand)? in
             guard entry.phase == .active, let command = entry.command else { return nil }
             return (id, entry.generation, command)
-        }
+        }.sorted { $0.1 < $1.1 }
         for (id, generation, _) in pending {
             guard var entry = entries[id], entry.generation == generation else { continue }
             entry.command = nil

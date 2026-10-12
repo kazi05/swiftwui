@@ -14,7 +14,10 @@ public enum RouteURL {
 
     /// "https://…", "mailto:…", "//host/…" — anything that leaves the app.
     static func isExternal(_ url: String) -> Bool {
-        if url.hasPrefix("//") { return true }
+        // Browsers parse `\` as `/` in http(s) URLs, so `/\host` and `\\host`
+        // are protocol-relative exactly like `//host` — never an app route.
+        let lead: [Character] = url.prefix(2).map { $0 == "\\" ? "/" : $0 }
+        if lead == ["/", "/"] { return true }
         for ch in url {
             if ch == ":" { return true }
             if ch == "/" || ch == "?" || ch == "#" { return false }

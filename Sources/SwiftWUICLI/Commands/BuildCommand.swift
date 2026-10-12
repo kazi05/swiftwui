@@ -46,7 +46,7 @@ struct Build: ParsableCommand {
         _ = try AssetPipeline.prepare(projectDir: cwd, runner: runner)
         let bundle = try WasmBuilder(runner: runner, projectDir: cwd, sdk: sdk)
             .build(configuration: config)
-        let outDir = cwd + "/" + out
+        let outDir = out.hasPrefix("/") ? out : cwd + "/" + out
         try DistLayout.assemble(projectDir: cwd, bundleDir: bundle, outDir: outDir)
         if let assets = try AssetPipeline.writePreparedManifest(projectDir: cwd, outDir: outDir) {
             print("generated \(AssetPipeline.manifestName) (\(assets.images.count) responsive image set(s))")

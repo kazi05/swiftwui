@@ -88,7 +88,7 @@ private final class UploadFixtureServer {
             return UploadFixtureServer(process: process, port: port)
         } catch {
             handle.readabilityHandler = nil
-            if process.isRunning { process.terminate() }
+            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             process.waitUntilExit()
             throw error
         }
@@ -96,7 +96,9 @@ private final class UploadFixtureServer {
 
     func stop() {
         guard process.isRunning else { return }
-        process.terminate()
+        // SIGKILL, not terminate(): on Linux the child inherits a signal mask with
+        // SIGTERM blocked, so SIGTERM never lands and waitUntilExit() hangs the main actor.
+        kill(process.processIdentifier, SIGKILL)
         process.waitUntilExit()
     }
 

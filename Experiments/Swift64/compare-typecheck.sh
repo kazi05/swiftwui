@@ -5,7 +5,7 @@ set -euo pipefail
 # download toolchains and does not claim timings are comparable across machines.
 # Example:
 # SWIFT63=swift SWIFTC63=swiftc SDK63=swift-6.3.3-RELEASE_wasm \
-# SWIFT64=/path/swift SWIFTC64=/path/swiftc SDK64=swift-6.4-... ./compare-typecheck.sh
+# SWIFT64=/path/swift SWIFTC64=/path/swiftc SDK64=swift-6.4.0-RELEASE_wasm ./compare-typecheck.sh
 for name in SWIFT63 SWIFTC63 SDK63 SWIFT64 SWIFTC64 SDK64; do
   test -n "${!name:-}" || { echo "missing $name" >&2; exit 64; }
 done

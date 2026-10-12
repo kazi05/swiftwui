@@ -17,8 +17,8 @@ struct MockRunner: ProcessRunner {
 @Suite struct ToolchainBuildTests {
     @Test func sdkDetectPrefersPinnedAndSkipsEmbedded() throws {
         let both = MockRunner(results: ["swift sdk list": .init(
-            exitCode: 0, stdout: "swift-6.3.3-RELEASE_wasm\nswift-6.3.3-RELEASE_wasm-embedded\n", stderr: "")])
-        #expect(try WasmSDK.detect(runner: both) == "swift-6.3.3-RELEASE_wasm")
+            exitCode: 0, stdout: "swift-6.4.0-RELEASE_wasm-embedded\nswift-6.4.0-RELEASE_wasm\n", stderr: "")])
+        #expect(try WasmSDK.detect(runner: both) == "swift-6.4.0-RELEASE_wasm")
         let other = MockRunner(results: ["swift sdk list": .init(
             exitCode: 0, stdout: "swift-7.0-RELEASE_wasm-embedded\nswift-7.0-RELEASE_wasm\n", stderr: "")])
         #expect(try WasmSDK.detect(runner: other) == "swift-7.0-RELEASE_wasm")
@@ -59,6 +59,31 @@ struct MockRunner: ProcessRunner {
         #expect(fm.fileExists(atPath: proj + "/dist/app/index.js"))
         #expect(fm.fileExists(atPath: proj + "/dist/vendor/wasi-shim/index.js"))   // resource fallback
         #expect(fm.fileExists(atPath: proj + "/dist/app/swiftwui-worker.js"))
+    }
+
+    /// Regression: `swiftwui build --out .` removed the project's index.html and
+    /// vendored shim, then failed copying the (now missing) index.html.
+    @Test func distLayoutRefusesTheProjectOrAParentAsOutput() throws {
+        let fm = FileManager.default
+        let root = NSTemporaryDirectory() + "swiftwui-dist-self-\(UUID().uuidString)"
+        let proj = root + "/app"
+        try fm.createDirectory(atPath: proj + "/bundle", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: proj + "/vendor/wasi-shim", withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: proj + "/public", withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: root) }
+        try "html".write(toFile: proj + "/index.html", atomically: true, encoding: .utf8)
+        try "shim".write(toFile: proj + "/vendor/wasi-shim/index.js", atomically: true, encoding: .utf8)
+        try "js".write(toFile: proj + "/bundle/index.js", atomically: true, encoding: .utf8)
+        for out in [proj + "/.", proj, proj + "/", proj + "/bundle/..", root] {
+            #expect(throws: ToolchainError.self) {
+                try DistLayout.assemble(projectDir: proj, bundleDir: proj + "/bundle", outDir: out)
+            }
+            #expect(throws: ToolchainError.self) { try DistLayout.copyPublic(projectDir: proj, outDir: out) }
+        }
+        #expect(fm.fileExists(atPath: proj + "/index.html"))
+        #expect(fm.fileExists(atPath: proj + "/vendor/wasi-shim/index.js"))
+        try DistLayout.assemble(projectDir: proj, bundleDir: proj + "/bundle", outDir: proj + "/dist")
+        #expect(fm.fileExists(atPath: proj + "/dist/index.html"))
     }
 
     @Test func distLayoutCopiesPublic() throws {

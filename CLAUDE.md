@@ -33,12 +33,12 @@ Swift web UI framework: SwiftUI-inspired declarative API compiled to WebAssembly
 ## Build & test
 
 - Native (primary gate): `swift build` / `swift test` — no browser needed; reconciler/applier tested via MockBackend.
-- Toolchain: Swift **6.3.3** (swiftly) + official Swift.org WASM SDK `swift-6.3.3-RELEASE_wasm`. Host and SDK versions must match exactly. Never pass `-disable-reflection-metadata` (breaks Mirror → silently resets all @State; runtime has a startup canary).
-- WASM example: `cd Examples/Counter && swift package --swift-sdk swift-6.3.3-RELEASE_wasm js -c debug`; Vite as dev server.
+- Toolchain: Swift **6.4.0** (swiftly) + official Swift.org WASM SDK `swift-6.4.0-RELEASE_wasm`. Host and SDK versions must match exactly; since 6.4.0 the download tag/SDK id spell `.0` (`swift-6.4.0-RELEASE_wasm`) while `swift --version` prints `Swift version 6.4 (swift-6.4-RELEASE)` — compare releases with `WasmSDK.sameRelease`, never raw strings. Manifest stays `swift-tools-version: 6.2`; CI keeps a native 6.3.3 compatibility job. The pinned 6.x signing key in `Scripts/install-swift-ci.sh` expired 2026-09-16 — the script accepts only signatures made before the key's expiry. Never pass `-disable-reflection-metadata` (breaks Mirror → silently resets all @State; runtime has a startup canary).
+- WASM example: `cd Examples/Counter && swift package --swift-sdk swift-6.4.0-RELEASE_wasm js -c debug`; Vite as dev server.
 - wasm gates: run a clean build (`rm -rf .build/wasm32-unknown-wasip1`) before release-critical checks — stale .o files have masked real wasm-only compile breaks.
 - Release gate: `swift build -c release --product swiftwui` — the brew formula's build, and the only place the core is optimized for an Apple target. Debug and wasm are both blind to it.
 - **Never `import Foundation` (umbrella) in `SwiftWUI`/`SwiftWUIDOM`** — always `#if canImport(FoundationEssentials)` / `#else`. Autolink entries are emitted per MODULE, so one umbrella import anywhere makes every consumer link `_FoundationICU` and adds **~36 MB** of `icudt` data to every wasm bundle (this shipped in v0.9.0–0.9.1: 8.4 MB → 45 MB). `FoundationImportGuardTests` fails on a bare import; `swiftwui build -c release` warns when an app's own sources do it. `String(format:)` is umbrella-only — hand-roll it; `Data` → `_FoundationData`.
-- **Every class in `SwiftWUI`/`SwiftWUIStatic` needs `nonisolated deinit { }`.** `.defaultIsolation(MainActor.self)` makes the implicit deinit MainActor-isolated, and Swift 6.3.2/6.3.3 crash the SIL inliner optimizing one for an Apple target. `IsolatedDeinitGuardTests` fails if a new class forgets.
+- **Every class in `SwiftWUI`/`SwiftWUIStatic` needs `nonisolated deinit { }`.** `.defaultIsolation(MainActor.self)` makes the implicit deinit MainActor-isolated, and Swift 6.3.2/6.3.3 crash the SIL inliner optimizing one for an Apple target (keep the guard until a 6.4 Apple-target release build proves the fix). `IsolatedDeinitGuardTests` fails if a new class forgets.
 
 ## Hard-won WASM knowledge (from v1 — still true)
 
