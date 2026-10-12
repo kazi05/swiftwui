@@ -6,8 +6,11 @@ public enum VisibilityObserverRoot<Host> {
 
 /// Host primitives a live renderer provides (spec §8.1). Deliberately dumb:
 /// no diffing, no bookkeeping, no handler storage.
+///
+/// `SendableMetatype` rules out isolated conformances; without it Swift 6.4 warns
+/// that `Runtime`'s generic `Backend` conformance "may be isolated" in lazy initializers.
 @MainActor
-public protocol RendererBackend: AnyObject {
+public protocol RendererBackend: AnyObject, SendableMetatype {
     associatedtype HostNode
     func createElement(_ tag: String) -> HostNode
     func createTextNode(_ text: String) -> HostNode

@@ -46,7 +46,8 @@ public struct WebStorage {
     public func get<Value: StorageConvertible>(
         _ key: String, as type: Value.Type = Value.self, kind: StorageKind = .local
     ) -> Value? {
-        store.box(kind: kind, key: key).raw.flatMap(Value._decodeStorage)
+        guard let raw = store.box(kind: kind, key: key).raw else { return nil }
+        return Value._decodeStorage(raw)
     }
     public func set<Value: StorageConvertible>(
         _ key: String, _ value: Value, kind: StorageKind = .local

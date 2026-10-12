@@ -82,7 +82,7 @@ import FoundationNetworking
 
     @Test func stopUnblocksAcceptLoopAndReleasesServer() async throws {
         var server: HTTPServer? = HTTPServer(handlers: [])
-        weak var weakServer = server
+        weak let weakServer = server
         do {
             let startedServer = try #require(server)
             try startedServer.start(port: 0)

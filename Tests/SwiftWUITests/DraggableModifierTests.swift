@@ -1,7 +1,7 @@
 import Testing
 @testable import SwiftWUI
 
-private struct TaskCard: DragPayload, Equatable { let id: Int }
+private struct TaskCard: DragPayload, Codable, Equatable { let id: Int }
 
 private final class Recorder { var dragged: [Bool] = [] }
 private struct SourceFixture: Tag {

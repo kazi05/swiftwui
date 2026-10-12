@@ -8,7 +8,7 @@ import Foundation
 /// written into a DOM attribute at render time and travels via the OS drag
 /// pasteboard — VISIBLE to the page and other apps. Never put secrets in a
 /// drag payload. Inbound bodies on drop are untrusted foreign data.
-public protocol DragPayload: Codable {
+public protocol DragPayload {
     /// DataTransfer content type; also the zone-acceptance token. Browsers
     /// lowercase DataTransfer formats; SwiftWUI normalizes at use sites —
     /// prefer lowercase custom values.
@@ -23,6 +23,12 @@ extension DragPayload {
     public static var dragContentType: String {
         "application/x-swiftwui.\(String(describing: Self.self).lowercased())"
     }
+}
+
+/// JSON body for `Codable` payloads. Constrained rather than inherited: Swift 6.4
+/// isolates a main-actor type's synthesized `Codable` conformance, and a protocol
+/// refining `Codable` then fails to conform without `@MainActor DragPayload`.
+extension DragPayload where Self: Codable {
     public func _encodeDragBody() -> String? {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]     // deterministic attributes

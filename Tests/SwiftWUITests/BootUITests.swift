@@ -31,7 +31,7 @@ private struct TwoPageApp: App {
 
 @Suite @MainActor struct BootUITests {
     @Test func defaultsAreNoneAndInherit() {
-        #expect(TwoPageApp.self is any App.Type)
+        let _: any App.Type = TwoPageApp.self
         #expect(DefaultPage().bootUI._isInherit)
         #expect(BootUI.none._isNone)
         #expect(BootUI.overlay { Spinner() }._delayMS == 300)

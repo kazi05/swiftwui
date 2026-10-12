@@ -6,7 +6,7 @@ import Foundation
 #endif
 @testable import SwiftWUI
 
-private struct TaskCard: DragPayload, Equatable {
+private struct TaskCard: DragPayload, Codable, Equatable {
     let title: String
     let id: Int
 }

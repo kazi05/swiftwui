@@ -62,7 +62,10 @@ public extension StorageConvertible where Self: RawRepresentable, RawValue == St
     var _encodeStorage: String? { rawValue }
 }
 public extension StorageConvertible where Self: RawRepresentable, RawValue == Int {
-    static func _decodeStorage(_ raw: String) -> Self? { Int(raw).flatMap(Self.init(rawValue:)) }
+    static func _decodeStorage(_ raw: String) -> Self? {
+        guard let value = Int(raw) else { return nil }
+        return Self(rawValue: value)
+    }
     var _encodeStorage: String? { String(rawValue) }
 }
 

@@ -18,6 +18,14 @@ Notable changes to SwiftWUI. Format loosely follows
   pass through the same gate. Values that relied on these were invalid CSS.
 - `Link` destinations with a `#fragment` are no longer intercepted for SPA
   navigation, so the browser honors the anchor.
+- `DragPayload` no longer refines `Codable`: its JSON defaults apply to
+  payloads that also conform to `Codable` (`struct Card: DragPayload, Codable`,
+  as the documentation shows). Swift 6.4 isolates a main-actor type's
+  synthesized `Codable` conformance, so the refinement made such payloads fail
+  to compile in apps with `.defaultIsolation(MainActor.self)`. A payload that
+  relied on the implicit `Codable` now needs it spelled out.
+- `RendererBackend` refines `SendableMetatype`: backend conformances are never
+  actor-isolated.
 
 ### Fixed
 
