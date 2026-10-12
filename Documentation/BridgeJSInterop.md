@@ -28,15 +28,27 @@ The public Swift facade is `AppInterop`: use `try AppInterop.greet("Ada")`,
 `try await AppInterop.greeting("Ada")`, and
 `try AppInterop.subscribe { message in ... }`. It rejects an empty name,
 demonstrates a Promise, and returns a `Subscription`. Call `dispose()` on each
-subscription; the facade retains its `JSClosure` until disposal and releases it
-after JavaScript unregisters the token. The generated declarations beneath
-`Generated/` remain internal implementation details.
+subscription: it unregisters the token in JavaScript, then releases the
+callback, a `JSTypedClosure`. A later call from JavaScript throws instead of
+running Swift. Pass new callbacks the same way: a `JSClosure` is never freed in
+default JavaScriptKit builds, and neither is anything it captures. The generated
+declarations beneath `Generated/` remain internal implementation details.
 
 The loader stores its dynamic import in `window.__swiftwui_interop_ready`. The
 SwiftWUI boot loader waits for it before instantiating WASM, so generated imports
 are defined before their first call. A failed wrapper import fails boot visibly;
 do not catch and hide it, because WASM imports would otherwise fail later with a
 less useful error.
+
+Declare imports in `bridge-js.global.d.ts`, which BridgeJS reads from
+`globalThis`. Functions declared in `bridge-js.d.ts` are read from
+`init({ getImports })`, which SwiftWUI's boot never passes, so the app would fail
+to boot. Keep that file comment-only rather than deleting it: without it,
+`swiftwui interop generate` fails, because the BridgeJS command plugin passes
+`tsconfig.json` only when it exists. Declare an import that takes a callback in
+Swift instead, with `@JSFunction(from: .global)`, as `Interop.swift` does for
+`interopSubscribe`: TS2Swift lowers a TypeScript function type to `JSObject`,
+and only a `JSTypedClosure` can be released.
 
 The command runs `npm install --ignore-scripts --no-audit --no-fund` inside the
 resolved JavaScriptKit TS2Swift tool directory, followed by the BridgeJS command

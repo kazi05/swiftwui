@@ -1,4 +1,3 @@
-export function interopGreet(name: string): string;
-export function interopGreetingAsync(name: string): Promise<string>;
-export function interopSubscribe(callback: (message: string) => void): number;
-export function interopUnsubscribe(token: number): void;
+// Declare imports in bridge-js.global.d.ts. Functions declared here are read from
+// init({ getImports }), which SwiftWUI's boot never passes, so the app would not boot.
+// Keep this file anyway: without it, `swiftwui interop generate` fails.

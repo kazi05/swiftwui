@@ -30,6 +30,15 @@ import Foundation
         let facade = try String(contentsOfFile: root + "/Interop/Sources/AppInterop/Interop.swift", encoding: .utf8)
         #expect(facade.contains("public enum AppInterop"))
         #expect(facade.contains("public func dispose"))
+        // Imports in bridge-js.d.ts come from init({ getImports }), which the boot never passes.
+        let moduleDeclarations = try String(contentsOfFile: root + "/Interop/Sources/AppInterop/bridge-js.d.ts", encoding: .utf8)
+        #expect(!moduleDeclarations.contains("export function"))
+        let globalDeclarations = try String(contentsOfFile: root + "/Interop/Sources/AppInterop/bridge-js.global.d.ts", encoding: .utf8)
+        #expect(globalDeclarations.contains("export function interopGreet("))
+        #expect(!globalDeclarations.contains("interopSubscribe"))
+        // Only a JSTypedClosure is freed by dispose(), so the import is declared in Swift.
+        #expect(facade.contains("JSTypedClosure<(String) -> Void>"))
+        #expect(facade.contains("@JSFunction(from: .global) func interopSubscribe"))
         _ = try InteropScaffolder.install(projectDir: root, target: "App")
         let second = try String(contentsOfFile: root + "/Package.swift", encoding: .utf8)
         #expect(second == package)
