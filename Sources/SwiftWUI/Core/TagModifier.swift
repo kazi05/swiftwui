@@ -1,5 +1,3 @@
-import Observation
-
 /// SwiftUI's ViewModifier, for Tags. The modifier's `body` composes wrapper
 /// structure around a `Content` placeholder; `@State`/`@Environment` declared
 /// on the modifier work exactly as in a component (spec 2026-07-12 §2.1).
@@ -55,10 +53,8 @@ public struct ModifiedTag<C: Tag, M: TagModifier>: Tag, _PrimitiveTag {
         }
         // Unlike a component boundary, ctx.scopeClass is deliberately preserved:
         // modifier-wrapped content keeps the caller's Styled scope.
-        let body = withObservationTracking {
+        let body = _trackInvalidation(box) {
             modifier.body(content: _ModifierContent(content: AnyTag(content)))
-        } onChange: {
-            MainActor.assumeIsolated { box.fireIfCurrent() }
         }
         let children = resolve(body, path: id.appending(.child(0)), ctx: &ctx)
         return [.component(ComponentNode(identity: id,

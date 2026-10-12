@@ -1,5 +1,3 @@
-import Observation
-
 /// A transparent render-tree scope for committed scroll geometry and commands.
 public struct ScrollReader<Content: Tag>: Tag, _PrimitiveTag {
     public typealias Body = Never
@@ -41,11 +39,7 @@ public struct ScrollReader<Content: Tag>: Tag, _PrimitiveTag {
             ctx.transaction = savedTransaction
         }
 
-        let body = withObservationTracking {
-            content(proxy)
-        } onChange: {
-            MainActor.assumeIsolated { box.fireIfCurrent() }
-        }
+        let body = _trackInvalidation(box) { content(proxy) }
         let children = resolve(body, path: id.appending(.child(0)), ctx: &ctx)
         return [.component(ComponentNode(identity: id,
                                          typeName: String(describing: Self.self),

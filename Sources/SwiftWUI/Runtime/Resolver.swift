@@ -12,6 +12,22 @@ struct _InvalidateBox: @unchecked Sendable {
     }
 }
 
+/// Fires `box` after the write is stored where SE-0506 exists (Swift 6.4 on macOS 27+, Linux, WASI), at `willSet` elsewhere.
+/// A custom `Observable` that calls only `willSet` (not `withMutation`/`didSet`) does not invalidate on the SE-0506 path.
+@MainActor
+func _trackInvalidation<T>(_ box: _InvalidateBox, _ apply: () -> T) -> T {
+    #if compiler(>=6.4)
+    if #available(macOS 27, *) {
+        return withObservationTracking(options: .didSet, apply) { _ in
+            MainActor.assumeIsolated { box.fireIfCurrent() }
+        }
+    }
+    #endif
+    return withObservationTracking(apply) {
+        MainActor.assumeIsolated { box.fireIfCurrent() }
+    }
+}
+
 public struct ResolveContext {
     let store: StateStore
     let listeners: ListenerRegistry
@@ -130,11 +146,9 @@ func resolve<T: Tag>(_ tag: T, path: NodeIdentity, ctx: inout ResolveContext) ->
     // Tracking covers body evaluation; ForEach additionally re-binds tracking
     // for its per-item content closures to ctx.owner (see ForEach._resolve).
     var styledRules: [Rule] = []
-    let body = withObservationTracking {
+    let body = _trackInvalidation(box) {
         if let styled = tag as? any Styled { styledRules = styled.styles }
         return tag.body
-    } onChange: {
-        MainActor.assumeIsolated { box.fireIfCurrent() }
     }
     if !styledRules.isEmpty {
         let marker = scopeMarker(forTypeName: String(reflecting: T.self))
