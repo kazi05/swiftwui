@@ -24,3 +24,17 @@ import Testing
     }
 }
 #endif
+
+@Suite struct StaticSiteOutputSymlinkTests {
+    /// `--out` is the developer's choice, so a symlinked output directory writes into its
+    /// target; page paths still cannot leave it (`writeDocumentRejectsSymlinkedOutputDirectory`).
+    @Test func writeDocumentFollowsASymlinkedOutputDirectory() throws {
+        let fm = FileManager.default
+        let base = NSTemporaryDirectory() + "swiftwui-outlink-" + UUID().uuidString
+        defer { try? fm.removeItem(atPath: base) }
+        try fm.createDirectory(atPath: base + "/real", withIntermediateDirectories: true)
+        try fm.createSymbolicLink(atPath: base + "/out", withDestinationPath: base + "/real")
+        try StaticSite.writeDocument("a", path: "/a", outDir: base + "/out")
+        #expect(fm.fileExists(atPath: base + "/real/a/index.html"))
+    }
+}
