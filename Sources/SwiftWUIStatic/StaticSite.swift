@@ -483,6 +483,7 @@ public enum StaticSite {
         var documents: [(path: String, subdir: String, html: String, claim: String)] = []
         var indexedDocuments: [(path: String, head: PageHead?, html: String)] = []
         var sitemapPaths: [String] = []   // .page only — .notFound stays out (review finding)
+        var pageSet = Set<String>(), sitemapSet = Set<String>(), notFoundSet = Set<String>()
 
         let localization = A.localization
         let renderLocales: [LocaleID] = {
@@ -571,11 +572,11 @@ public enum StaticSite {
                 // Deduplicated: .negotiated renders the same URL once per
                 // locale, and one URL must appear once in the report and
                 // once in the sitemap.
-                if !report.pages.contains(outputPath) { report.pages.append(outputPath) }
-                if case .page = rendered.outcome, !sitemapPaths.contains(outputPath) {
+                if pageSet.insert(outputPath).inserted { report.pages.append(outputPath) }
+                if case .page = rendered.outcome, sitemapSet.insert(outputPath).inserted {
                     sitemapPaths.append(outputPath)
                 }
-                if case .notFound = rendered.outcome, !report.notFoundPages.contains(outputPath) {
+                if case .notFound = rendered.outcome, notFoundSet.insert(outputPath).inserted {
                     report.notFoundPages.append(outputPath)
                 }
                 if case .page = rendered.outcome {
@@ -603,7 +604,7 @@ public enum StaticSite {
             // A page this build did not render has no URL to send anyone to:
             // under `.prerender(.never)` or an on-demand-only pattern the stub
             // would redirect into a 404.
-            where rendered.contains(canonical) && !report.pages.contains(retired) {
+            where rendered.contains(canonical) && !pageSet.contains(retired) {
                 report.redirects[retired] = current
                 report.redirectStatuses[retired] = StaticRedirectStatus.permanentRedirect.rawValue
                 documents.append((retired, "", redirectStub(to: current),
