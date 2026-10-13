@@ -12,6 +12,13 @@ sites, and covered by a regression test where the behavior is testable with
 native 6.3.3 compatibility, WASM/browser matrix on 6.4.0) is the gate that has
 to pass before merging.
 
+**Update 2026-10-13.** Since verified: CI passed every job, and the change was
+built and tested locally on swift.org 6.4.0 and Xcode 27 (native suite, browser
+fixture, release CLI). The isolated-deinit crash is fixed in 6.4.0; the guards
+stay while 6.3.x can build the brew formula. JavaScriptKit 0.59.0 still never
+frees a `JSClosure`; SwiftWUIDOM no longer allocates one per listener, fetch,
+submit or binding (see the deferred items below).
+
 ## Toolchain migration
 
 | Change | Where |

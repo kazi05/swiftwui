@@ -30,6 +30,11 @@ Notable changes to SwiftWUI. Format loosely follows
   BridgeJS glue matches one minor's ABI) and ships glue regenerated with it.
   Apps that use `swiftwui interop` set `exact: "0.59.0"` in
   `Interop/Package.swift` and run `swiftwui interop generate`.
+- Per-node DOM operations (node ids, inline styles, hydration reads) use typed
+  BridgeJS calls. In a release build, cold-mounting 6,000 elements takes 115 ms
+  instead of 233 ms in Chromium (138 vs 233 ms in WebKit), and adopting a
+  6,000-element prerendered page takes 132 ms instead of 816 ms (155 vs
+  1,060 ms in WebKit).
 - When built with Swift 6.4 and run on macOS 27+, Linux or WASI, component
   bodies re-render from the committed value, so synchronous
   `Runtime(scheduleMicrotask:)` schedulers no longer render one write behind.
@@ -51,6 +56,15 @@ Notable changes to SwiftWUI. Format loosely follows
 - `swiftwui build` and `dev` refuse a bundle whose JS glue lacks WASI (a
   JavaScriptKit < 0.58 lockfile under Swift Build) instead of shipping a page
   that never boots.
+- Long-lived pages no longer leak a JS closure (and everything it captures)
+  per removed listener, fetch, form submit or visibility binding. A 1,500-row
+  list unmounted and remounted five times kept 7,500 extra JavaScriptKit
+  objects alive; it now keeps none.
+- `swiftwui ssg` no longer refuses every page in projects under `/tmp`,
+  `$TMPDIR` or `/private` (macOS), and an output directory reached through a
+  symlink is written into the link's target instead of being refused for every
+  new page. Page paths still cannot leave the output directory.
+- Negotiated-locale SSG no longer slows quadratically with the page count.
 - The wasm preflight (`build`, `dev`, `metrics`) refuses Xcode's and the
   Command Line Tools' `swift`, which cannot build for a Swift.org WebAssembly
   SDK, with a fix-it naming swiftly.
