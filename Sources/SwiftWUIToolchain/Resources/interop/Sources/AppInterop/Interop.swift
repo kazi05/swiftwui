@@ -29,7 +29,7 @@ public enum AppInterop {
 
     public final class Subscription {
         private var token: Double?
-        private let callback: JSTypedClosure<(String) -> Void>
+        private var callback: JSTypedClosure<(String) -> Void>?   // nil after dispose(): frees what receive captured
 
         fileprivate init(token: Double, callback: JSTypedClosure<(String) -> Void>) {
             self.token = token; self.callback = callback
@@ -40,14 +40,15 @@ public enum AppInterop {
             guard let token else { return }
             try _$interopUnsubscribe(token)
             self.token = nil
-            callback.release()
+            callback?.release()
+            callback = nil
         }
 
         deinit {
             // Deinit cannot surface a JavaScript exception. Explicit dispose is
             // preferable where delivery failures need to be handled.
             if let token { try? _$interopUnsubscribe(token) }
-            callback.release() // no-op if dispose() already released it
+            callback?.release()
         }
     }
 }
