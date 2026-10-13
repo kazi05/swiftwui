@@ -65,9 +65,13 @@ private func parseLinearValues(_ easing: String) -> [Double] {
         assertSane(Animation.linear(duration: -1).resolved())
     }
     @Test func speedZeroTreatedAsOne() {
-        assertSane(Animation.linear(duration: 1).speed(0).resolved())
+        let timing = Animation.linear(duration: 1).speed(0).resolved()
+        assertSane(timing)
+        #expect(timing.durationMs == 1000)
     }
     @Test func speedInfinityTreatedAsOne() {
-        assertSane(Animation.linear(duration: 1).speed(.infinity).resolved())
+        let timing = Animation.linear(duration: 1).speed(.infinity).resolved()
+        assertSane(timing)
+        #expect(timing.durationMs == 1000)
     }
 }
