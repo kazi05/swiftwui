@@ -416,7 +416,8 @@ public final class DOMBackend: RendererBackend {
         domObservers[key] = observer
     }
 
-    /// Shared per kind, like `listenerTrampoline`; each entry's target routes it.
+    /// Shared per `ObserverKind.key` (kind and visibility threshold), like `listenerTrampoline`;
+    /// each entry's target routes it.
     private func observerTrampoline(_ kind: ObserverKind) -> JSClosure {
         if let existing = observerTrampolines[kind.key] { return existing }
         let closure = JSClosure { [weak self] args in
@@ -815,7 +816,7 @@ public final class DOMBackend: RendererBackend {
         }
     }
     /// Detaches environment, storage, window-event, and viewport-effect
-    /// listeners, releases their closures, and force-finishes live animations.
+    /// listeners, drops their closures, and force-finishes live animations.
     /// Called by DOMRuntime when a mount attempt is discarded (hydration
     /// mismatch), so the discarded backend leaves no dangling browser work.
     public func endEnvironmentObservation() {
@@ -1352,15 +1353,19 @@ public final class DOMBackend: RendererBackend {
 
     // MARK: Hydration read API (phase 5, spec §10)
     public func childCount(of node: JSObject) -> Int {
-        Int(try! SWNode(unsafelyWrapping: node).childNodes.length)
+        // A form control named "childNodes" shadows the property, so length reads NaN:
+        // report 0 and let hydration mismatch and fall back instead of trapping at boot.
+        let n = (try? SWNode(unsafelyWrapping: node).childNodes.length) ?? 0
+        return n.isFinite ? Int(n) : 0
     }
     public func child(of node: JSObject, at index: Int) -> JSObject {
         let c = try! SWNode(unsafelyWrapping: node).childNodes.item(Double(index))
         // Adopted nodes (hydration) never went through createElement/createTextNode,
         // so they lack the __swuid stamp — without it every adopted node's
         // closureKey collapses to "-1#event" (C1: listener registry collisions).
-        if try! c.__swuid.isNaN {
-            try! c.set__swuid(Double(nextUID)); nextUID += 1
+        // A form control named "__swuid" makes the read NaN and the write throw: skip, uid −1.
+        if (try? c.__swuid)?.isNaN == true {
+            _ = try? c.set__swuid(Double(nextUID)); nextUID += 1
         }
         return c.jsObject
     }
