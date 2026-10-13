@@ -52,12 +52,6 @@ public enum WasmSDK {
         guard let hostVersion = swiftVersion(in: host.stdout + host.stderr) else {
             throw ToolchainError.incompatibleToolchain("could not parse a Swift release from `swift --version`: \(host.stdout + host.stderr)")
         }
-        // Apple's toolchains (Xcode, Command Line Tools) print "swiftlang-" and cannot build
-        // for a Swift.org WebAssembly SDK: they ship no wasm-ld or swift-autolink-extract.
-        // The release checks below pass them whenever Xcode's Swift matches the SDK's release.
-        if (host.stdout + host.stderr).contains("swiftlang-") {
-            throw ToolchainError.incompatibleToolchain("`swift` is Apple's toolchain (Xcode or Command Line Tools), which cannot build for a Swift.org WebAssembly SDK. Install and select the Swift.org \(hostVersion) toolchain (for example `swiftly install \(hostVersion)` then `swiftly use \(hostVersion)`), or put it first on PATH.")
-        }
         // An explicit --swift-sdk always wins. Otherwise prefer the installed web
         // SDK built for this host, so a machine that also has the pinned SDK of
         // another release does not fail preflight with a needless mismatch.
@@ -67,6 +61,13 @@ public enum WasmSDK {
         }
         guard isWebSDK(sdk) else {
             throw ToolchainError.incompatibleToolchain("'\(sdk)' is not a WASM web SDK")
+        }
+        // Apple's toolchains (Xcode, Command Line Tools) print "swiftlang-" and cannot build
+        // for a Swift.org WebAssembly SDK: they ship no wasm-ld or swift-autolink-extract.
+        // The release checks below pass them whenever Xcode's Swift matches the SDK's release.
+        if (host.stdout + host.stderr).contains("swiftlang-") {
+            let release = swiftVersion(in: sdk) ?? hostVersion   // name the toolchain the SDK needs
+            throw ToolchainError.incompatibleToolchain("`swift` is Apple's toolchain (Xcode or Command Line Tools), which cannot build for a Swift.org WebAssembly SDK. Install and select the Swift.org \(release) toolchain (for example `swiftly install \(release)` then `swiftly use \(release)`), or put it first on PATH.")
         }
         // SwiftPM honors SWIFT_EXEC. Query that exact executable when it is set;
         // checking a different `swiftc` on PATH would give a false green result.
