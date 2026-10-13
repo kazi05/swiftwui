@@ -712,8 +712,10 @@ public enum StaticSite {
         }
         let relative = outputFile(path: path, subdir: subdir)
         let requested = outDir + "/" + relative
-        let lexicalRoot = URL(fileURLWithPath: outDir, isDirectory: true).standardizedFileURL
-        let lexicalDestination = URL(fileURLWithPath: requested).standardizedFileURL
+        // Lexical only: Darwin's standardizedFileURL drops a leading /private only from paths
+        // that already exist. `.absoluteURL` first, or Linux 6.3.3 mis-resolves a relative `..`.
+        let lexicalRoot = URL(fileURLWithPath: outDir, isDirectory: true).absoluteURL.standardized
+        let lexicalDestination = URL(fileURLWithPath: requested).absoluteURL.standardized
         guard contains(lexicalDestination, in: lexicalRoot) else {
             throw StaticSiteError.io(path: requested,
                                      underlying: "refusing to write outside the static output directory")
@@ -734,8 +736,7 @@ public enum StaticSite {
             try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
             // Resolve again after directory creation. This also catches an
             // existing in-tree symlink whose target is outside `outDir`.
-            let resolved = URL(fileURLWithPath: requested)
-                .standardizedFileURL.resolvingSymlinksInPath()
+            let resolved = resolvingExistingAncestors(of: lexicalDestination)
             guard contains(resolved, in: root) else {
                 throw StaticSiteError.io(path: requested,
                                          underlying: "refusing to write through a symlink outside the static output directory")
