@@ -12,12 +12,13 @@ sites, and covered by a regression test where the behavior is testable with
 native 6.3.3 compatibility, WASM/browser matrix on 6.4.0) is the gate that has
 to pass before merging.
 
-**Update 2026-10-13.** Since verified: CI passed every job, and the change was
-built and tested locally on swift.org 6.4.0 and Xcode 27 (native suite, browser
-fixture, release CLI). The isolated-deinit crash is fixed in 6.4.0; the guards
-stay while 6.3.x can build the brew formula. JavaScriptKit 0.59.0 still never
-frees a `JSClosure`; SwiftWUIDOM no longer allocates one per listener, fetch,
-submit or binding (see the deferred items below).
+**Update 2026-10-13.** Since verified: CI passed every job on PR #2 and on its
+merge into `main` (run 38310432832, `7d639fb`). Locally: native suite and
+release CLI on swift.org 6.4.0 and Xcode 27, browser fixture on swift.org
+6.4.0. The isolated-deinit crash is fixed in 6.4.0; the guards stay while 6.3.x
+can build the brew formula. JavaScriptKit 0.59.0 still never frees a
+`JSClosure`; SwiftWUIDOM no longer allocates one per listener, element
+observer, fetch, submit or binding (see the deferred items below).
 
 ## Toolchain migration
 
@@ -51,7 +52,7 @@ Bugs found while migrating:
 
 Not changed, deliberately: the `nonisolated deinit { }` requirement and its
 guard test stay until a 6.4 Apple-target release build proves the SIL-inliner
-crash (6.3.2/6.3.3) is gone; the WASM size budgets were measured with 6.3.3 and
+crash (6.3.2/6.3.3) is gone (met 2026-10-13; see the update above); the WASM size budgets were measured with 6.3.3 and
 may need re-measuring if the 6.4.0 fixtures move.
 
 ## Review method
@@ -105,7 +106,8 @@ re-verified against the code before it was fixed or deferred.
   `Headers.forEach` per fetch), per-(node, event) listener closures and
   per-binding visibility closures accumulated for the page lifetime. Submit
   and fetch now iterate with `Array.from`. Element listeners share one closure
-  per backend, element observers one per backend and kind, and configured
+  per backend, element observers one per backend, kind and visibility
+  threshold, and configured
   visibility one per page; each routes at fire time. `Tests/BrowserEvents`
   pins the listener case with `?remount`.
 - `storage` events are forwarded as `.local` even for `sessionStorage` changes

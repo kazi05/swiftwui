@@ -45,7 +45,7 @@ Swift web UI framework: SwiftUI-inspired declarative API compiled to WebAssembly
 ## Hard-won WASM knowledge (from v1 — still true)
 
 - `#if arch(wasm32)` for runtime forks, never `canImport(JavaScriptKit)`.
-- `JSClosure` is never freed in default (WeakRefs) builds — JavaScriptKit's registry keeps it, and what it captures, for the page's lifetime; `release()` is a no-op there. Never create one per node, render, call or binding: element listeners share one trampoline per backend and observers one closure per kind (both route by `__swuid` at fire time), visibility bindings one static closure (routed by an observer id). The remaining `JSClosure`s are made once per backend start, distinct media query, island, worker or service-worker install, or drop-guard enable. Scoped lifetimes: `JSOneshotClosure` (call `release()` if it may never fire) or `JSTypedClosure` (`release()`).
+- `JSClosure` is never freed in default (WeakRefs) builds — JavaScriptKit's registry keeps it, and what it captures, for the page's lifetime; `release()` is a no-op there. Never create one per node, render, call or binding: element listeners share one trampoline per backend and observers one closure per kind and visibility threshold (both route by `__swuid` at fire time), visibility bindings one static closure (routed by an observer id). The remaining `JSClosure`s are made once per backend start, distinct media query, island, worker or service-worker install, or drop-guard enable. Scoped lifetimes: `JSOneshotClosure` (call `release()` if it may never fire) or `JSTypedClosure` (`release()`).
 - Never key a dictionary by `ObjectIdentifier(JSObject)` — JavaScriptKit makes a new wrapper per access.
 - Microtask-deferred re-render; coalesce N writes into one flush.
 

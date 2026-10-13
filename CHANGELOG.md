@@ -57,7 +57,8 @@ Notable changes to SwiftWUI. Format loosely follows
   JavaScriptKit < 0.58 lockfile under Swift Build) instead of shipping a page
   that never boots.
 - Long-lived pages no longer leak a JS closure (and everything it captures)
-  per removed listener, fetch, form submit or visibility binding. A 1,500-row
+  per removed listener, element observer, fetch, form submit or visibility
+  binding. A 1,500-row
   list unmounted and remounted five times kept 7,500 extra JavaScriptKit
   objects alive; it now keeps none.
 - `swiftwui ssg` no longer refuses every page in projects under `/tmp`,
@@ -68,19 +69,22 @@ Notable changes to SwiftWUI. Format loosely follows
 - The wasm preflight (`build`, `dev`, `metrics`) refuses Xcode's and the
   Command Line Tools' `swift`, which cannot build for a Swift.org WebAssembly
   SDK, with a fix-it naming swiftly.
-- Apps that link the `swiftwui interop` scaffold boot again. The scaffold
+- Apps that link the `swiftwui interop` scaffold now boot. The scaffold
   declared its imports in `bridge-js.d.ts`, which BridgeJS reads from
   `init({ getImports })`; neither boot path passes that option, so
   instantiation failed with `options.getImports is not a function` or
   `No imports provided`. The declarations now live in `bridge-js.global.d.ts`.
 - The interop scaffold's `Subscription.dispose()` frees its callback, now a
-  `JSTypedClosure`: a `JSClosure` is never freed in default JavaScriptKit
-  builds. A call from JavaScript after `dispose()` throws instead of running
-  Swift. The scaffolder never overwrites existing files, so projects scaffolded
-  earlier migrate by hand: move every `export function` line except
-  `interopSubscribe` from `Interop/Sources/AppInterop/bridge-js.d.ts` to
-  `bridge-js.global.d.ts`, replace `Interop.swift` with the new template (it
-  declares `interopSubscribe`), and run `swiftwui interop generate`.
+  `JSTypedClosure`, and whatever it captured: a `JSClosure` is never freed in
+  default JavaScriptKit builds. A call from JavaScript after `dispose()` throws
+  instead of running Swift. The scaffold now needs Swift 6.4: Swift 6.3 cannot
+  disambiguate the closure initializers BridgeJS generates for it. The scaffolder never overwrites existing files, so projects scaffolded
+  earlier migrate by hand: move every `export function` line from
+  `Interop/Sources/AppInterop/bridge-js.d.ts` to `bridge-js.global.d.ts`,
+  except `interopSubscribe`, which you delete; keep `bridge-js.d.ts` itself,
+  comment-only, because generation fails without it. Then replace
+  `Interop.swift` with the new template (it declares `interopSubscribe` in
+  Swift) and run `swiftwui interop generate`.
 - WASM preflight treats `6.4` and `6.4.0` as the same release and prefers the
   installed SDK that matches the host toolchain.
 - Prerendered `<style>` blocks can no longer be closed by CSS values containing
