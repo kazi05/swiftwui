@@ -4,7 +4,7 @@ Notable changes to SwiftWUI. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); versions match the
 `v<version>` git tags described in `Sources/SwiftWUIToolchain/SwiftWUIVersion.swift`.
 
-## [Unreleased]
+## [0.11.0] - 2026-10-13
 
 ### Changed
 
