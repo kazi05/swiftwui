@@ -59,7 +59,7 @@ private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
     }
 }
 
-@Suite @MainActor struct StaticDeliveryTests {
+@Suite(.timeLimit(.minutes(1))) @MainActor struct StaticDeliveryTests {
     // Keep the custom session alive across requests: Swift 6.3.3 corelibs has
     // a teardown bug for short-lived URLSession instances on Linux.
     private static let responseSession: URLSession = {

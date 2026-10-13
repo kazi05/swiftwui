@@ -4,7 +4,8 @@ import { defineConfig } from '@playwright/test';
 // small separate WASM package, independent of the tutorial site's content.
 export default defineConfig({
   testMatch: ['browser-events.spec.mjs', 'browser-blobs.spec.mjs', 'browser-observer-roots.spec.mjs',
-    'browser-viewport.spec.mjs', 'browser-scroll.spec.mjs', 'browser-modern.spec.mjs'],
+    'browser-viewport.spec.mjs', 'browser-scroll.spec.mjs', 'browser-modern.spec.mjs',
+    'browser-remount.spec.mjs'],
   timeout: 30_000,
   workers: 1,
   use: {

@@ -6,27 +6,23 @@ profile.
 
 ## SE-0506 continuous observation
 
-`Swift64/ContinuousObservation.swift` records the [SE-0506 Swift 6.4 API](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0506-advanced-observation-tracking.md):
-`withContinuousObservationTracking(options: [.didSet])`, a borrowing event
-callback, and a `~Copyable` cancellation token. Run it only with explicitly
-matched 6.4 `swift` and `swiftc` binaries:
+A probe of the [SE-0506 API](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0506-advanced-observation-tracking.md)
+used to live in `Swift64/`. Under the shipped name,
+`withContinuousObservation(options:apply:)`, it compiled and passed on Swift
+6.4.0: initial delivery, a later mutation, and token cancellation. The probe
+and its CI step were then deleted, because what it showed rules the API out
+for the render core:
 
-```sh
-cd Experiments/Swift64
-SWIFT64=/path/to/swift SWIFTC64=/path/to/swiftc ./run-se0506.sh
-```
+- `.initial` and every later event arrive asynchronously, from a runner that
+  `Task.detached` starts, never inside the call or the setter. So the API
+  cannot wrap a synchronous body evaluation or replace the generation gate,
+  `_ObservationTrackingGate` in `Sources/SwiftWUI/State/StateStore.swift`.
+- Its `~Copyable` `Token` cancels in `deinit`, so keeping one per tracking
+  window would need a class box per window.
 
-The host at audit time (12 September 2026) had Swift 6.3.3 and no Swift 6.4
-toolchain. Swift 6.4.0 was released on 14 September 2026, and the
-`native-and-release` CI job now runs this probe with the pinned 6.4.0 toolchain
-as a non-gating step; read its result there before building on it. The script rejects older or
-mismatched compilers before compilation. The continuous API uses a single
-closure that both reads dependencies and receives an event; it does not use
-the separate `onChange` closure from one-shot tracking. The probe checks
-initial delivery, a subsequent mutation, and explicit token cancellation.
-After this passes under 6.4, the next experiment is an
-adapter behind a compiler availability check, measured against the existing
-generation gate in `StateStore`, not a replacement by declaration alone.
+Where SE-0506 exists, the render core uses one-shot
+`withObservationTracking(options: .didSet)` instead (`_trackInvalidation` in
+`Sources/SwiftWUI/Runtime/Resolver.swift`).
 
 `compare-typecheck.sh` accepts two user-selected host/compiler/SDK triples and
 uses `/usr/bin/time -p` for a local comparison. It intentionally does not make
@@ -51,14 +47,15 @@ self-contained counter built from the same toolchain and optimization level.
 It must never be compared to SwiftWUI's Counter example, which includes the
 WASI/JavaScriptKit/browser runtime and application features.
 
-On this host, the installed 6.3.3 SDKs built and passed the Node export/state
-smoke test on 12 September 2026. The regular WASI fixture was 7,086,080 bytes
-(SHA-256 `649f84446bd2493181a5fa3f92ad630bf67b9c65a4c5d42f974db1e333921e3c`);
-the Embedded-flag fixture was 20,115 bytes (SHA-256
-`ecc1c0a14b11d7ff8de67354ffad0cddeb6309b0e8df5150bdd93b3197b03aad`).
-SwiftPM placed both under a `wasm32-unknown-wasip1` scratch subdirectory. The
-comparison demonstrates the runtime cost of this one fixture; it is not proof
-of a `wasm32-unknown-none-wasm` browser ABI or a library size comparison.
+On this host, the installed 6.4.0 SDKs built and passed the Node export/state
+smoke test on 13 October 2026. The regular WASI fixture was 7,160,951 bytes;
+the Embedded-flag fixture was 43,606 bytes. Exact sizes depend on the build
+paths (other build paths gave 7,160,803 and 43,680 bytes), and the SHA-256
+changes on every run because the random scratch path ends up in the binary.
+Swift Build placed both under `out/Products/Release-webassembly-wasm32` in the
+scratch path. The comparison demonstrates the runtime cost of this one
+fixture; it is not proof of a `wasm32-unknown-none-wasm` browser ABI or a
+library size comparison.
 
 The full SwiftWUI graph cannot be moved to Embedded today. `StateStore.link`
 uses `Mirror` (`Sources/SwiftWUI/State/StateStore.swift`), node keys and effect

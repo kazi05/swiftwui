@@ -129,16 +129,18 @@ fixture is a minimal list application's release size.
 
 ## Swift 6.4 and the reference repository
 
-The [SE-0506 probe](../Experiments/Swift64/ContinuousObservation.swift) follows
+The [SE-0506 probe](../Experiments/README.md) followed
 [the published continuous Observation API](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0506-advanced-observation-tracking.md):
-a single tracking/event closure and a consuming cancellation token. It checks
-initial delivery, a mutation and cancellation. Swift 6.4 is not installed here,
-so no successful 6.4 compile or performance gain is asserted. The runner requires
-explicit matching 6.4 binaries. A separate script supports paired type-check timing.
+a single tracking/event closure and a consuming cancellation token. It checked
+initial delivery, a mutation and cancellation, and it compiled and passed on
+Swift 6.4.0 under the shipped name, `withContinuousObservation(options:apply:)`.
+Its events arrive asynchronously, so it was retired, and the render core tracks
+bodies with one-shot `withObservationTracking(options: .didSet)` where SE-0506
+exists. A separate script supports paired type-check timing.
 
 The [Embedded experiment](../Experiments/README.md) builds the **same** tiny
-stateful exported counter with ordinary and Embedded Swift 6.3.3. Both passed
-Node WASI export/state checks: 7,086,080 versus 20,115 bytes. This fixture has no
+stateful exported counter with ordinary and Embedded Swift 6.4.0. Both passed
+Node WASI export/state checks: 7,160,951 versus 43,606 bytes. This fixture has no
 DOM or SwiftWUI runtime; those figures cannot be compared with the Counter app.
 A complete Embedded SwiftWUI profile remains unavailable because reflection,
 AnyHashable, Observation, serialization, Foundation and the browser ABI still

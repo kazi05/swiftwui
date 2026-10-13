@@ -12,6 +12,14 @@ sites, and covered by a regression test where the behavior is testable with
 native 6.3.3 compatibility, WASM/browser matrix on 6.4.0) is the gate that has
 to pass before merging.
 
+**Update 2026-10-13.** Since verified: CI passed every job on PR #2 and on its
+merge into `main` (run 38310432832, `7d639fb`). Locally: native suite and
+release CLI on swift.org 6.4.0 and Xcode 27, browser fixture on swift.org
+6.4.0. The isolated-deinit crash is fixed in 6.4.0; the guards stay while 6.3.x
+can build the brew formula. JavaScriptKit 0.59.0 still never frees a
+`JSClosure`; SwiftWUIDOM no longer allocates one per listener, element
+observer, fetch, submit or binding (see the deferred items below).
+
 ## Toolchain migration
 
 | Change | Where |
@@ -20,7 +28,7 @@ to pass before merging.
 | WASM SDK bundle + checksum | CI env, scaffold/tutorial Dockerfiles (`WASM_SDK_URL`/`WASM_SDK_CHECKSUM` defaults, `swift sdk install --checksum`) |
 | Docs and tutorial | README, DocC GettingStarted/Deployment, tutorial chapters 2/5/11, BrowserEvents, experiments |
 | Compatibility | Manifest stays `swift-tools-version: 6.2`; new `native-compat-6-3` CI job builds and tests on 6.3.3 |
-| SE-0506 | `Experiments/Swift64/run-se0506.sh` runs on 6.4.0 in CI as a non-gating step |
+| SE-0506 | One-shot `.didSet` tracking in `_trackInvalidation` (`Sources/SwiftWUI/Runtime/Resolver.swift`); the earlier CI probe is retired (`Experiments/README.md`) |
 
 Bugs found while migrating:
 
@@ -44,7 +52,7 @@ Bugs found while migrating:
 
 Not changed, deliberately: the `nonisolated deinit { }` requirement and its
 guard test stay until a 6.4 Apple-target release build proves the SIL-inliner
-crash (6.3.2/6.3.3) is gone; the WASM size budgets were measured with 6.3.3 and
+crash (6.3.2/6.3.3) is gone (met 2026-10-13; see the update above); the WASM size budgets were measured with 6.3.3 and
 may need re-measuring if the 6.4.0 fixtures move.
 
 ## Review method
@@ -92,12 +100,16 @@ re-verified against the code before it was fixed or deferred.
   load for cross-page anchors; a full solution keeps the fragment through
   `navigate`/`moveURL` so `DOMNavigationController.commit()`'s existing
   `scrollIntoView` branch becomes reachable.
-- **`JSClosure` lifetime on the resolved JavaScriptKit** (0.56.x, WeakRefs
-  mode): `JSClosure` instances are effectively immortal, so per-call closures
-  (`FormData.forEach` per enhanced-form submit, `Headers.forEach` per fetch) and
-  per-(node, event) listener closures accumulate for the page lifetime. Fix by
-  iterating with `Array.from` and delegating one listener closure per event
-  name; the CLAUDE.md "retain Swift-side" rule should be revisited too.
+- **`JSClosure` lifetime** (fixed 2026-10-13). In JavaScriptKit's default
+  WeakRefs mode (0.56.x through 0.59.0) a `JSClosure` is never freed, so
+  per-call closures (`FormData.forEach` per enhanced-form submit,
+  `Headers.forEach` per fetch), per-(node, event) listener closures and
+  per-binding visibility closures accumulated for the page lifetime. Submit
+  and fetch now iterate with `Array.from`. Element listeners share one closure
+  per backend, element observers one per backend, kind and visibility
+  threshold, and configured
+  visibility one per page; each routes at fire time. `Tests/BrowserEvents`
+  pins the listener case with `?remount`.
 - `storage` events are forwarded as `.local` even for `sessionStorage` changes
   from same-origin frames (checking `storageArea` must not touch a throwing
   `localStorage` getter in sandboxed frames — needs a browser test).
@@ -109,9 +121,11 @@ re-verified against the code before it was fixed or deferred.
   `.container { }` blocks; `Rule(media:container:)` drops the media condition.
 - Router guard and route builder closures run outside observation tracking
   (an `@Observable` session change does not re-run a guard until navigation).
-- Observation `onChange` is willSet-time: a synchronous `scheduleMicrotask`
-  renders the old value. Harmless with the shipped schedulers; SE-0506
-  `.didSet` would remove it by construction.
+- Observation `onChange` was willSet-time, so a synchronous `scheduleMicrotask`
+  rendered the old value. Fixed where SE-0506 is available (Swift 6.4 on
+  macOS 27+, Linux, WASI): `_trackInvalidation` tracks at `.didSet`. Still
+  willSet-time on macOS 26 and older and on Swift 6.3, where it stays harmless
+  with the shipped schedulers.
 - L10n: a placeholder named `locale`, or a key mapping to `supportedLocales`,
   generates Swift that does not compile.
 - `.indexed` link validation rejects links to non-page assets (`/feed.xml`).
@@ -124,12 +138,11 @@ re-verified against the code before it was fixed or deferred.
 
 ## Swift 6.4 opportunities
 
-- **SE-0506 continuous observation** (`withContinuousObservationTracking`,
-  `.didSet`, cancellable `~Copyable` token) is the one 6.4 feature with a clear
-  payoff: it would replace the generation gate in `_ObservationTrackingGate`
-  and remove the willSet ordering hazard. Start with cheap per-key reads
-  (`EnvironmentSignals`, `StorageStore.Box`, `MediaMatchStore`) behind
-  `#if compiler(>=6.4)`, after the CI probe passes, and measure against the
-  current gate.
+- **SE-0506.** One-shot `withObservationTracking(options: .didSet)` removes
+  the willSet ordering hazard where it is available (see Deferred). The
+  continuous form, `withContinuousObservation(options:apply:)`, delivers
+  `.initial` and every event asynchronously from a detached runner, so it
+  cannot wrap a synchronous body evaluation or replace the generation gate in
+  `_ObservationTrackingGate`. `Experiments/README.md` records the probe.
 - Raising the manifest to `swift-tools-version: 6.4` is only worth it together
   with an API that needs it; today it would only drop 6.3.3 users.

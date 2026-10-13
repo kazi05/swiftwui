@@ -1,5 +1,3 @@
-import Observation
-
 struct CompositeKey: Hashable { let base: AnyHashable; let index: Int }
 
 public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Tag>: Tag, _PrimitiveTag {
@@ -35,11 +33,7 @@ public struct ForEach<Data: RandomAccessCollection, ID: Hashable, Content: Tag>:
         for item in data {
             let key = NodeKey(item[keyPath: id])
             assert(seen.insert(key).inserted, "ForEach: duplicate id \(item[keyPath: id])")
-            let built = withObservationTracking {
-                content(item)
-            } onChange: {
-                MainActor.assumeIsolated { box.fireIfCurrent() }
-            }
+            let built = _trackInvalidation(box) { content(item) }
             var nodes = resolve(built, path: path.appending(.keyed(key)), ctx: &ctx)
             for i in nodes.indices {
                 nodes[i].key = nodes.count == 1

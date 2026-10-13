@@ -20,16 +20,26 @@ Notable changes to SwiftWUI. Format loosely follows
   navigation, so the browser honors the anchor.
 - `DragPayload` no longer refines `Codable`: its JSON defaults apply to
   payloads that also conform to `Codable` (`struct Card: DragPayload, Codable`,
-  as the documentation shows). Swift 6.4 isolates a main-actor type's
-  synthesized `Codable` conformance, so the refinement made such payloads fail
-  to compile in apps with `.defaultIsolation(MainActor.self)`. A payload that
-  relied on the implicit `Codable` now needs it spelled out.
+  as the documentation shows). Since Swift 6.4, apps see `DragPayload`'s
+  default `@MainActor` isolation, so the refinement made every payload in an
+  app with `.defaultIsolation(MainActor.self)` fail with ConformanceIsolation.
+  A payload that relied on the implicit `Codable` now needs it spelled out.
 - `RendererBackend` refines `SendableMetatype`: backend conformances are never
   actor-isolated.
 - SwiftWUI requires JavaScriptKit 0.59.x (minor-pinned, because the committed
   BridgeJS glue matches one minor's ABI) and ships glue regenerated with it.
   Apps that use `swiftwui interop` set `exact: "0.59.0"` in
   `Interop/Package.swift` and run `swiftwui interop generate`.
+- Per-node DOM operations (node ids, inline styles, hydration reads) use typed
+  BridgeJS calls. In a release build, cold-mounting 6,000 elements takes 115 ms
+  instead of 233 ms in Chromium (138 vs 233 ms in WebKit), and adopting a
+  6,000-element prerendered page takes 132 ms instead of 816 ms (155 vs
+  1,060 ms in WebKit).
+- When built with Swift 6.4 and run on macOS 27+, Linux or WASI, component
+  bodies re-render from the committed value, so synchronous
+  `Runtime(scheduleMicrotask:)` schedulers no longer render one write behind.
+  A custom `Observable` must announce changes through `withMutation` (or
+  `didSet`), not `willSet` alone.
 
 ### Fixed
 
@@ -43,6 +53,38 @@ Notable changes to SwiftWUI. Format loosely follows
   only.
 - `swiftwui build -c release` names the modules behind an ICU warning in Swift
   Build's object layout too.
+- `swiftwui build` and `dev` refuse a bundle whose JS glue lacks WASI (a
+  JavaScriptKit < 0.58 lockfile under Swift Build) instead of shipping a page
+  that never boots.
+- Long-lived pages no longer leak a JS closure (and everything it captures)
+  per removed listener, element observer, fetch, form submit or visibility
+  binding. A 1,500-row
+  list unmounted and remounted five times kept 7,500 extra JavaScriptKit
+  objects alive; it now keeps none.
+- `swiftwui ssg` no longer refuses every page in projects under `/tmp`,
+  `$TMPDIR` or `/private` (macOS), and an output directory reached through a
+  symlink is written into the link's target instead of being refused for every
+  new page. Page paths still cannot leave the output directory.
+- Negotiated-locale SSG no longer slows quadratically with the page count.
+- The wasm preflight (`build`, `dev`, `metrics`) refuses Xcode's and the
+  Command Line Tools' `swift`, which cannot build for a Swift.org WebAssembly
+  SDK, with a fix-it naming swiftly.
+- Apps that link the `swiftwui interop` scaffold now boot. The scaffold
+  declared its imports in `bridge-js.d.ts`, which BridgeJS reads from
+  `init({ getImports })`; neither boot path passes that option, so
+  instantiation failed with `options.getImports is not a function` or
+  `No imports provided`. The declarations now live in `bridge-js.global.d.ts`.
+- The interop scaffold's `Subscription.dispose()` frees its callback, now a
+  `JSTypedClosure`, and whatever it captured: a `JSClosure` is never freed in
+  default JavaScriptKit builds. A call from JavaScript after `dispose()` throws
+  instead of running Swift. The scaffold now needs Swift 6.4: Swift 6.3 cannot
+  disambiguate the closure initializers BridgeJS generates for it. The scaffolder never overwrites existing files, so projects scaffolded
+  earlier migrate by hand: move every `export function` line from
+  `Interop/Sources/AppInterop/bridge-js.d.ts` to `bridge-js.global.d.ts`,
+  except `interopSubscribe`, which you delete; keep `bridge-js.d.ts` itself,
+  comment-only, because generation fails without it. Then replace
+  `Interop.swift` with the new template (it declares `interopSubscribe` in
+  Swift) and run `swiftwui interop generate`.
 - WASM preflight treats `6.4` and `6.4.0` as the same release and prefers the
   installed SDK that matches the host toolchain.
 - Prerendered `<style>` blocks can no longer be closed by CSS values containing

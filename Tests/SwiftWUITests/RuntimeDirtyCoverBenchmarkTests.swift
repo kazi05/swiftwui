@@ -23,8 +23,10 @@ private struct BurstFixture: Tag {
 /// Reproducible algorithm benchmark for the sibling-burst shape that exposed
 /// the former cover scan. Wall times are reported for local comparison; the
 /// asserted contract is the selected cover, not a machine-specific deadline.
-// The legacy comparison deliberately spends seconds on the main actor. Keep
-// it out of concurrent behavioral tests, where it can starve gesture timers.
+// The legacy comparison deliberately spends seconds on the main actor, which
+// stalls every other main-actor test meanwhile. `.serialized` orders only this
+// suite's own tests, so run benchmarks alone:
+// `SWIFTWUI_BENCHMARKS=1 swift test --filter RuntimeDirtyCoverBenchmarkTests`.
 @Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["SWIFTWUI_BENCHMARKS"] == "1"))
 @MainActor struct RuntimeDirtyCoverBenchmarkTests {
     private func legacyMinimalCover(_ ids: Set<NodeIdentity>) -> [NodeIdentity] {

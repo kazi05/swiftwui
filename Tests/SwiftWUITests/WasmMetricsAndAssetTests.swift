@@ -90,6 +90,45 @@ import Foundation
         #expect(throws: ToolchainError.self) { try WasmSDK.preflight(selectedSDK: "swift-7.1-RELEASE_wasm", runner: unparseable, cwd: "/tmp") }
     }
 
+    /// Xcode 27's verbatim banner names the pinned SDK's release, so only the
+    /// "swiftlang-" check refuses it.
+    @Test func preflightRejectsAppleToolchain() throws {
+        let banner = ProcessResult(exitCode: 0, stdout: "Apple Swift version 6.4 (swiftlang-6.4.0.34.1 clang-2100.3.34.1)\nTarget: arm64-apple-macosx27.0.0\n", stderr: "swift-driver version: 1.168.6 ")
+        let xcode = MockRunner(results: [
+            "swift sdk list": .init(exitCode: 0, stdout: "swift-6.4.0-RELEASE_wasm\n", stderr: ""),
+            "swift --version": banner,
+            (ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? "swiftc") + " --version": banner
+        ])
+        let error = try #require(throws: ToolchainError.self) { try WasmSDK.preflight(selectedSDK: nil, runner: xcode, cwd: "/tmp") }
+        guard case .incompatibleToolchain(let message) = error else { Issue.record("wrong case: \(error)"); return }
+        #expect(message.contains("swiftly use 6.4"))
+    }
+
+    /// Xcode 26.6 ships Swift 6.3.3; the fix-it must name the installed SDK's release, not Xcode's.
+    @Test func preflightNamesTheSDKReleaseForAppleToolchain() throws {
+        let banner = ProcessResult(exitCode: 0, stdout: "Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-1700.6.3.2)\nTarget: arm64-apple-macosx26.0.0\n", stderr: "")
+        let xcode = MockRunner(results: [
+            "swift sdk list": .init(exitCode: 0, stdout: "swift-6.4.0-RELEASE_wasm\n", stderr: ""),
+            "swift --version": banner,
+            (ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? "swiftc") + " --version": banner
+        ])
+        let error = try #require(throws: ToolchainError.self) { try WasmSDK.preflight(selectedSDK: nil, runner: xcode, cwd: "/tmp") }
+        guard case .incompatibleToolchain(let message) = error else { Issue.record("wrong case: \(error)"); return }
+        #expect(message.contains("swiftly use 6.4.0"))
+        #expect(!message.contains("6.3.3"))
+    }
+
+    /// swift.org's macOS banner also starts "Apple Swift"; it lacks the "swiftlang-" the check keys on.
+    @Test func preflightAcceptsSwiftOrgBanner() throws {
+        let banner = ProcessResult(exitCode: 0, stdout: "Apple Swift version 6.4 (swift-6.4-RELEASE)\nTarget: arm64-apple-macosx27.0.0\n", stderr: "")
+        let swiftOrg = MockRunner(results: [
+            "swift sdk list": .init(exitCode: 0, stdout: "swift-6.4.0-RELEASE_wasm\n", stderr: ""),
+            "swift --version": banner,
+            (ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? "swiftc") + " --version": banner
+        ])
+        #expect(try WasmSDK.preflight(selectedSDK: nil, runner: swiftOrg, cwd: "/tmp").sdk == "swift-6.4.0-RELEASE_wasm")
+    }
+
     @Test func assetPipelineWritesSrcsetManifestAndRejectsTraversal() throws {
         let root = NSTemporaryDirectory() + "swiftwui-assets-\(UUID().uuidString)"
         defer { try? FileManager.default.removeItem(atPath: root) }

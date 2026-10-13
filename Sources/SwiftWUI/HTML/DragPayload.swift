@@ -25,9 +25,9 @@ extension DragPayload {
     }
 }
 
-/// JSON body for `Codable` payloads. Constrained rather than inherited: Swift 6.4
-/// isolates a main-actor type's synthesized `Codable` conformance, and a protocol
-/// refining `Codable` then fails to conform without `@MainActor DragPayload`.
+/// JSON body for `Codable` payloads. Constrained rather than inherited: since Swift 6.4
+/// importers see this protocol's default `@MainActor` (swiftlang/swift#86967), so a refinement
+/// would make each nonisolated `DragPayload` conformance depend on a main-actor `Codable` one.
 extension DragPayload where Self: Codable {
     public func _encodeDragBody() -> String? {
         let encoder = JSONEncoder()

@@ -62,6 +62,13 @@ public enum WasmSDK {
         guard isWebSDK(sdk) else {
             throw ToolchainError.incompatibleToolchain("'\(sdk)' is not a WASM web SDK")
         }
+        // Apple's toolchains (Xcode, Command Line Tools) print "swiftlang-" and cannot build
+        // for a Swift.org WebAssembly SDK: they ship no wasm-ld or swift-autolink-extract.
+        // The release checks below pass them whenever Xcode's Swift matches the SDK's release.
+        if (host.stdout + host.stderr).contains("swiftlang-") {
+            let release = swiftVersion(in: sdk) ?? hostVersion   // name the toolchain the SDK needs
+            throw ToolchainError.incompatibleToolchain("`swift` is Apple's toolchain (Xcode or Command Line Tools), which cannot build for a Swift.org WebAssembly SDK. Install and select the Swift.org \(release) toolchain (for example `swiftly install \(release)` then `swiftly use \(release)`), or put it first on PATH.")
+        }
         // SwiftPM honors SWIFT_EXEC. Query that exact executable when it is set;
         // checking a different `swiftc` on PATH would give a false green result.
         let compilerCommand = ProcessInfo.processInfo.environment["SWIFT_EXEC"] ?? "swiftc"
@@ -139,10 +146,10 @@ public struct WasmBuilder {
         self.runner = runner; self.projectDir = projectDir; self.sdk = sdk
     }
 
-    // ponytail: dedicated scratch dir, not the shared `.build`. Mixing a native `swift
-    // build`/`swift run` with a wasm `swift package --swift-sdk ... js` under the same
-    // `.build` corrupts SwiftPM's `.build/debug` triple symlink (repro: native build,
-    // then wasm build, then native `swift run` → "No target named ...-debug.exe").
+    // ponytail: dedicated scratch dir, not the shared `.build`. On Swift 6.4 (Swift Build)
+    // a wasm build there re-points `.build/debug` at the wasm products until the next
+    // native build, so `.build/debug/<tool>` goes missing; on Swift 6.3 the next native
+    // `swift run` fails with "No target named ...-debug.exe".
     public static func bundleDir(projectDir: String) -> String {
         projectDir + "/.build-wasm/plugins/PackageToJS/outputs/Package"
     }
@@ -154,7 +161,28 @@ public struct WasmBuilder {
             ["package", "--swift-sdk", sdk, "--scratch-path", scratchPath, "js", "-c", configuration],
             cwd: projectDir, streamOutput: true)
         guard r.exitCode == 0 else { throw ToolchainError.buildFailed(output: r.stdout + r.stderr) }
-        return Self.bundleDir(projectDir: projectDir)
+        let bundle = Self.bundleDir(projectDir: projectDir)
+        try Self.requireWASIGlue(bundleDir: bundle)
+        return bundle
+    }
+
+    /// PackageToJS before JavaScriptKit 0.58 reads WASI support off the native
+    /// `.build/<triple>/<config>` layout, so under Swift Build (SwiftPM 6.4's
+    /// default) it writes an instantiate.js without the WASI imports and the page
+    /// fails only in the browser. Same check CI runs on its fixtures.
+    static func requireWASIGlue(bundleDir: String) throws {
+        guard let name = WasmDigest.wasmName(inAppDir: bundleDir),
+              let wasm = FileManager.default.contents(atPath: bundleDir + "/" + name),
+              let imports = try? WasmMetrics.parse(wasm).imports,
+              imports.keys.contains(where: { $0.hasPrefix("wasi_snapshot_preview1.") }),
+              let glue = try? String(contentsOfFile: bundleDir + "/instantiate.js", encoding: .utf8),
+              !glue.contains("wasi_snapshot_preview1")
+        else { return }
+        throw ToolchainError.buildFailed(output: """
+            \(name) imports wasi_snapshot_preview1, but instantiate.js never provides it, so the page \
+            cannot start. JavaScriptKit's PackageToJS before 0.58 misreads Swift Build's layout \
+            (SwiftPM 6.4's default): update SwiftWUI and JavaScriptKit (`swift package update`).
+            """)
     }
 }
 

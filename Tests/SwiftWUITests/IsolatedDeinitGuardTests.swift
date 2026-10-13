@@ -8,10 +8,11 @@ import Foundation
 /// two targets. Wasm targets are unaffected; the native CLI and `swift test -c
 /// release` are not.
 ///
-/// The workaround is one `nonisolated deinit { }` per class. No class in either
-/// target has a deinit body, so the isolation buys nothing and costs an executor
-/// hop per dealloc. This test fails the moment a new class arrives without it —
-/// the crash itself cannot be reached from a debug test run.
+/// The workaround is one `nonisolated deinit { }` per class. Only `WebObjectURL`
+/// has a deinit body, and it is already nonisolated, so the isolation buys nothing
+/// and costs an executor hop per dealloc. Swift 6.4.0 fixes the crash; the guard
+/// stays while 6.3.x can build the brew formula. This test fails the moment a new
+/// class arrives without it — the crash itself cannot be reached from a debug test run.
 @Suite struct IsolatedDeinitGuardTests {
     @Test func everyClassInTheMainActorTargetsOptsOutOfIsolatedDeinit() throws {
         let root = URL(fileURLWithPath: #filePath)

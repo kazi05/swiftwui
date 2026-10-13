@@ -63,9 +63,9 @@ private struct PayloadFixture: Tag {
     }
 
     // NOTE (no test): payload type mismatch → assertionFailure in debug, drop in
-    // release (spec §11). assertionFailure is untestable from Swift Testing in a
-    // debug build (it traps the process) — the contract is pinned by this comment
-    // and the guard in _AttributeBag.addHandler(payload:).
+    // release (spec §11), via the guard in _AttributeBag.addHandler(payload:).
+    // Not pinned; an exit test could pin it, as SanitizerSinkExitTests does for
+    // the sanitizer sinks.
 
     @Test func voidHandlersStillWork() {
         let backend = MockBackend()

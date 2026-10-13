@@ -90,6 +90,12 @@ private final class UploadFixtureServer {
             handle.readabilityHandler = nil
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             process.waitUntilExit()
+            // `env` exits 127 when python3 is missing, as in the official swift:*-noble images.
+            #if compiler(>=6.3)   // Test.cancel is new in Swift Testing 6.3
+            if process.terminationReason == .exit, process.terminationStatus == 127 {
+                try Test.cancel("python3 is not on PATH; the upload fixture server needs it")
+            }
+            #endif
             throw error
         }
     }
@@ -164,7 +170,7 @@ server.serve_forever()
 """#
 }
 
-@Suite(.serialized) @MainActor struct URLSessionUploadTests {
+@Suite(.serialized, .timeLimit(.minutes(1))) @MainActor struct URLSessionUploadTests {
     private func withServer<T>(_ operation: (UploadFixtureServer) async throws -> T) async throws -> T {
         let server = try await UploadFixtureServer.start()
         defer { server.stop() }

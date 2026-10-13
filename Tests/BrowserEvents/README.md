@@ -32,7 +32,10 @@ Coverage:
 - Root option changes, missing roots without observer construction, subtree
   replacement against a new exact host, and configured-observer cancellation
   during logical exit while the transition ghost remains. Cancellation also
-  drains queued records before releasing the Swift callback.
+  drains queued records.
+- Listener closure leaks (`?remount`): unmounting and remounting 100 tappable
+  rows leaves JavaScriptKit's live object count unchanged, and a click
+  handler removed and re-added on the same node dispatches once per click.
 - Real Enter/Shift+Enter default actions in a textarea; copied-payload cancellation,
   repeat handling, empty/disabled sending, and cancellation after the callback.
 - Composition flags and legacy key-code 229 delivered through DOM KeyboardEvents,

@@ -6,7 +6,8 @@ set -euo pipefail
 # Source: https://www.swift.org/install/linux/ubuntu/24_04/
 # SWIFTWUI_SWIFT_VERSION selects another signed 6.x release (the compatibility
 # CI leg uses it); the default is the repository pin in .swift-version.
-readonly swift_version="${SWIFTWUI_SWIFT_VERSION:-6.4.0}"
+readonly swift_version="${SWIFTWUI_SWIFT_VERSION:-$(< "$(dirname "$0")/../.swift-version")}"
+: "${swift_version:?set SWIFTWUI_SWIFT_VERSION or add .swift-version}"
 readonly swift_release="swift-${swift_version}-RELEASE"
 readonly swift_archive="${swift_release}-ubuntu24.04.tar.gz"
 readonly swift_base_url="https://download.swift.org/swift-${swift_version}-release/ubuntu2404/${swift_release}"

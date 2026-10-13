@@ -69,6 +69,26 @@ struct KeyboardFixture: Tag {
     }
 }
 
+/// Listener leak pin (`browser-remount.spec.mjs`): 100 tappable rows that
+/// mount and unmount, and a handler removed and re-added on the same nodes.
+struct RemountFixture: Tag {
+    @State private var shown = true
+    @State private var armed = true
+    @State private var taps = 0
+    var body: some Tag {
+        Button("Toggle rows") { shown.toggle() }.attribute("id", "toggle-rows")
+        Button("Toggle handler") { armed.toggle() }.attribute("id", "toggle-handler")
+        Span(id: "armed") { Text(armed ? "on" : "off") }
+        Span(id: "taps") { Text("\(taps)") }
+        Div(id: "rows") {
+            ForEach(0..<(shown ? 100 : 0), id: \.self) { i in
+                let row = Div { Text("Row \(i)") }
+                armed ? row.onTap { taps += 1 } : row
+            }
+        }
+    }
+}
+
 @main
 struct BrowserEventsApp: App {
     init() {
@@ -83,6 +103,8 @@ struct BrowserEventsApp: App {
             ModernWebFixture()
         } else if JSObject.global.location.search.string == "?scroll" {
             ScrollFixture()
+        } else if JSObject.global.location.search.string == "?remount" {
+            RemountFixture()
         } else {
             VisibilityFixture()
             ObserverRootFixture()

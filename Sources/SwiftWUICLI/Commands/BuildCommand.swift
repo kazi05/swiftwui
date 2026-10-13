@@ -28,8 +28,8 @@ struct Build: ParsableCommand {
             print("""
 
             ================================================================
-            WARNING: wasm-opt not found — release wasm ships ~2.5x larger
-            (≈22 MB vs ≈9 MB optimized). Install binaryen to shrink it:
+            WARNING: wasm-opt not found — release wasm ships ~2x larger
+            (≈20 MB vs ≈10 MB optimized). Install binaryen to shrink it:
               macOS:  brew install binaryen
               Linux:  your distro's binaryen package (apt/dnf/pacman)
             Building unoptimized.

@@ -1,7 +1,12 @@
 import JavaScriptKit
 
+// Declared here, not in bridge-js.global.d.ts: TS2Swift lowers a TS function type to
+// JSObject, and only a JSTypedClosure can be released by dispose().
+@JSFunction(from: .global) func interopSubscribe(_ callback: JSTypedClosure<(String) -> Void>) throws(JSException) -> Double
+
 /// Stable application-facing API over BridgeJS-generated internal declarations.
-/// Regenerate `Generated/` after editing bridge-js.d.ts; do not edit its ABI glue.
+/// Regenerate `Generated/` after editing bridge-js.global.d.ts or a `@JSFunction`
+/// declaration; do not edit its ABI glue.
 public enum AppInterop {
     public static func greet(_ name: String) throws(JSException) -> String {
         try _$interopGreet(name)
@@ -13,19 +18,20 @@ public enum AppInterop {
 
     /// Retains the JavaScript callback until `dispose()` or deinitialization.
     public static func subscribe(_ receive: @escaping (String) -> Void) throws(JSException) -> Subscription {
-        let callback = JSClosure { values in
-            receive(values.first?.string ?? "")
-            return .undefined
+        let callback = JSTypedClosure<(String) -> Void>(receive)
+        do {
+            return Subscription(token: try _$interopSubscribe(callback), callback: callback)
+        } catch {
+            callback.release()
+            throw error
         }
-        let token = try _$interopSubscribe(callback)
-        return Subscription(token: token, callback: callback)
     }
 
     public final class Subscription {
         private var token: Double?
-        private var callback: JSClosure?
+        private var callback: JSTypedClosure<(String) -> Void>?   // nil after dispose(): frees what receive captured
 
-        fileprivate init(token: Double, callback: JSClosure) {
+        fileprivate init(token: Double, callback: JSTypedClosure<(String) -> Void>) {
             self.token = token; self.callback = callback
         }
 
@@ -34,9 +40,7 @@ public enum AppInterop {
             guard let token else { return }
             try _$interopUnsubscribe(token)
             self.token = nil
-            #if JAVASCRIPTKIT_WITHOUT_WEAKREFS
             callback?.release()
-            #endif
             callback = nil
         }
 
@@ -44,9 +48,7 @@ public enum AppInterop {
             // Deinit cannot surface a JavaScript exception. Explicit dispose is
             // preferable where delivery failures need to be handled.
             if let token { try? _$interopUnsubscribe(token) }
-            #if JAVASCRIPTKIT_WITHOUT_WEAKREFS
             callback?.release()
-            #endif
         }
     }
 }

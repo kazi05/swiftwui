@@ -121,8 +121,8 @@ public enum WasmMetrics {
         return result.stdout.split(whereSeparator: \.isNewline).first.map(String.init)
     }
 
-    private struct Composition { var sections: [String: Int]; var imports: [String: Int] }
-    private static func parse(_ data: Data) throws -> Composition {
+    struct Composition { var sections: [String: Int]; var imports: [String: Int] }
+    static func parse(_ data: Data) throws -> Composition {
         let bytes = [UInt8](data)
         guard bytes.count >= 8, Array(bytes[0..<4]) == [0, 97, 115, 109], Array(bytes[4..<8]) == [1, 0, 0, 0] else { throw ToolchainError.io("artifact is not a supported WASM v1 binary") }
         let names = [0:"custom", 1:"type", 2:"import", 3:"function", 4:"table", 5:"memory", 6:"global", 7:"export", 8:"start", 9:"element", 10:"code", 11:"data", 12:"dataCount", 13:"tag"]

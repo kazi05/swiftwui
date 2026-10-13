@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import SwiftWUIToolchain
 
-@Suite struct ToolchainReleaseTests {
+@Suite(.timeLimit(.minutes(1))) struct ToolchainReleaseTests {
     private func scratchDist() throws -> String {
         let dir = NSTemporaryDirectory() + "swiftwui-release-\(UUID().uuidString)"
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)

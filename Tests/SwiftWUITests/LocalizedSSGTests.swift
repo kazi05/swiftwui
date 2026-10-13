@@ -42,6 +42,23 @@ private struct NegotiatedSite: App {
     }
 }
 
+/// `/ghost`'s guard redirects to itself, which `Runtime.navigate` no-ops, so it
+/// falls through to `notFound` in every locale.
+private struct NegotiatedNotFoundSite: App {
+    init() {}
+    var body: some Tag {
+        Router(notFound: { Text("nothing here") }) {
+            Route("/") { Text("home") }
+            Route("/about") { Text("about") }
+            Route("/ghost", guard: { .redirect("/ghost") }) { Text("secret") }
+        }
+    }
+    static var localization: Localization? {
+        Localization(supported: [LocaleID("en")!, LocaleID("ru")!], default: LocaleID("en")!,
+                     strategy: .negotiated)
+    }
+}
+
 /// A guard cannot be handed the locale — its closure takes no arguments — so it
 /// captures the value the surrounding `body` read, which is the render's own.
 private struct PartialClusterSite: App {
@@ -109,6 +126,20 @@ private struct GuardedBody: Tag {
         #expect(!report.pages.contains("/ru/about"))
         let descriptor = try String(contentsOfFile: out + "/swiftwui-site.json", encoding: .utf8)
         #expect(descriptor.contains("\"negotiated\""))
+    }
+
+    /// `.negotiated` renders every URL once per locale; each must still be listed once.
+    @Test func negotiatedSiteListsEachPageOnce() async throws {
+        let out = outDir()
+        defer { try? FileManager.default.removeItem(atPath: out) }
+        let config = StaticSiteConfig(outDir: out, mode: .staticOnly, siteURL: "https://example.com")
+        let report = try await StaticSite.generate(NegotiatedNotFoundSite.self, config: config)
+        #expect(report.pages == ["/", "/about", "/ghost"])
+        #expect(report.notFoundPages == ["/ghost"])
+        let locs = try String(contentsOfFile: out + "/sitemap.xml", encoding: .utf8)
+            .components(separatedBy: "<loc>").dropFirst()
+            .compactMap { $0.components(separatedBy: "</loc>").first }
+        #expect(locs == ["https://example.com/", "https://example.com/about"])
     }
 
     @Test func rtlLocaleGetsDirAttribute() async throws {

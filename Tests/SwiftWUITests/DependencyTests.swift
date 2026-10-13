@@ -40,9 +40,10 @@ private struct LiveOnlyReader {
 // MARK: - Suite
 // .serialized + @MainActor: @MainActor alone prevents data races but not
 // cross-test interleaving under Swift Testing's parallel scheduler (same
-// pattern as WebSessionSharedTests) — .serialized is required so the shared
-// DependencyStore never sees interleaved access. _reset() in init isolates
-// each test from cached defaults of the previous one.
+// pattern as WebSessionSharedTests) — .serialized keeps this suite's tests from
+// interleaving on the shared DependencyStore, but not other suites that use it
+// (BuiltinDependencyTests). _reset() in init isolates each test from cached
+// defaults of the previous one.
 
 @Suite("Dependency", .serialized)
 @MainActor

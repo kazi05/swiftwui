@@ -36,6 +36,47 @@ struct MockRunner: ProcessRunner {
         } catch { Issue.record("wrong error") }
     }
 
+    /// A builder whose runner always succeeds, over a bundle whose wasm has the single
+    /// import `module.field` and whose instantiate.js is `glue` (absent when nil).
+    private func glueFixture(importing module: String, _ field: String, glue: String?) throws -> WasmBuilder {
+        let proj = NSTemporaryDirectory() + "swiftwui-glue-\(UUID().uuidString)"
+        let bundle = WasmBuilder.bundleDir(projectDir: proj)
+        try FileManager.default.createDirectory(atPath: bundle, withIntermediateDirectories: true)
+        // \0asm v1 with one import section holding one func import (type 0).
+        let name = Array(module.utf8), member = Array(field.utf8)
+        let imports: [UInt8] = [1, UInt8(name.count)] + name + [UInt8(member.count)] + member + [0, 0]
+        try Data([0, 0x61, 0x73, 0x6D, 1, 0, 0, 0, 2, UInt8(imports.count)] + imports)
+            .write(to: URL(fileURLWithPath: bundle + "/App.wasm"))
+        if let glue { try glue.write(toFile: bundle + "/instantiate.js", atomically: true, encoding: .utf8) }
+        return WasmBuilder(runner: MockRunner(results: [:]), projectDir: proj, sdk: WasmSDK.pinned)
+    }
+
+    /// JavaScriptKit 0.56.1 under Swift Build: the binary imports WASI, the glue
+    /// never provides it, and only a browser would notice.
+    @Test func buildRejectsGlueWithoutTheWASIImports() throws {
+        let builder = try glueFixture(importing: "wasi_snapshot_preview1", "fd_write", glue: "const imports = { env: {} };")
+        defer { try? FileManager.default.removeItem(atPath: builder.projectDir) }
+        #expect(throws: ToolchainError.self) { try builder.build(configuration: "debug") }
+    }
+
+    @Test func buildAcceptsGlueWithTheWASIImports() throws {
+        let builder = try glueFixture(importing: "wasi_snapshot_preview1", "fd_write", glue: "wasi_snapshot_preview1: wasi.wasiImport,")
+        defer { try? FileManager.default.removeItem(atPath: builder.projectDir) }
+        #expect(try builder.build(configuration: "debug") == WasmBuilder.bundleDir(projectDir: builder.projectDir))
+    }
+
+    @Test func buildAcceptsBundleWithoutWASIImports() throws {
+        let builder = try glueFixture(importing: "env", "f", glue: "const imports = { env: {} };")
+        defer { try? FileManager.default.removeItem(atPath: builder.projectDir) }
+        #expect(try builder.build(configuration: "debug") == WasmBuilder.bundleDir(projectDir: builder.projectDir))
+    }
+
+    @Test func buildIgnoresMissingGlue() throws {
+        let builder = try glueFixture(importing: "wasi_snapshot_preview1", "fd_write", glue: nil)
+        defer { try? FileManager.default.removeItem(atPath: builder.projectDir) }
+        #expect(try builder.build(configuration: "debug") == WasmBuilder.bundleDir(projectDir: builder.projectDir))
+    }
+
     @Test func buildIsolatesScratchPathFromNativeBuild() throws {
         var recordedArgs: [String] = []
         let runner = MockRunner(results: [:], recorded: { recordedArgs = $0 })
@@ -113,7 +154,7 @@ struct MockRunner: ProcessRunner {
         let fm = FileManager.default
         try fm.createDirectory(atPath: root + "/public/app", withIntermediateDirectories: true)
         try fm.createDirectory(atPath: root + "/public/vendor", withIntermediateDirectories: true)
-        fm.createFile(atPath: root + "/public/styles.css", contents: nil)
+        #expect(fm.createFile(atPath: root + "/public/styles.css", contents: nil))
         defer { try? fm.removeItem(atPath: root) }
         #expect(DistLayout.reservedCollisions(projectDir: root) == ["app", "styles.css", "vendor"])
         #expect(throws: ToolchainError.self) {

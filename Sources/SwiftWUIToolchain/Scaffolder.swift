@@ -37,7 +37,7 @@ public enum Scaffolder {
             if components.contains(where: { junk.contains($0) || $0.hasPrefix(".build") }) { continue }
             let src = templateRoot.appendingPathComponent(rel)
             var isDir: ObjCBool = false
-            fm.fileExists(atPath: src.path, isDirectory: &isDir)
+            _ = fm.fileExists(atPath: src.path, isDirectory: &isDir)
             let dst = dir + "/" + rel
             if isDir.boolValue {
                 try fm.createDirectory(atPath: dst, withIntermediateDirectories: true)

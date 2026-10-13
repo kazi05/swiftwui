@@ -239,6 +239,66 @@ fileprivate func bjs_SWNode_data_get_extern(_ self: Int32) -> Int32 {
 }
 
 #if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWNode___swuid_get")
+fileprivate func bjs_SWNode___swuid_get_extern(_ self: Int32) -> Float64
+#else
+fileprivate func bjs_SWNode___swuid_get_extern(_ self: Int32) -> Float64 {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWNode___swuid_get(_ self: Int32) -> Float64 {
+    return bjs_SWNode___swuid_get_extern(self)
+}
+
+#if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWNode_nodeType_get")
+fileprivate func bjs_SWNode_nodeType_get_extern(_ self: Int32) -> Float64
+#else
+fileprivate func bjs_SWNode_nodeType_get_extern(_ self: Int32) -> Float64 {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWNode_nodeType_get(_ self: Int32) -> Float64 {
+    return bjs_SWNode_nodeType_get_extern(self)
+}
+
+#if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWNode_tagName_get")
+fileprivate func bjs_SWNode_tagName_get_extern(_ self: Int32) -> Int32
+#else
+fileprivate func bjs_SWNode_tagName_get_extern(_ self: Int32) -> Int32 {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWNode_tagName_get(_ self: Int32) -> Int32 {
+    return bjs_SWNode_tagName_get_extern(self)
+}
+
+#if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWNode_childNodes_get")
+fileprivate func bjs_SWNode_childNodes_get_extern(_ self: Int32) -> Int32
+#else
+fileprivate func bjs_SWNode_childNodes_get_extern(_ self: Int32) -> Int32 {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWNode_childNodes_get(_ self: Int32) -> Int32 {
+    return bjs_SWNode_childNodes_get_extern(self)
+}
+
+#if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWNode_style_get")
+fileprivate func bjs_SWNode_style_get_extern(_ self: Int32) -> Int32
+#else
+fileprivate func bjs_SWNode_style_get_extern(_ self: Int32) -> Int32 {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWNode_style_get(_ self: Int32) -> Int32 {
+    return bjs_SWNode_style_get_extern(self)
+}
+
+#if arch(wasm32)
 @_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWNode_data_set")
 fileprivate func bjs_SWNode_data_set_extern(_ self: Int32, _ newValueBytes: Int32, _ newValueLength: Int32) -> Void
 #else
@@ -248,6 +308,18 @@ fileprivate func bjs_SWNode_data_set_extern(_ self: Int32, _ newValueBytes: Int3
 #endif
 @inline(never) fileprivate func bjs_SWNode_data_set(_ self: Int32, _ newValueBytes: Int32, _ newValueLength: Int32) -> Void {
     return bjs_SWNode_data_set_extern(self, newValueBytes, newValueLength)
+}
+
+#if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWNode___swuid_set")
+fileprivate func bjs_SWNode___swuid_set_extern(_ self: Int32, _ newValue: Float64) -> Void
+#else
+fileprivate func bjs_SWNode___swuid_set_extern(_ self: Int32, _ newValue: Float64) -> Void {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWNode___swuid_set(_ self: Int32, _ newValue: Float64) -> Void {
+    return bjs_SWNode___swuid_set_extern(self, newValue)
 }
 
 #if arch(wasm32)
@@ -319,11 +391,65 @@ func _$SWNode_data_get(_ self: JSObject) throws(JSException) -> String {
     return String.bridgeJSLiftReturn(ret)
 }
 
+func _$SWNode___swuid_get(_ self: JSObject) throws(JSException) -> Double {
+    let selfValue = self.bridgeJSLowerParameter()
+    let ret = bjs_SWNode___swuid_get(selfValue)
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+    return Double.bridgeJSLiftReturn(ret)
+}
+
+func _$SWNode_nodeType_get(_ self: JSObject) throws(JSException) -> Double {
+    let selfValue = self.bridgeJSLowerParameter()
+    let ret = bjs_SWNode_nodeType_get(selfValue)
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+    return Double.bridgeJSLiftReturn(ret)
+}
+
+func _$SWNode_tagName_get(_ self: JSObject) throws(JSException) -> String {
+    let selfValue = self.bridgeJSLowerParameter()
+    let ret = bjs_SWNode_tagName_get(selfValue)
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+    return String.bridgeJSLiftReturn(ret)
+}
+
+func _$SWNode_childNodes_get(_ self: JSObject) throws(JSException) -> SWNodeList {
+    let selfValue = self.bridgeJSLowerParameter()
+    let ret = bjs_SWNode_childNodes_get(selfValue)
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+    return SWNodeList.bridgeJSLiftReturn(ret)
+}
+
+func _$SWNode_style_get(_ self: JSObject) throws(JSException) -> SWStyle {
+    let selfValue = self.bridgeJSLowerParameter()
+    let ret = bjs_SWNode_style_get(selfValue)
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+    return SWStyle.bridgeJSLiftReturn(ret)
+}
+
 func _$SWNode_data_set(_ self: JSObject, _ newValue: String) throws(JSException) -> Void {
     newValue.bridgeJSWithLoweredParameter { (newValueBytes, newValueLength) in
         let selfValue = self.bridgeJSLowerParameter()
         bjs_SWNode_data_set(selfValue, newValueBytes, newValueLength)
     }
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+}
+
+func _$SWNode___swuid_set(_ self: JSObject, _ newValue: Double) throws(JSException) -> Void {
+    let newValueValue = newValue.bridgeJSLowerParameter()
+    let selfValue = self.bridgeJSLowerParameter()
+    bjs_SWNode___swuid_set(selfValue, newValueValue)
     if let error = _swift_js_take_exception() {
         throw error
     }
@@ -377,6 +503,98 @@ func _$SWNode_removeAttribute(_ self: JSObject, _ name: String) throws(JSExcepti
     if let error = _swift_js_take_exception() {
         throw error
     }
+}
+
+#if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWNodeList_length_get")
+fileprivate func bjs_SWNodeList_length_get_extern(_ self: Int32) -> Float64
+#else
+fileprivate func bjs_SWNodeList_length_get_extern(_ self: Int32) -> Float64 {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWNodeList_length_get(_ self: Int32) -> Float64 {
+    return bjs_SWNodeList_length_get_extern(self)
+}
+
+#if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWNodeList_item")
+fileprivate func bjs_SWNodeList_item_extern(_ self: Int32, _ index: Float64) -> Int32
+#else
+fileprivate func bjs_SWNodeList_item_extern(_ self: Int32, _ index: Float64) -> Int32 {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWNodeList_item(_ self: Int32, _ index: Float64) -> Int32 {
+    return bjs_SWNodeList_item_extern(self, index)
+}
+
+func _$SWNodeList_length_get(_ self: JSObject) throws(JSException) -> Double {
+    let selfValue = self.bridgeJSLowerParameter()
+    let ret = bjs_SWNodeList_length_get(selfValue)
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+    return Double.bridgeJSLiftReturn(ret)
+}
+
+func _$SWNodeList_item(_ self: JSObject, _ index: Double) throws(JSException) -> SWNode {
+    let indexValue = index.bridgeJSLowerParameter()
+    let selfValue = self.bridgeJSLowerParameter()
+    let ret = bjs_SWNodeList_item(selfValue, indexValue)
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+    return SWNode.bridgeJSLiftReturn(ret)
+}
+
+#if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWStyle_setProperty")
+fileprivate func bjs_SWStyle_setProperty_extern(_ self: Int32, _ nameBytes: Int32, _ nameLength: Int32, _ valueBytes: Int32, _ valueLength: Int32) -> Void
+#else
+fileprivate func bjs_SWStyle_setProperty_extern(_ self: Int32, _ nameBytes: Int32, _ nameLength: Int32, _ valueBytes: Int32, _ valueLength: Int32) -> Void {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWStyle_setProperty(_ self: Int32, _ nameBytes: Int32, _ nameLength: Int32, _ valueBytes: Int32, _ valueLength: Int32) -> Void {
+    return bjs_SWStyle_setProperty_extern(self, nameBytes, nameLength, valueBytes, valueLength)
+}
+
+#if arch(wasm32)
+@_extern(wasm, module: "SwiftWUIDOM", name: "bjs_SWStyle_removeProperty")
+fileprivate func bjs_SWStyle_removeProperty_extern(_ self: Int32, _ nameBytes: Int32, _ nameLength: Int32) -> Int32
+#else
+fileprivate func bjs_SWStyle_removeProperty_extern(_ self: Int32, _ nameBytes: Int32, _ nameLength: Int32) -> Int32 {
+    fatalError("Only available on WebAssembly")
+}
+#endif
+@inline(never) fileprivate func bjs_SWStyle_removeProperty(_ self: Int32, _ nameBytes: Int32, _ nameLength: Int32) -> Int32 {
+    return bjs_SWStyle_removeProperty_extern(self, nameBytes, nameLength)
+}
+
+func _$SWStyle_setProperty(_ self: JSObject, _ name: String, _ value: String) throws(JSException) -> Void {
+    name.bridgeJSWithLoweredParameter { (nameBytes, nameLength) in
+        value.bridgeJSWithLoweredParameter { (valueBytes, valueLength) in
+            let selfValue = self.bridgeJSLowerParameter()
+            bjs_SWStyle_setProperty(selfValue, nameBytes, nameLength, valueBytes, valueLength)
+        }
+    }
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+}
+
+func _$SWStyle_removeProperty(_ self: JSObject, _ name: String) throws(JSException) -> String {
+    let ret0 = name.bridgeJSWithLoweredParameter { (nameBytes, nameLength) in
+        let selfValue = self.bridgeJSLowerParameter()
+        let ret = bjs_SWStyle_removeProperty(selfValue, nameBytes, nameLength)
+        return ret
+    }
+    let ret = ret0
+    if let error = _swift_js_take_exception() {
+        throw error
+    }
+    return String.bridgeJSLiftReturn(ret)
 }
 
 #if arch(wasm32)
