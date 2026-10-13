@@ -124,6 +124,51 @@
 
                   }
                 }
+              },
+              {
+                "accessLevel" : "internal",
+                "name" : "__swuid",
+                "type" : {
+                  "double" : {
+
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "name" : "nodeType",
+                "type" : {
+                  "double" : {
+
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "name" : "tagName",
+                "type" : {
+                  "string" : {
+
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "name" : "childNodes",
+                "type" : {
+                  "jsObject" : {
+                    "_0" : "SWNodeList"
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "name" : "style",
+                "type" : {
+                  "jsObject" : {
+                    "_0" : "SWStyle"
+                  }
+                }
               }
             ],
             "methods" : [
@@ -275,7 +320,135 @@
 
                   }
                 }
+              },
+              {
+                "accessLevel" : "internal",
+                "functionName" : "__swuid_set",
+                "name" : "__swuid",
+                "type" : {
+                  "double" : {
+
+                  }
+                }
               }
+            ],
+            "staticMethods" : [
+
+            ]
+          },
+          {
+            "accessLevel" : "internal",
+            "getters" : [
+              {
+                "accessLevel" : "internal",
+                "name" : "length",
+                "type" : {
+                  "double" : {
+
+                  }
+                }
+              }
+            ],
+            "methods" : [
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "item",
+                "parameters" : [
+                  {
+                    "name" : "index",
+                    "type" : {
+                      "double" : {
+
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "jsObject" : {
+                    "_0" : "SWNode"
+                  }
+                }
+              }
+            ],
+            "name" : "SWNodeList",
+            "setters" : [
+
+            ],
+            "staticMethods" : [
+
+            ]
+          },
+          {
+            "accessLevel" : "internal",
+            "getters" : [
+
+            ],
+            "methods" : [
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "setProperty",
+                "parameters" : [
+                  {
+                    "name" : "name",
+                    "type" : {
+                      "string" : {
+
+                      }
+                    }
+                  },
+                  {
+                    "name" : "value",
+                    "type" : {
+                      "string" : {
+
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "void" : {
+
+                  }
+                }
+              },
+              {
+                "accessLevel" : "internal",
+                "effects" : {
+                  "isAsync" : false,
+                  "isStatic" : false,
+                  "isThrows" : true
+                },
+                "name" : "removeProperty",
+                "parameters" : [
+                  {
+                    "name" : "name",
+                    "type" : {
+                      "string" : {
+
+                      }
+                    }
+                  }
+                ],
+                "returnType" : {
+                  "string" : {
+
+                  }
+                }
+              }
+            ],
+            "name" : "SWStyle",
+            "setters" : [
+
             ],
             "staticMethods" : [
 

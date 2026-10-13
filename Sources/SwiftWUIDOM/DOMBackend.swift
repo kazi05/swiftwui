@@ -133,14 +133,14 @@ public final class DOMBackend: RendererBackend {
     public init(dispatch: @escaping (ListenerID, Any?) -> Void) { self.dispatch = dispatch }
 
     public func createElement(_ tag: String) -> JSObject {
-        let el = try! swDocument.createElement(tag).jsObject
-        el.__swuid = .number(Double(nextUID)); nextUID += 1
-        return el
+        let el = try! swDocument.createElement(tag)
+        try! el.set__swuid(Double(nextUID)); nextUID += 1
+        return el.jsObject
     }
     public func createTextNode(_ text: String) -> JSObject {
-        let n = try! swDocument.createTextNode(text).jsObject
-        n.__swuid = .number(Double(nextUID)); nextUID += 1
-        return n
+        let n = try! swDocument.createTextNode(text)
+        try! n.set__swuid(Double(nextUID)); nextUID += 1
+        return n.jsObject
     }
     public func setText(_ node: JSObject, _ text: String) {
         try! SWNode(unsafelyWrapping: node).setData(text)
@@ -161,18 +161,17 @@ public final class DOMBackend: RendererBackend {
         }
         setAttribute(node, name: name, value: url)
     }
-    // No bridged CSSStyleDeclaration binding — dynamic JSObject call, same
-    // idiom as the other ad hoc DOM calls in this file (e.g. setStylesheet's
-    // `el.setAttribute`, setMetaTags' `removeChild`).
+    // Typed `SWStyle` calls (bridge-js.global.d.ts). `try?`, not `try!`: a
+    // failed inline-style write is ignored rather than trapping.
     public func setStyleProperty(_ node: JSObject, name: String, value: String) {
-        _ = node.style.object?.setProperty?(name, value)
+        try? SWNode(unsafelyWrapping: node).style.setProperty(name, value)
         if name == "view-transition-name" {
             purgeNamedHost(node)   // drop whatever name this node had before (rename or → "none")
             if value != "none" { namedHosts[value] = node }
         }
     }
     public func removeStyleProperty(_ node: JSObject, name: String) {
-        _ = node.style.object?.removeProperty?(name)
+        _ = try? SWNode(unsafelyWrapping: node).style.removeProperty(name)
         if name == "view-transition-name" { purgeNamedHost(node) }
     }
     /// Removes every entry pointing at `node`, regardless of key. `JSObject`'s
@@ -490,9 +489,10 @@ public final class DOMBackend: RendererBackend {
     private func closureKey(_ node: JSObject, _ event: String) -> String {
         "\(uid(of: node))#\(event)"
     }
-    /// -1 = unstamped.
+    /// -1 = unstamped (the typed getter reads a missing expando as NaN).
     private func uid(of node: JSObject) -> Int {
-        Int(node.__swuid.number ?? -1)
+        let uid = (try? SWNode(unsafelyWrapping: node).__swuid) ?? .nan
+        return uid.isNaN ? -1 : Int(uid)
     }
 
     private var styleElement: JSObject?
@@ -1352,22 +1352,23 @@ public final class DOMBackend: RendererBackend {
 
     // MARK: Hydration read API (phase 5, spec §10)
     public func childCount(of node: JSObject) -> Int {
-        Int(node.childNodes.length.number ?? 0)
+        Int(try! SWNode(unsafelyWrapping: node).childNodes.length)
     }
     public func child(of node: JSObject, at index: Int) -> JSObject {
-        let c = node.childNodes.item(index).object!
+        let c = try! SWNode(unsafelyWrapping: node).childNodes.item(Double(index))
         // Adopted nodes (hydration) never went through createElement/createTextNode,
         // so they lack the __swuid stamp — without it every adopted node's
         // closureKey collapses to "-1#event" (C1: listener registry collisions).
-        if c.__swuid.isUndefined || c.__swuid.isNull {
-            c.__swuid = .number(Double(nextUID)); nextUID += 1
+        if try! c.__swuid.isNaN {
+            try! c.set__swuid(Double(nextUID)); nextUID += 1
         }
-        return c
+        return c.jsObject
     }
     public func tagName(of node: JSObject) -> String? {
-        // nodeType 1 = element; DOM tagName is uppercase — normalize.
-        guard node.nodeType.number == 1 else { return nil }
-        return node.tagName.string?.lowercased()
+        // nodeType 1 = element; HTML tagName is uppercase, SVG's is not — normalize.
+        let n = SWNode(unsafelyWrapping: node)
+        guard try! n.nodeType == 1 else { return nil }
+        return try! n.tagName.lowercased()
     }
 }
 #endif
