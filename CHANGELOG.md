@@ -58,9 +58,8 @@ Notable changes to SwiftWUI. Format loosely follows
   that never boots.
 - Long-lived pages no longer leak a JS closure (and everything it captures)
   per removed listener, element observer, fetch, form submit or visibility
-  binding. A 1,500-row
-  list unmounted and remounted five times kept 7,500 extra JavaScriptKit
-  objects alive; it now keeps none.
+  binding. A 1,500-row list unmounted and remounted five times kept 7,500
+  extra JavaScriptKit objects alive; it now keeps none.
 - `swiftwui ssg` no longer refuses every page in projects under `/tmp`,
   `$TMPDIR` or `/private` (macOS), and an output directory reached through a
   symlink is written into the link's target instead of being refused for every
@@ -78,8 +77,9 @@ Notable changes to SwiftWUI. Format loosely follows
   `JSTypedClosure`, and whatever it captured: a `JSClosure` is never freed in
   default JavaScriptKit builds. A call from JavaScript after `dispose()` throws
   instead of running Swift. The scaffold now needs Swift 6.4: Swift 6.3 cannot
-  disambiguate the closure initializers BridgeJS generates for it. The scaffolder never overwrites existing files, so projects scaffolded
-  earlier migrate by hand: move every `export function` line from
+  disambiguate the closure initializers BridgeJS generates for it. The
+  scaffolder never overwrites existing files, so projects scaffolded earlier
+  migrate by hand: move every `export function` line from
   `Interop/Sources/AppInterop/bridge-js.d.ts` to `bridge-js.global.d.ts`,
   except `interopSubscribe`, which you delete; keep `bridge-js.d.ts` itself,
   comment-only, because generation fails without it. Then replace
