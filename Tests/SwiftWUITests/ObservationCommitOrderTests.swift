@@ -62,12 +62,28 @@ private struct CommitOrderTwoWrites: Tag {
     let model: CommitOrderModel
     let tally: CommitOrderTally
     var body: some Tag {
-        // Stops reading after five renders, so a re-entrant loop fails the test instead of hanging it.
+        // Stops reading after five renders, so a re-entrant loop fails this test instead of
+        // overflowing the stack and killing the run.
         let count = tally.counts.count < 5 ? model.count : -1
         tally.counts.append(count)
         return Div {
             Text("count=\(count)")
             Button("twice") { model.count = 1; model.count = 2 }
+        }
+    }
+}
+
+private struct CommitOrderWriteBack: Tag {
+    let model: CommitOrderModel
+    let tally: CommitOrderTally
+    var body: some Tag {
+        tally.counts.append(model.count)
+        return Div {
+            Text("count=\(model.count)")
+            Button("go") { model.count = 1 }
+        }
+        .onChange(of: model.count) { _, new in
+            if new == 1 { model.count = 2 }
         }
     }
 }
@@ -121,6 +137,20 @@ private struct CommitOrderTwoWrites: Tag {
         let backend = MockBackend()
         let runtime = Runtime(backend: backend, container: backend.container,
                               root: CommitOrderTwoWrites(model: model, tally: tally),
+                              scheduleMicrotask: { $0() })
+        runtime.mount()
+        runtime.dispatch(findFirst(backend.container, tag: "button")!.events["click"]!)
+        #expect(backend.serializeHTML().contains("count=2"), "\(backend.serializeHTML())")
+        #expect(tally.counts == [0, 1, 2])
+    }
+
+    /// The write-back lands while the flush that a didSet callback started is still on the stack.
+    @Test @available(macOS 27, *) func immediateSchedulerKeepsAnOnChangeWriteBack() {
+        let model = CommitOrderModel()
+        let tally = CommitOrderTally()
+        let backend = MockBackend()
+        let runtime = Runtime(backend: backend, container: backend.container,
+                              root: CommitOrderWriteBack(model: model, tally: tally),
                               scheduleMicrotask: { $0() })
         runtime.mount()
         runtime.dispatch(findFirst(backend.container, tag: "button")!.events["click"]!)

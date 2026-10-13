@@ -91,9 +91,11 @@ private final class UploadFixtureServer {
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             process.waitUntilExit()
             // `env` exits 127 when python3 is missing, as in the official swift:*-noble images.
+            #if compiler(>=6.3)   // Test.cancel is new in Swift Testing 6.3
             if process.terminationReason == .exit, process.terminationStatus == 127 {
                 try Test.cancel("python3 is not on PATH; the upload fixture server needs it")
             }
+            #endif
             throw error
         }
     }
