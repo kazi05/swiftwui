@@ -139,8 +139,8 @@ bodies with one-shot `withObservationTracking(options: .didSet)` where SE-0506
 exists. A separate script supports paired type-check timing.
 
 The [Embedded experiment](../Experiments/README.md) builds the **same** tiny
-stateful exported counter with ordinary and Embedded Swift 6.3.3. Both passed
-Node WASI export/state checks: 7,086,080 versus 20,115 bytes. This fixture has no
+stateful exported counter with ordinary and Embedded Swift 6.4.0. Both passed
+Node WASI export/state checks: 7,160,951 versus 43,606 bytes. This fixture has no
 DOM or SwiftWUI runtime; those figures cannot be compared with the Counter app.
 A complete Embedded SwiftWUI profile remains unavailable because reflection,
 AnyHashable, Observation, serialization, Foundation and the browser ABI still

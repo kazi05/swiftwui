@@ -41,10 +41,12 @@ otherwise the pinned id, otherwise the first non-embedded id containing
 directory; `-c debug` builds unoptimized.
 
 The wasm build uses its own `.build-wasm` scratch directory rather than the
-`.build` that `swift build`, `swift test`, and `swift run` use. Mixing a
-native build and a wasm build under one `.build` corrupts SwiftPM's
-`.build/debug` triple symlink, and the next native `swift run` fails with
-"No target named …-debug.exe". Keep using the CLI and you never see it.
+`.build` that `swift build`, `swift test`, and `swift run` use. On Swift 6.4's
+default build system, a wasm build into `.build` re-points `.build/debug` at
+the wasm products until the next native build, so tools run as
+`.build/debug/<name>` go missing; on Swift 6.3, the next native `swift run`
+fails with "No target named …-debug.exe". Keep using the CLI and you never see
+it.
 
 ### Build first, then prerender
 

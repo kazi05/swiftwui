@@ -56,8 +56,8 @@ enum DependencyStore {
     static var cachedDefaults: [ObjectIdentifier: Any] = [:]
 
     /// True when the process is a test run. Swift Testing links its stable
-    /// ABI entry point into the runner; XCTest sets an env var. Tests never
-    /// run on wasm.
+    /// ABI entry point into the runner; XCTest sets an env var. Always false on
+    /// wasm, so a `swift test --swift-sdk <wasm>` run resolves `liveValue`.
     static let isTesting: Bool = {
         #if arch(wasm32)
         return false
